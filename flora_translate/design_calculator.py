@@ -388,8 +388,15 @@ class DesignCalculator:
         analogies: list[dict] | None = None,
         target_flow_rate_mL_min: float | None = None,
         target_tubing_ID_mm: float | None = None,
+        target_residence_time_min: float | None = None,
     ) -> DesignCalculations:
-        """Execute all 9 steps and return a consistent DesignCalculations."""
+        """Execute all 9 steps and return a consistent DesignCalculations.
+
+        target_residence_time_min: When the ENGINE council has approved a specific
+        τ, pass it here.  Step 2 will use it directly instead of re-deriving from
+        batch kinetics — making the council's decision the authoritative source.
+        All downstream geometry (V_R, L, Re, ΔP) is computed FROM this τ.
+        """
         calc = DesignCalculations()
 
         # Initial geometry from proposal, overrides, or defaults
@@ -418,7 +425,17 @@ class DesignCalculator:
                 T_flow_C = proposal.temperature_C
 
         self._step1(calc, batch_record)
-        self._step2(calc, batch_record, chemistry_plan, analogies, T_flow_C)
+        # Step 2: if the council approved a specific τ, use it directly.
+        # Otherwise run the kinetics-based estimation from batch data.
+        tau_override = target_residence_time_min or (
+            proposal.residence_time_min
+            if proposal and proposal.residence_time_min and proposal.residence_time_min > 0
+            else None
+        )
+        if tau_override and tau_override > 0:
+            self._step2_override(calc, tau_override, batch_record, chemistry_plan, analogies)
+        else:
+            self._step2(calc, batch_record, chemistry_plan, analogies, T_flow_C)
         self._steps345(calc, Q_init, d_init, solvent, inventory, is_photochem)
         self._step6(calc)
         self._step7(calc, batch_record, chemistry_plan, solvent)
@@ -822,6 +839,59 @@ class DesignCalculator:
             status=status, summary=summary,
             values=values,
             equations=equations, assumptions=assumptions, warnings=warnings,
+        ))
+
+    # ═══════════════════════════════════════════════════════════════════
+    #  Step 2 (override) — Use council-approved τ directly
+    #  Called when a validated proposal already has a specific τ.
+    #  All derived quantities (V_R, L, Re, ΔP) will be computed FROM
+    #  this τ — it is the authoritative source, not re-derived from kinetics.
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _step2_override(self, calc, tau_min: float, batch_record, chemistry_plan,
+                        analogies=None):
+        """Set τ directly from the approved value, compute kinetics context."""
+        tau_s = tau_min * 60.0
+        calc.residence_time_min = round(tau_min, 2)
+        calc.residence_time_s = tau_s
+        calc.kinetics_method = "council-approved"
+        calc.residence_time_range_min = (round(tau_min * 0.8, 2), round(tau_min * 1.2, 2))
+
+        # Still compute IF for context / display — but it is NOT used to derive τ
+        t_batch = calc.batch_time_s
+        chem_type = _detect_chemistry(batch_record, chemistry_plan)
+        IF_class = INTENSIFICATION.get(chem_type, INTENSIFICATION["default"])
+        calc.if_class = IF_class
+        analogy_factors = self._extract_analogy_IFs(analogies)
+        n_analogy = len(analogy_factors)
+        calc.n_analogy_datapoints = n_analogy
+        if n_analogy >= 1:
+            import statistics
+            calc.if_analogy = round(statistics.median(analogy_factors), 1)
+
+        # Back-calculate what IF this τ implies (for display only)
+        if t_batch > 0:
+            implied_IF = t_batch / tau_s
+            calc.intensification_factor = round(implied_IF, 1)
+        else:
+            calc.intensification_factor = IF_class
+
+        summary = (
+            f"τ = {tau_min:.1f} min (council-approved — not re-derived from kinetics). "
+            f"Implied IF = {calc.intensification_factor:.0f}× vs batch."
+        )
+
+        self._emit(calc, StepResult(
+            step=2, name="Kinetics & Residence Time",
+            status="PASS",
+            summary=summary,
+            values={
+                "tau_primary_min": tau_min,
+                "method": "council-approved",
+                "IF_implied": calc.intensification_factor,
+                "IF_class": IF_class,
+            },
+            assumptions=["τ set by ENGINE council — kinetics estimation bypassed"],
         ))
 
     # ═══════════════════════════════════════════════════════════════════

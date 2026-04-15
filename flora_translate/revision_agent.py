@@ -20,7 +20,7 @@ import anthropic
 
 from flora_translate.config import LAB_INVENTORY_PATH, TRANSLATION_MODEL
 from flora_translate.design_calculator import DesignCalculator
-from flora_translate.engine.moderator import Moderator
+from flora_translate.engine.orchestrator import Orchestrator
 from flora_translate.input_parser import InputParser
 from flora_translate.output_formatter import OutputFormatter
 from flora_translate.schemas import (
@@ -158,7 +158,7 @@ class RevisionAgent:
         #   rounds since the LLM already produced a coherent proposal.
         logger.info("  Step 3/5: ENGINE validation")
         original_analogies = current_result.get("_analogies", [])
-        design_candidate, calculations = Moderator().run(
+        design_candidate, calculations = Orchestrator().run(
             revised_proposal,
             batch_record,
             analogies=original_analogies,
@@ -175,6 +175,9 @@ class RevisionAgent:
         result["revision_summary"] = changes_summary
         # Preserve analogies for future revisions
         result["_analogies"] = original_analogies
+        # Attach deliberation log
+        if design_candidate.deliberation_log:
+            result["deliberation_log"] = design_candidate.deliberation_log.model_dump()
 
         # ── 6. Rebuild topology + diagram ──────────────────────────────────
         logger.info("  Step 5/5: Topology & diagram")

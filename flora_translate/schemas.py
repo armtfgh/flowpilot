@@ -398,7 +398,7 @@ class DesignResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# ENGINE — Council Messages
+# ENGINE — Council Messages (legacy, kept for backward compatibility)
 # ---------------------------------------------------------------------------
 
 
@@ -412,6 +412,62 @@ class CouncilMessage(BaseModel):
     suggested_revision: Optional[str] = None
 
 
+# ---------------------------------------------------------------------------
+# ENGINE — Deliberation Log (new: LLM-powered multi-agent council)
+# ---------------------------------------------------------------------------
+
+
+class FieldProposal(BaseModel):
+    """A single concrete, machine-applicable design change proposed by an agent."""
+    field: str = ""                       # FlowProposal field name, e.g. "residence_time_min"
+    value: str = ""                       # Target value as string, e.g. "15.0"
+    reason: str = ""                      # Why this change is needed
+
+
+class AgentDeliberation(BaseModel):
+    """One agent's contribution in a single deliberation round.
+
+    Agents READ the DesignCalculator output (authoritative physics) and
+    INTERPRET it — they do not re-derive Re, ΔP, Da, etc.  Their role
+    is to assess whether the design is adequate in their domain and
+    propose concrete field-level changes when it is not.
+    """
+    agent: str = ""                      # "KineticsSpecialist", etc.
+    agent_display_name: str = ""         # "Dr. Kinetics", etc.
+    round: int = 1
+    chain_of_thought: str = ""           # Full reasoning (shown to user)
+    values_referenced: list[str] = Field(default_factory=list)  # Calculator values cited
+    findings: list[str] = Field(default_factory=list)       # Bullet-point findings
+    proposals: list[FieldProposal] = Field(default_factory=list)  # Structured changes
+    concerns: list[str] = Field(default_factory=list)       # Issues raised
+    status: str = "ACCEPT"               # "ACCEPT" / "WARNING" / "REVISE"
+    had_error: bool = False              # True if agent LLM call failed — blocks convergence
+    references_to_agents: list[str] = Field(default_factory=list)
+    rules_cited: list[str] = Field(default_factory=list)
+
+
+class SanityCheckResult(BaseModel):
+    """Central orchestrator's cross-agent consistency check."""
+    round: int = 1
+    consistent: bool = True
+    chain_of_thought: str = ""
+    conflicts_found: list[str] = Field(default_factory=list)
+    resolutions: list[str] = Field(default_factory=list)
+    # Only simple numeric/string FlowProposal fields — no lists, no nested objects
+    final_changes: dict[str, str] = Field(default_factory=dict)
+
+
+class DeliberationLog(BaseModel):
+    """Complete record of the multi-agent deliberation process."""
+    rounds: list[list[AgentDeliberation]] = Field(default_factory=list)
+    sanity_checks: list[SanityCheckResult] = Field(default_factory=list)
+    total_rounds: int = 0
+    consensus_reached: bool = False
+    # Cumulative record of all field changes applied across all rounds
+    all_changes_applied: dict[str, str] = Field(default_factory=dict)
+    summary: str = ""                    # Human-readable summary of deliberation
+
+
 class DesignCandidate(BaseModel):
     proposal: FlowProposal
     chemistry_plan: Optional[ChemistryPlan] = None
@@ -421,3 +477,4 @@ class DesignCandidate(BaseModel):
     unit_operations: list[str] = Field(default_factory=list)
     pid_description: str = ""
     human_explanation: str = ""
+    deliberation_log: Optional[DeliberationLog] = None

@@ -238,7 +238,6 @@ def _render_result(result: dict, key_prefix: str = ""):
         "Process Diagram",
         "Chemistry Plan & Recipe",
         "Stream Assignments",
-        "Conditions",
         "Council Deliberation",
         "Council Report",
         "Raw JSON",
@@ -259,6 +258,31 @@ def _render_result(result: dict, key_prefix: str = ""):
             render_design_steps(design_calc, key_prefix=f"{key_prefix}_ds")
         else:
             st.info("No design calculations available for this result.")
+        # Per-reactor breakdown from topology
+        topo_for_eng = result.get("process_topology", {})
+        reactor_ops = [
+            op for op in topo_for_eng.get("unit_operations", [])
+            if op.get("op_type") in ("coil_reactor", "reactor", "heated_coil",
+                                      "photoreactor", "chip_reactor",
+                                      "packed_bed", "packed_bed_reactor")
+        ]
+        if len(reactor_ops) > 1:
+            st.divider()
+            st.markdown("### Per-Reactor Breakdown")
+            for idx, rop in enumerate(reactor_ops, 1):
+                p = rop.get("parameters", {})
+                with st.expander(f"Reactor {idx}: {rop.get('label', '?')}", expanded=True):
+                    cols = st.columns(4)
+                    cols[0].metric("τ", f"{p.get('residence_time_min', '?')} min")
+                    cols[1].metric("Volume", f"{p.get('volume_mL', '?')} mL")
+                    cols[2].metric("ID", f"{p.get('ID_mm', '?')} mm")
+                    cols[3].metric("Temperature", f"{p.get('temperature_C', '?')} °C")
+                    c2 = st.columns(3)
+                    c2[0].metric("Material", p.get("material", "?"))
+                    length = p.get("length_m")
+                    c2[1].metric("Length", f"{length} m" if length else "?")
+                    wl = p.get("wavelength_nm")
+                    c2[2].metric("Wavelength", f"{wl} nm" if wl else "N/A")
 
     with tabs[2]:
         from components.process_diagram import render_process_diagram
@@ -290,12 +314,9 @@ def _render_result(result: dict, key_prefix: str = ""):
         _render_streams(proposal)
 
     with tabs[5]:
-        _render_conditions(proposal)
-
-    with tabs[6]:
         _render_council_deliberation(result)
 
-    with tabs[7]:
+    with tabs[6]:
         from components.council_report import render_council_report
         class _C:
             def __init__(self, r):
@@ -304,7 +325,7 @@ def _render_result(result: dict, key_prefix: str = ""):
                 self.council_messages = r.get("council_messages", [])
         render_council_report(_C(result))
 
-    with tabs[8]:
+    with tabs[7]:
         st.json(result)
 
     from components.feedback import render_feedback_widget
@@ -392,7 +413,192 @@ def _render_conditions(proposal: dict):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _render_council_deliberation(result: dict):
-    """Render the ENGINE council as an LLM-generated conversational discussion."""
+    """Render the ENGINE council deliberation with full chain-of-thought."""
+    delib_log = result.get("deliberation_log")
+    proposal = result.get("proposal", {})
+    rounds_count = result.get("council_rounds", 0)
+
+    if not delib_log:
+        # Fallback to legacy format
+        _render_legacy_deliberation(result)
+        return
+
+    rounds = delib_log.get("rounds", [])
+    sanity_checks = delib_log.get("sanity_checks", [])
+    total_rounds = delib_log.get("total_rounds", len(rounds))
+    consensus = delib_log.get("consensus_reached", False)
+
+    st.markdown(f"### Multi-Agent Deliberation — {total_rounds} Round{'s' if total_rounds != 1 else ''}")
+
+    # ── Header stats ──────────────────────────────────────────────────
+    all_deliberations = [d for rnd in rounds for d in rnd]
+    n_accept = sum(1 for d in all_deliberations if d.get("status") == "ACCEPT")
+    n_warn   = sum(1 for d in all_deliberations if d.get("status") == "WARNING")
+    n_revise = sum(1 for d in all_deliberations if d.get("status") == "REVISE")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Rounds", total_rounds)
+    c2.metric("Accepted", n_accept)
+    c3.metric("Warnings", n_warn)
+    c4.metric("Revisions", n_revise)
+
+    _STATUS_ICONS = {"ACCEPT": "✅", "WARNING": "⚠️", "REVISE": "🔄"}
+    _AGENT_AVATARS = {
+        "Dr. Kinetics": "⏱️",
+        "Dr. Fluidics": "🌊",
+        "Dr. Safety": "🛡️",
+        "Dr. Chemistry": "🧪",
+        "Dr. Process": "🏗️",
+        "Chief Engineer": "👷",
+    }
+
+    # ── Round-by-round rendering ──────────────────────────────────────
+    for r_idx, round_delibs in enumerate(rounds):
+        round_num = r_idx + 1
+        st.divider()
+        st.markdown(f"#### Round {round_num}" +
+                    (" — Independent Analysis" if round_num == 1 else " — Cross-Agent Debate"))
+
+        for d in round_delibs:
+            agent_name = d.get("agent_display_name", d.get("agent", "?"))
+            status = d.get("status", "?")
+            had_error = d.get("had_error", False)
+            icon = "💥" if had_error else _STATUS_ICONS.get(status, "•")
+            avatar = _AGENT_AVATARS.get(agent_name, "🤖")
+            error_suffix = " [ERROR — blocks convergence]" if had_error else ""
+
+            with st.expander(
+                f"{avatar} {agent_name} — {icon} {status}{error_suffix}",
+                expanded=(status != "ACCEPT" or had_error),
+            ):
+                # Chain of thought
+                cot = d.get("chain_of_thought", "")
+                if cot:
+                    st.markdown(cot)
+
+                # Values Referenced (from DesignCalculator)
+                calcs = d.get("values_referenced", d.get("calculations", []))
+                if calcs:
+                    st.markdown("**Values Referenced:**")
+                    for calc in calcs:
+                        st.code(calc, language=None)
+
+                # Findings
+                findings = d.get("findings", [])
+                if findings:
+                    st.markdown("**Findings:**")
+                    for f in findings:
+                        st.markdown(f"- {f}")
+
+                # Proposals (structured FieldProposal objects)
+                proposals = d.get("proposals", [])
+                if proposals:
+                    st.markdown("**Proposals:**")
+                    for p in proposals:
+                        if isinstance(p, dict) and p.get("field"):
+                            st.info(f"💡 `{p['field']}` → **{p['value']}** — {p.get('reason', '')}")
+                        elif isinstance(p, dict) and p.get("reason"):
+                            st.info(f"💡 {p['reason']}")
+                        elif isinstance(p, str):
+                            st.info(f"💡 {p}")
+
+                # Concerns
+                concerns = d.get("concerns", [])
+                if concerns:
+                    st.markdown("**Concerns:**")
+                    for c in concerns:
+                        st.warning(c)
+
+                # References to other agents
+                refs = d.get("references_to_agents", [])
+                if refs:
+                    st.caption("References: " + ", ".join(refs))
+
+                # Rules cited
+                rules = d.get("rules_cited", [])
+                if rules:
+                    st.caption("Handbook rules cited: " + ", ".join(rules[:5]))
+
+        # ── Sanity check for this round ───────────────────────────────
+        if r_idx < len(sanity_checks):
+            sc = sanity_checks[r_idx]
+            st.divider()
+            with st.expander(f"👷 Chief Engineer — Sanity Check (Round {round_num})",
+                             expanded=bool(sc.get("conflicts_found"))):
+                sc_cot = sc.get("chain_of_thought", "")
+                if sc_cot:
+                    st.markdown(sc_cot)
+
+                conflicts = sc.get("conflicts_found", [])
+                if conflicts:
+                    st.markdown("**Conflicts found:**")
+                    for c in conflicts:
+                        st.error(c)
+
+                resolutions = sc.get("resolutions", [])
+                if resolutions:
+                    st.markdown("**Resolutions:**")
+                    for r in resolutions:
+                        st.success(r)
+
+                changes = sc.get("final_changes", {})
+                if changes:
+                    st.markdown("**Applied changes:**")
+                    for field, val in changes.items():
+                        st.markdown(f"- `{field}` → **{val}**")
+
+    # ── Final outcome ─────────────────────────────────────────────────
+    st.divider()
+    # Build final design parameters string — always show τ, Q, V_R plus any
+    # field that was actually changed during deliberation
+    _FIELD_LABELS = {
+        "residence_time_min": ("τ", "min"),
+        "flow_rate_mL_min": ("Q", "mL/min"),
+        "reactor_volume_mL": ("V_R", "mL"),
+        "tubing_ID_mm": ("d", "mm"),
+        "tubing_material": ("material", ""),
+        "temperature_C": ("T", "°C"),
+        "concentration_M": ("C", "M"),
+        "BPR_bar": ("BPR", "bar"),
+        "wavelength_nm": ("λ", "nm"),
+        "deoxygenation_method": ("degas", ""),
+        "mixer_type": ("mixer", ""),
+    }
+    always_show = ["residence_time_min", "flow_rate_mL_min", "reactor_volume_mL"]
+    changed_fields = list(delib_log.get("all_changes_applied", {}).keys())
+    show_fields = list(dict.fromkeys(always_show + changed_fields))  # preserve order, dedupe
+
+    param_parts = []
+    for field in show_fields:
+        if field not in _FIELD_LABELS:
+            continue
+        label, unit = _FIELD_LABELS[field]
+        val = proposal.get(field, "?")
+        suffix = f" {unit}" if unit else ""
+        marker = " ★" if field in changed_fields else ""  # star = modified by council
+        param_parts.append(f"{label} = {val}{suffix}{marker}")
+    param_str = "  ·  ".join(param_parts)
+
+    if consensus:
+        msg = (
+            f"Consensus reached after {total_rounds} round{'s' if total_rounds != 1 else ''}  "
+            f"·  {param_str}"
+        )
+        if changed_fields:
+            msg += f"  ·  (★ = modified by council: {', '.join(changed_fields)})"
+        st.success(msg)
+    else:
+        n_errors = sum(
+            1 for rnd in rounds for d in rnd if d.get("had_error")
+        )
+        warning_msg = f"Max rounds ({total_rounds}) reached"
+        if n_errors:
+            warning_msg += f" — {n_errors} agent error(s) prevented convergence"
+        warning_msg += f"  ·  {param_str}"
+        st.warning(warning_msg)
+
+
+def _render_legacy_deliberation(result: dict):
+    """Fallback renderer for results without the new deliberation log."""
     msgs_raw = result.get("council_messages", [])
     rounds = result.get("council_rounds", 0)
     proposal = result.get("proposal", {})
@@ -401,7 +607,6 @@ def _render_council_deliberation(result: dict):
         st.info("No council deliberation data available.")
         return
 
-    # Normalise messages to dicts
     msgs = []
     for m in msgs_raw:
         if isinstance(m, dict):
@@ -411,88 +616,31 @@ def _render_council_deliberation(result: dict):
 
     st.markdown(f"### Council Review — {rounds} Round{'s' if rounds != 1 else ''}")
 
-    # Header: quick stats
-    n_reject = sum(1 for m in msgs if m.get("status") == "REJECT")
-    n_warn   = sum(1 for m in msgs if m.get("status") == "WARNING")
-    n_accept = sum(1 for m in msgs if m.get("status") == "ACCEPT")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Corrections", n_reject, delta=None)
-    c2.metric("Warnings", n_warn, delta=None)
-    c3.metric("Accepted", n_accept, delta=None)
+    _ICONS = {"REJECT": "❌", "WARNING": "⚠️", "ACCEPT": "✅"}
+    _NAMES = {
+        "DesignCalculator": "Physics Engine",
+        "KineticsAgent": "Dr. Kinetics", "KineticsSpecialist": "Dr. Kinetics",
+        "FluidicsAgent": "Dr. Fluidics", "FluidicsSpecialist": "Dr. Fluidics",
+        "SafetyCriticAgent": "Dr. Safety", "SafetySpecialist": "Dr. Safety",
+        "ChemistryValidator": "Dr. Chemistry", "ChemistrySpecialist": "Dr. Chemistry",
+        "ProcessArchitectAgent": "Dr. Process", "IntegrationSpecialist": "Dr. Process",
+    }
+    for m in msgs:
+        agent = m.get("agent", "?")
+        status = m.get("status", "?")
+        concern = m.get("concern", "")
+        value = m.get("value", "")
+        icon = _ICONS.get(status, "•")
+        name = _NAMES.get(agent, agent)
+        text = concern or value or "OK"
+        st.markdown(f"{icon} **{name}**: {text[:200]}")
 
-    # Cache key: hash of messages so regeneration happens on new result
-    cache_key = f"council_conv_{hash(str(msgs_raw))}"
-
-    if cache_key not in st.session_state:
-        st.session_state[cache_key] = None
-
-    col_gen, col_clear = st.columns([3, 1])
-    with col_gen:
-        generate = st.button(
-            "Generate Council Discussion",
-            key=f"gen_{cache_key}",
-            type="primary",
-            help="Ask Claude to write the council meeting as a human conversation",
-        )
-    with col_clear:
-        if st.button("Clear", key=f"clear_{cache_key}"):
-            st.session_state[cache_key] = None
-            st.rerun()
-
-    if generate or st.session_state[cache_key]:
-        if generate or st.session_state[cache_key] is None:
-            with st.spinner("Generating council discussion..."):
-                from components.council_conversation import generate_council_conversation
-                conv = generate_council_conversation(msgs, proposal, rounds)
-                st.session_state[cache_key] = conv
-
-        conv = st.session_state[cache_key]
-        if conv:
-            st.divider()
-            st.markdown(conv)
-        else:
-            st.error("Could not generate conversation — check API key / connection.")
-
-    else:
-        # Show raw message summary while not yet generated
-        st.divider()
-        st.markdown("*Click **Generate Council Discussion** to see the agents discuss the design in their own words.*")
-        st.divider()
-
-        # Fallback: compact chronological log
-        st.markdown("**Raw deliberation log:**")
-        _ICONS = {"REJECT": "❌", "WARNING": "⚠️", "ACCEPT": "✅"}
-        _NAMES = {
-            "DesignCalculator": "Physics Engine",
-            "KineticsAgent": "Dr. Kinetics",
-            "FluidicsAgent": "Dr. Fluidics",
-            "SafetyCriticAgent": "Safety Officer",
-            "ChemistryValidator": "Dr. Chemistry",
-            "ProcessArchitectAgent": "Process Architect",
-        }
-        for m in msgs:
-            agent = m.get("agent", "?")
-            status = m.get("status", "?")
-            field = m.get("field", "")
-            concern = m.get("concern", "")
-            value = m.get("value", "")
-            icon = _ICONS.get(status, "•")
-            name = _NAMES.get(agent, agent)
-            text = concern or value or "OK"
-            st.markdown(f"{icon} **{name}** on `{field}`: {text[:120]}")
-
-    # Final outcome bar
     st.divider()
     validated = proposal.get("engine_validated", False)
     if validated:
-        st.success(
-            f"✓ Design validated after {rounds} round{'s' if rounds != 1 else ''}  ·  "
-            f"τ = {proposal.get('residence_time_min', '?')} min  ·  "
-            f"Q = {proposal.get('flow_rate_mL_min', '?')} mL/min  ·  "
-            f"V_R = {proposal.get('reactor_volume_mL', '?')} mL"
-        )
+        st.success(f"Design validated after {rounds} rounds")
     else:
-        st.warning("Design did not fully converge — review warnings above.")
+        st.warning("Design did not fully converge.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -2,16 +2,16 @@
 
 ## Technical Briefing Document
 
-**Version:** 1.5 | April 2026
+**Version:** 2.1 | April 2026
 **Status:** Active Development
-**Codebase:** ~17,500+ lines across 65+ files
-**Last major update:** April 2026 — Engineering Overhaul (9-step design calculator, calculation-driven ENGINE council, diagram improvements, recipe tab, council deliberation)
+**Codebase:** ~19,500+ lines across 70+ files
+**Last major update:** April 2026 — τ Source-of-Truth Fix (single authoritative residence time across proposal, design calculations, diagram, and explanation; DesignCalculator council-approved override path; OutputFormatter anchor injection)
 
 ---
 
 ## 1. Executive Summary
 
-FLORA is an AI-powered platform that automates the translation of batch chemistry protocols into validated continuous flow process designs. It combines **literature-grounded retrieval-augmented generation (RAG)**, **multi-agent engineering validation**, **deep chemistry reasoning**, and **handbook-level foundational knowledge** to produce proposals that a process chemist can take directly to the lab.
+FLORA is an AI-powered platform that automates the translation of batch chemistry protocols into validated continuous flow process designs. It combines **literature-grounded retrieval-augmented generation (RAG)**, a **multi-agent deliberation council** where five LLM-powered specialist engineers debate and converge on designs, **deep chemistry reasoning**, and **handbook-level foundational knowledge** (2,537 rules from 6 textbooks) to produce proposals that a process chemist can take directly to the lab.
 
 The system addresses a core bottleneck in flow chemistry adoption: designing a flow process from a batch protocol requires deep domain expertise in reaction engineering, fluid dynamics, photochemistry, and hardware compatibility — knowledge that is scattered across hundreds of journal articles and textbooks. FLORA consolidates this knowledge into a queryable, validated pipeline.
 
@@ -25,7 +25,7 @@ FLORA returns:
 
 - A **validated flow design** with named chemical streams, reactor specifications, and operating conditions
 - A **process flow diagram** (SVG/PNG) showing actual chemicals in each stream
-- An **engineering validation report** covering pressure drop, kinetics, safety, and hardware compatibility
+- A **multi-agent engineering deliberation report** with full chain-of-thought from 5 specialist agents (kinetics, fluidics, safety, chemistry, process integration)
 - **Literature references** supporting every design decision
 - **Handbook-grounded rules** injected from an extracted fundamentals knowledge base
 - A **confidence score** (HIGH/MEDIUM/LOW) based on analogy quality
@@ -48,11 +48,12 @@ FLORA is structured as **six backend modules** sharing a common data layer, expo
 │  ┌──────┴────────────────┴────────────────────────┘              │
 │  │                  SHARED BACKEND                                │
 │  │                                                                │
-│  │  ┌─────────────┐  ┌──────────┐  ┌────────────────────────┐  │
-│  │  │ ENGINE      │  │ ChromaDB │  │ Lab Inventory          │  │
-│  │  │ Council     │  │ Vector   │  │ (hardware specs)       │  │
-│  │  │ (5 agents)  │  │ Store    │  └────────────────────────┘  │
-│  │  └─────────────┘  └──────────┘                               │
+│  │  ┌──────────────────┐ ┌──────────┐ ┌──────────────────────┐ │
+│  │  │ ENGINE Council   │ │ ChromaDB │ │ Lab Inventory        │ │
+│  │  │ (5 LLM agents + │ │ Vector   │ │ (hardware specs)     │ │
+│  │  │  Orchestrator +  │ │ Store    │ └──────────────────────┘ │
+│  │  │  2537 rules)     │ └──────────┘                          │
+│  │  └──────────────────┘                                        │
 │  │                                                                │
 │  │  ┌──────────────────────────────────────────────────────┐    │
 │  │  │ KNOWLEDGE PIPELINE                                    │    │
@@ -147,25 +148,26 @@ Batch Protocol (text or structured input)
     │  - Per-field reasoning citing analogies or chemistry rules
     │
     ▼
-[5] ENGINE VALIDATION COUNCIL (Layer 3)
-    Five independent agents validate the proposal.
-    Up to 3 revision rounds until convergence.
+[5] ENGINE DELIBERATION COUNCIL (Layer 3)
+    Five LLM-powered specialist agents deliberate the design:
     │
-    │  Chemistry Validator — wavelength matches catalyst absorption?
-    │                        incompatible pairs in separate streams?
-    │                        deoxygenation specified if O₂-sensitive?
+    │  Round 1 — Independent Analysis (5 parallel agents):
+    │    Dr. Kinetics    — τ validation, PFR design eq., Da analysis
+    │    Dr. Fluidics    — ΔP, Re, mixing quality, Dean vortices
+    │    Dr. Safety      — thermal runaway, ΔT_ad, material compat
+    │    Dr. Chemistry   — mechanism fidelity, Beer-Lambert, streams
+    │    Dr. Process     — unit ops sequence, STY, scale-up path
     │
-    │  Kinetics Agent     — residence time vs literature intensification
-    │                        factor (within 0.3x–3x of median?)
+    │  Each agent: chain-of-thought + calculations + proposals
+    │  Each agent receives 25 domain-specific handbook rules
     │
-    │  Fluidics Agent     — Hagen-Poiseuille pressure drop < pump max?
-    │                        Reynolds number in laminar regime?
+    │  Chief Engineer — cross-agent sanity check, conflict resolution
     │
-    │  Safety Critic      — tubing material compatible with solvent?
-    │                        temperature within material limits?
-    │                        BPR/light source available in lab inventory?
+    │  Round 2 — Cross-Agent Debate:
+    │    All agents see each other's Round 1 findings.
+    │    Agree, disagree, or refine with cross-domain reasoning.
     │
-    │  Process Architect  — builds ordered unit operations and P&ID
+    │  Round 3 — only if unresolved conflicts remain (max 3)
     │
     ▼
 [6] OUTPUT FORMATTING
@@ -259,12 +261,13 @@ Handbook PDFs (any size, outside or inside project)
 Saved to flora_fundamentals/data/rules.json
     │
     ▼ (automatic, no restart needed)
-Chemistry Agent injection
-    Every translation query automatically loads relevant rules
-    and appends them to the Chemistry Agent's system prompt.
-    Rules are filtered by category + keyword match to the
-    specific reaction context (mechanism type, solvent,
-    photocatalyst, O₂ sensitivity, temperature).
+Agent injection (Chemistry Agent + ENGINE Council)
+    Every translation query automatically loads relevant rules:
+    - Chemistry Agent: rules filtered by mechanism type, solvent,
+      photocatalyst, O₂ sensitivity, temperature.
+    - ENGINE Council: each specialist agent receives 25 rules
+      filtered by their domain (kinetics, fluidics, safety,
+      photochemistry, reactor design, scale-up, materials).
 ```
 
 **Cost savings:** Two-pass mode reduces Sonnet calls by ~60–70% on large handbooks.
@@ -334,24 +337,100 @@ Indexing
 
 ---
 
-## 4. The ENGINE — Multi-Agent Engineering Validation
+## 4. The ENGINE — Multi-Agent Deliberation Council
 
-The ENGINE is the shared validation layer used by both Translate and Design. It runs a **deliberation council** of five specialised agents.
+The ENGINE is the shared engineering validation layer used by both Translate and Design. It implements a **multi-agent deliberation architecture** where five LLM-powered specialist agents independently analyze, debate, and converge on a validated flow design.
 
-| Agent | What it checks | Method |
-|-------|---------------|--------|
-| **Chemistry Validator** | Wavelength ↔ photocatalyst match, incompatible reagent pairs in same stream, missing deoxygenation/quench, concentration sanity, light-sensitive feed lines | Rule-based against ChemistryPlan |
-| **Kinetics Agent** | Residence time reasonableness via intensification factor (batch time / flow time) compared to literature median | Statistical comparison |
-| **Fluidics Agent** | Pressure drop (Hagen-Poiseuille), Reynolds number, pump capacity | Physics calculation |
-| **Safety Critic** | Tubing-solvent compatibility, temperature limits, BPR/light source/reactor availability in lab inventory | Lookup tables |
-| **Process Architect** | Unit operation sequence, text-based P&ID | Construction |
+### 4.1 Architecture — LLM-Powered Specialist Agents
 
-**Convergence protocol — minimum 2 rounds always:**
-- **Round 1 (validation):** All agents run. Hard violations are corrected. Calculations are used for precise validation (e.g. KineticsAgent uses computed Da and intensification factor directly).
-- **Round 2 (refinement):** Even if Round 1 was clean, a second pass refines conditions. BPR is cross-checked against calculation results — if calculations say BPR is required but proposal has none, a REJECT is injected automatically.
-- **Round 3 (if needed):** Only runs if Round 2 still has violations. Max 3 rounds total.
+Each agent is a Claude LLM call with a deep domain-specific system prompt, injected with relevant fundamentals rules from the handbook knowledge base (2,537 rules across 6 textbooks). Agents receive the full proposal, chemistry plan, and 9-step engineering calculations.
 
-KineticsAgent now includes in every message: the computed intensification factor, the estimated RT from calculations, and the Damköhler number — making its feedback quantitatively grounded rather than rule-of-thumb only.
+| Agent | Domain | Capabilities |
+|-------|--------|-------------|
+| **Dr. Kinetics** | Reaction kinetics, residence time, conversion | PFR design equations, Arrhenius corrections, Damköhler analysis, intensification factor validation. Can PROPOSE alternative τ with mechanistic justification. |
+| **Dr. Fluidics** | Pressure drop, mixing, mass transfer | Hagen-Poiseuille, Reynolds, Dean number, mixing time estimation. Can PROPOSE different tubing ID, mixer type, or reactor geometry. |
+| **Dr. Safety** | Thermal safety, materials, pressure | Adiabatic temperature rise, thermal Damköhler, material compatibility, BPR sizing. Can PROPOSE concentration limits, material changes, safety additions. |
+| **Dr. Chemistry** | Mechanism fidelity, streams, photochemistry | Beer-Lambert light budget, stream separation logic, wavelength matching, quench chemistry. Can PROPOSE stream reassignments, catalyst changes, concentration adjustments. |
+| **Dr. Process** | Integration, scale-up, unit operations | Space-time yield, throughput, process architecture, numbering-up strategy. Can PROPOSE architectural changes, inline analytics, staging. |
+
+Each agent outputs structured JSON with:
+- **chain_of_thought**: Full reasoning — references calculator values by name, does not re-derive them
+- **values_referenced**: Calculator values cited (e.g. "Re = 7.75 (from calculator)")
+- **findings**: Bullet-point assessment results
+- **proposals**: Structured field changes `{"field": "tubing_ID_mm", "value": "0.75", "reason": "..."}`
+- **concerns**: Issues that need resolution
+- **rules_cited**: Handbook fundamentals rules used
+- **had_error**: True if the agent call failed — blocks convergence declaration
+
+**Anti-hallucination design**: A shared preamble in every agent's system prompt prohibits
+re-deriving values the calculator already computed. Agents read and interpret authoritative
+physics — they never invent rate constants, extinction coefficients, or other ungrounded numbers.
+
+### 4.2 Deliberation Protocol
+
+```
+Round 1 — Independent Analysis
+  All 5 agents analyze the proposal independently.
+  Each produces: chain_of_thought + values_referenced + findings
+                + structured proposals + concerns
+      │
+      ▼
+Chief Engineer — Sanity Check
+  Reviews structured proposals from REVISE agents only.
+  Resolves conflicts (safety > chemistry > physics > kinetics > integration).
+  Outputs final_changes: only simple numeric/string fields — no lists.
+  Applies changes → re-runs DesignCalculator (τ×Q=V enforced).
+  Tracks all_changes_applied cumulative dict across rounds.
+      │
+      ▼
+Round 2 — Cross-Agent Debate
+  Each agent sees ALL other agents' Round 1 findings.
+  Each agent also receives its OWN Round 1 concerns with explicit
+  instruction to RESOLVE, DEFER, or ESCALATE each one — verbatim
+  copy of Round 1 output is forbidden.
+      │
+      ▼
+Chief Engineer — Final Sanity Check
+  Synthesizes consensus. Applies final changes.
+  If unresolved conflicts remain → Round 3 (max 3 rounds).
+      │
+      ▼
+Convergence — gated on ACTUAL resolution, not round count
+  CONVERGE when: all agents ACCEPT, OR changes applied with no REVISE remaining.
+  DO NOT CONVERGE when: any agent had_error=True, OR REVISE proposals unaddressed.
+      │
+      ▼
+DeliberationLog — complete, immutable audit trail
+  Per-round per-agent: chain_of_thought, proposals, concerns, had_error.
+  Sanity checks: conflicts, resolutions, final_changes per round.
+  all_changes_applied: cumulative dict of every field modified.
+  Consensus output shows ALL modified fields (★ marked), not just τ/Q/V_R.
+```
+
+**Convergence rules (precise):**
+- An agent that throws an exception gets `had_error=True` → never treated as a pass → forces another round
+- All ACCEPT (no errors) → converge immediately
+- Round ≥ 2 AND changes were actually applied → converge (changes addressed the REVISE flags)
+- Round ≥ 2 AND only WARNING flags (no REVISE, no errors) → converge (acknowledged risks)
+- Otherwise → continue to next round (up to max 3)
+
+### 4.3 Key Differentiator vs Single-Agent LLM
+
+The multi-agent architecture produces designs that a single LLM cannot:
+
+1. **Cross-domain conflict resolution**: When kinetics demands high τ but fluidics flags ΔP issues, the agents negotiate a solution (e.g., increase tubing ID to accommodate both). The Chief Engineer resolves by priority: safety > chemistry > physics > kinetics > integration.
+2. **Independent verification**: Each agent checks the design from its own domain perspective, catching errors a single generalist would miss.
+3. **Handbook-grounded reasoning**: Each agent receives 25 domain-specific rules from 6 flow chemistry textbooks (2,537 total) — making their reasoning expert-level, not generic.
+4. **Traceable chain-of-thought**: Every decision is logged with reasoning, calculator values cited, rules used, and structured proposals — enabling human audit and paper reproducibility.
+5. **Debate-driven refinement**: Round 2 debate — each agent sees all other agents' findings AND must explicitly resolve/defer/escalate its own Round 1 concerns — catches interaction effects independent analysis misses.
+6. **Machine-applicable proposals**: Agents output `{"field": "tubing_ID_mm", "value": "0.75", "reason": "..."}` not free text. Changes are applied deterministically and verified by DesignCalculator re-run.
+7. **Anti-hallucination architecture**: Calculator values are labeled AUTHORITATIVE. A shared preamble explicitly forbids agents from re-deriving physics or inventing spectroscopic/kinetic data. Agents reference, not recompute.
+
+### 4.4 Robustness Design
+
+- **JSON parse failures**: 4-strategy parser (markdown strip → direct parse → brace matching → text extraction). No exception propagates to the orchestrator — instead `had_error=True` blocks convergence.
+- **Chief Engineer validation**: Only 10 simple numeric/string fields may appear in `final_changes`. List fields (`streams`, `pre_reactor_steps`) are blocked and logged as warnings. A fallback applies agent proposals directly if the Chief Engineer LLM call fails.
+- **Circular reasoning prevention**: Dr. Kinetics is explicitly forbidden from back-calculating k from calculator τ and then using that k to "confirm" τ — this is circular and adds no information. The intensification factor IS the validation.
 
 ---
 
@@ -374,16 +453,32 @@ Uses Claude Opus (the most capable model) with a structured two-section output:
 - Fundamentals rules injected ranked by relevance to the specific chemistry type.
 
 **Step 2b — 9-Step Engineering Design Calculator (before translation)**
-Pre-computed before the translation LLM runs via `DesignCalculator.run()`:
+Pre-computed before the translation LLM runs via `DesignCalculator.run()`.
 
+The calculator operates in two modes depending on context:
+
+**Mode A — Kinetics-based (initial estimate, before council):**
+Step 2 derives τ from batch data and intensification factor:
 1. **Kinetics (multi-method):** Analogy-derived IF (primary when ≥ 2 analogies have batch+flow data), class-level IF (fallback), Arrhenius T-correction if T_flow ≠ T_batch. Reports τ as a range covering all methods.
 2. **Reactor sizing:** V_R = τ×Q, L = 4V_R/(πd²) — all geometry derived from τ
 3. **Fluid dynamics:** Re = ρvd/μ — auto-adjusts d upward if turbulent
 4. **Pressure drop:** ΔP = 128μLQ/(πd⁴) via Hagen-Poiseuille — auto-adjusts d if > pump max
 5. **Mass transfer:** t_mix = d²/(D·π²), Da = k·d²/D — flags mass-transfer limited regime
 6. **Heat transfer:** Q_gen, Q_rem = U·A·ΔT_lm, thermal Da — flags exotherm risk
-7. **BPR:** Antoine equation for vapor pressure + system ΔP + 0.5 bar margin; **gas-liquid systems always require BPR (≥ 5 bar) regardless of boiling point**
+7. **BPR:** Antoine equation for vapor pressure + system ΔP + 0.5 bar margin; gas-liquid systems always require BPR (≥ 5 bar)
 8. **Process metrics:** STY, productivity, intensification factor
+
+**Mode B — Council-approved override (after council):**
+When `target_residence_time_min` is provided (or when the proposal already has a validated τ),
+step 2 uses that τ **directly** via `_step2_override()` — skipping the kinetics-based
+estimation entirely. The council's decision is the authoritative source. Steps 3-8 are then
+computed FROM this τ, not from batch data. This eliminates the divergence between
+`proposal.residence_time_min` and `design_calculations.residence_time_min`.
+
+**τ Single Source of Truth — enforced at three levels:**
+1. **DesignCalculator**: council-approved τ bypasses kinetics re-derivation
+2. **Orchestrator re-runs**: passes `target_residence_time_min=current.residence_time_min` after every council change
+3. **main.py post-sync**: after formatting, forces `design_calculations["residence_time_min"]`, `residence_time_s`, and `reactor_volume_mL` to match `proposal["residence_time_min"]` — catches any remaining divergence
 
 All steps are internally consistent (τ=V/Q, L=4V/πd², Re=ρvd/μ verified). Results injected
 into translation prompt as a concise engineering block.
@@ -394,12 +489,8 @@ The translation LLM (Sonnet) receives three explicit reasoning steps:
 2. **Calculation validation:** Must verify residence time is within calculated range, BPR set if calculation requires it, Re and Da are reasonable.
 3. **Conditions justification:** Every numerical field must cite its source: analogy N, calculation, chemistry plan, or first principles.
 
-**Layer 3 — Chemistry Validator (in ENGINE council)**
-Cross-checks the final proposal against the ChemistryPlan:
-- Does the wavelength match the photocatalyst?
-- Are incompatible reagents actually in separate streams?
-- Is deoxygenation specified for O₂-sensitive reactions?
-- Is the quench reagent appropriate?
+**Layer 3 — Multi-Agent Deliberation (ENGINE council)**
+Five LLM-powered specialist agents (Dr. Kinetics, Dr. Fluidics, Dr. Safety, Dr. Chemistry, Dr. Process) independently analyze and then debate the design across 2-3 rounds. Each agent receives domain-specific handbook rules, the full 9-step calculations, and all other agents' findings. A Chief Engineer sanity-checker resolves cross-agent conflicts and applies consensus changes. See Section 4 for full architecture.
 
 ---
 
@@ -438,7 +529,7 @@ The Batch-to-Flow translation page uses a multi-turn chat interface (`flora_tran
 **How it works:**
 - `ConversationAgent` wraps the translate pipeline with intent classification (TRANSLATE | REVISE | ANSWER | ASK).
 - **TRANSLATE:** first message with a batch protocol → runs full pipeline → shows result in expandable card.
-- **REVISE:** "add a liquid-liquid extraction" → appends `[REVISION: ...]` to original query → re-runs full pipeline.
+- **REVISE:** "add a liquid-liquid extraction" → RevisionAgent applies targeted LLM patch to existing design → re-validates via ENGINE → rebuilds diagram (~10s vs ~60s for full pipeline).
 - **ANSWER:** "why did you choose PFA tubing?" → answers from context, no re-run.
 - **ASK:** when critical info is missing → returns 1-3 targeted clarifying questions before running.
 - After every translation: auto-checks confidence and missing fields → proactively asks user for clarification.
@@ -513,14 +604,14 @@ Two-pass mode saves ~60% of Sonnet calls by using Haiku to pre-screen relevance:
           │                          │
           │  Claude summary           │  Injected into
           │  + OpenAI embed           │  Chemistry Agent
-          ▼                          │  system prompt
+          ▼                          │  + ENGINE Council
    ┌────────────────────┐            │
-   │ ChromaDB           │            │
-   │ flora_records      │            ▼
-   │ flora_pairs        │    ┌───────────────────┐
-   │ (+ mechanism_type, │    │  Chemistry Agent  │
-   │   phase_regime     │    │  (Layer 1)        │
-   │   metadata)        │    └────────┬──────────┘
+   │ ChromaDB           │            ▼
+   │ flora_records      │    ┌───────────────────┐
+   │ flora_pairs        │    │  Chemistry Agent  │
+   │ (+ mechanism_type, │    │  (Layer 1)        │
+   │   phase_regime     │    └────────┬──────────┘
+   │   metadata)        │             │
    └──────────┬─────────┘             │
               │                        │
               └──────────┬─────────────┘
@@ -528,6 +619,12 @@ Two-pass mode saves ~60% of Sonnet calls by using Haiku to pre-screen relevance:
               ┌─────────────────────┐
               │ TRANSLATE / DESIGN  │
               │ pipeline            │
+              └──────┬──────────────┘
+                     ▼
+              ┌─────────────────────┐
+              │ ENGINE Council      │ ← rules.json
+              │ (5 LLM agents +    │   (25 rules/agent)
+              │  Orchestrator)      │
               └─────────────────────┘
 ```
 
@@ -567,9 +664,11 @@ Every design output includes an **Approve / Needs Correction** widget. Correctio
 
 | Layer | Technology |
 |-------|-----------|
-| LLM (reasoning) | Claude Opus 4.6 (chemistry analysis, council conversation) |
-| LLM (translation) | Claude Sonnet 4.6 (translation, extraction, council summary) |
+| LLM (reasoning) | Claude Opus 4.6 (chemistry analysis) |
+| LLM (translation + ENGINE council) | Claude Sonnet 4.6 (translation, 5 specialist agents, orchestrator, revision agent, extraction) |
 | LLM (cheap scan) | Claude Haiku 4.5 (figure classification, handbook relevance scan) |
+| Multi-agent orchestration | Custom deliberation orchestrator with inter-agent debate protocol |
+| Domain knowledge | 2,537 handbook rules from 6 textbooks, category-filtered per agent |
 | Embeddings | OpenAI text-embedding-3-small (1536 dimensions) |
 | Vector database | ChromaDB (persistent, two collections: flora_records, flora_pairs) |
 | PDF processing | PyMuPDF (text extraction + page rendering) |
@@ -650,13 +749,38 @@ experimental verification.
 - v = 4·Q / (π·d²)
 - ΔP = 128·μ·L·Q / (π·d⁴)
 
+**Council-approved override mode** — `_step2_override(tau_min, ...)`:
+Triggered when `target_residence_time_min` is passed to `run()`, or when the proposal
+already has a validated `residence_time_min > 0`.  Step 2 sets τ directly and marks
+`kinetics_method = "council-approved"`.  The implied IF is back-calculated for display only
+(`implied_IF = batch_time / τ`).  Steps 3-8 proceed normally, computing all geometry and
+transport properties FROM this authoritative τ.
+
+```python
+# Before fix — three divergent values:
+design_calculations.residence_time_min = 16.0   # kinetics re-derived
+proposal.residence_time_min            = 15.0   # council decision
+topology reactor node                   = 7.5   # per-stage (÷2 for 2-stage)
+
+# After fix — single source of truth:
+design_calculations.residence_time_min = 15.0   # council-approved override
+proposal.residence_time_min            = 15.0   # council decision
+topology reactor node                   = 15.0  # from proposal (single-step)
+summary explanation                    = 15 min # anchored in OutputFormatter prompt
+```
+
+**OutputFormatter anchor injection** — `_generate_explanation()` prepends a block of
+AUTHORITATIVE DESIGN NUMBERS (τ, Q, V_R, T, C, material, λ, BPR) to the explanation
+system prompt.  The LLM must cite these exactly — preventing hallucination of wrong
+residence times ("30 min") from inconsistent context.
+
 **Gas-liquid detection** — `_is_gas_liquid()` inspects atmosphere, description, and stream
 contents. If a reagent gas (O₂, H₂, CO₂, CO, etc.) is present, BPR is mandatory regardless
 of boiling point, minimum 5 bar to maintain Henry's-law gas solubility. N₂/Ar used purely
 as inert atmosphere are **not** counted as gas-liquid.
 
 **Streamlit display** — `components/design_steps.py` renders each step with:
-- Status badge (PASS / WARNING / FAIL / ADJUSTED / ESTIMATED)
+- Status badge (PASS / WARNING / FAIL / ADJUSTED / ESTIMATED / council-approved)
 - LaTeX equations with real substituted numbers
 - Computed values as metric cards
 - Warnings, adjustments, and assumptions
@@ -667,34 +791,41 @@ prompt-builder and ENGINE code works without changes.
 
 ---
 
-### 11.2 — Calculation-Driven ENGINE Council
+### 11.2 — LLM-Powered Multi-Agent Deliberation Council
 
-`flora_translate/engine/moderator.py` completely rewritten. The calculator is now the
-**source of truth** for all physics. The council enforces this.
+`flora_translate/engine/orchestrator.py` + `flora_translate/engine/llm_agents.py` — complete
+rewrite of the ENGINE architecture from rule-based validation to LLM-powered deliberation.
 
-**Old behaviour:** agents ran independently, returned text-only warnings, revisions extracted
-numbers from strings. Proposals were rubber-stamped unless blatantly wrong.
+**Old architecture (rule-based):** Five Python-only agents with `if/else` checks. No agent
+could reason about trade-offs or propose alternatives. The "debate" was mechanical field-patching.
+Proposals were free text — never parsed or applied. Convergence was declared by round count
+regardless of agent flags. Agent crashes were silently swallowed.
 
-**New behaviour:**
+**New architecture (LLM-powered deliberation):**
 
-```
-For each round (max 3):
-  1. Run DesignCalculator on the current proposal
-  2. Physics sync:
-       - If proposal τ differs from calculated τ by > 20% → REJECT + correct value
-       - If V_R ≠ τ×Q → REJECT + enforce consistency
-       - If d was adjusted (ΔP or Re) → REJECT + use calculated d
-       - If BPR required but missing → REJECT + calculated value
-  3. Run domain agents (all read calculator results):
-       - KineticsAgent:   compares proposal τ to calculated τ, REJECT if > 50% off
-       - FluidicsAgent:   reads step 4-5 results, reports pump/Re issues
-       - SafetyCriticAgent: material compatibility, temperature limits, inventory
-       - ChemistryValidator: stream assignments, wavelength, deoxygenation
-  4. Apply all revisions → re-run calculator → verify consistency
-  5. If no revisions in round ≥ 2 → converged
-```
+Each of the 5 agents is now a Claude Sonnet LLM call with:
+- A deep domain-specific system prompt (~120 lines of expert knowledge per agent)
+- 25 domain-filtered rules from the handbook knowledge base (2,537 total)
+- Full DesignCalculator results labeled **AUTHORITATIVE** — agents read and interpret, do not re-derive
+- Structured `FieldProposal` output `{"field": "...", "value": "...", "reason": "..."}` — machine-applicable
 
-Every revision enforces τ×Q = V_R after application. No round ever leaves an inconsistent proposal.
+**Key engineering decisions:**
+- `had_error: bool` on `AgentDeliberation` — any exception → blocks convergence
+- `all_changes_applied: dict` on `DeliberationLog` — cumulative record of all modified fields, shown with ★ in consensus output
+- `_ALLOWED_CHANGE_FIELDS` whitelist (10 fields) — Chief Engineer cannot output list/nested fields
+- 4-strategy JSON parser — markdown strip → direct parse → brace matching → text extraction
+- Own-prior-concerns injection: each agent receives its Round 1 concerns in Round 2 and MUST resolve/defer/escalate each one — verbatim copy is explicitly forbidden
+- Anti-circular-kinetics: Dr. Kinetics is prohibited from back-calculating k from calculator τ and using it to confirm τ
+- τ single-source-of-truth: Orchestrator passes `target_residence_time_min` to DesignCalculator re-runs so council-approved τ is never overridden by kinetics re-derivation
+
+**Key files:**
+- `flora_translate/engine/llm_agents.py` — 5 specialist agents, rule loader, context builder, robust JSON parser
+- `flora_translate/engine/orchestrator.py` — deliberation loop, Chief Engineer, proposal patcher, convergence logic
+- `flora_translate/schemas.py` — `FieldProposal`, `AgentDeliberation` (with `had_error`), `SanityCheckResult`, `DeliberationLog` (with `all_changes_applied`)
+
+**RevisionAgent** (`flora_translate/revision_agent.py`): For chat-based revision requests,
+a single LLM call patches the existing design (no full pipeline re-run), then re-validates
+through the ENGINE council. Latency: ~10-15s vs ~60s for full translate.
 
 ---
 
@@ -727,6 +858,48 @@ satisfied because `MIN_COUNCIL_ROUNDS = 2`. Fixed thresholds:
 
 ---
 
+### 11.3b — Residence Time Single Source of Truth
+
+**Problem identified:** Four different UI locations displayed different residence time values
+for the same design:
+
+| Location | Source | Old value |
+|---|---|---|
+| Summary explanation | LLM-generated from full dict | "30 min" (hallucinated) |
+| Process diagram reactor node | `proposal.residence_time_min` | 15 min |
+| Engineering Design tab | `design_calculations.residence_time_min` | 16 min (kinetics re-derived) |
+| Council consensus line | `proposal.residence_time_min` | 15 min |
+
+**Root cause:** The `DesignCalculator._step2()` always recomputes τ from `batch_time / IF`
+regardless of what the council approved. After the council set τ = 15 min, a DesignCalculator
+re-run in the orchestrator produced τ = 16 min (different IF from analogies). The summary LLM
+received both 15 and 16 in its context and hallucinated "30 min".
+
+**Fix (three-layer):**
+
+1. **`DesignCalculator.run(target_residence_time_min=...)`** — new parameter. When provided
+   (or when the proposal already has a validated τ > 0), Step 2 uses `_step2_override()`:
+   sets τ directly, marks `kinetics_method = "council-approved"`, and back-calculates the
+   implied IF for display only. Steps 3-8 compute geometry/transport from this authoritative τ.
+
+2. **`Orchestrator` re-runs** — after council applies changes, passes
+   `target_residence_time_min=current.residence_time_min`. The calculator never re-derives τ
+   from kinetics after the council has approved it.
+
+3. **`main.py` post-sync** — after formatting, force-syncs:
+   ```python
+   result["design_calculations"]["residence_time_min"] = result["proposal"]["residence_time_min"]
+   result["design_calculations"]["residence_time_s"]   = τ × 60
+   result["design_calculations"]["reactor_volume_mL"]  = τ × Q
+   ```
+   Safety net that catches any remaining divergence.
+
+4. **`OutputFormatter._generate_explanation()`** — prepends AUTHORITATIVE DESIGN NUMBERS block
+   to the explanation system prompt, anchoring the LLM to the exact τ, Q, V_R, T, C values.
+   Prevents hallucination of wrong residence times from inconsistent context.
+
+---
+
 ### 11.4 — Process Flow Diagram Improvements
 
 `flora_design/visualizer/flowsheet_builder.py`:
@@ -742,39 +915,48 @@ satisfied because `MIN_COUNCIL_ROUNDS = 2`. Fixed thresholds:
 
 ### 11.5 — Results Tabs Redesign
 
-The Streamlit result view (`pages/flora_design_unified.py`) now has 9 tabs:
+The Streamlit result view (`pages/flora_design_unified.py`) now has 8 tabs:
 
 | Tab | Content |
 |-----|---------|
 | **Summary** | LLM-generated explanation, chemistry notes |
-| **Engineering Design** | Full 9-step calculator output with LaTeX equations |
-| **Process Diagram** | Graphviz PFD + unit operation list |
+| **Engineering Design** | 9-step calculator + **per-reactor breakdown** (τ, V, ID, T per reactor for multi-step) |
+| **Process Diagram** | Graphviz PFD with τ shown on each reactor node + unit operation list |
 | **Chemistry Plan & Recipe** | Species, mechanism, sensitivities + step-by-step bench recipe |
 | **Stream Assignments** | Per-pump contents, solvent, rationale |
-| **Conditions** | All flow parameters with reasoning |
-| **Council Deliberation** | LLM-generated conversational meeting transcript |
-| **Council Report** | Raw agent messages grouped by agent |
+| **Council Deliberation** | Round-by-round agent chain-of-thought, calculations, proposals, debate, and sanity checks |
+| **Council Report** | Legacy agent messages grouped by agent |
 | **Raw JSON** | Full result dict |
+
+Note: **Conditions tab removed** — it showed flat single-reactor values that were misleading
+for multi-reactor designs and duplicated Engineering Design.
 
 ---
 
-### 11.6 — Council Deliberation Tab
+### 11.6 — Council Deliberation Viewer
 
-`components/council_conversation.py` generates a genuine engineering review meeting transcript
-using Claude Sonnet. Each agent has a persona:
+The Council Deliberation tab renders the full `DeliberationLog` directly — no additional LLM
+call needed. Each agent's contribution is shown as an expandable card:
 
-| Agent | Persona |
-|-------|---------|
-| DesignCalculator | Physics Engine — cites equations and error percentages |
-| KineticsAgent | Dr. Kinetics — residence times, intensification, literature comparison |
-| FluidicsAgent | Dr. Fluidics — pressure drops, hardware limits, pragmatic |
-| SafetyCriticAgent | Safety Officer — conservative, flags hazards |
-| ChemistryValidator | Dr. Chemistry — mechanism, stream logic, sensitivity |
-| ProcessArchitectAgent | Process Architect — synthesises to final design |
+| Agent | Avatar | Error state |
+|-------|--------|-------------|
+| Dr. Kinetics | ⏱️ | Normal / ⚠️ WARNING / 🔄 REVISE / 💥 ERROR |
+| Dr. Fluidics | 🌊 | Normal / ⚠️ WARNING / 🔄 REVISE / 💥 ERROR |
+| Dr. Safety | 🛡️ | Normal / ⚠️ WARNING / 🔄 REVISE / 💥 ERROR |
+| Dr. Chemistry | 🧪 | Normal / ⚠️ WARNING / 🔄 REVISE / 💥 ERROR |
+| Dr. Process | 🏗️ | Normal / ⚠️ WARNING / 🔄 REVISE / 💥 ERROR |
+| Chief Engineer | 👷 | Cross-agent sanity check, conflict resolution |
 
-The conversation shows: initial proposal, disagreements, corrections being applied,
-agents asking each other questions, and final consensus. Triggered on demand via a
-"Generate Council Discussion" button. Cached in `st.session_state` to avoid re-generation.
+Cards with `had_error=True` show 💥 and `[ERROR — blocks convergence]` in the title and
+are always expanded. Each card shows: chain-of-thought, values referenced (from calculator),
+findings, structured proposals (`field → value` format), concerns, rules cited.
+
+**Consensus output** shows ALL modified fields with ★ marker — not just τ/Q/V_R:
+> Consensus reached after 2 rounds · τ = 12.5 min · Q = 0.5 mL/min · V_R = 6.25 mL · d = 0.75 mm ★
+> (★ = modified by council: tubing_ID_mm)
+
+If convergence was blocked by errors, the warning line shows the error count:
+> Max rounds (2) reached — 1 agent error(s) prevented convergence · τ = 12.5 min ...
 
 ---
 

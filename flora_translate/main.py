@@ -19,7 +19,7 @@ from pathlib import Path
 from flora_translate.analogy_selector import AnalogySelector
 from flora_translate.chemistry_agent import ChemistryReasoningAgent
 from flora_translate.config import LAB_INVENTORY_PATH, RECORDS_DIR
-from flora_translate.engine.moderator import Moderator
+from flora_translate.engine.orchestrator import Orchestrator
 from flora_translate.input_parser import InputParser
 from flora_translate.output_formatter import OutputFormatter
 from flora_translate.prompt_builder import TranslationPromptBuilder
@@ -279,14 +279,28 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
         mat = "FEP" if is_photo else ("SS" if (stage.temperature_C or 25) > 100 else "FEP")
         rlabel = f"{'Photo' if is_photo else ''}{rtype.replace('_', ' ').title()} — {stage.stage_name}"
 
+        # Estimate per-stage residence time and volume from total
+        n_stages = len(chemistry_plan.stages)
+        stage_rt = round((proposal.residence_time_min or 0) / max(n_stages, 1), 2)
+        stage_vol = round(stage_rt * (proposal.flow_rate_mL_min or 0.5), 2)
+        stage_id_mm = proposal.tubing_ID_mm or 1.0
+        stage_length = (
+            round((stage_vol * 1e-6) / (math.pi * (stage_id_mm * 5e-4) ** 2), 2)
+            if stage_vol and stage_id_mm else None
+        )
+
         ops.append(UnitOperation(
             op_id=reactor_id,
             op_type=op_type_map.get(rtype, "coil_reactor"),
             label=rlabel,
             parameters={
                 "material": mat,
+                "ID_mm": stage_id_mm,
+                "volume_mL": stage_vol,
                 "temperature_C": stage.temperature_C,
                 "wavelength_nm": stage.wavelength_nm if is_photo else None,
+                "residence_time_min": stage_rt,
+                "length_m": stage_length,
                 "reactor_type": rtype,
             },
             required=True,
@@ -453,10 +467,10 @@ def translate(
     logger.info(f"  Proposal: {proposal.residence_time_min}min, {proposal.reactor_type}, "
                 f"{len(proposal.streams)} streams")
 
-    # 5. ENGINE validation + Chemistry Validator — Layer 3
-    logger.info("Step 5: Engineering + Chemistry validation (ENGINE council)")
+    # 5. ENGINE deliberation council — Layer 3
+    logger.info("Step 5: Multi-agent deliberation council (ENGINE)")
     inventory = LabInventory.from_json(inventory_path)
-    design_candidate, calculations = Moderator().run(
+    design_candidate, calculations = Orchestrator().run(
         proposal, batch_record, analogies, inventory,
         chemistry_plan=chemistry_plan, calculations=calculations
     )
@@ -470,8 +484,26 @@ def translate(
     from dataclasses import asdict
     result["design_calculations"] = asdict(calculations)
 
+    # ── Single source of truth: synchronise τ across all result sections ──
+    # The validated proposal is authoritative for residence_time_min and
+    # reactor_volume_mL.  The DesignCalculations may have re-derived a
+    # slightly different τ from kinetics — force them to agree.
+    _τ_proposal = result["proposal"].get("residence_time_min")
+    _Q_proposal  = result["proposal"].get("flow_rate_mL_min")
+    if _τ_proposal and _τ_proposal > 0:
+        result["design_calculations"]["residence_time_min"] = _τ_proposal
+        result["design_calculations"]["residence_time_s"] = round(_τ_proposal * 60, 2)
+        if _Q_proposal and _Q_proposal > 0:
+            result["design_calculations"]["reactor_volume_mL"] = round(
+                _τ_proposal * _Q_proposal, 4
+            )
+
     # Store analogies for the revision agent (confidence + context)
     result["_analogies"] = analogies
+
+    # Attach deliberation log for Streamlit rendering
+    if design_candidate.deliberation_log:
+        result["deliberation_log"] = design_candidate.deliberation_log.model_dump()
 
     # 7. Build chemistry-aware topology + generate diagram
     logger.info("Step 7: Generating process flow diagram")

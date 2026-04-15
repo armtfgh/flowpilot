@@ -92,11 +92,26 @@ class OutputFormatter:
 
     def _generate_explanation(self, candidate: DesignCandidate) -> str:
         """Use Claude to generate a human-readable explanation."""
+        p = candidate.proposal
+        # Build a concise "key numbers" block so the LLM cannot hallucinate
+        # residence time, flow rate, or volume from inconsistent context.
+        key_numbers = (
+            f"\n\n## AUTHORITATIVE DESIGN NUMBERS — cite these exactly, do not approximate\n"
+            f"- Residence time: {p.residence_time_min} min\n"
+            f"- Flow rate: {p.flow_rate_mL_min} mL/min\n"
+            f"- Reactor volume: {p.reactor_volume_mL} mL\n"
+            f"- Temperature: {p.temperature_C} °C\n"
+            f"- Concentration: {p.concentration_M} M\n"
+            f"- Tubing: {p.tubing_material} {p.tubing_ID_mm} mm ID\n"
+            + (f"- Wavelength: {p.wavelength_nm} nm\n" if p.wavelength_nm else "")
+            + (f"- BPR: {p.BPR_bar} bar\n" if p.BPR_bar else "")
+        )
+        system_with_numbers = EXPLANATION_SYSTEM + key_numbers
         try:
             resp = _get_client().messages.create(
                 model=SUMMARY_MODEL,
                 max_tokens=1500,
-                system=EXPLANATION_SYSTEM,
+                system=system_with_numbers,
                 messages=[
                     {
                         "role": "user",
