@@ -1,34 +1,59 @@
 BATCH INPUT
 {batch_record_json}
 
-CHEMISTRY PLAN (from Chemistry Reasoning Agent — authoritative for chemical decisions)
+CHEMISTRY PLAN (authoritative for all chemical decisions)
 {chemistry_plan_json}
 
-LITERATURE ANALOGIES (use for hardware parameters)
+CHEMISTRY AGENT REASONING (why these decisions were made)
+{chemistry_reasoning}
+
+{calculations_block}
 
 {analogies_text}
 
 TASK
-Translate the Chemistry Plan into a concrete flow setup. Use the stream_logic from the Chemistry Plan and the hardware parameters from the analogies.
+Translate the Chemistry Plan into a concrete flow setup.
 
-Return JSON:
-{{
+## Mandatory reasoning steps — include in reasoning_per_field:
+
+### Step 1: Analogy comparison
+For each analogy received, state explicitly:
+  - What is chemically similar to our reaction (mechanism, catalyst class, substrate type)
+  - What is the key chemical difference
+  - How that difference adjusts the parameters (e.g. "Analogy 1 used Ru vs our Ir — same metal complex family — directly applicable residence time of 15 min")
+
+### Step 2: Validate against calculations
+Check each proposed parameter against the pre-computed calculations:
+  - Residence time: is it within the estimated range from calculations?
+  - BPR: if calculations say BPR required, you MUST set BPR_bar > 1
+  - Reynolds number: confirm flow regime is laminar (Re < 2300)
+  - Damkohler number: confirm Da > 1 (reaction slower than mixing)
+
+### Step 3: Conditions justification
+For every numerical field state whether it comes from:
+  (a) Direct analogy (cite Analogy N + value)
+  (b) Calculation (cite the calculation result)
+  (c) Chemistry Plan reasoning
+  (d) First principles (explain logic)
+
+Return JSON only — no markdown fences:
+{
   "streams": [
-    {{
+    {
       "stream_label": "A",
-      "pump_role": "describe role",
+      "pump_role": "describe role explicitly",
       "contents": ["reagent_name (amount)", "catalyst_name (loading)"],
       "solvent": "solvent_name",
       "concentration_M": 0.1,
       "flow_rate_mL_min": 0.25,
-      "reasoning": "From Chemistry Plan: ..."
-    }}
+      "reasoning": "From Chemistry Plan stream_logic: ..."
+    }
   ],
   "mixer_type": "T-mixer",
   "mixing_order_reasoning": "From Chemistry Plan: ...",
   "pre_reactor_steps": ["step with reasoning"],
   "post_reactor_steps": ["step with reasoning"],
-  "chemistry_notes": "Key mechanism-driven design decisions",
+  "chemistry_notes": "Key mechanism-driven decisions. Include: why these conditions, what calculation results imply, how analogies were used and adjusted.",
   "residence_time_min": 0,
   "flow_rate_mL_min": 0,
   "temperature_C": 0,
@@ -41,7 +66,13 @@ Return JSON:
   "light_setup": "",
   "wavelength_nm": null,
   "deoxygenation_method": null,
-  "reasoning_per_field": {{"field_name": "cite Chemistry Plan or Analogy 1/2/3"}},
+  "reasoning_per_field": {
+    "residence_time_min": "Analogy 1 used X min. Calculation estimated Y min. Using Z because ...",
+    "temperature_C": "Same as batch — no heat advantage needed / adjusted because ...",
+    "BPR_bar": "Calculation: bp=XC op=YC — required/not required",
+    "tubing_material": "FEP for photochem transparency / PFA for temperature / SS for ...",
+    "concentration_M": "Analogy 1 used X M. Adjusting to Y because ..."
+  },
   "literature_analogies": ["doi1", "doi2"],
   "confidence": "HIGH|MEDIUM|LOW"
-}}
+}

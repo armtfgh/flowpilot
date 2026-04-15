@@ -239,8 +239,8 @@ class ChemistryPlan(BaseModel):
     # Mechanism
     mechanism_steps: list[MechanismStep] = Field(default_factory=list)
     key_intermediate: str = ""
-    excited_state_type: str = ""
-    energy_transfer_or_redox: str = ""
+    excited_state_type: str | None = ""
+    energy_transfer_or_redox: str | None = ""
 
     # Sensitivity and constraints (overall)
     oxygen_sensitive: bool = False

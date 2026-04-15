@@ -216,8 +216,13 @@ class VectorRetriever:
         documents = results["documents"][0]
 
         for i, rid in enumerate(ids):
-            # ChromaDB returns L2 distances; convert to similarity score
-            semantic_score = 1.0 / (1.0 + distances[i])
+            # ChromaDB returns L2 (Euclidean) distances.
+            # text-embedding-3-small embeddings are L2-normalised (unit vectors),
+            # so: cosine_similarity = 1 − L2² / 2.
+            # This is a much more accurate similarity measure than 1/(1+L2),
+            # which severely underestimates similarity for close matches.
+            L2 = distances[i]
+            semantic_score = max(0.0, 1.0 - (L2 ** 2) / 2.0)
             field_score = compute_field_similarity(batch_record, metadatas[i])
             final_score = W_SEMANTIC * semantic_score + W_FIELD * field_score
 

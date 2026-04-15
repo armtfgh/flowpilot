@@ -1,0 +1,32 @@
+// Flow Chemistry
+digraph {
+	bgcolor=white dpi=180 forcelabels=true nodesep=0.55 pad=0.25 rankdir=LR ranksep=0.8 splines=polyline
+	imagepath="/home/amirreza/Documents/codes/Flow Agent/visualization"
+	node [fontname=Arial]
+	edge [arrowsize=0.7 color=royalblue4 penwidth=2.0]
+	Pump_A [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD ROWSPAN="3" PORT="img" FIXEDSIZE="TRUE" WIDTH="110" HEIGHT="24"><IMG SRC="_generated_syringe_pump_trimmed.png" SCALE="TRUE"/></TD><TD WIDTH="0" HEIGHT="10"></TD></TR><TR><TD PORT="needle" WIDTH="0" HEIGHT="2"></TD></TR><TR><TD WIDTH="0" HEIGHT="12"></TD></TR><TR><TD COLSPAN="2" ALIGN="CENTER"><FONT POINT-SIZE="11">Syringe Pump A<BR/>(0.5 mL/min)</FONT></TD></TR></TABLE>> shape=plain]
+	Pump_B [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD ROWSPAN="3" PORT="img" FIXEDSIZE="TRUE" WIDTH="110" HEIGHT="24"><IMG SRC="_generated_syringe_pump_trimmed.png" SCALE="TRUE"/></TD><TD WIDTH="0" HEIGHT="10"></TD></TR><TR><TD PORT="needle" WIDTH="0" HEIGHT="2"></TD></TR><TR><TD WIDTH="0" HEIGHT="12"></TD></TR><TR><TD COLSPAN="2" ALIGN="CENTER"><FONT POINT-SIZE="11">Syringe Pump B<BR/>(0.5 mL/min)</FONT></TD></TR></TABLE>> shape=plain]
+	Mixer1 [label=Mixer1 color=grey35 fillcolor=lightgrey fixedsize=true fontname=Arial fontsize=11 group=main_flow height=0.9 penwidth=1.2 shape=box style=filled width=0.9]
+	Mixer2 [label=Mixer2 color=grey35 fillcolor=lightgrey fixedsize=true fontname=Arial fontsize=11 group=main_flow height=0.9 penwidth=1.2 shape=box style=filled width=0.9]
+	Mixer3 [label=Mixer3 color=grey35 fillcolor=lightgrey fixedsize=true fontname=Arial fontsize=11 group=main_flow height=0.9 penwidth=1.2 shape=box style=filled width=0.9]
+	Reactor [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8"><TR><TD PORT="img" FIXEDSIZE="TRUE" WIDTH="125" HEIGHT="125"><IMG SRC="coil_photoreactor.png" SCALE="TRUE"/></TD></TR><TR><TD ALIGN="CENTER"><FONT POINT-SIZE="11">Heated Coil Reactor<BR/>(60 °C, 10 min, 420 nm)</FONT></TD></TR></TABLE>> group=main_flow shape=plain]
+	Pump_C [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD ROWSPAN="3" PORT="img" FIXEDSIZE="TRUE" WIDTH="110" HEIGHT="24"><IMG SRC="_generated_syringe_pump_trimmed.png" SCALE="TRUE"/></TD><TD WIDTH="0" HEIGHT="10"></TD></TR><TR><TD PORT="needle" WIDTH="0" HEIGHT="2"></TD></TR><TR><TD WIDTH="0" HEIGHT="12"></TD></TR><TR><TD COLSPAN="2" ALIGN="CENTER"><FONT POINT-SIZE="11">Syringe Pump C<BR/>(0.1 mL/min)</FONT></TD></TR></TABLE>> shape=plain]
+	Pump_D [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD ROWSPAN="3" PORT="img" FIXEDSIZE="TRUE" WIDTH="110" HEIGHT="24"><IMG SRC="_generated_syringe_pump_trimmed.png" SCALE="TRUE"/></TD><TD WIDTH="0" HEIGHT="10"></TD></TR><TR><TD PORT="needle" WIDTH="0" HEIGHT="2"></TD></TR><TR><TD WIDTH="0" HEIGHT="12"></TD></TR><TR><TD COLSPAN="2" ALIGN="CENTER"><FONT POINT-SIZE="11">Syringe Pump D<BR/>(0.1 mL/min)</FONT></TD></TR></TABLE>> group=main_flow shape=plain]
+	bpr1 [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD ROWSPAN="3" PORT="img" FIXEDSIZE="TRUE" WIDTH="110" HEIGHT="110"><IMG SRC="bpr.png" SCALE="TRUE"/></TD><TD WIDTH="0" HEIGHT="10"></TD></TR><TR><TD PORT="needle" WIDTH="0" HEIGHT="2"></TD></TR><TR><TD WIDTH="0" HEIGHT="98"></TD></TR><TR><TD COLSPAN="2" ALIGN="CENTER"><FONT POINT-SIZE="11">10 psi</FONT></TD></TR></TABLE>> group=main_flow shape=plain]
+	vial [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD ROWSPAN="3" PORT="img" FIXEDSIZE="TRUE" WIDTH="110" HEIGHT="110"><IMG SRC="vial.png" SCALE="TRUE"/></TD><TD WIDTH="0" HEIGHT="10"></TD></TR><TR><TD PORT="needle" WIDTH="0" HEIGHT="2"></TD></TR><TR><TD WIDTH="0" HEIGHT="98"></TD></TR><TR><TD COLSPAN="2" ALIGN="CENTER"><FONT POINT-SIZE="11">Product</FONT></TD></TR></TABLE>> group=main_flow shape=plain]
+	Reactor_2 [label=<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="8"><TR><TD PORT="img" FIXEDSIZE="TRUE" WIDTH="125" HEIGHT="125"><IMG SRC="coil_reactor.png" SCALE="TRUE"/></TD></TR><TR><TD ALIGN="CENTER"><FONT POINT-SIZE="11">Heated Coil Reactor 2<BR/>(60 °C, 10 min res.)</FONT></TD></TR></TABLE>> group=main_flow shape=plain]
+	{
+		rank=same
+		Reactor
+	}
+	Pump_A:needle:e -> Mixer1 [headport=nw]
+	Pump_B:needle:e -> Mixer1 [headport=sw]
+	Mixer1:e -> Mixer2 [headport=nw]
+	Pump_C:needle:e -> Mixer2 [headport=sw]
+	Mixer2:e -> Reactor:img:w
+	Reactor:img:e -> Mixer3:w [headport=sw]
+	Pump_D:needle:e -> Mixer3:w [headport=nw]
+	Mixer3:e -> Reactor_2:img:w
+	Reactor_2:img:e -> bpr1
+	bpr1:e -> vial:w
+}

@@ -27,79 +27,141 @@ def render():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# BATCH-TO-FLOW mode
+# BATCH-TO-FLOW mode  — conversational chat interface
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _init_chat_state():
+    """Initialise session-state keys for the translate chat."""
+    if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = []
+    if "chat_agent" not in st.session_state:
+        from flora_translate.conversation_agent import ConversationAgent
+        st.session_state.chat_agent = ConversationAgent()
+    if "active_result" not in st.session_state:
+        st.session_state.active_result = None
+
+
 def _render_translate():
+    _init_chat_state()
+
     st.markdown("---")
-    st.subheader("Batch Protocol")
 
-    input_mode = st.radio("Input format", ["Free text", "Structured form"],
-                          horizontal=True, key="t_input_mode")
-    batch_input = None
+    # ── Control bar ────────────────────────────────────────────────────────
+    col_title, col_reset = st.columns([5, 1])
+    with col_title:
+        st.subheader("Batch → Flow Chat")
+    with col_reset:
+        if st.button("🔄 Reset", key="chat_reset", help="Start a new conversation"):
+            st.session_state.chat_messages = []
+            st.session_state.active_result = None
+            st.session_state.chat_agent.reset()
+            st.rerun()
 
-    if input_mode == "Free text":
-        txt = st.text_area(
-            "Paste your batch protocol",
-            height=160,
-            key="t_free_text",
-            placeholder=(
-                "e.g. fac-Ir(ppy)3 (1 mol%) photocatalyzed decarboxylative "
-                "radical addition of N-Boc-proline (1.0 equiv) to methyl vinyl "
-                "ketone (2.0 equiv), K2HPO4 (1.5 equiv), DMF, 0.1 M, RT, "
-                "450 nm blue LED, N2, 24 h, 72% yield."
-            ),
+    # ── Render chat history ────────────────────────────────────────────────
+    for i, msg in enumerate(st.session_state.chat_messages):
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            # Show a compact result badge in the chat — no tabs inside chat bubble
+            if msg.get("result"):
+                _render_result_compact(msg["result"], i)
+            if msg.get("questions"):
+                st.info("**Questions for you:**\n" +
+                        "\n".join(f"{j+1}. {q}" for j, q in enumerate(msg["questions"])))
+
+    # ── Example prompts (only when chat is empty) ──────────────────────────
+    if not st.session_state.chat_messages:
+        st.markdown(
+            """
+            <div style="color:#888; font-size:0.88em; margin-bottom:8px;">
+            <b>Try one of these to get started:</b>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-        if txt:
-            batch_input = txt
+        examples = [
+            "fac-Ir(ppy)₃ (1 mol%) photoredox, N-Boc-proline (1 equiv) + MVK (2 equiv), K₂HPO₄, DMF, 0.1 M, RT, 450 nm, N₂, 24 h, 72% yield",
+            "Pd-catalyzed Suzuki coupling, ArBr + PhB(OH)₂, K₂CO₃, EtOH/H₂O 4:1, 80°C, 2h, 89% yield",
+            "NaBH₄ reduction of ketone to alcohol, MeOH, 0°C, 30 min, quant. yield",
+        ]
+        for ex in examples:
+            if st.button(ex[:80] + "…" if len(ex) > 80 else ex,
+                         key=f"ex_{hash(ex)}", use_container_width=True):
+                st.session_state["_prefill_input"] = ex
+                st.rerun()
 
-    else:
-        c1, c2 = st.columns(2)
-        with c1:
-            desc   = st.text_input("Reaction description", key="t_desc")
-            cat    = st.text_input("Photocatalyst", key="t_cat",
-                                   placeholder="e.g. Ir(ppy)3")
-            base   = st.text_input("Base", key="t_base",
-                                   placeholder="e.g. K2HPO4")
-            solv   = st.text_input("Solvent", key="t_solv",
-                                   placeholder="e.g. DMF")
-            atm    = st.selectbox("Atmosphere", ["N2", "Ar", "air"], key="t_atm")
-        with c2:
-            temp   = st.number_input("Temperature (°C)", value=25.0, key="t_temp")
-            time_h = st.number_input("Reaction time (h)", value=0.0, step=0.5, key="t_time")
-            conc   = st.number_input("Concentration (M)", value=0.0, step=0.01, key="t_conc")
-            wl     = st.number_input("Wavelength (nm)", value=450, step=10, key="t_wl")
-            yld    = st.number_input("Yield (%)", value=0.0, max_value=100.0, key="t_yield")
-        if desc:
-            batch_input = {
-                "reaction_description": desc,
-                "photocatalyst": cat or None,
-                "base": base or None,
-                "solvent": solv or None,
-                "temperature_C": temp,
-                "reaction_time_h": time_h or None,
-                "concentration_M": conc or None,
-                "wavelength_nm": wl or None,
-                "yield_pct": yld or None,
-                "atmosphere": atm,
-            }
+    # ── Chat input ─────────────────────────────────────────────────────────
+    prefill = st.session_state.pop("_prefill_input", "")
+    prompt  = st.chat_input(
+        "Describe your batch protocol, ask a question, or request a revision…",
+        key="chat_input",
+    ) or (prefill if prefill else None)
 
-    if st.button("Translate to Flow", type="primary",
-                 disabled=batch_input is None,
-                 use_container_width=True, key="t_run"):
-        with st.spinner("Running FLORA pipeline…"):
-            try:
-                from flora_translate.main import translate
-                result = translate(batch_input)
-                st.session_state["flora_result"] = result
-                st.session_state["flora_result_type"] = "translate"
-            except Exception as e:
+    if prompt:
+        # Show user message immediately
+        st.session_state.chat_messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # Process with agent
+        with st.chat_message("assistant"):
+            agent = st.session_state.chat_agent
+
+            # Determine if this will trigger a translation run
+            has_result = agent.current_result is not None
+            is_likely_translation = not has_result or any(
+                kw in prompt.lower()
+                for kw in ["translate", "convert", "new reaction", "fresh", "start over"]
+            )
+
+            spinner_msg = (
+                "Running FLORA pipeline — this takes ~30-60 seconds…"
+                if is_likely_translation or any(
+                    kw in prompt.lower()
+                    for kw in ["add", "remove", "change", "revise", "modify",
+                                "instead", "try", "use", "switch"]
+                )
+                else "Thinking…"
+            )
+
+            with st.spinner(spinner_msg):
+                try:
+                    response = agent.process(prompt)
+                except Exception as e:
+                    response_msg = f"Something went wrong: {e}"
+                    st.error(response_msg)
+                    st.session_state.chat_messages.append(
+                        {"role": "assistant", "content": response_msg}
+                    )
+                    st.stop()
+
+            # Display assistant response
+            st.markdown(response.message)
+
+            if response.result:
+                st.session_state["active_result"] = response.result
+                _render_result_compact(response.result, "new")
+
+            if response.questions:
+                st.info("**I have a few questions to improve the design:**\n" +
+                        "\n".join(f"{j+1}. {q}" for j, q in enumerate(response.questions)))
+
+            if response.error:
                 from components.error_card import render_error
-                render_error(e, "FLORA-Translate")
-                return
+                render_error(Exception(response.error), "FLORA-Translate")
 
-    if st.session_state.get("flora_result_type") == "translate":
-        _render_result(st.session_state["flora_result"])
+        # Persist to history
+        st.session_state.chat_messages.append({
+            "role":      "assistant",
+            "content":   response.message,
+            "result":    response.result,
+            "questions": response.questions,
+        })
+
+    # ── Full result view — OUTSIDE chat bubbles (no nested tabs issue) ─────
+    active = st.session_state.get("active_result")
+    if active:
+        st.markdown("---")
+        _render_result(active, key_prefix="active")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -140,10 +202,31 @@ def _render_design():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Shared result renderer (translate output)
+# Compact result badge (shown INSIDE chat bubble — no tabs, no nested widgets)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _render_result(result: dict):
+def _render_result_compact(result: dict, key_suffix):
+    """Show a small summary card inside a chat message — no tabs, no downloads."""
+    proposal = result.get("proposal", {})
+    conf     = result.get("confidence", "?")
+    conf_color = {"HIGH": "green", "MEDIUM": "orange", "LOW": "red"}.get(conf, "gray")
+    rt  = proposal.get("residence_time_min", "?")
+    rxt = proposal.get("reactor_type", "?")
+    fr  = proposal.get("flow_rate_mL_min", "?")
+    st.markdown(
+        f"**Confidence:** :{conf_color}[{conf}] &nbsp;|&nbsp; "
+        f"**Reactor:** {rxt} &nbsp;|&nbsp; "
+        f"**τ =** {rt} min &nbsp;|&nbsp; "
+        f"**Q =** {fr} mL/min"
+    )
+    st.caption("↓ Full design with process diagram, chemistry plan, and conditions shown below")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared result renderer (translate output) — shown OUTSIDE chat bubbles
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _render_result(result: dict, key_prefix: str = ""):
     proposal = result.get("proposal", {})
     conf = result.get("confidence", "LOW")
     conf_color = {"HIGH": "green", "MEDIUM": "orange", "LOW": "red"}.get(conf, "gray")
@@ -151,11 +234,13 @@ def _render_result(result: dict):
 
     tabs = st.tabs([
         "Summary",
+        "Engineering Design",
         "Process Diagram",
-        "Chemistry Plan",
+        "Chemistry Plan & Recipe",
         "Stream Assignments",
         "Conditions",
-        "Engineering",
+        "Council Deliberation",
+        "Council Report",
         "Raw JSON",
     ])
 
@@ -167,8 +252,17 @@ def _render_result(result: dict):
             st.info(notes)
 
     with tabs[1]:
+        # 9-step engineering design calculations
+        design_calc = result.get("design_calculations")
+        if design_calc:
+            from components.design_steps import render_design_steps
+            render_design_steps(design_calc, key_prefix=f"{key_prefix}_ds")
+        else:
+            st.info("No design calculations available for this result.")
+
+    with tabs[2]:
         from components.process_diagram import render_process_diagram
-        render_process_diagram(result.get("svg_path", ""), result.get("png_path", ""))
+        render_process_diagram(result.get("svg_path", ""), result.get("png_path", ""), key_prefix=key_prefix)
         topo = result.get("process_topology", {})
         if topo:
             st.divider()
@@ -185,18 +279,23 @@ def _render_result(result: dict):
             if topo.get("pid_description"):
                 st.code(topo["pid_description"])
 
-    with tabs[2]:
+    with tabs[3]:
         from pages.translate import _render_chemistry_plan
         _render_chemistry_plan(result.get("chemistry_plan", {}))
+        st.divider()
+        _render_recipe(result)
 
-    with tabs[3]:
+    with tabs[4]:
         from pages.translate import _render_streams
         _render_streams(proposal)
 
-    with tabs[4]:
+    with tabs[5]:
         _render_conditions(proposal)
 
-    with tabs[5]:
+    with tabs[6]:
+        _render_council_deliberation(result)
+
+    with tabs[7]:
         from components.council_report import render_council_report
         class _C:
             def __init__(self, r):
@@ -205,7 +304,7 @@ def _render_result(result: dict):
                 self.council_messages = r.get("council_messages", [])
         render_council_report(_C(result))
 
-    with tabs[6]:
+    with tabs[8]:
         st.json(result)
 
     from components.feedback import render_feedback_widget
@@ -286,3 +385,382 @@ def _render_conditions(proposal: dict):
         st.markdown("**Reasoning per field**")
         for field, reason in reasoning.items():
             st.markdown(f"- **{field}:** {reason}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Council Deliberation — narrative summary of multi-agent conversation
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _render_council_deliberation(result: dict):
+    """Render the ENGINE council as an LLM-generated conversational discussion."""
+    msgs_raw = result.get("council_messages", [])
+    rounds = result.get("council_rounds", 0)
+    proposal = result.get("proposal", {})
+
+    if not msgs_raw:
+        st.info("No council deliberation data available.")
+        return
+
+    # Normalise messages to dicts
+    msgs = []
+    for m in msgs_raw:
+        if isinstance(m, dict):
+            msgs.append(m)
+        elif hasattr(m, "model_dump"):
+            msgs.append(m.model_dump())
+
+    st.markdown(f"### Council Review — {rounds} Round{'s' if rounds != 1 else ''}")
+
+    # Header: quick stats
+    n_reject = sum(1 for m in msgs if m.get("status") == "REJECT")
+    n_warn   = sum(1 for m in msgs if m.get("status") == "WARNING")
+    n_accept = sum(1 for m in msgs if m.get("status") == "ACCEPT")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Corrections", n_reject, delta=None)
+    c2.metric("Warnings", n_warn, delta=None)
+    c3.metric("Accepted", n_accept, delta=None)
+
+    # Cache key: hash of messages so regeneration happens on new result
+    cache_key = f"council_conv_{hash(str(msgs_raw))}"
+
+    if cache_key not in st.session_state:
+        st.session_state[cache_key] = None
+
+    col_gen, col_clear = st.columns([3, 1])
+    with col_gen:
+        generate = st.button(
+            "Generate Council Discussion",
+            key=f"gen_{cache_key}",
+            type="primary",
+            help="Ask Claude to write the council meeting as a human conversation",
+        )
+    with col_clear:
+        if st.button("Clear", key=f"clear_{cache_key}"):
+            st.session_state[cache_key] = None
+            st.rerun()
+
+    if generate or st.session_state[cache_key]:
+        if generate or st.session_state[cache_key] is None:
+            with st.spinner("Generating council discussion..."):
+                from components.council_conversation import generate_council_conversation
+                conv = generate_council_conversation(msgs, proposal, rounds)
+                st.session_state[cache_key] = conv
+
+        conv = st.session_state[cache_key]
+        if conv:
+            st.divider()
+            st.markdown(conv)
+        else:
+            st.error("Could not generate conversation — check API key / connection.")
+
+    else:
+        # Show raw message summary while not yet generated
+        st.divider()
+        st.markdown("*Click **Generate Council Discussion** to see the agents discuss the design in their own words.*")
+        st.divider()
+
+        # Fallback: compact chronological log
+        st.markdown("**Raw deliberation log:**")
+        _ICONS = {"REJECT": "❌", "WARNING": "⚠️", "ACCEPT": "✅"}
+        _NAMES = {
+            "DesignCalculator": "Physics Engine",
+            "KineticsAgent": "Dr. Kinetics",
+            "FluidicsAgent": "Dr. Fluidics",
+            "SafetyCriticAgent": "Safety Officer",
+            "ChemistryValidator": "Dr. Chemistry",
+            "ProcessArchitectAgent": "Process Architect",
+        }
+        for m in msgs:
+            agent = m.get("agent", "?")
+            status = m.get("status", "?")
+            field = m.get("field", "")
+            concern = m.get("concern", "")
+            value = m.get("value", "")
+            icon = _ICONS.get(status, "•")
+            name = _NAMES.get(agent, agent)
+            text = concern or value or "OK"
+            st.markdown(f"{icon} **{name}** on `{field}`: {text[:120]}")
+
+    # Final outcome bar
+    st.divider()
+    validated = proposal.get("engine_validated", False)
+    if validated:
+        st.success(
+            f"✓ Design validated after {rounds} round{'s' if rounds != 1 else ''}  ·  "
+            f"τ = {proposal.get('residence_time_min', '?')} min  ·  "
+            f"Q = {proposal.get('flow_rate_mL_min', '?')} mL/min  ·  "
+            f"V_R = {proposal.get('reactor_volume_mL', '?')} mL"
+        )
+    else:
+        st.warning("Design did not fully converge — review warnings above.")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Recipe — step-by-step experimental instructions for the bench chemist
+# ─────────────────────────────────────────────────────────────────────────────
+
+_GAS_NAMES = {
+    "o2": "oxygen (O₂)", "o₂": "oxygen (O₂)", "oxygen": "oxygen (O₂)",
+    "h2": "hydrogen (H₂)", "h₂": "hydrogen (H₂)", "hydrogen": "hydrogen (H₂)",
+    "co2": "carbon dioxide (CO₂)", "co₂": "carbon dioxide (CO₂)",
+    "co": "carbon monoxide (CO)", "n2": "nitrogen (N₂)", "n₂": "nitrogen (N₂)",
+    "nitrogen": "nitrogen (N₂)", "ar": "argon (Ar)", "argon": "argon (Ar)",
+    "air": "compressed air",
+}
+
+def _is_gas_stream(stream: dict) -> bool:
+    """Return True if this stream carries a gas (not a liquid solution)."""
+    _GAS_KW = {"o2", "o₂", "oxygen", "h2", "h₂", "hydrogen", "co2", "co₂",
+               "syngas", "ethylene", "acetylene", "carbon monoxide", "carbonylation",
+               "mfc", "gas", "n2 gas", "argon gas"}
+    contents = stream.get("contents", [])
+    pump_role = (stream.get("pump_role") or "").lower()
+    label = (stream.get("stream_label") or "").lower()
+    all_text = " ".join(str(c) for c in contents).lower() + " " + pump_role + " " + label
+    return any(kw in all_text for kw in _GAS_KW)
+
+def _identify_gas(stream: dict) -> str:
+    """Return the human-readable gas name from a stream."""
+    contents = stream.get("contents", [])
+    pump_role = (stream.get("pump_role") or "").lower()
+    all_text = " ".join(str(c) for c in contents).lower() + " " + pump_role
+    for kw, name in _GAS_NAMES.items():
+        if kw in all_text:
+            return name
+    return "gas"
+
+def _render_recipe(result: dict):
+    """Generate and display a step-by-step experimental recipe."""
+    proposal = result.get("proposal", {})
+    chem_plan = result.get("chemistry_plan", {})
+    streams_raw = proposal.get("streams", [])
+
+    if not proposal:
+        return
+
+    # Normalise streams to dicts
+    streams = []
+    for s in streams_raw:
+        if isinstance(s, dict):
+            streams.append(s)
+        elif hasattr(s, "model_dump"):
+            streams.append(s.model_dump())
+
+    # Separate liquid and gas streams
+    liquid_streams = [s for s in streams if not _is_gas_stream(s)]
+    gas_streams    = [s for s in streams if _is_gas_stream(s)]
+
+    st.markdown("### Experimental Recipe")
+    st.markdown("*Step-by-step instructions for the bench chemist.*")
+
+    step_num = [0]
+
+    def step(text):
+        step_num[0] += 1
+        st.markdown(f"**{step_num[0]}.** {text}")
+
+    # ── Safety note ─────────────────────────────────────────────────────
+    safety_flags = proposal.get("safety_flags", [])
+    if safety_flags or gas_streams:
+        warnings_text = []
+        if gas_streams:
+            gas_names = [_identify_gas(s) for s in gas_streams]
+            warnings_text.append(f"This process uses pressurised gas: **{', '.join(gas_names)}**. "
+                                  "Follow your institution's gas handling safety procedures.")
+        for flag in safety_flags[:3]:
+            warnings_text.append(flag)
+        if warnings_text:
+            st.warning("⚠️ **Safety notes:** " + "  \n".join(warnings_text))
+
+    # ── Section A: Solution Preparation ─────────────────────────────────
+    st.markdown("#### A. Preparation")
+
+    if liquid_streams:
+        st.markdown("**Liquid solutions:**")
+        for s in liquid_streams:
+            label   = s.get("stream_label", "?")
+            contents = s.get("contents", [])
+            solvent  = s.get("solvent", "")
+            conc     = s.get("concentration_M")
+
+            # Clean content names (strip loading in brackets)
+            names = [str(c).split("(")[0].strip() for c in contents] if contents else ["reagents"]
+            content_str = ", ".join(names)
+            conc_str = f" to give a **{conc} M** solution" if conc else ""
+
+            step(
+                f"**Stream {label} — Liquid solution:** Weigh out {content_str} "
+                f"and dissolve in **{solvent or 'the appropriate solvent'}**{conc_str}. "
+                "Transfer to a clean, dry, inert-atmosphere-compatible flask or syringe. "
+                "Cap and label."
+            )
+    elif not gas_streams:
+        step("Prepare reagent solutions at the specified concentrations in the appropriate solvents.")
+
+    if gas_streams:
+        st.markdown("**Gas feeds:**")
+        for s in gas_streams:
+            label    = s.get("stream_label", "?")
+            gas_name = _identify_gas(s)
+            fr       = s.get("flow_rate_mL_min")
+            fr_str   = f" at **{fr:.1f} mL/min (≈ {fr * 16.67:.0f} sccm)**" if fr else ""
+
+            step(
+                f"**Stream {label} — Gas feed ({gas_name}):** Connect the "
+                f"**{gas_name}** cylinder to a **mass flow controller (MFC)**"
+                f"{fr_str}. Use gas-rated stainless steel or PTFE fittings "
+                "and a check valve to prevent back-flow. "
+                "Do **not** use a syringe pump for gas delivery."
+            )
+
+    # Deoxygenation
+    deoxy = proposal.get("deoxygenation_method")
+    if not deoxy and chem_plan.get("deoxygenation_required"):
+        deoxy = "N₂ sparging"
+    if deoxy and liquid_streams:
+        step(
+            f"**Deoxygenate all liquid solutions:** Sparge each with **{deoxy}** "
+            "for 15 minutes using a stainless steel needle. "
+            "Keep capped under inert atmosphere until use."
+        )
+
+    # ── Section B: System Setup ─────────────────────────────────────────
+    st.markdown("#### B. Flow System Assembly")
+
+    tubing_mat  = proposal.get("tubing_material", "FEP")
+    tubing_id   = proposal.get("tubing_ID_mm", 1.0)
+    reactor_vol = proposal.get("reactor_volume_mL", 0)
+    reactor_type = proposal.get("reactor_type", "coil")
+
+    step(
+        f"Assemble the **{reactor_type} reactor**: cut **{tubing_mat}** tubing "
+        f"(ID = **{tubing_id} mm**) to give a reactor volume of **{reactor_vol:.1f} mL**. "
+        "Coil neatly and secure."
+    )
+
+    wl = proposal.get("wavelength_nm")
+    if wl:
+        step(
+            f"Mount the **{wl:.0f} nm LED** light source around the reactor coil. "
+            "Ensure uniform, full-length irradiation. Shield from ambient light."
+        )
+
+    temp = proposal.get("temperature_C", 25)
+    if temp and temp != 25:
+        step(
+            f"Pre-heat or pre-cool the **temperature-controlled bath** to "
+            f"**{temp:.0f} °C** and allow 10 minutes to equilibrate. "
+            "Submerge the reactor coil completely."
+        )
+
+    bpr = proposal.get("BPR_bar", 0)
+    if bpr and bpr > 0:
+        step(
+            f"Install the **back-pressure regulator (BPR)** set to **{bpr:.0f} bar** "
+            "at the reactor outlet. "
+            + ("This is required to maintain gas solubility throughout the reactor. " if gas_streams else
+               "This prevents solvent boiling at the operating temperature. ")
+        )
+
+    mixer = proposal.get("mixer_type", "T-mixer")
+    n_liquid = len(liquid_streams)
+    n_gas    = len(gas_streams)
+    total_inlets = n_liquid + n_gas
+    step(
+        f"Connect all **{total_inlets} inlet line{'s' if total_inlets != 1 else ''}** "
+        f"({n_liquid} liquid pump{'s' if n_liquid != 1 else ''}"
+        + (f", {n_gas} gas MFC{'s' if n_gas != 1 else ''}" if n_gas else "")
+        + f") to the **{mixer}** at the reactor inlet. "
+        "Finger-tighten all fittings, then confirm with wrench. Check for leaks."
+    )
+
+    if liquid_streams:
+        n_syringes = len(liquid_streams)
+        step(
+            f"Load **{n_syringes} syringe{'s' if n_syringes != 1 else ''}** with "
+            "the prepared liquid solutions. "
+            "Remove all air bubbles — invert and tap. Mount on pump(s)."
+        )
+
+    # ── Section C: Running the Process ──────────────────────────────────
+    st.markdown("#### C. Running the Process")
+
+    flow_rate = proposal.get("flow_rate_mL_min", 0)
+    rt        = proposal.get("residence_time_min", 0)
+
+    if liquid_streams:
+        for s in liquid_streams:
+            fr = s.get("flow_rate_mL_min")
+            label = s.get("stream_label", "?")
+            if fr:
+                step(f"Set **Pump {label}** (liquid) to **{fr:.3f} mL/min**.")
+            elif flow_rate and len(liquid_streams) > 0:
+                fr_each = flow_rate / len(liquid_streams)
+                step(f"Set **Pump {label}** (liquid) to **{fr_each:.3f} mL/min**.")
+
+    if gas_streams:
+        for s in gas_streams:
+            fr = s.get("flow_rate_mL_min")
+            label = s.get("stream_label", "?")
+            gas_name = _identify_gas(s)
+            if fr:
+                sccm = fr * 16.67
+                step(
+                    f"Set **MFC {label}** ({gas_name}) to "
+                    f"**{fr:.2f} mL/min ({sccm:.0f} sccm)**."
+                )
+            else:
+                step(
+                    f"Set **MFC {label}** ({gas_name}) to the target flow rate "
+                    "per your stoichiometry calculation."
+                )
+
+    step(
+        "**Prime the system:** Start all liquid pumps at low flow (0.1 mL/min) "
+        "to fill the tubing. Once solution exits at the outlet, increase to target flow."
+    )
+
+    if gas_streams:
+        step(
+            "Open the gas supply: slowly increase MFC flow to the target rate. "
+            "Observe the outlet for stable slug/segmented flow formation."
+        )
+
+    step(
+        f"Allow **{3 * rt:.0f} min** ({3}× residence time of {rt:.0f} min) "
+        "for steady state. Discard the initial effluent."
+        if rt > 0 else
+        "Allow the system to reach steady state before collecting product."
+    )
+
+    step(
+        "Collect product effluent into a pre-weighed vial. "
+        "Record exact collection time, volume, and weight for yield calculation."
+    )
+
+    # ── Section D: Shutdown & Workup ────────────────────────────────────
+    st.markdown("#### D. Shutdown & Workup")
+
+    if gas_streams:
+        step("Close the gas supply valves. Wait 30 seconds for pressure to equalise.")
+
+    step("Stop all liquid pumps.")
+
+    step(
+        f"Flush the system with **{reactor_vol * 3:.1f} mL** of pure solvent "
+        f"({3}× reactor volume) to recover residual product and clean the lines."
+    )
+
+    post_steps = proposal.get("post_reactor_steps", [])
+    for ps in post_steps:
+        step(f"{ps}")
+
+    quench_reagent = chem_plan.get("quench_reagent", "")
+    if chem_plan.get("quench_required") and quench_reagent:
+        step(f"Quench the combined product fractions with **{quench_reagent}**.")
+
+    step(
+        "Work up the product: standard aqueous extraction, dry over anhydrous MgSO₄ "
+        "or Na₂SO₄, filter, and concentrate under reduced pressure. "
+        "Purify by column chromatography or recrystallisation as appropriate."
+    )

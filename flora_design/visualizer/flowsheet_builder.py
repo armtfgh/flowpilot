@@ -1,522 +1,730 @@
-"""FLORA — Process flowsheet builder with graph-aware layout.
-
-Supports both single-step and multi-step topologies.
-Layout algorithm:
-  1. Build adjacency graph from StreamConnection list
-  2. Find the main flow lane (longest path from first non-pump to collector)
-  3. Pumps feeding the FIRST node go on the left (stacked vertically)
-  4. Pumps feeding MID-STREAM nodes appear ABOVE their injection mixer
-  5. LED badges always float above their paired reactor
-  6. All icons use P&ID-style engineering symbols
 """
+FLORA — Graphviz-based Flowsheet Builder.
+
+Replaces the old hand-drawn SVG approach with a professional Graphviz diagram
+using real equipment icons (syringe pump, coil reactor, BPR, vial, etc.).
+
+Icon files live in:  flora_design/visualizer/icons/
+
+Features:
+  - Pump nodes: syringe icon + reagent list + solvent + flow rate (fully readable)
+  - Reactor nodes: coil image + temp / residence time / wavelength / ID / volume
+  - Mixer nodes: clean grey box with correct in/out ports
+  - BPR / collector: icon + label
+  - LED module: SKIPPED — wavelength shown under reactor
+  - 3+ streams into one mixer: auto-chained into two mixers in series
+  - Unknown op types: plain text box
+
+Falls back silently to the legacy SVG builder if graphviz executable
+is not found on the system.
+
+Public API (unchanged from legacy):
+    FlowsheetBuilder().build(topology, title, output_svg, output_png)
+    → (svg_path, png_path)
+"""
+
+from __future__ import annotations
 
 import logging
 import math
+import shutil
 from collections import defaultdict
+from html import escape
 from pathlib import Path
+from typing import Optional
 
-from flora_translate.schemas import ProcessTopology
+logger = logging.getLogger("flora.flowsheet")
 
-logger = logging.getLogger("flora.design.visualizer")
+# ── Paths ─────────────────────────────────────────────────────────────────────
+ICONS_DIR = Path(__file__).parent / "icons"
 
-# ── Palette ────────────────────────────────────────────────────────────────
-PAL = {
-    "pump":               "#1d4ed8",
-    "mixer":              "#7c3aed",
-    "deoxygenation_unit": "#059669",
-    "coil_reactor":       "#d97706",
-    "chip_reactor":       "#d97706",
-    "led_module":         "#ca8a04",
-    "bpr":                "#dc2626",
-    "inline_filter":      "#4b5563",
-    "quench_mixer":       "#9333ea",
-    "collector":          "#16a34a",
-    "heat_exchanger":     "#ea580c",
+ASSETS = {
+    "pump":         ICONS_DIR / "syringe_pump.png",
+    "reactor":      ICONS_DIR / "coil_reactor.png",
+    "photoreactor": ICONS_DIR / "photoreactor.png",
+    "microchannel": ICONS_DIR / "microchannel.png",
+    "bpr":          ICONS_DIR / "bpr.png",
+    "vial":         ICONS_DIR / "vial.png",
+    "mixer2":       ICONS_DIR / "mixer2.png",
+    "mixer3":       ICONS_DIR / "mixer3.png",
 }
-DEF_COLOR  = "#64748b"
-TEXT_DARK  = "#1e293b"
-TEXT_MID   = "#475569"
-TEXT_LIGHT = "#94a3b8"
-LINE_COLOR = "#475569"
-BG         = "#ffffff"
 
-# ── Geometry ───────────────────────────────────────────────────────────────
-ICON_W   = 72
-ICON_H   = 60
-LABEL_H  = 18
-PARAM_H  = 15
-MAX_PARAMS = 3
-MAX_CHARS  = 22
-HGAP     = 52   # horizontal gap between sequential nodes
-PUMP_VGAP = 14  # vertical gap between stacked left-side pumps
-MARGIN   = 28
-SIDE_PUMP_ABOVE = 90   # how far above main lane mid-stream pumps appear
+# ── Graph-level style ─────────────────────────────────────────────────────────
+GRAPH_ATTR = {
+    "rankdir":     "LR",
+    "splines":     "polyline",    # respects headport corners — clean nw/sw routing
+    "nodesep":     "0.35",        # compact: less vertical gap between nodes
+    "ranksep":     "0.6",         # compact: less horizontal gap between columns
+    "pad":         "0.2",
+    "dpi":         "180",
+    "bgcolor":     "white",
+    "forcelabels": "true",
+    "fontname":    "Arial",
+}
+
+EDGE_ATTR = {
+    "color":     "royalblue4",
+    "penwidth":  "2.0",
+    "arrowsize": "0.55",          # compact: slightly smaller arrow heads
+    "fontname":  "Arial",
+    "fontsize":  "9",
+    "fontcolor": "royalblue4",
+}
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _esc(s) -> str:
+    return escape(str(s)) if s is not None else ""
 
 
-# ── SVG helpers ───────────────────────────────────────────────────────────
+def _html_lines(*lines: str, sizes: list[int] | None = None,
+                colors: list[str] | None = None) -> str:
+    """Build multi-line HTML label content as <BR/>-joined FONT tags."""
+    parts = []
+    for i, line in enumerate(lines):
+        if not line:
+            continue
+        sz    = sizes[i] if sizes and i < len(sizes) else 10
+        color = colors[i] if colors and i < len(colors) else "#111827"
+        parts.append(
+            f'<FONT POINT-SIZE="{sz}" COLOR="{color}">{_esc(line)}</FONT>'
+        )
+    return "<BR/>".join(parts)
 
-def _e(s) -> str:
-    return (str(s).replace("&", "&amp;").replace("<", "&lt;")
-            .replace(">", "&gt;").replace('"', "&quot;"))
 
-def _t(s: str, n: int = MAX_CHARS) -> str:
+def _trunc(s: str, n: int = 35) -> str:
     s = str(s).strip()
-    return s if len(s) <= n else s[:n-1] + "…"
-
-def _font(size=10, weight="normal", color=TEXT_DARK):
-    return (f'font-family="Inter,Arial,sans-serif" font-size="{size}" '
-            f'font-weight="{weight}" fill="{color}"')
+    return s if len(s) <= n else s[:n - 1] + "…"
 
 
-# ── P&ID icon renderers ───────────────────────────────────────────────────
+# ── Gas stream detection ──────────────────────────────────────────────────────
 
-def _icon_pump(cx, cy, color):
-    r = 24
-    return (f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="white" '
-            f'stroke="{color}" stroke-width="2.5"/>'
-            f'<polygon points="{cx-9},{cy-15} {cx-9},{cy+15} {cx+16},{cy}" '
-            f'fill="{color}"/>')
-
-def _icon_mixer(cx, cy, color):
-    h, s = 24, 22
-    return (
-        f'<line x1="{cx-h}" y1="{cy}" x2="{cx+h}" y2="{cy}" '
-        f'stroke="{color}" stroke-width="3" stroke-linecap="round"/>'
-        f'<line x1="{cx}" y1="{cy-s}" x2="{cx}" y2="{cy}" '
-        f'stroke="{color}" stroke-width="3" stroke-linecap="round"/>'
-        f'<circle cx="{cx}" cy="{cy}" r="5" fill="{color}"/>'
-        f'<polygon points="{cx-h},{cy-5} {cx-h},{cy+5} {cx-13},{cy}" fill="{color}"/>'
-        f'<polygon points="{cx},{cy-s} {cx-5},{cy-14} {cx+5},{cy-14}" fill="{color}"/>'
-    )
-
-def _icon_coil(cx, cy, color, w=66, h=50):
-    x0, y0 = cx - w/2, cy - h/2
-    pts = []
-    for i in range(61):
-        t = i / 60
-        px = x0 + 7 + t * (w - 14)
-        py = cy - 4 + 9 * math.sin(t * 4 * math.pi)
-        pts.append(f"{px:.1f},{py:.1f}")
-    d = "M " + " L ".join(pts)
-    return (
-        f'<rect x="{x0}" y="{y0}" width="{w}" height="{h}" rx="8" '
-        f'fill="#fffbeb" stroke="{color}" stroke-width="2.5"/>'
-        f'<path d="{d}" fill="none" stroke="{color}" stroke-width="2.2" '
-        f'stroke-linecap="round"/>'
-    )
-
-def _icon_led(cx, cy, color):
-    r = 13
-    rays = "".join(
-        f'<line x1="{cx+(r+2)*math.cos(a*math.pi/4):.1f}" '
-        f'y1="{cy+(r+2)*math.sin(a*math.pi/4):.1f}" '
-        f'x2="{cx+(r+8)*math.cos(a*math.pi/4):.1f}" '
-        f'y2="{cy+(r+8)*math.sin(a*math.pi/4):.1f}" '
-        f'stroke="{color}" stroke-width="2" stroke-linecap="round"/>'
-        for a in range(8)
-    )
-    return (rays +
-            f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="#fef9c3" '
-            f'stroke="{color}" stroke-width="2"/>'
-            f'<text x="{cx}" y="{cy+5}" text-anchor="middle" '
-            f'{_font(8,"700",color)}>hν</text>')
-
-def _icon_bpr(cx, cy, color):
-    s = 24
-    return (
-        f'<polygon points="{cx},{cy-s} {cx+s},{cy} {cx},{cy+s} {cx-s},{cy}" '
-        f'fill="white" stroke="{color}" stroke-width="2.5"/>'
-        f'<text x="{cx}" y="{cy+4}" text-anchor="middle" {_font(8,"700",color)}>P</text>'
-    )
-
-def _icon_degas(cx, cy, color):
-    w, h = 42, 36
-    x0, y0 = cx-w/2, cy-h/2
-    arrows = "".join(
-        f'<line x1="{bx}" y1="{cy+8}" x2="{bx}" y2="{cy-6}" '
-        f'stroke="{color}" stroke-width="1.5"/>'
-        f'<polygon points="{bx-4},{cy-4} {bx+4},{cy-4} {bx},{cy-10}" fill="{color}"/>'
-        for bx in [cx-12, cx, cx+12]
-    )
-    return (
-        f'<rect x="{x0}" y="{y0}" width="{w}" height="{h}" rx="6" '
-        f'fill="#ecfdf5" stroke="{color}" stroke-width="2"/>'
-        f'<ellipse cx="{cx}" cy="{y0}" rx="{w/2}" ry="5" '
-        f'fill="#ecfdf5" stroke="{color}" stroke-width="2"/>'
-        + arrows
-    )
-
-def _icon_filter(cx, cy, color):
-    w, h = 46, 34
-    x0, y0 = cx-w/2, cy-h/2
-    lines = "".join(
-        f'<line x1="{max(x0,x0+i):.0f}" y1="{y0+max(0,-i):.0f}" '
-        f'x2="{min(x0+w,x0+i+h):.0f}" y2="{y0+h-max(0,i+h-w):.0f}" '
-        f'stroke="{color}" stroke-width="1" opacity="0.5"/>'
-        for i in range(-int(h), int(w), 9)
-        if min(x0+w, x0+i+h) > max(x0, x0+i)
-    )
-    return (
-        f'<rect x="{x0}" y="{y0}" width="{w}" height="{h}" rx="4" '
-        f'fill="#f9fafb" stroke="{color}" stroke-width="2"/>'
-        f'<clipPath id="cf{int(cx)}">'
-        f'<rect x="{x0}" y="{y0}" width="{w}" height="{h}" rx="4"/>'
-        f'</clipPath>'
-        f'<g clip-path="url(#cf{int(cx)})">{lines}</g>'
-    )
-
-def _icon_quench(cx, cy, color):
-    h, s = 22, 20
-    return (
-        f'<line x1="{cx-h}" y1="{cy}" x2="{cx+h}" y2="{cy}" '
-        f'stroke="{color}" stroke-width="3" stroke-linecap="round"/>'
-        f'<line x1="{cx}" y1="{cy-s}" x2="{cx}" y2="{cy+5}" '
-        f'stroke="{color}" stroke-width="3" stroke-linecap="round"/>'
-        f'<circle cx="{cx}" cy="{cy}" r="7" fill="{color}"/>'
-        f'<text x="{cx}" y="{cy+4}" text-anchor="middle" {_font(10,"700","white")}>+</text>'
-    )
-
-def _icon_collector(cx, cy, color):
-    nw, bw, h = 13, 46, 48
-    top = cy - h/2
-    bot = cy + h/2
-    nb = top + h*0.28
-    d = (f"M {cx-nw/2} {top} L {cx+nw/2} {top} "
-         f"L {cx+bw/2-1} {nb} Q {cx+bw/2+3} {nb+5} {cx+bw/2+3} {nb+10} "
-         f"Q {cx+bw/2+3} {bot} {cx+bw/2-5} {bot} "
-         f"L {cx-bw/2+5} {bot} Q {cx-bw/2-3} {bot} {cx-bw/2-3} {nb+10} "
-         f"Q {cx-bw/2-3} {nb+5} {cx-bw/2+1} {nb} L {cx-nw/2} {top} Z")
-    return (f'<path d="{d}" fill="#f0fdf4" stroke="{color}" stroke-width="2"/>'
-            f'<line x1="{cx-nw/2-4}" y1="{top}" x2="{cx+nw/2+4}" y2="{top}" '
-            f'stroke="{color}" stroke-width="3" stroke-linecap="round"/>')
-
-ICON_RENDERERS = {
-    "pump": _icon_pump, "mixer": _icon_mixer,
-    "deoxygenation_unit": _icon_degas,
-    "coil_reactor": _icon_coil, "chip_reactor": _icon_coil,
-    "led_module": _icon_led, "bpr": _icon_bpr,
-    "inline_filter": _icon_filter,
-    "quench_mixer": _icon_quench, "collector": _icon_collector,
+_GAS_KEYWORDS = {
+    "n2", "n₂", "nitrogen", "o2", "o₂", "oxygen", "co2", "co₂",
+    "h2", "h₂", "hydrogen", "ar", "argon", "helium", "air", "gas", "mfc",
 }
 
-# ── Block renderer ────────────────────────────────────────────────────────
+def _is_gas_pump(op) -> bool:
+    """Return True if this pump carries a gas stream (use MFC node instead)."""
+    p   = op.parameters or {}
+    txt = " ".join([
+        str(op.label or ""),
+        " ".join(str(c) for c in (p.get("contents") or [])),
+    ]).lower()
+    return any(kw in txt for kw in _GAS_KEYWORDS)
 
-def _param_lines(op) -> list[str]:
-    p = op.parameters
-    ot = op.op_type
-    lines = []
-    if ot == "pump":
-        for c in (p.get("contents") or [])[:2]:
-            lines.append(c)
-        if p.get("solvent"): lines.append(f"in {p['solvent']}")
-        if p.get("flow_rate_mL_min"): lines.append(f"{p['flow_rate_mL_min']} mL/min")
-    elif ot in ("coil_reactor", "chip_reactor"):
-        if p.get("material") and p.get("ID_mm"):
-            lines.append(f"{p['material']} {p['ID_mm']}mm")
-        if p.get("volume_mL"): lines.append(f"V={p['volume_mL']}mL")
-        if p.get("temperature_C") is not None: lines.append(f"T={p['temperature_C']}°C")
-        if p.get("wavelength_nm"): lines.append(f"λ={p['wavelength_nm']}nm")
-        if p.get("reactor_type"): lines.append(f"({p['reactor_type']})")
-    elif ot == "bpr":
-        if p.get("pressure_bar"): lines.append(f"{p['pressure_bar']} bar")
-    elif ot == "deoxygenation_unit":
-        lines.append(p.get("method","N₂ sparging")[:20])
-    elif ot in ("mixer", "quench_mixer"):
-        if p.get("type"): lines.append(p["type"])
-        if p.get("reagent"): lines.append(f"+{p['reagent'][:16]}")
-        if p.get("details"): lines.append(p["details"][:18])
-    elif ot == "inline_filter":
-        if p.get("pore_size_um"): lines.append(f"{p['pore_size_um']}μm")
-        if p.get("details"): lines.append(p.get("details","")[:18])
-    elif ot == "led_module":
-        if p.get("wavelength_nm"): lines.append(f"{p['wavelength_nm']}nm")
-    elif ot == "collector":
-        lines.append("Product")
-    return lines[:MAX_PARAMS]
 
-def _block_h(op) -> float:
-    return ICON_H + LABEL_H + max(len(_param_lines(op)),1)*PARAM_H + 8
+# ── Label generators ──────────────────────────────────────────────────────────
 
-def _render_block(op, cx, top_y) -> str:
-    color = PAL.get(op.op_type, DEF_COLOR)
-    icon_cy = top_y + ICON_H/2
-    renderer = ICON_RENDERERS.get(op.op_type)
+def _pump_label(op) -> str:
+    """
+    Clean pump label: Pump letter, materials, solvent/conc,
+    then flow rate in blue on its own line for visibility.
+    """
+    p      = op.parameters or {}
+    stream = p.get("stream", "?")
+    title  = f"Pump {stream}"
+
+    # Materials line
+    contents = p.get("contents") or []
+    if isinstance(contents, str):
+        contents = [contents]
+    material_parts = []
+    for item in contents[:3]:
+        name = str(item).split("(")[0].strip()
+        material_parts.append(_trunc(name, 22))
+    if len(contents) > 3:
+        material_parts.append(f"+{len(contents)-3}")
+    materials_line = ",  ".join(material_parts) if material_parts else ""
+
+    # Solvent · concentration line
+    cond_parts = []
+    if p.get("solvent"):
+        cond_parts.append(str(p["solvent"]))
+    if p.get("concentration_M") is not None:
+        cond_parts.append(f"{float(p['concentration_M']):.2f} M")
+    cond_line = "  ·  ".join(cond_parts)
+
+    rows = [
+        f'<FONT POINT-SIZE="10" COLOR="#111827"><B>{_esc(title)}</B></FONT>',
+    ]
+    if materials_line:
+        rows.append(f'<FONT POINT-SIZE="8.5" COLOR="#1E40AF">{_esc(materials_line)}</FONT>')
+    if cond_line:
+        rows.append(f'<FONT POINT-SIZE="8" COLOR="#374151">{_esc(cond_line)}</FONT>')
+    # Flow rate: separate blue line for visibility
+    if p.get("flow_rate_mL_min") is not None:
+        rows.append(
+            f'<FONT POINT-SIZE="9" COLOR="#2563EB"><B>'
+            f'{float(p["flow_rate_mL_min"]):.2f} mL/min</B></FONT>'
+        )
+    return "<BR/>".join(rows)
+
+
+def _mfc_label(op) -> str:
+    """Label for gas MFC node."""
+    p      = op.parameters or {}
+    stream = p.get("stream", "?")
+    contents = p.get("contents") or []
+    gas_name = str(contents[0]).split("(")[0].strip() if contents else "Gas"
+    fr   = p.get("flow_rate_mL_min")
+    rows = [
+        f'<FONT POINT-SIZE="10" COLOR="#111827"><B>MFC {stream}</B></FONT>',
+        f'<FONT POINT-SIZE="8.5" COLOR="#DC2626">{_esc(gas_name)}</FONT>',
+    ]
+    if fr is not None:
+        rows.append(f'<FONT POINT-SIZE="8" COLOR="#374151">{float(fr):.2f} mL/min</FONT>')
+    return "<BR/>".join(rows)
+
+
+def _reactor_label(op) -> str:
+    """Compact reactor label: temperature · wavelength · residence time only.
+    No verbose description — the icon already communicates 'reactor'.
+    """
+    p = op.parameters or {}
+    parts = []
+
+    if p.get("temperature_C") is not None:
+        parts.append(f"{p['temperature_C']}°C")
+    if p.get("wavelength_nm") is not None:
+        parts.append(f"λ={p['wavelength_nm']:.0f} nm")
+    if p.get("residence_time_min") is not None:
+        rt = float(p["residence_time_min"])
+        parts.append(f"τ={rt:.0f} min" if rt >= 1 else f"τ={rt*60:.0f} s")
+
+    return "  ·  ".join(parts) if parts else ""
+
+
+def _bpr_label(op) -> str:
+    p = op.parameters or {}
+    bar = p.get("pressure_bar") or p.get("BPR_bar")
+    return f"BPR\n  {bar:.0f} bar" if bar else "BPR"
+
+
+_SHORT_LABELS = {
+    "liq_liq_extraction": "L-L Separator",
+    "liquid_liquid_extraction": "L-L Separator",
+    "lle": "L-L Separator",
+    "separator": "Separator",
+    "phase_separator": "Phase Sep.",
+    "deoxygenation_unit": "Degasser",
+    "degas": "Degasser",
+    "inline_filter": "Filter",
+    "filter": "Filter",
+    "quench_mixer": "Quench",
+}
+
+def _textbox_label(op) -> str:
+    p   = op.parameters or {}
+    ot  = op.op_type.lower().replace(" ", "_")
+    lbl = _SHORT_LABELS.get(ot) or _SHORT_LABELS.get(op.op_type.lower()) or \
+          op.label or op.op_type.replace("_", " ").title()
+
+    # Add one short detail if meaningful
+    detail = p.get("method") or p.get("reagent") or ""
+    if detail and len(str(detail)) < 20:
+        return lbl + "\n" + str(detail)
+    return lbl
+
+
+# ── Node builders ─────────────────────────────────────────────────────────────
+
+NODE_ICON_SIZE = 110   # uniform icon size for all components
+
+def _add_pump(dot, node_id: str, op, pump_img: Path):
+    """Syringe pump node with needle port at right-center and clean label."""
+    image_w   = NODE_ICON_SIZE
+    image_h   = NODE_ICON_SIZE
+    half_h    = image_h // 2
+    port_h    = 2      # tiny port cell (graphviz attaches the edge here)
+
+    label_html = _pump_label(op)
+    label_rows = "".join(
+        f'<TR><TD ALIGN="CENTER" WIDTH="{image_w}" CELLPADDING="1">{part}</TD></TR>'
+        for part in label_html.split("<BR/>")
+    )
+
+    html = (
+        '<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="2">'
+        # Row 1: image (spans 3 rows) + space above needle
+        "<TR>"
+        f'<TD ROWSPAN="3" PORT="img" FIXEDSIZE="TRUE" WIDTH="{image_w}" HEIGHT="{image_h}">'
+        f'<IMG SRC="{escape(pump_img.name)}" SCALE="TRUE"/></TD>'
+        f'<TD WIDTH="0" HEIGHT="{half_h - port_h // 2}"></TD>'
+        "</TR>"
+        # Row 2: needle port (right side, vertically centred)
+        "<TR>"
+        f'<TD PORT="needle" WIDTH="0" HEIGHT="{port_h}"></TD>'
+        "</TR>"
+        # Row 3: space below needle
+        "<TR>"
+        f'<TD WIDTH="0" HEIGHT="{half_h - port_h // 2}"></TD>'
+        "</TR>"
+        # Label rows below the image
+        f"{label_rows}"
+        "</TABLE>>"
+    )
+    dot.node(node_id, label=html, shape="plain")
+
+
+def _add_mixer(dot, node_id: str, label: str,
+               w_inch: float = 0.9, h_inch: float = 0.85):
+    """T-mixer box with in_top / in_bottom / out ports."""
+    w_pt = int(w_inch * 72)
+    h_pt = int(h_inch * 72)
+    half = h_pt // 2
+    port_w = 10
+
+    html = (
+        '<<TABLE BORDER="1" COLOR="grey40" CELLBORDER="0" CELLSPACING="0"'
+        ' CELLPADDING="3" BGCOLOR="#F1F5F9">'
+        "<TR>"
+        f'<TD PORT="in_top" WIDTH="{port_w}" HEIGHT="{half}"></TD>'
+        f'<TD ROWSPAN="2" FIXEDSIZE="TRUE" WIDTH="{w_pt}" HEIGHT="{h_pt}">'
+        f'<FONT POINT-SIZE="10" COLOR="#1E293B"><B>{_esc(label)}</B></FONT></TD>'
+        f'<TD PORT="out" ROWSPAN="2" WIDTH="{port_w}" HEIGHT="{h_pt}"></TD>'
+        "</TR><TR>"
+        f'<TD PORT="in_bottom" WIDTH="{port_w}" HEIGHT="{half}"></TD>'
+        "</TR></TABLE>>"
+    )
+    dot.node(node_id, label=html, shape="plain")
+
+
+def _add_image_node(dot, node_id: str, label: str, img_path: Path,
+                    img_w: int = 125, img_h: int = 125):
+    """Image node (reactor / BPR / vial / mixer) with caption centered below."""
+    # Each label line gets its own row, centered, with explicit width = image width
+    label_rows = "".join(
+        f'<TR><TD ALIGN="CENTER" WIDTH="{img_w}"><FONT POINT-SIZE="9" COLOR="#111827">'
+        f'{_esc(ln)}</FONT></TD></TR>'
+        for ln in label.split("\n") if ln.strip()
+    )
+    html = (
+        '<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="3">'
+        f'<TR><TD PORT="img" FIXEDSIZE="TRUE" WIDTH="{img_w}" HEIGHT="{img_h}">'
+        f'<IMG SRC="{escape(img_path.name)}" SCALE="TRUE"/></TD></TR>'
+        f'{label_rows}'
+        "</TABLE>>"
+    )
+    dot.node(node_id, label=html, shape="plain")
+
+
+def _add_mixer_image(dot, node_id: str, n_inputs: int):
+    """Mixer image node: mixer2 (T-mixer) for ≤2 inputs, mixer3 (cross) for 3+."""
+    asset = ASSETS["mixer3"] if n_inputs >= 3 else ASSETS["mixer2"]
+    sz = NODE_ICON_SIZE
+    html = (
+        '<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">'
+        f'<TR><TD PORT="img" FIXEDSIZE="TRUE" WIDTH="{sz}" HEIGHT="{sz}">'
+        f'<IMG SRC="{escape(asset.name)}" SCALE="TRUE"/></TD></TR>'
+        "</TABLE>>"
+    )
+    dot.node(node_id, label=html, shape="plain")
+
+
+def _add_textbox(dot, node_id: str, op):
+    """Styled text box with explicit left/right ports for clean arrow routing."""
+    label = _textbox_label(op)
+    content_rows = "".join(
+        f'<TD ALIGN="CENTER"><FONT POINT-SIZE="9" COLOR="#1E293B">{_esc(ln)}</FONT></TD>'
+        for ln in label.split("\n")
+    )
+    # Outer table: [left-port cell | content cell | right-port cell]
+    # Named ports ensure arrows attach exactly to the left/right border edge.
+    html = (
+        '<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">'
+        "<TR>"
+        '<TD PORT="inp" WIDTH="1" HEIGHT="1"></TD>'
+        '<TD>'
+        '<TABLE BORDER="1" COLOR="#94A3B8" CELLBORDER="0" CELLSPACING="0"'
+        ' CELLPADDING="8" BGCOLOR="#F8FAFC">'
+        f'<TR>{content_rows}</TR>'
+        '</TABLE>'
+        '</TD>'
+        '<TD PORT="out" WIDTH="1" HEIGHT="1"></TD>'
+        "</TR>"
+        "</TABLE>>"
+    )
+    dot.node(node_id, label=html, shape="plain")
+
+
+def _add_mfc_node(dot, node_id: str, op):
+    """Mass Flow Controller node for gas streams — styled text box."""
+    label_html = _mfc_label(op)
+    rows = "".join(
+        f'<TR><TD ALIGN="CENTER">{part}</TD></TR>'
+        for part in label_html.split("<BR/>")
+    )
+    html = (
+        '<<TABLE BORDER="2" COLOR="#DC2626" CELLBORDER="0" CELLSPACING="0"'
+        ' CELLPADDING="8" BGCOLOR="#FFF5F5" STYLE="ROUNDED">'
+        f'<TR><TD ALIGN="CENTER"><FONT POINT-SIZE="9" COLOR="#7F1D1D"><B>MFC</B></FONT></TD></TR>'
+        f'{rows}'
+        "</TABLE>>"
+    )
+    dot.node(node_id, label=html, shape="plain")
+
+
+# ── Pump image prep ───────────────────────────────────────────────────────────
+
+def _prepare_pump_img() -> Path:
+    """Return a tight-cropped syringe pump image for cleaner rendering."""
+    src = ASSETS["pump"]
+    out = ICONS_DIR / "_pump_trimmed.png"
+    if out.exists():
+        return out
     try:
-        icon_svg = renderer(cx, icon_cy, color) if renderer else ""
-    except Exception:
-        icon_svg = ""
-
-    label_y = top_y + ICON_H + LABEL_H - 2
-    label_svg = (f'<text x="{cx}" y="{label_y}" text-anchor="middle" '
-                 f'{_font(10,"700",TEXT_DARK)}>{_e(_t(op.label,22))}</text>')
-    params_svg = ""
-    for i, line in enumerate(_param_lines(op)):
-        py = label_y + PARAM_H*(i+1)
-        params_svg += (f'<text x="{cx}" y="{py}" text-anchor="middle" '
-                       f'{_font(9,"normal",TEXT_MID)}>{_e(_t(line,26))}</text>')
-    return icon_svg + label_svg + params_svg
-
-# ── Arrow helpers ─────────────────────────────────────────────────────────
-
-def _arrow_h(x1, y, x2) -> str:
-    return (f'<line x1="{x1}" y1="{y}" x2="{x2-6}" y2="{y}" '
-            f'stroke="{LINE_COLOR}" stroke-width="1.8"/>'
-            f'<polygon points="{x2-7},{y-4} {x2},{y} {x2-7},{y+4}" fill="{LINE_COLOR}"/>')
-
-def _arrow_diag(x1, y1, x2, y2) -> str:
-    return (f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
-            f'stroke="{LINE_COLOR}" stroke-width="1.5" stroke-dasharray="5,3"/>'
-            f'<polygon points="{x2-5},{y2-3} {x2},{y2} {x2-5},{y2+3}" fill="{LINE_COLOR}"/>')
-
-def _arrow_down(x, y1, y2) -> str:
-    return (f'<line x1="{x}" y1="{y1}" x2="{x}" y2="{y2-5}" '
-            f'stroke="{LINE_COLOR}" stroke-width="1.5" stroke-dasharray="4,3"/>'
-            f'<polygon points="{x-4},{y2-6} {x},{y2} {x+4},{y2-6}" fill="{LINE_COLOR}"/>')
+        from PIL import Image
+        img = Image.open(src).convert("RGBA")
+        coords = [
+            (x, y)
+            for y in range(img.height) for x in range(img.width)
+            if img.getpixel((x, y))[3] > 0
+            and not all(c > 245 for c in img.getpixel((x, y))[:3])
+        ]
+        if not coords:
+            return src
+        margin = 4
+        min_x = max(min(x for x, _ in coords) - margin, 0)
+        max_x = min(max(x for x, _ in coords) + margin + 1, img.width)
+        min_y = max(min(y for _, y in coords) - margin, 0)
+        max_y = min(max(y for _, y in coords) + margin + 1, img.height)
+        img.crop((min_x, min_y, max_x, max_y)).save(out)
+        return out
+    except Exception as e:
+        logger.warning(f"Pump trim failed: {e} — using original")
+        return src
 
 
-# ── Main builder ──────────────────────────────────────────────────────────
+# ── Main builder ──────────────────────────────────────────────────────────────
 
 class FlowsheetBuilder:
-    """Build a graph-aware process flow diagram."""
+    """
+    Builds a publication-quality process flow diagram from a ProcessTopology.
 
-    def build(self, topology: ProcessTopology, title: str = "",
-              output_svg: str = "flora_process.svg",
-              output_png: str = "flora_process.png") -> tuple[str, str]:
+    Usage (identical API to legacy builder):
+        svg_path, png_path = FlowsheetBuilder().build(topology, title=...,
+                                                       output_svg=..., output_png=...)
+    """
 
-        ops = topology.unit_operations
+    def build(
+        self,
+        topology,
+        title: str = "",
+        output_svg: str = "flora_process.svg",
+        output_png: str = "flora_process.png",
+    ) -> tuple[str, str]:
+        """Build and save the diagram. Returns (svg_path, png_path)."""
+        # Graceful fallback to legacy builder if graphviz not available
+        if not shutil.which("dot"):
+            logger.warning("Graphviz 'dot' not found — falling back to legacy SVG builder")
+            return self._legacy_fallback(topology, title, output_svg, output_png)
+
+        try:
+            return self._build_graphviz(topology, title, output_svg, output_png)
+        except Exception as e:
+            logger.error(f"Graphviz build failed: {e} — falling back to legacy builder", exc_info=True)
+            return self._legacy_fallback(topology, title, output_svg, output_png)
+
+    def _build_graphviz(self, topology, title, output_svg, output_png):
+        import graphviz
+
+        ops    = self._clean_ops(topology)
         if not ops:
             return "", ""
 
-        # ── Build adjacency from stream connections ────────────────────────
-        # out_edges[op_id] → list of op_ids it flows into
-        # in_edges[op_id]  → list of op_ids flowing into it
-        out_edges = defaultdict(list)
-        in_edges  = defaultdict(list)
-        for sc in topology.streams:
-            out_edges[sc.from_op].append(sc.to_op)
-            in_edges[sc.to_op].append(sc.from_op)
+        pump_img = _prepare_pump_img()
 
-        op_map = {o.op_id: o for o in ops}
+        # Polish topology: remove logically redundant nodes (LLM + deterministic)
+        try:
+            from flora_translate.topology_polisher import polish
+            polished = polish(topology, use_llm=True)
+            ops = polished.unit_operations
+            # Use polished streams for adjacency
+            topology = polished
+        except Exception as e:
+            logger.warning(f"Topology polisher failed ({e}) — rendering as-is")
+
+        active_ids = {o.op_id for o in ops}
+
+        # ── Adjacency (filter streams to active ops only) ─────────────────────
+        out_edges: dict[str, list[str]] = defaultdict(list)
+        in_edges:  dict[str, list[str]] = defaultdict(list)
+        for s in topology.streams:
+            if s.from_op in active_ids and s.to_op in active_ids:
+                out_edges[s.from_op].append(s.to_op)
+                in_edges[s.to_op].append(s.from_op)
+
+        op_map   = {o.op_id: o for o in ops}
+        pump_ids = {o.op_id for o in ops if o.op_type == "pump"}
+        led_ids  = {o.op_id for o in ops if o.op_type == "led_module"}
+        skip_ids = pump_ids | led_ids
+
+        # ── Graph init ────────────────────────────────────────────────────────
+        stem = str(Path(output_png).with_suffix(""))
+        dot  = graphviz.Digraph(comment=title or "FLORA Process", format="png")
+        dot.attr(**GRAPH_ATTR)
+        dot.attr(imagepath=str(ICONS_DIR))
+        dot.attr("node",  fontname="Arial")
+        dot.attr("edge", **EDGE_ATTR)
+
+        if title:
+            dot.attr(label=f'<<FONT POINT-SIZE="13" COLOR="#111827"><B>{_esc(title)}</B></FONT>>',
+                     labelloc="t", labeljust="c")
+
+        # ── Build graphviz nodes ──────────────────────────────────────────────
+        # node_id → graphviz node name (same as op_id, sanitised)
+        gv_id = {op.op_id: op.op_id.replace("-", "_").replace(" ", "_")
+                 for op in ops}
+
+        # Track synthetic mixer IDs created for 3+ input chaining
+        # synth_pre[original_mixer_gv_id] → list of (synth_id, inputs)
+        synth_pre: dict[str, list[tuple[str, list[str]]]] = {}
+
+        # Pre-compute input counts for all mixers (needed to pick mixer2 vs mixer3)
+        MIXER_TYPES_SET = {"mixer", "t_mixer", "y_mixer", "quench_mixer"}
+        mixer_input_counts: dict[str, int] = {}
+        for op in ops:
+            if op.op_type in MIXER_TYPES_SET:
+                all_inp = in_edges.get(op.op_id, [])
+                # Exclude led_module from count
+                real_inp = [i for i in all_inp if op_map.get(i) and
+                            op_map[i].op_type != "led_module"]
+                mixer_input_counts[op.op_id] = len(real_inp)
+
+        for op in ops:
+            if op.op_type == "led_module":
+                continue  # skip — wavelength shown under reactor label
+
+            vid = gv_id[op.op_id]
+
+            if op.op_type == "pump":
+                _add_pump(dot, vid, op, pump_img)
+
+            elif op.op_type in MIXER_TYPES_SET:
+                n_inp = mixer_input_counts.get(op.op_id, 2)
+                _add_mixer_image(dot, vid, n_inp)
+
+            elif op.op_type in ("coil_reactor", "reactor", "heated_coil"):
+                is_photo = bool((op.parameters or {}).get("wavelength_nm"))
+                img = ASSETS["photoreactor"] if is_photo else ASSETS["reactor"]
+                _add_image_node(dot, vid, _reactor_label(op), img, NODE_ICON_SIZE, NODE_ICON_SIZE)
+
+            elif op.op_type == "photoreactor":
+                _add_image_node(dot, vid, _reactor_label(op),
+                                ASSETS["photoreactor"], NODE_ICON_SIZE, NODE_ICON_SIZE)
+
+            elif op.op_type in ("packed_bed", "packed_bed_reactor"):
+                _add_image_node(dot, vid, _reactor_label(op),
+                                ASSETS["reactor"], NODE_ICON_SIZE, NODE_ICON_SIZE)
+
+            elif op.op_type in ("microchannel", "microreactor", "chip",
+                                 "microfluidic"):
+                _add_image_node(dot, vid, _reactor_label(op),
+                                ASSETS["microchannel"], NODE_ICON_SIZE, NODE_ICON_SIZE)
+
+            elif op.op_type == "bpr":
+                _add_image_node(dot, vid, _bpr_label(op), ASSETS["bpr"],
+                                NODE_ICON_SIZE, NODE_ICON_SIZE)
+
+            elif op.op_type == "collector":
+                _add_image_node(dot, vid, op.label or "Product",
+                                ASSETS["vial"], NODE_ICON_SIZE, NODE_ICON_SIZE)
+
+            else:
+                _add_textbox(dot, vid, op)
+
+        # ── Edge routing ──────────────────────────────────────────────────────
+        # All op types that expose an :img port (image-based nodes)
+        IMAGE_TYPES = {
+            "coil_reactor", "reactor", "heated_coil", "photoreactor",
+            "packed_bed", "packed_bed_reactor", "bpr", "collector",
+            "microchannel", "microreactor", "chip",
+            # Mixers are now image-based too
+            "mixer", "t_mixer", "y_mixer", "quench_mixer",
+        }
+
+        def output_port(op_id: str) -> str:
+            """Graphviz port string for the OUTPUT (right side) of a node."""
+            op = op_map.get(op_id)
+            if op is None:
+                return gv_id.get(op_id, op_id)
+            vid = gv_id[op_id]
+            ot  = op.op_type
+            if ot == "pump":
+                return f"{vid}:needle:e"
+            if ot == "led_module":
+                return vid
+            if ot in IMAGE_TYPES:
+                return f"{vid}:img:e"
+            # textbox: use named right port
+            return f"{vid}:out:e"
+
+        def input_target(op_id: str) -> str:
+            """Base port string for connecting INTO a node."""
+            op = op_map.get(op_id)
+            if op is None:
+                return gv_id.get(op_id, op_id)
+            vid = gv_id[op_id]
+            ot  = op.op_type
+            if ot in IMAGE_TYPES:
+                return f"{vid}:img"
+            # textbox: use named left port
+            return f"{vid}:inp:w"
+
+        for op in ops:
+            if op.op_id in skip_ids:
+                continue
+
+            vid    = gv_id[op.op_id]
+            ot     = op.op_type
+            inputs = in_edges[op.op_id]
+
+            pump_inp = [i for i in inputs if i in pump_ids]
+            main_inp = [i for i in inputs if i not in skip_ids]
+
+            is_mixer = ot in MIXER_TYPES_SET
+
+            if is_mixer:
+                # all_inp: main-flow inputs first, then pump inputs
+                all_inp  = main_inp + pump_inp
+                n_total  = len(all_inp)
+                tgt_base = input_target(op.op_id)  # e.g. "Mixer1:img"
+
+                if n_total <= 2:
+                    # ── T-mixer: two inputs from pumps/flow ──────────────────
+                    # nw = top-left corner, sw = bottom-left corner.
+                    # With ortho routing this creates clean right-angle bends.
+                    headports = ["nw", "sw"]
+                    for i, src_id in enumerate(all_inp):
+                        dot.edge(output_port(src_id),
+                                 tgt_base, headport=headports[i])
+
+                elif n_total == 3:
+                    # ── Cross-mixer: main flow → w, pumps → nw / sw ──────────
+                    if main_inp:
+                        # Main flow enters from the left (west) — direct horizontal
+                        dot.edge(output_port(main_inp[0]),
+                                 tgt_base, headport="w")
+                        for i, src_id in enumerate(pump_inp[:2]):
+                            dot.edge(output_port(src_id),
+                                     tgt_base, headport=["nw", "sw"][i])
+                    else:
+                        # Three pumps, no main flow → pre-mix first two
+                        synth_id = f"_pre_{vid}"
+                        _add_mixer_image(dot, synth_id, 2)
+                        op_map[synth_id] = type("SynthOp", (), {
+                            "op_id": synth_id, "op_type": "mixer", "parameters": {}
+                        })()
+                        gv_id[synth_id] = synth_id
+                        dot.edge(output_port(all_inp[0]),
+                                 f"{synth_id}:img", headport="nw")
+                        dot.edge(output_port(all_inp[1]),
+                                 f"{synth_id}:img", headport="sw")
+                        dot.edge(f"{synth_id}:img:e", tgt_base, headport="w")
+                        dot.edge(output_port(all_inp[2]),
+                                 tgt_base, headport="nw")
+
+                else:
+                    # ── 4+ inputs: chain two mixers ───────────────────────────
+                    synth_id = f"_pre_{vid}"
+                    _add_mixer_image(dot, synth_id, 2)
+                    op_map[synth_id] = type("SynthOp", (), {
+                        "op_id": synth_id, "op_type": "mixer", "parameters": {}
+                    })()
+                    gv_id[synth_id] = synth_id
+                    dot.edge(output_port(all_inp[0]),
+                             f"{synth_id}:img", headport="nw")
+                    dot.edge(output_port(all_inp[1]),
+                             f"{synth_id}:img", headport="sw")
+                    dot.edge(f"{synth_id}:img:e", tgt_base, headport="w")
+                    for i, src_id in enumerate(all_inp[2:4]):
+                        dot.edge(output_port(src_id),
+                                 tgt_base, headport=["nw", "sw"][i])
+
+            else:
+                # Non-mixer: connect all non-led inputs to west side of node
+                for src_id in inputs:
+                    if src_id in led_ids:
+                        continue
+                    tgt = input_target(op.op_id)
+                    # Use w (west/left) for clean horizontal connections
+                    dot.edge(output_port(src_id), tgt, headport="w")
+
+        # ── Render ────────────────────────────────────────────────────────────
+        Path(output_png).parent.mkdir(parents=True, exist_ok=True)
+
+        # PNG
+        dot.format = "png"
+        rendered_png = dot.render(stem, cleanup=True)
+        if not Path(rendered_png).exists() and Path(stem + ".png").exists():
+            rendered_png = stem + ".png"
+        if Path(rendered_png).exists() and rendered_png != output_png:
+            Path(rendered_png).rename(output_png)
+        logger.info(f"PNG saved: {output_png}")
+
+        # SVG
+        dot.format = "svg"
+        rendered_svg = dot.render(stem, cleanup=True)
+        if not Path(rendered_svg).exists() and Path(stem + ".svg").exists():
+            rendered_svg = stem + ".svg"
+        if Path(rendered_svg).exists() and rendered_svg != output_svg:
+            Path(rendered_svg).rename(output_svg)
+        logger.info(f"SVG saved: {output_svg}")
+
+        return output_svg, output_png
+
+    def _clean_ops(self, topology) -> list:
+        """
+        Remove logically redundant unit operations before rendering:
+          - LED modules (shown as reactor icon + wavelength label instead)
+          - Consecutive duplicate op types (e.g. two BPRs back to back)
+        """
+        ops     = list(topology.unit_operations)
+        streams = topology.streams
+
+        # Build sequential order from streams (main lane only)
+        out_edges: dict[str, list[str]] = defaultdict(list)
+        in_edges:  dict[str, list[str]] = defaultdict(list)
+        for s in streams:
+            out_edges[s.from_op].append(s.to_op)
+            in_edges[s.to_op].append(s.from_op)
+
+        op_map   = {o.op_id: o for o in ops}
         pump_ids = {o.op_id for o in ops if o.op_type == "pump"}
         led_ids  = {o.op_id for o in ops if o.op_type == "led_module"}
 
-        # ── Find main sequential lane ──────────────────────────────────────
-        # Start from first non-pump, non-LED node that has no non-pump inputs
-        # OR just trace from the pump outputs through the graph
-        def find_main_lane():
-            """Return ordered list of op_ids on the main flow path."""
-            # Find the 'collector' as the end node
-            end = next((o.op_id for o in ops if o.op_type == "collector"), None)
-            if not end:
-                # Fallback: last non-pump non-LED op
-                main_ops = [o for o in ops if o.op_type not in ("pump","led_module")]
-                return [o.op_id for o in main_ops]
+        # Walk main lane (non-pump, non-led) and find consecutive duplicates
+        remove_ids = set(led_ids)  # always remove LED
 
-            # Walk backward from collector using in_edges
-            lane = [end]
-            current = end
-            for _ in range(len(ops)):
-                parents = [p for p in in_edges[current]
-                           if p not in pump_ids and p not in led_ids]
-                if not parents:
-                    break
-                # Pick the parent that has the most upstream connections
-                # (i.e., the main trunk, not a side branch)
-                best = max(parents, key=lambda p: len(in_edges[p]))
-                if best in lane:
-                    break
-                lane.insert(0, best)
-                current = best
-            return lane
+        DEDUP_TYPES = {"bpr", "inline_filter", "filter"}
 
-        main_lane = find_main_lane()
-
-        # For each main-lane node, which pumps feed directly into it?
-        def pumps_feeding(node_id):
-            return [p for p in in_edges[node_id] if p in pump_ids]
-
-        # ── Classify pumps as "left pumps" (feed first main-lane node)
-        # vs "mid pumps" (feed a later main-lane node)
-        first_main = main_lane[0] if main_lane else None
-        left_pump_ids = pumps_feeding(first_main) if first_main else list(pump_ids)
-        mid_pump_map = {}   # mid_pump_id → main_lane_node_id it feeds
-        for node_id in main_lane[1:]:
-            for pid in pumps_feeding(node_id):
-                mid_pump_map[pid] = node_id
-
-        left_pumps = [op_map[p] for p in left_pump_ids if p in op_map]
-        # Main lane ops (excluding LEDs)
-        main_ops = [op_map[n] for n in main_lane if n in op_map]
-
-        # ── Find reactor→LED pairings ──────────────────────────────────────
-        # LED nodes connect to reactors via stream or are implied
-        reactor_led = {}  # reactor_id → led_id
-        for lid in led_ids:
-            led_op = op_map.get(lid)
-            if led_op:
-                # Find the reactor in the same stage (same prefix)
-                prefix = lid.rsplit("_", 1)[0]
-                for n in main_lane:
-                    if n.startswith(prefix) and op_map[n].op_type in ("coil_reactor","chip_reactor"):
-                        reactor_led[n] = lid
-
-        # ── Measure heights ────────────────────────────────────────────────
-        def measure(op): return ICON_H + LABEL_H + max(len(_param_lines(op)),1)*PARAM_H + 8
-
-        left_heights  = [measure(p) for p in left_pumps]
-        main_heights  = [measure(o) for o in main_ops]
-        max_main_h    = max(main_heights) if main_heights else 100
-        total_left_h  = sum(left_heights) + PUMP_VGAP*max(len(left_pumps)-1,0)
-
-        # How many mid-pump groups are there? (to reserve vertical space above lane)
-        max_mid_pumps_at_node = max(
-            (len([p for p in mid_pump_map if mid_pump_map[p] == n]) for n in main_lane),
-            default=0
-        )
-        mid_zone_h = SIDE_PUMP_ABOVE if max_mid_pumps_at_node > 0 else 0
-
-        # ── Canvas ─────────────────────────────────────────────────────────
-        title_h = 36 if title else 0
-        led_zone = 70 if reactor_led else 0
-        pump_col_w = ICON_W + 20
-        seq_w = len(main_ops) * (ICON_W + HGAP) - HGAP if main_ops else 0
-
-        canvas_w = MARGIN*2 + pump_col_w + HGAP + seq_w
-        canvas_h = (MARGIN*2 + title_h + led_zone + mid_zone_h
-                    + max(total_left_h, max_main_h) + 50)
-
-        svg = []
-        svg.append(f'<svg xmlns="http://www.w3.org/2000/svg" '
-                   f'width="{canvas_w}" height="{canvas_h}" '
-                   f'viewBox="0 0 {canvas_w} {canvas_h}">')
-        svg.append(f'<rect width="{canvas_w}" height="{canvas_h}" fill="{BG}"/>')
-
-        if title:
-            svg.append(f'<text x="{canvas_w/2}" y="{MARGIN+20}" text-anchor="middle" '
-                       f'{_font(13,"700",TEXT_DARK)}>{_e(title[:90])}</text>')
-
-        # ── Main lane Y position ───────────────────────────────────────────
-        base_y = MARGIN + title_h + led_zone + mid_zone_h
-        # Vertical centre of sequential icons
-        seq_icon_cy = base_y + max_main_h/2 - (LABEL_H + MAX_PARAMS*PARAM_H)/2
-
-        # ── Left pumps (stacked vertically) ───────────────────────────────
-        pump_col_cx = MARGIN + pump_col_w/2
-        pump_total_h = sum(left_heights) + PUMP_VGAP*max(len(left_pumps)-1,0)
-        pump_start_y = seq_icon_cy - pump_total_h/2
-
-        pump_out_ports = []
-        py = pump_start_y
-        for i, pump in enumerate(left_pumps):
-            h = left_heights[i]
-            svg.append(_render_block(pump, pump_col_cx, py))
-            pump_out_ports.append((pump_col_cx + ICON_W/2, py + h/2))
-            py += h + PUMP_VGAP
-
-        # ── Sequential main lane nodes ─────────────────────────────────────
-        seq_start_x = MARGIN + pump_col_w + HGAP + ICON_W/2
-        node_positions = {}   # op_id → (cx, top_y)
-
-        for i, op in enumerate(main_ops):
-            h = main_heights[i]
-            cx = seq_start_x + i*(ICON_W + HGAP)
-            top = seq_icon_cy
-            svg.append(_render_block(op, cx, top))
-            node_positions[op.op_id] = (cx, top)
-
-            # LED above reactor
-            if op.op_id in reactor_led:
-                led_id = reactor_led[op.op_id]
-                led_op = op_map.get(led_id)
-                if led_op:
-                    led_cy = top - 35
-                    svg.append(_icon_led(cx, led_cy, PAL["led_module"]))
-                    wl = led_op.parameters.get("wavelength_nm","")
-                    if wl:
-                        svg.append(f'<text x="{cx}" y="{led_cy+28}" '
-                                   f'text-anchor="middle" {_font(8,"normal",TEXT_MID)}>'
-                                   f'{wl}nm</text>')
-                    # Dashed line from LED down to reactor
-                    svg.append(f'<line x1="{cx}" y1="{led_cy+20}" x2="{cx}" y2="{top}" '
-                               f'stroke="{PAL["led_module"]}" stroke-width="1.5" '
-                               f'stroke-dasharray="4,3"/>')
-
-        # ── Mid-stream pumps (above their injection mixer) ─────────────────
-        for pid, target_id in mid_pump_map.items():
-            if pid not in op_map or target_id not in node_positions:
+        # Check every non-pump op: if its only non-pump predecessor has the same type → remove
+        for op in ops:
+            if op.op_id in remove_ids or op.op_type == "pump":
                 continue
-            pump_op = op_map[pid]
-            target_cx, target_top = node_positions[target_id]
-            # Place pump above the target node
-            pump_h = measure(pump_op)
-            pump_top = target_top - SIDE_PUMP_ABOVE - pump_h/2
-            pump_cx  = target_cx
-            svg.append(_render_block(pump_op, pump_cx, pump_top))
-            # Arrow: straight down from pump to target mixer
-            pump_bot = pump_top + pump_h
-            target_top_edge = target_top
-            svg.append(_arrow_down(pump_cx, pump_bot, target_top_edge))
+            preds = [
+                op_map[pid] for pid in in_edges.get(op.op_id, [])
+                if pid in op_map and pid not in pump_ids and pid not in remove_ids
+            ]
+            for pred in preds:
+                if pred.op_type == op.op_type and op.op_type in DEDUP_TYPES:
+                    remove_ids.add(op.op_id)
+                    break
 
-        # ── Connect left pumps → first sequential node ─────────────────────
-        flow_lane_y = seq_icon_cy + max_main_h/2
-        if main_ops and pump_out_ports:
-            first_cx = seq_start_x
-            manifold_x = pump_col_cx + ICON_W/2 + 12
-            top_port = min(p[1] for p in pump_out_ports)
-            bot_port = max(p[1] for p in pump_out_ports)
-            if len(pump_out_ports) > 1:
-                svg.append(f'<line x1="{manifold_x}" y1="{top_port}" '
-                           f'x2="{manifold_x}" y2="{bot_port}" '
-                           f'stroke="{LINE_COLOR}" stroke-width="1.8"/>')
-            for px_r, py_m in pump_out_ports:
-                svg.append(f'<line x1="{px_r}" y1="{py_m}" x2="{manifold_x}" y2="{py_m}" '
-                           f'stroke="{LINE_COLOR}" stroke-width="1.5"/>')
-            # Manifold to first node
-            manifold_mid = (top_port + bot_port)/2
-            if abs(manifold_mid - flow_lane_y) > 2:
-                svg.append(f'<line x1="{manifold_x}" y1="{manifold_mid}" '
-                           f'x2="{manifold_x}" y2="{flow_lane_y}" '
-                           f'stroke="{LINE_COLOR}" stroke-width="1.5"/>')
-            svg.append(_arrow_h(manifold_x, flow_lane_y, first_cx - ICON_W/2))
+        if not remove_ids:
+            return ops
 
-        # ── Connect sequential nodes ───────────────────────────────────────
-        for i in range(len(main_ops)-1):
-            cx_a, _ = node_positions[main_ops[i].op_id]
-            cx_b, _ = node_positions[main_ops[i+1].op_id]
-            x1, x2 = cx_a + ICON_W/2, cx_b - ICON_W/2
-            # Check if next node has a mid-stream pump above it
-            # If so, shift the arrow to avoid overlap
-            svg.append(_arrow_h(x1, flow_lane_y, x2))
+        # Return ops with removed ones filtered out
+        return [o for o in ops if o.op_id not in remove_ids]
 
-        # ── Footer metrics ─────────────────────────────────────────────────
-        parts = []
-        if topology.residence_time_min:
-            parts.append(f"τ = {topology.residence_time_min} min")
-        if topology.total_flow_rate_mL_min:
-            parts.append(f"Q = {topology.total_flow_rate_mL_min} mL/min")
-        if topology.reactor_volume_mL:
-            parts.append(f"V = {topology.reactor_volume_mL} mL")
-        if parts:
-            svg.append(f'<text x="{canvas_w/2}" y="{canvas_h-14}" '
-                       f'text-anchor="middle" {_font(10,"normal",TEXT_LIGHT)}>'
-                       f'{" · ".join(parts)}</text>')
-
-        svg.append("</svg>")
-        svg_content = "\n".join(svg)
-
-        Path(output_svg).parent.mkdir(parents=True, exist_ok=True)
-        Path(output_svg).write_text(svg_content, encoding="utf-8")
-        logger.info(f"SVG saved: {output_svg}")
-
+    def _legacy_fallback(self, topology, title, output_svg, output_png):
+        """Use the legacy hand-drawn SVG builder as fallback."""
         try:
-            import cairosvg
-            cairosvg.svg2png(bytestring=svg_content.encode(), write_to=output_png, scale=2.0)
-            logger.info(f"PNG saved: {output_png}")
-        except ImportError:
-            logger.warning("cairosvg not installed — PNG skipped")
-            output_png = ""
+            from flora_design.visualizer.flowsheet_builder_legacy import (
+                FlowsheetBuilder as LegacyBuilder,
+            )
+            return LegacyBuilder().build(topology, title, output_svg, output_png)
         except Exception as e:
-            logger.warning(f"PNG failed: {e}")
-            output_png = ""
-
-        return output_svg, output_png
+            logger.error(f"Legacy builder also failed: {e}")
+            return "", ""

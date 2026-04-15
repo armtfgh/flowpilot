@@ -17,10 +17,12 @@ LAB_INVENTORY_PATH = DATA_DIR / "lab_inventory.json"
 # Models
 # ---------------------------------------------------------------------------
 
-TRANSLATION_MODEL = "claude-sonnet-4-20250514"
-SUMMARY_MODEL = "claude-sonnet-4-20250514"
-EMBEDDING_MODEL = "text-embedding-3-small"
-EMBEDDING_DIM = 1536
+TRANSLATION_MODEL  = "claude-sonnet-4-20250514"
+SUMMARY_MODEL      = "claude-sonnet-4-20250514"
+CHEMISTRY_MODEL      = "claude-opus-4-6"         # Opus for Layer 1 — deeper reasoning
+CHEMISTRY_MAX_TOKENS = 8192                      # max output tokens — do not limit
+EMBEDDING_MODEL    = "text-embedding-3-small"
+EMBEDDING_DIM      = 1536
 
 # ---------------------------------------------------------------------------
 # Retrieval

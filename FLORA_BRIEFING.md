@@ -2,9 +2,10 @@
 
 ## Technical Briefing Document
 
-**Version:** 1.2 | March 2026
+**Version:** 1.5 | April 2026
 **Status:** Active Development
-**Codebase:** ~10,500 lines across 57+ files
+**Codebase:** ~17,500+ lines across 65+ files
+**Last major update:** April 2026 — Engineering Overhaul (9-step design calculator, calculation-driven ENGINE council, diagram improvements, recipe tab, council deliberation)
 
 ---
 
@@ -345,11 +346,12 @@ The ENGINE is the shared validation layer used by both Translate and Design. It 
 | **Safety Critic** | Tubing-solvent compatibility, temperature limits, BPR/light source/reactor availability in lab inventory | Lookup tables |
 | **Process Architect** | Unit operation sequence, text-based P&ID | Construction |
 
-**Convergence protocol:**
-1. All agents run independently on the current proposal
-2. Agents that flag `revision_required=True` provide a suggested fix
-3. Moderator applies revisions programmatically
-4. Repeat (max 3 rounds) until no revisions needed
+**Convergence protocol — minimum 2 rounds always:**
+- **Round 1 (validation):** All agents run. Hard violations are corrected. Calculations are used for precise validation (e.g. KineticsAgent uses computed Da and intensification factor directly).
+- **Round 2 (refinement):** Even if Round 1 was clean, a second pass refines conditions. BPR is cross-checked against calculation results — if calculations say BPR is required but proposal has none, a REJECT is injected automatically.
+- **Round 3 (if needed):** Only runs if Round 2 still has violations. Max 3 rounds total.
+
+KineticsAgent now includes in every message: the computed intensification factor, the estimated RT from calculations, and the Damköhler number — making its feedback quantitatively grounded rather than rule-of-thumb only.
 
 ---
 
@@ -364,16 +366,33 @@ Handbook rules are loaded and injected before any LLM reasoning begins:
 - "Residence time = reactor_volume / flow_rate (always verify consistency)"
 - Hundreds of similar hard rules extracted from expert textbooks
 
-**Layer 1 — ChemistryPlan (before retrieval)**
-A dedicated Claude call that *only* thinks about chemistry, informed by the fundamentals:
-- Identifies the reaction mechanism (radical, ionic, SET, HAT, energy transfer)
-- Maps every species and its role
-- Determines which reagents must be in separate streams and why
-- Flags sensitivities (O₂, moisture, light, temperature)
-- Generates retrieval keywords including mechanism type for smarter search
+**Layer 1 — ChemistryPlan (before retrieval) — Claude Opus**
+Uses Claude Opus (the most capable model) with a structured two-section output:
+- **Section 1 (reasoning):** Free-text chain-of-thought working through: chemistry type, rate-limiting step, why flow helps (quantitatively), species roles, stream logic, sensitivity flags. This reasoning is logged and passed downstream.
+- **Section 2 (JSON):** Structured ChemistryPlan consistent with the reasoning above.
+- Token budget capped at 2,048 tokens for cost control (~$0.15/call).
+- Fundamentals rules injected ranked by relevance to the specific chemistry type.
 
-**Layer 2 — Translation (receives ChemistryPlan + analogies)**
-The translation LLM is told: *"The ChemistryPlan is authoritative for chemistry. The analogies are authoritative for hardware."* Hard metadata filters (mechanism_type, phase_regime) ensure only mechanistically relevant analogies are retrieved.
+**Step 2b — 9-Step Engineering Design Calculator (before translation)**
+Pre-computed before the translation LLM runs via `DesignCalculator.run()`:
+
+1. **Kinetics (multi-method):** Analogy-derived IF (primary when ≥ 2 analogies have batch+flow data), class-level IF (fallback), Arrhenius T-correction if T_flow ≠ T_batch. Reports τ as a range covering all methods.
+2. **Reactor sizing:** V_R = τ×Q, L = 4V_R/(πd²) — all geometry derived from τ
+3. **Fluid dynamics:** Re = ρvd/μ — auto-adjusts d upward if turbulent
+4. **Pressure drop:** ΔP = 128μLQ/(πd⁴) via Hagen-Poiseuille — auto-adjusts d if > pump max
+5. **Mass transfer:** t_mix = d²/(D·π²), Da = k·d²/D — flags mass-transfer limited regime
+6. **Heat transfer:** Q_gen, Q_rem = U·A·ΔT_lm, thermal Da — flags exotherm risk
+7. **BPR:** Antoine equation for vapor pressure + system ΔP + 0.5 bar margin; **gas-liquid systems always require BPR (≥ 5 bar) regardless of boiling point**
+8. **Process metrics:** STY, productivity, intensification factor
+
+All steps are internally consistent (τ=V/Q, L=4V/πd², Re=ρvd/μ verified). Results injected
+into translation prompt as a concise engineering block.
+
+**Layer 2 — Translation (receives ChemistryPlan + calculations + analogies)**
+The translation LLM (Sonnet) receives three explicit reasoning steps:
+1. **Analogy comparison:** For each analogy, must state: (a) what is chemically similar, (b) key difference, (c) how that difference adjusts the parameters.
+2. **Calculation validation:** Must verify residence time is within calculated range, BPR set if calculation requires it, Re and Da are reasonable.
+3. **Conditions justification:** Every numerical field must cite its source: analogy N, calculation, chemistry plan, or first principles.
 
 **Layer 3 — Chemistry Validator (in ENGINE council)**
 Cross-checks the final proposal against the ChemistryPlan:
@@ -412,7 +431,31 @@ Metadata stored per record: `doi`, `chemistry_class`, `mechanism_type`, `phase_r
 
 ---
 
-## 7. Cost Optimisation
+## 7. Conversational Interface
+
+The Batch-to-Flow translation page uses a multi-turn chat interface (`flora_translate/conversation_agent.py`) instead of a single-shot form.
+
+**How it works:**
+- `ConversationAgent` wraps the translate pipeline with intent classification (TRANSLATE | REVISE | ANSWER | ASK).
+- **TRANSLATE:** first message with a batch protocol → runs full pipeline → shows result in expandable card.
+- **REVISE:** "add a liquid-liquid extraction" → appends `[REVISION: ...]` to original query → re-runs full pipeline.
+- **ANSWER:** "why did you choose PFA tubing?" → answers from context, no re-run.
+- **ASK:** when critical info is missing → returns 1-3 targeted clarifying questions before running.
+- After every translation: auto-checks confidence and missing fields → proactively asks user for clarification.
+- Reset button clears conversation and starts fresh.
+
+---
+
+## 8. Corpus DOI List
+
+Full DOI list of all 465 papers in the corpus is at `dois/corpus_dois.csv`.
+- 455/465 papers have resolved DOIs.
+- 10 unresolved: `photochemflow (1-9)` internal lab PDFs.
+- DOI sources: filename match (248), CrossRef API (137), paper_miner_history (70).
+
+---
+
+## 9. Cost Optimisation
 
 ### Paper Extraction (PRISM)
 
@@ -524,35 +567,254 @@ Every design output includes an **Approve / Needs Correction** widget. Correctio
 
 | Layer | Technology |
 |-------|-----------|
-| LLM (reasoning) | Claude Sonnet 4 (translation, chemistry analysis, extraction) |
+| LLM (reasoning) | Claude Opus 4.6 (chemistry analysis, council conversation) |
+| LLM (translation) | Claude Sonnet 4.6 (translation, extraction, council summary) |
 | LLM (cheap scan) | Claude Haiku 4.5 (figure classification, handbook relevance scan) |
 | Embeddings | OpenAI text-embedding-3-small (1536 dimensions) |
 | Vector database | ChromaDB (persistent, two collections: flora_records, flora_pairs) |
 | PDF processing | PyMuPDF (text extraction + page rendering) |
-| Physics calculations | Hagen-Poiseuille, Reynolds number (pure Python, no external lib) |
+| Physics calculations | 9-step first-principles design calculator (pure Python) |
 | Bayesian optimisation | scikit-learn GaussianProcessRegressor + scipy EI |
 | Web framework | Streamlit |
-| Diagram generation | Pure SVG (chemistry-aware node labels, no external diagram lib) |
+| Diagram generation | Graphviz (publication-quality PFD with equipment icons) |
 | Data validation | Pydantic v2 |
 | Literature search | pyalex (OpenAlex API) |
 
 ---
 
-## 11. Limitations and Roadmap
+## 11. April 2026 Engineering Overhaul
+
+### 11.1 — 9-Step First-Principles Design Calculator
+
+`flora_translate/design_calculator.py` replaces the former lightweight `flow_calculator.py`.
+The new calculator runs a complete, internally consistent engineering design from batch data:
+
+```
+Step 1 — Parse batch conditions     T, C₀, t_batch, X_target
+Step 2 — Kinetics & residence time  Multi-method: analogy IF → class IF → Arrhenius correction
+Step 3 — Reactor sizing             V_R = τ×Q, L = 4V_R/(πd²)
+Step 4 — Fluid dynamics             Re = ρvd/μ, flow regime check, auto-adjust d if turbulent
+Step 5 — Pressure drop              ΔP = 128μLQ/(πd⁴), auto-adjust d if ΔP > pump max
+Step 6 — Mass transfer              t_mix = d²/(D·π²), Da = k·d²/D
+Step 7 — Heat transfer              Q_gen = |ΔH_r|·r·V_R, Q_rem = U·A·ΔT_lm, Da_th
+Step 8 — BPR sizing                 P_BPR = P_vap(T) + ΔP_sys + 0.5 bar (Antoine eq)
+Step 9 — Process metrics            STY, productivity, intensification factor
+```
+
+#### Step 2 — Multi-Method Kinetics
+
+Step 2 estimates residence time via three parallel methods, choosing the most data-rich
+one as primary and reporting all as a range:
+
+**Method A — Analogy-derived IF (primary when data available):**
+`_extract_analogy_IFs()` pulls batch/flow time ratios from the top retrieved literature
+analogies — either from `translation_logic.time_reduction_factor` or computed as
+`batch_baseline.reaction_time_min / flow_optimized.residence_time_min`.
+When ≥ 2 analogies have data, the median IF is used as the primary estimate.
+
+**Method B — Class-level IF (fallback):**
+Hardcoded table of intensification factors by reaction class (photoredox 48×, thermal 10×,
+hydrogenation 50×, etc.). Used when no analogy data is available.
+
+**Method C — Arrhenius temperature correction:**
+Applied when T_flow ≠ T_batch:
+```
+k(T_flow)/k(T_batch) = exp(−Ea/R × (1/T_flow − 1/T_batch))
+τ_corrected = τ_base / k_ratio
+```
+Ea estimated by reaction class: photoredox 25 kJ/mol (photon-limited, weak T dependence),
+thermal 80 kJ/mol (strong), hydrogenation 45 kJ/mol, cross-coupling 65 kJ/mol.
+
+**Priority logic:**
+
+| Analogy data points | Method used | IF source |
+|---|---|---|
+| ≥ 2 | `analogy` | median of analogy IFs |
+| 1 | `analogy+class` | average of (analogy IF, class IF) |
+| 0 | `class` | hardcoded class table |
+
+**Range reporting:**
+```
+τ = 21.2 min (range: 14.1–45.0 min), via analogy (IF = 68×)
+```
+Range = `[min(τ_methods)/1.5, max(τ_methods)×1.5]`, capturing inter-method uncertainty.
+
+**Disagreement warning:**
+When analogy and class methods disagree by > 3×, a warning is emitted recommending
+experimental verification.
+
+**Consistency guarantee** — verified after every run:
+- τ = V_R / Q
+- L = 4·V_R / (π·d²)
+- Re = ρ·v·d / μ
+- v = 4·Q / (π·d²)
+- ΔP = 128·μ·L·Q / (π·d⁴)
+
+**Gas-liquid detection** — `_is_gas_liquid()` inspects atmosphere, description, and stream
+contents. If a reagent gas (O₂, H₂, CO₂, CO, etc.) is present, BPR is mandatory regardless
+of boiling point, minimum 5 bar to maintain Henry's-law gas solubility. N₂/Ar used purely
+as inert atmosphere are **not** counted as gas-liquid.
+
+**Streamlit display** — `components/design_steps.py` renders each step with:
+- Status badge (PASS / WARNING / FAIL / ADJUSTED / ESTIMATED)
+- LaTeX equations with real substituted numbers
+- Computed values as metric cards
+- Warnings, adjustments, and assumptions
+
+**Backward compatibility** — `DesignCalculations` exposes `estimated_rt_min`, `bpr_minimum_bar`,
+`damkohler_number`, `damkohler_interpretation`, and `to_prompt_block()` so all existing
+prompt-builder and ENGINE code works without changes.
+
+---
+
+### 11.2 — Calculation-Driven ENGINE Council
+
+`flora_translate/engine/moderator.py` completely rewritten. The calculator is now the
+**source of truth** for all physics. The council enforces this.
+
+**Old behaviour:** agents ran independently, returned text-only warnings, revisions extracted
+numbers from strings. Proposals were rubber-stamped unless blatantly wrong.
+
+**New behaviour:**
+
+```
+For each round (max 3):
+  1. Run DesignCalculator on the current proposal
+  2. Physics sync:
+       - If proposal τ differs from calculated τ by > 20% → REJECT + correct value
+       - If V_R ≠ τ×Q → REJECT + enforce consistency
+       - If d was adjusted (ΔP or Re) → REJECT + use calculated d
+       - If BPR required but missing → REJECT + calculated value
+  3. Run domain agents (all read calculator results):
+       - KineticsAgent:   compares proposal τ to calculated τ, REJECT if > 50% off
+       - FluidicsAgent:   reads step 4-5 results, reports pump/Re issues
+       - SafetyCriticAgent: material compatibility, temperature limits, inventory
+       - ChemistryValidator: stream assignments, wavelength, deoxygenation
+  4. Apply all revisions → re-run calculator → verify consistency
+  5. If no revisions in round ≥ 2 → converged
+```
+
+Every revision enforces τ×Q = V_R after application. No round ever leaves an inconsistent proposal.
+
+---
+
+### 11.3 — Confidence Scoring Fix
+
+`flora_translate/output_formatter.py` and `flora_translate/retriever.py` — two compounding
+bugs were fixed that made confidence almost always LOW.
+
+**Bug 1 — Semantic similarity formula.** ChromaDB returns L2 (Euclidean) distances.
+The old formula `1/(1+L2)` severely underestimates similarity for normalised embeddings.
+Fixed to use the correct cosine similarity approximation for unit vectors:
+```
+cosine_similarity = max(0, 1 − L²/2)
+```
+
+| L2 distance | Old `1/(1+L2)` | New `1−L²/2` |
+|---|---|---|
+| 0.5 | 0.67 | **0.875** |
+| 0.8 | 0.56 | **0.68** |
+| 1.0 | 0.50 | 0.50 |
+
+**Bug 2 — HIGH confidence was unreachable.** The threshold `rounds == 1` could never be
+satisfied because `MIN_COUNCIL_ROUNDS = 2`. Fixed thresholds:
+
+| Confidence | Old condition | New condition |
+|---|---|---|
+| HIGH | score > 0.85 AND rounds = 1 (impossible) | score > 0.75 AND rounds ≤ 2 |
+| MEDIUM | score > 0.65 AND rounds ≤ 2 | score > 0.50 AND rounds ≤ 3 |
+| LOW | everything else | everything else |
+
+---
+
+### 11.4 — Process Flow Diagram Improvements
+
+`flora_design/visualizer/flowsheet_builder.py`:
+
+| Change | Detail |
+|--------|--------|
+| **Uniform icon sizes** | All nodes (pump, reactor, BPR, vial, mixer) rendered at `NODE_ICON_SIZE = 110` px |
+| **Compact layout** | `nodesep` 0.9→0.35, `ranksep` 1.5→0.6, `arrowsize` 0.75→0.55 |
+| **Flow rates on pumps** | Blue bold label (`#2563EB`) with `X.XX mL/min` below each pump; topology builder now always computes per-stream rate = total_Q / n_streams when individual rates are absent |
+| **Clean reactor labels** | Labels now show only: `temperature · λ=wavelength · τ=residence time`. Verbose material/description strings removed. |
+
+---
+
+### 11.5 — Results Tabs Redesign
+
+The Streamlit result view (`pages/flora_design_unified.py`) now has 9 tabs:
+
+| Tab | Content |
+|-----|---------|
+| **Summary** | LLM-generated explanation, chemistry notes |
+| **Engineering Design** | Full 9-step calculator output with LaTeX equations |
+| **Process Diagram** | Graphviz PFD + unit operation list |
+| **Chemistry Plan & Recipe** | Species, mechanism, sensitivities + step-by-step bench recipe |
+| **Stream Assignments** | Per-pump contents, solvent, rationale |
+| **Conditions** | All flow parameters with reasoning |
+| **Council Deliberation** | LLM-generated conversational meeting transcript |
+| **Council Report** | Raw agent messages grouped by agent |
+| **Raw JSON** | Full result dict |
+
+---
+
+### 11.6 — Council Deliberation Tab
+
+`components/council_conversation.py` generates a genuine engineering review meeting transcript
+using Claude Sonnet. Each agent has a persona:
+
+| Agent | Persona |
+|-------|---------|
+| DesignCalculator | Physics Engine — cites equations and error percentages |
+| KineticsAgent | Dr. Kinetics — residence times, intensification, literature comparison |
+| FluidicsAgent | Dr. Fluidics — pressure drops, hardware limits, pragmatic |
+| SafetyCriticAgent | Safety Officer — conservative, flags hazards |
+| ChemistryValidator | Dr. Chemistry — mechanism, stream logic, sensitivity |
+| ProcessArchitectAgent | Process Architect — synthesises to final design |
+
+The conversation shows: initial proposal, disagreements, corrections being applied,
+agents asking each other questions, and final consensus. Triggered on demand via a
+"Generate Council Discussion" button. Cached in `st.session_state` to avoid re-generation.
+
+---
+
+### 11.7 — Experimental Recipe Tab
+
+`_render_recipe()` in `flora_design_unified.py` generates a 4-section step-by-step
+experimental protocol for the bench chemist:
+
+**Section A — Preparation:** Liquid vs gas streams handled separately.
+- Liquid streams: weigh reagents, dissolve in solvent, deoxygenate if required.
+- Gas streams: *connect cylinder via mass flow controller, set sccm, use gas-rated fittings and check valve* — never "dissolve gas in a vial".
+
+**Section B — Flow System Assembly:** Tubing, reactor, LED (if photochem), bath temperature,
+BPR (with context-aware reason: gas solubility vs. boiling point), mixer connections, syringe loading.
+
+**Section C — Running:** Per-pump and per-MFC flow rates listed individually, priming sequence,
+gas startup (stable slug flow formation), 3× residence time steady-state wait, collection.
+
+**Section D — Shutdown & Workup:** Gas supply closed first, liquid pumps stopped, flush with
+3× reactor volume, quench (if required), standard workup guidance.
+
+A safety banner is shown when gas streams are present.
+
+---
+
+## 12. Limitations and Roadmap
 
 ### Current Limitations
 
-1. **Corpus size** — Currently ~140 photochemistry papers. Accuracy scales directly with corpus quality and coverage. Reactions with no close analogy receive LOW confidence.
+1. **Corpus size** — Currently ~140 photochemistry papers. Accuracy scales with corpus quality and coverage.
 
 2. **Chemistry scope** — Prompts and rules are optimised for photocatalytic flow chemistry. Extension to thermal, electrochemical, or enzymatic flow requires new rule sets.
 
-3. **No first-principles kinetics** — The Kinetics Agent uses statistical comparison to literature, not computational chemistry.
+3. **Kinetics assumptions** — The calculator assumes first-order kinetics when back-fitting from batch data. Higher-order reactions require Ea/A or explicit order input.
 
-4. **Static diagrams** — Process flow diagrams are SVG images, not interactive.
+4. **ΔH_r and U estimates** — Heat-transfer calculations use estimated ΔH_r by reaction class and a fixed U = 300 W/m²·K. Experimental values give more accurate Da_th.
 
-5. **Mechanism_type metadata** — The new hard retrieval filters only activate after re-indexing. Records indexed before this change have empty mechanism_type and fall back to soft filtering.
+5. **Mechanism_type metadata** — Hard retrieval filters only activate after re-indexing. Records indexed before the mechanism_type addition fall back to soft filtering.
 
-6. **Fundamentals quality depends on handbooks ingested** — An empty fundamentals knowledge base means no rule injection. Quality improves with each handbook added.
+6. **Fundamentals quality** — An empty fundamentals knowledge base means no rule injection. Quality improves with each handbook added.
 
 ### Planned Improvements
 
@@ -560,13 +822,14 @@ Every design output includes an **Approve / Needs Correction** widget. Correctio
 |----------|---------|--------|
 | 1 | Ground truth evaluation pipeline (10–15 held-out papers) | Enables quantitative accuracy measurement |
 | 2 | Feedback loop weighting into retrieval | Improves over time from lab corrections |
-| 3 | Full optimization table extraction (not just optimal row) | Richer parameter landscape for BO |
-| 4 | BO design space suggestion post-translation | Connects translation output to experimental planning |
-| 5 | Automatic corpus growth via OpenAlex monitoring | Keeps knowledge current automatically |
+| 3 | Arrhenius parameter input (A, Ea) for true temperature-dependent τ | Removes first-order assumption in calculator |
+| 4 | Full optimization table extraction (not just optimal row) | Richer parameter landscape for BO |
+| 5 | BO design space suggestion post-translation | Connects translation output to experimental planning |
+| 6 | Automatic corpus growth via OpenAlex monitoring | Keeps knowledge current automatically |
 
 ---
 
-## 12. How to Run
+## 13. How to Run
 
 ```bash
 # Install dependencies
@@ -594,6 +857,9 @@ reader.save([idx], rules)
 print(f'{len(rules)} rules extracted')
 "
 
+# Test the design calculator with hand-verification
+python test_design_calculator.py
+
 # Launch dashboard
 streamlit run app.py
 ```
@@ -601,3 +867,4 @@ streamlit run app.py
 ---
 
 *Document maintained alongside the codebase. FLORA is under active development.*
+*Last updated: April 2026 — Engineering overhaul (9-step calculator, calculation-driven ENGINE, diagram improvements, recipe tab, council deliberation).*

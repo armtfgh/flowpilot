@@ -17,7 +17,7 @@ import re
 
 import anthropic
 
-from flora_translate.config import TRANSLATION_MODEL, PROMPTS_DIR
+from flora_translate.config import CHEMISTRY_MODEL, CHEMISTRY_MAX_TOKENS, PROMPTS_DIR
 from flora_translate.schemas import BatchRecord, ChemistryPlan
 
 logger = logging.getLogger("flora.chemistry_agent")
@@ -25,6 +25,15 @@ logger = logging.getLogger("flora.chemistry_agent")
 
 def _get_client():
     return anthropic.Anthropic()
+
+
+def _parse_json_from_tagged(text: str) -> dict:
+    """Extract JSON from between <JSON> ... </JSON> tags, or fall back to raw JSON."""
+    if "<JSON>" in text:
+        start = text.index("<JSON>") + len("<JSON>")
+        end   = text.index("</JSON>") if "</JSON>" in text else len(text)
+        text  = text[start:end].strip()
+    return _parse_json(text)
 
 
 def _parse_json(text: str) -> dict:
@@ -43,56 +52,35 @@ def _parse_json(text: str) -> dict:
 
 
 CHEMISTRY_SYSTEM = """\
-You are an expert organic chemist with broad expertise across photocatalysis,
-thermal catalysis, electrochemistry, biocatalysis, and organocatalysis. Your
-task is to analyze a batch chemistry protocol and produce a CHEMISTRY PLAN —
-a pure chemical analysis with no hardware or engineering decisions.
+You are an expert organic chemist and flow chemistry engineer with deep expertise
+across photocatalysis, thermal catalysis, electrochemistry, biocatalysis, and
+organocatalysis. Your task: analyze a batch chemistry protocol and produce a
+rigorous CHEMISTRY PLAN grounded in first principles.
 
-You must:
+## Output structure
 
-1. IDENTIFY every chemical species and its role:
-   - substrate(s), catalyst (any type), co-catalyst, base, oxidant, reductant,
-     sensitizer, additives, solvent, electrode material (if electrochemistry)
-   - For each: name, role, equivalents/loading, any special notes
-     (light-sensitive, moisture-sensitive, air-sensitive, etc.)
-   - For photocatalytic reactions: identify the photocatalyst specifically,
-     its excited state type (singlet/triplet), and absorption maximum.
-   - For thermal reactions: identify the metal catalyst/ligand system.
-   - For enzymatic reactions: identify the enzyme, cofactors, and pH range.
+First, write a BRIEF NOTES block (5-8 bullet points maximum, concise):
+<NOTES>
+• Chemistry type: [what type, what drives it]
+• Rate-limiting step in batch: [what, why]
+• Flow advantage: [specific quantitative reason, e.g. "100× better photon delivery in 1mm ID tube"]
+• Key incompatible pairs: [species A + species B → why incompatible]
+• Critical sensitivity: [O2/moisture/light/temperature + reason]
+• Retrieval strategy: [2-3 most distinctive keywords for search]
+</NOTES>
 
-2. PROPOSE the reaction mechanism step-by-step:
-   - For photochem: photoexcitation, SET/EnT/HAT, radical/ionic steps, catalyst
-     regeneration. Classify: oxidative vs reductive quenching vs energy transfer.
-   - For thermal: coordination, oxidative addition, reductive elimination, etc.
-   - For electrochemistry: electrode half-reactions, charge balance.
-   - For biocatalysis: substrate binding, catalytic cycle, cofactor regeneration.
-   - Identify the rate-limiting step and key intermediate(s).
-   - Flag which steps (if any) require photons (is_photon_dependent).
+Then output the complete JSON (no markdown fences):
+<JSON>
+{ ... ChemistryPlan fields ... }
+</JSON>
 
-3. DETERMINE stream separation logic:
-   - Which reagents MUST be in separate streams and WHY
-   - Which reagents MUST be co-dissolved and WHY
-   - List any incompatible pairs (must NOT be in the same syringe)
-   - Explain the mixing order and why the order matters chemically
-
-4. FLAG sensitivities:
-   - Oxygen-sensitive? (most photoredox and organometallic reactions are)
-   - Moisture-sensitive? (Grignard, organolithium, many metal catalysts)
-   - Light-sensitive reagents? (decompose under irradiation)
-   - Temperature-sensitive? (exothermic, decomposition risk)
-
-5. SPECIFY pre/post reactor chemistry:
-   - Deoxygenation: required? method? which streams?
-   - Quench: required? with what? why?
-
-6. GENERATE retrieval hints — keywords for searching flow chemistry papers:
-   - Mechanism keywords, catalyst class, reaction type
-   - Similar reaction classes that would provide useful analogies
-
-7. IF photocatalytic: RECOMMEND wavelength (match to photocatalyst absorption).
-   IF NOT photocatalytic: set recommended_wavelength_nm to null.
-
-Return ONLY valid JSON matching the ChemistryPlan schema. No prose outside JSON.
+Rules:
+- The NOTES must be bullet points only — no paragraphs, no lengthy explanations.
+- The JSON must be complete, valid, and consistent with NOTES.
+- Name every species explicitly. Never use "reagent 1" or "catalyst".
+- For photochem: recommended_wavelength_nm must match photocatalyst λ_abs.
+- For non-photochem: set recommended_wavelength_nm to null.
+- confidence_notes: note anything you are uncertain about.
 """
 
 CHEMISTRY_USER_TEMPLATE = """\
@@ -242,6 +230,35 @@ def _normalize_plan_data(data: dict) -> dict:
                     if r and isinstance(r[0], dict):
                         f["reagents"] = [item.get("name", str(item)) for item in r]
 
+    # ── Coerce None → "" for str fields with empty-string defaults ───────────
+    # Pydantic v2 rejects None for plain `str` fields even with a "" default.
+    _str_fields = [
+        "excited_state_type", "energy_transfer_or_redox",
+        "key_intermediate", "reaction_name", "reaction_class",
+        "mechanism_type", "bond_formed", "phase_regime",
+        "mixing_order_reasoning", "photocatalyst_loading", "scale_note",
+    ]
+    for field in _str_fields:
+        if data.get(field) is None:
+            data[field] = ""
+
+    # ── Coerce "" / non-numeric strings → None for Optional[float/int] fields ─
+    # The LLM sometimes returns "" or "N/A" for numeric fields that have no
+    # value (e.g. recommended_wavelength_nm for a thermal reaction).
+    _numeric_fields = [
+        "recommended_wavelength_nm", "n_stages",
+    ]
+    for field in _numeric_fields:
+        val = data.get(field)
+        if val is None:
+            continue
+        if isinstance(val, str):
+            stripped = val.strip()
+            try:
+                data[field] = float(stripped) if stripped else None
+            except ValueError:
+                data[field] = None
+
     return data
 
 
@@ -255,32 +272,32 @@ class ChemistryReasoningAgent:
 
     def analyze(self, batch_record: BatchRecord) -> ChemistryPlan:
         """Analyze a batch protocol and return a ChemistryPlan."""
-        logger.info("  Chemistry Agent: Analyzing reaction mechanism and species")
+        logger.info(f"  Chemistry Agent: Analyzing with {CHEMISTRY_MODEL}")
 
         # Load fundamentals rules if available
         fundamentals_block = self._load_fundamentals(batch_record)
         system = CHEMISTRY_SYSTEM
         if fundamentals_block:
-            system = system + "\n\n" + fundamentals_block
-            logger.info(f"    Injected fundamentals knowledge into prompt")
+            system = system + "\n\n## FLOW CHEMISTRY HANDBOOK RULES\n" + fundamentals_block
+            logger.info("    Injected fundamentals knowledge into prompt")
 
         batch_json = json.dumps(
             batch_record.model_dump(exclude_none=True), indent=2
         )
         user_prompt = CHEMISTRY_USER_TEMPLATE.format(batch_json=batch_json)
 
-        resp = _get_client().messages.create(
-            model=TRANSLATION_MODEL,
-            max_tokens=4096,
-            system=system,
-            messages=[{"role": "user", "content": user_prompt}],
-        )
+        raw_text = self._call_with_retry(system, user_prompt)
 
-        data = _parse_json(resp.content[0].text)
+        # Extract reasoning block for logging
+        reasoning = self._extract_reasoning(raw_text)
+        if reasoning:
+            logger.info(f"    Reasoning summary: {reasoning[:300]}...")
+
+        data = _parse_json_from_tagged(raw_text)
         data = _normalize_plan_data(data)
         plan = ChemistryPlan(**data)
+        plan._reasoning = reasoning  # attach for downstream use (not in schema)
 
-        # Log key findings
         logger.info(f"    Reaction: {plan.reaction_name} ({plan.mechanism_type})")
         logger.info(f"    Key intermediate: {plan.key_intermediate}")
         logger.info(f"    O2-sensitive: {plan.oxygen_sensitive}")
@@ -290,6 +307,28 @@ class ChemistryReasoningAgent:
         logger.info(f"    Retrieval hints: {plan.retrieval_keywords[:5]}")
 
         return plan
+
+    def _call_with_retry(self, system: str, user_prompt: str) -> str:
+        """Call the model. Warn if truncated but do not retry — 8192 is the hard cap."""
+        resp = _get_client().messages.create(
+            model=CHEMISTRY_MODEL,
+            max_tokens=CHEMISTRY_MAX_TOKENS,
+            system=system,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        if resp.stop_reason == "max_tokens":
+            logger.warning("    Chemistry Agent output hit token limit — JSON may be incomplete")
+        return resp.content[0].text
+
+    def _extract_reasoning(self, text: str) -> str:
+        """Extract the NOTES section (between <NOTES> tags)."""
+        if "<NOTES>" in text and "</NOTES>" in text:
+            start = text.index("<NOTES>") + len("<NOTES>")
+            end   = text.index("</NOTES>")
+            return text[start:end].strip()
+        if "<JSON>" in text:
+            return text[:text.index("<JSON>")].strip()
+        return ""
 
     def _load_fundamentals(self, batch_record: BatchRecord) -> str:
         """Load relevant fundamentals rules for injection into the prompt."""

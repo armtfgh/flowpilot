@@ -58,39 +58,64 @@ class TranslationPromptBuilder:
         batch_record: BatchRecord,
         analogies: list[dict],
         chemistry_plan: ChemistryPlan | None = None,
+        calculations=None,
     ) -> tuple[str, str]:
         """Returns (system_prompt, user_prompt).
 
-        If a ChemistryPlan is provided, it is included in the user prompt
-        as the authoritative chemistry reference for the translation LLM.
+        Parameters
+        ----------
+        calculations : FlowCalculations | None
+            Pre-computed engineering numbers to inject into the prompt.
         """
         system = _load_prompt("translate_system.txt")
 
-        # Format analogies
+        # Format analogies with explicit comparison template
         analogy_blocks = []
         for i, a in enumerate(analogies, 1):
             analogy_blocks.append(_format_analogy(i, a))
 
-        analogies_text = "\n---\n".join(analogy_blocks) if analogy_blocks else (
-            "No close literature analogies found. Use general chemistry "
-            "knowledge for photochemical flow reactions."
-        )
+        if analogy_blocks:
+            analogy_header = (
+                "## LITERATURE ANALOGIES\n"
+                "For EACH analogy below you MUST explicitly state in reasoning_per_field:\n"
+                "  (a) What is chemically similar to our reaction\n"
+                "  (b) What is the key difference\n"
+                "  (c) How you adjusted parameters because of that difference\n\n"
+            )
+            analogies_text = analogy_header + "\n---\n".join(analogy_blocks)
+        else:
+            analogies_text = (
+                "No close literature analogies found. "
+                "Reason from the pre-computed engineering calculations and first principles."
+            )
 
         # Format chemistry plan
         if chemistry_plan:
             plan_json = json.dumps(
                 chemistry_plan.model_dump(exclude_none=True), indent=2
             )
+            # Include reasoning if Opus produced it
+            reasoning = getattr(chemistry_plan, "_reasoning", "")
         else:
-            plan_json = '{"note": "No chemistry plan available — use your own chemistry knowledge."}'
+            plan_json = '{"note": "No chemistry plan available."}'
+            reasoning = ""
+
+        # Format calculations block
+        calc_block = calculations.to_prompt_block() if calculations else (
+            "## Pre-computed Engineering Calculations\n"
+            "No calculations available — use analogy data and first principles."
+        )
 
         user_template = _load_prompt("translate_user.txt")
-        user = user_template.format(
-            batch_record_json=json.dumps(
-                batch_record.model_dump(exclude_none=True), indent=2
-            ),
-            chemistry_plan_json=plan_json,
-            analogies_text=analogies_text,
-        )
+
+        # Use simple replacement instead of .format() to avoid KeyError on
+        # literal { } braces inside the JSON example in the template.
+        user = (user_template
+                .replace("{batch_record_json}",
+                         json.dumps(batch_record.model_dump(exclude_none=True), indent=2))
+                .replace("{chemistry_plan_json}", plan_json)
+                .replace("{chemistry_reasoning}", reasoning or "(not available)")
+                .replace("{analogies_text}", analogies_text)
+                .replace("{calculations_block}", calc_block))
 
         return system, user

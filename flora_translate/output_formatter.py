@@ -33,14 +33,24 @@ class OutputFormatter:
         analogies: list[dict],
     ) -> dict:
         """Generate the final output dict with both structured and readable forms."""
-        # Compute confidence
+        # Compute confidence from two independent signals:
+        #   1. Analogy quality — max final_score from retrieval.
+        #      Scores now use cosine similarity (corrected from L2 in retriever.py),
+        #      so calibrated ranges are:
+        #        > 0.75  → strong match (same class, similar conditions)
+        #        > 0.50  → decent match (related class)
+        #        ≤ 0.50  → weak/no match
+        #   2. Council convergence — how many revision rounds were needed.
+        #      MIN_COUNCIL_ROUNDS = 2, so 2 rounds = cleanest possible run.
+        #        ≤ 2 rounds → no significant issues found
+        #        3 rounds   → required corrections (acceptable)
         max_score = max(
             (a.get("final_score", 0) for a in analogies), default=0
         )
         rounds = candidate.council_rounds
-        if max_score > 0.85 and rounds == 1:
+        if max_score > 0.75 and rounds <= 2:
             confidence = "HIGH"
-        elif max_score > 0.65 and rounds <= 2:
+        elif max_score > 0.50 and rounds <= 3:
             confidence = "MEDIUM"
         else:
             confidence = "LOW"
@@ -51,12 +61,20 @@ class OutputFormatter:
         explanation = self._generate_explanation(candidate)
         candidate.human_explanation = explanation
 
-        # Add low-confidence warning
+        # Add confidence-appropriate note
         if confidence == "LOW":
             candidate.human_explanation += (
-                "\n\nNOTE: No close literature analogies found. "
-                "Treat this proposal as a starting hypothesis "
-                "requiring experimental validation."
+                "\n\n**Confidence: LOW** — The closest literature analogy has a "
+                f"similarity score of {max_score:.2f} (threshold for MEDIUM: 0.50). "
+                "No close precedent found in the corpus for this exact reaction class "
+                "and conditions. Treat this proposal as a starting hypothesis "
+                "requiring careful experimental validation before scale-up."
+            )
+        elif confidence == "MEDIUM":
+            candidate.human_explanation += (
+                f"\n\n**Confidence: MEDIUM** — Best analogy score: {max_score:.2f}. "
+                "A related literature precedent was found but conditions differ. "
+                "Validate key parameters (residence time, concentration) experimentally."
             )
 
         return {

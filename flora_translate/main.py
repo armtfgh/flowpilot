@@ -101,16 +101,22 @@ def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
 
     is_photochem = proposal.wavelength_nm is not None
 
-    # Pumps
+    # Pumps — ensure per-stream flow rate is always populated
     pump_ids = []
     if proposal.streams:
+        n_streams = len(proposal.streams)
+        total_Q = proposal.flow_rate_mL_min or 0.5
+        # Equal split fallback if individual rates not set
+        per_stream_Q = round(total_Q / max(n_streams, 1), 4)
         for s in proposal.streams:
+            fr = s.flow_rate_mL_min if s.flow_rate_mL_min else per_stream_Q
             pid = _add_pump(ops, s.stream_label, s.pump_role,
-                            s.contents, s.solvent, s.flow_rate_mL_min, s.reasoning or "")
+                            s.contents, s.solvent, fr, s.reasoning or "")
             pump_ids.append(pid)
     else:
+        default_Q = round((proposal.flow_rate_mL_min or 0.5) / 2, 4)
         for lbl in ("A", "B"):
-            pid = _add_pump(ops, lbl, "reagent", [], "", None, "")
+            pid = _add_pump(ops, lbl, "reagent", [], "", default_Q, "")
             pump_ids.append(pid)
 
     # Mixer
@@ -143,7 +149,7 @@ def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
         label=reactor_label, parameters={
             "material": mat, "ID_mm": id_mm, "volume_mL": vol,
             "temperature_C": proposal.temperature_C, "wavelength_nm": proposal.wavelength_nm,
-            "length_m": length,
+            "length_m": length, "residence_time_min": proposal.residence_time_min,
         }, required=True, rationale="Flow reactor"))
     _connect(ops, streams, sc, prev, "reactor_1")
     prev = "reactor_1"
@@ -219,11 +225,13 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
 
         # ── Feed pumps for this stage ──────────────────────────────────────
         stage_pump_ids = []
+        n_stage_feeds = len(stage.feed_streams) or 1
+        stage_Q = round((proposal.flow_rate_mL_min or 0.5) / n_stage_feeds, 4)
         for feed in stage.feed_streams:
             char = feed.stream_label or next_pump_char()
             contents = feed.reagents if feed.reagents else []
             pid = _add_pump(ops, char, feed.reasoning or f"Stage {sn} feed",
-                            contents, stage.solvent, None,
+                            contents, stage.solvent, stage_Q,
                             feed.reasoning or f"Feed for {stage.stage_name}")
             stage_pump_ids.append(pid)
 
@@ -297,7 +305,7 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
                 required=True, rationale=f"Light for {stage.stage_name}",
             ))
 
-        # ── Post-stage action (quench, filter, solvent switch) ─────────────
+        # ── Post-stage action (quench, filter, solvent switch, separator, BPR) ─
         if stage.post_stage_action:
             action = stage.post_stage_action.lower()
             post_id = f"{prefix}_post"
@@ -305,7 +313,7 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
             if "filter" in action:
                 ops.append(UnitOperation(
                     op_id=post_id, op_type="inline_filter",
-                    label=f"Filter — after Stage {sn}",
+                    label="Filter",
                     parameters={"pore_size_um": 10},
                     required=True,
                     rationale=stage.post_stage_reasoning or stage.post_stage_action,
@@ -313,7 +321,7 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
             elif "quench" in action:
                 ops.append(UnitOperation(
                     op_id=post_id, op_type="quench_mixer",
-                    label=f"Quench — after Stage {sn}",
+                    label="Quench",
                     parameters={"reagent": stage.post_stage_action},
                     required=True,
                     rationale=stage.post_stage_reasoning or "",
@@ -321,15 +329,35 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
             elif "solvent" in action or "switch" in action:
                 ops.append(UnitOperation(
                     op_id=post_id, op_type="mixer",
-                    label=f"Solvent switch — after Stage {sn}",
-                    parameters={"type": "solvent_switch", "details": stage.post_stage_action},
+                    label="Solvent Switch",
+                    parameters={"type": "solvent_switch"},
+                    required=True,
+                    rationale=stage.post_stage_reasoning or "",
+                ))
+            elif any(k in action for k in ("segment", "gas-liquid", "gas_liquid",
+                                            "separator", "l-l", "liquid-liquid",
+                                            "extraction", "phase sep")):
+                ops.append(UnitOperation(
+                    op_id=post_id, op_type="liq_liq_extraction",
+                    label="Separator",
+                    parameters={},
+                    required=True,
+                    rationale=stage.post_stage_reasoning or "",
+                ))
+            elif any(k in action for k in ("bpr", "back pressure", "back-pressure",
+                                            "backpressure")):
+                # Avoid adding a redundant BPR — mark that one already exists
+                ops.append(UnitOperation(
+                    op_id=post_id, op_type="bpr",
+                    label="BPR",
+                    parameters={"pressure_bar": proposal.BPR_bar or 5},
                     required=True,
                     rationale=stage.post_stage_reasoning or "",
                 ))
             else:
                 ops.append(UnitOperation(
                     op_id=post_id, op_type="mixer",
-                    label=f"{stage.post_stage_action[:30]}",
+                    label=stage.post_stage_action[:25],
                     parameters={"details": stage.post_stage_action},
                     required=True,
                     rationale=stage.post_stage_reasoning or "",
@@ -337,8 +365,9 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
             _connect(ops, streams, sc, prev_op, post_id)
             prev_op = post_id
 
-    # ── Final BPR (if proposal specifies) ──────────────────────────────────
-    if proposal.BPR_bar and proposal.BPR_bar > 0:
+    # ── Final BPR (only if proposal specifies AND no BPR node already exists) ──
+    bpr_already_in_ops = any(o.op_type == "bpr" for o in ops)
+    if proposal.BPR_bar and proposal.BPR_bar > 0 and not bpr_already_in_ops:
         ops.append(UnitOperation(op_id="bpr_final", op_type="bpr",
             label="BPR", parameters={"pressure_bar": proposal.BPR_bar},
             required=True, rationale="Back-pressure regulation"))
@@ -396,10 +425,29 @@ def translate(
     analogies = AnalogySelector(records_dir=RECORDS_DIR).select(raw_analogies)
     logger.info(f"  Found {len(analogies)} analogies")
 
+    # 3b. Pre-compute engineering calculations (9-step design calculator)
+    logger.info("Step 3b: Running 9-step design calculator")
+    from flora_translate.design_calculator import DesignCalculator
+    calculations = DesignCalculator().run(
+        batch_record,
+        chemistry_plan=chemistry_plan,
+        inventory=LabInventory.from_json(inventory_path),
+        analogies=analogies,
+    )
+    logger.info(
+        f"  τ = {calculations.residence_time_min:.1f} min "
+        f"(range {calculations.residence_time_range_min}), "
+        f"method = {calculations.kinetics_method}, "
+        f"Re = {calculations.reynolds_number:.0f}, "
+        f"Da = {calculations.damkohler_mass:.2f}, "
+        f"ΔP = {calculations.pressure_drop_bar:.4f} bar, "
+        f"BPR = {'yes' if calculations.bpr_required else 'no'}"
+    )
+
     # 4. Generate flow proposal
     logger.info("Step 4: Generating flow proposal via LLM")
     system_prompt, user_prompt = TranslationPromptBuilder().build(
-        batch_record, analogies, chemistry_plan=chemistry_plan
+        batch_record, analogies, chemistry_plan=chemistry_plan, calculations=calculations
     )
     proposal = TranslationLLM().generate(system_prompt, user_prompt)
     logger.info(f"  Proposal: {proposal.residence_time_min}min, {proposal.reactor_type}, "
@@ -408,14 +456,22 @@ def translate(
     # 5. ENGINE validation + Chemistry Validator — Layer 3
     logger.info("Step 5: Engineering + Chemistry validation (ENGINE council)")
     inventory = LabInventory.from_json(inventory_path)
-    design_candidate = Moderator().run(
-        proposal, batch_record, analogies, inventory, chemistry_plan=chemistry_plan
+    design_candidate, calculations = Moderator().run(
+        proposal, batch_record, analogies, inventory,
+        chemistry_plan=chemistry_plan, calculations=calculations
     )
 
     # 6. Format output
     logger.info("Step 6: Formatting output")
     result = OutputFormatter().format(design_candidate, analogies)
     result["chemistry_plan"] = chemistry_plan.model_dump(exclude_none=True)
+
+    # Attach 9-step design calculations for Streamlit rendering
+    from dataclasses import asdict
+    result["design_calculations"] = asdict(calculations)
+
+    # Store analogies for the revision agent (confidence + context)
+    result["_analogies"] = analogies
 
     # 7. Build chemistry-aware topology + generate diagram
     logger.info("Step 7: Generating process flow diagram")
