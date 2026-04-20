@@ -6,7 +6,7 @@ import logging
 import anthropic
 from openai import OpenAI
 
-from flora_translate.config import EMBEDDING_MODEL, SUMMARY_MODEL
+from flora_translate.config import EMBEDDING_MODEL, MODEL_EMBEDDING_SUMMARY as SUMMARY_MODEL
 from flora_translate.schemas import BatchRecord, ProcessRecord
 
 logger = logging.getLogger("flora.embedding")

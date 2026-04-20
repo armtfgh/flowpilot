@@ -14,15 +14,78 @@ PROMPTS_DIR = BASE_DIR / "prompts"
 LAB_INVENTORY_PATH = DATA_DIR / "lab_inventory.json"
 
 # ---------------------------------------------------------------------------
-# Models
+# Base model aliases  (change these to remap multiple components at once)
 # ---------------------------------------------------------------------------
 
-TRANSLATION_MODEL  = "claude-sonnet-4-20250514"
-SUMMARY_MODEL      = "claude-sonnet-4-20250514"
-CHEMISTRY_MODEL      = "claude-opus-4-6"         # Opus for Layer 1 — deeper reasoning
-CHEMISTRY_MAX_TOKENS = 8192                      # max output tokens — do not limit
-EMBEDDING_MODEL    = "text-embedding-3-small"
-EMBEDDING_DIM      = 1536
+_SONNET  = "claude-sonnet-4-20250514"
+_OPUS    = "claude-opus-4-6"
+
+# kept for backward compatibility — other modules still import these
+TRANSLATION_MODEL    = _SONNET
+SUMMARY_MODEL        = _SONNET
+CHEMISTRY_MODEL      = _OPUS
+CHEMISTRY_MAX_TOKENS = 8192          # max output tokens for chemistry agent
+EMBEDDING_MODEL      = "text-embedding-3-small"
+EMBEDDING_DIM        = 1536
+
+# ---------------------------------------------------------------------------
+# Per-component model selection  ← edit here to change individual components
+# ---------------------------------------------------------------------------
+# Each line controls exactly one part of the pipeline.
+# All are Anthropic models by default; swap to any Claude model string.
+#
+# Available Anthropic models:
+#   claude-opus-4-6            (most capable, slowest, most expensive)
+#   claude-sonnet-4-20250514   (balanced — default for most components)
+#   claude-haiku-4-5-20251001  (fast + cheap — good for parsing / classification)
+# ---------------------------------------------------------------------------
+
+MODEL_INPUT_PARSER       = _SONNET   # parses free-text batch protocol into BatchRecord
+MODEL_CHEMISTRY_AGENT    = _OPUS     # Layer 1 chemistry reasoning (Opus recommended)
+MODEL_TRANSLATION        = _SONNET   # Layer 2 flow proposal generation
+MODEL_OUTPUT_FORMATTER   = _SONNET   # generates human-readable explanation
+MODEL_REVISION_AGENT     = _SONNET   # targeted patch to an existing design
+MODEL_CONVERSATION_AGENT = _SONNET   # chat intent classifier (TRANSLATE/REVISE/ANSWER/ASK)
+MODEL_EMBEDDING_SUMMARY  = _SONNET   # LLM summary written before ChromaDB indexing
+
+# ---------------------------------------------------------------------------
+# ENGINE Council — provider and rounds
+# ---------------------------------------------------------------------------
+# Change ENGINE_PROVIDER to route specialist agents + Chief Engineer through
+# a different LLM backend.
+#
+#   "anthropic" → Claude Sonnet  (ENGINE_MODEL_ANTHROPIC)
+#   "openai"    → GPT-4o         (ENGINE_MODEL_OPENAI)
+#   "ollama"    → local model    (ENGINE_MODEL_OLLAMA at OLLAMA_BASE_URL)
+#
+# How to switch:
+#   To OpenAI  : set ENGINE_PROVIDER = "openai"   + OPENAI_API_KEY in env
+#   To Ollama  : set ENGINE_PROVIDER = "ollama"   (no API key needed)
+#   To Anthropic: set ENGINE_PROVIDER = "anthropic"
+# ---------------------------------------------------------------------------
+
+ENGINE_PROVIDER        = "ollama"                # ← flip this to switch
+
+ENGINE_MODEL_ANTHROPIC = TRANSLATION_MODEL       # claude-sonnet-4-20250514
+ENGINE_MODEL_OPENAI    = "gpt-4o"                # gpt-4o | gpt-4o-mini | o1-mini
+ENGINE_MODEL_OLLAMA    = "gemma4-flora"           # gemma4:31b + num_ctx 8192 (see Modelfile)
+
+# Ollama server address (the machine running `ollama serve`)
+OLLAMA_BASE_URL        = "http://10.13.24.45:11434/v1"
+
+# ---------------------------------------------------------------------------
+# Council rounds — how many deliberation rounds per provider
+# ---------------------------------------------------------------------------
+# Cloud models (Anthropic, OpenAI) converge fast — 2 rounds is sufficient.
+# Local models benefit from more rounds to compensate for weaker per-call
+# reasoning. Increase OLLAMA_COUNCIL_ROUNDS for harder problems.
+# ---------------------------------------------------------------------------
+
+ENGINE_MAX_ROUNDS = {
+    "anthropic": 2,
+    "openai":    2,
+    "ollama":    3,    # ← increase this for more deliberation on local models
+}
 
 # ---------------------------------------------------------------------------
 # Retrieval

@@ -234,6 +234,7 @@ def _render_result(result: dict, key_prefix: str = ""):
 
     tabs = st.tabs([
         "Summary",
+        "Design Space",
         "Engineering Design",
         "Process Diagram",
         "Chemistry Plan & Recipe",
@@ -250,7 +251,21 @@ def _render_result(result: dict, key_prefix: str = ""):
             st.divider()
             st.info(notes)
 
-    with tabs[1]:
+    with tabs[1]:  # Design Space
+        st.markdown("### Design Space — Pre-Council Candidates")
+        st.caption(
+            "Grid search run BEFORE the council. Each point is a (τ, d, Q) combination "
+            "that satisfies geometric constraints. The highlighted candidate was used as "
+            "the council starting point."
+        )
+        design_space = result.get("design_space", [])
+        if design_space:
+            from components.design_space_viz import render_design_space
+            render_design_space(design_space, key_prefix=key_prefix)
+        else:
+            st.info("Design space search was not run for this result (older format).")
+
+    with tabs[2]:
         # 9-step engineering design calculations
         design_calc = result.get("design_calculations")
         if design_calc:
@@ -284,7 +299,7 @@ def _render_result(result: dict, key_prefix: str = ""):
                     wl = p.get("wavelength_nm")
                     c2[2].metric("Wavelength", f"{wl} nm" if wl else "N/A")
 
-    with tabs[2]:
+    with tabs[3]:
         from components.process_diagram import render_process_diagram
         render_process_diagram(result.get("svg_path", ""), result.get("png_path", ""), key_prefix=key_prefix)
         topo = result.get("process_topology", {})
@@ -303,20 +318,20 @@ def _render_result(result: dict, key_prefix: str = ""):
             if topo.get("pid_description"):
                 st.code(topo["pid_description"])
 
-    with tabs[3]:
+    with tabs[4]:
         from pages.translate import _render_chemistry_plan
         _render_chemistry_plan(result.get("chemistry_plan", {}))
         st.divider()
         _render_recipe(result)
 
-    with tabs[4]:
+    with tabs[5]:
         from pages.translate import _render_streams
         _render_streams(proposal)
 
-    with tabs[5]:
+    with tabs[6]:
         _render_council_deliberation(result)
 
-    with tabs[6]:
+    with tabs[7]:
         from components.council_report import render_council_report
         class _C:
             def __init__(self, r):
@@ -325,7 +340,7 @@ def _render_result(result: dict, key_prefix: str = ""):
                 self.council_messages = r.get("council_messages", [])
         render_council_report(_C(result))
 
-    with tabs[7]:
+    with tabs[8]:
         st.json(result)
 
     from components.feedback import render_feedback_widget
@@ -466,12 +481,13 @@ def _render_council_deliberation(result: dict):
             avatar = _AGENT_AVATARS.get(agent_name, "🤖")
             error_suffix = " [ERROR — blocks convergence]" if had_error else ""
 
+            cot = d.get("chain_of_thought", "")
+            is_green_skip = cot.startswith("Domain ") and "green zone per triage" in cot
             with st.expander(
                 f"{avatar} {agent_name} — {icon} {status}{error_suffix}",
-                expanded=(status != "ACCEPT" or had_error),
+                expanded=(had_error or (bool(cot) and not is_green_skip)),
             ):
                 # Chain of thought
-                cot = d.get("chain_of_thought", "")
                 if cot:
                     st.markdown(cot)
 

@@ -349,17 +349,32 @@ def _add_textbox(dot, node_id: str, op):
 
 
 def _add_mfc_node(dot, node_id: str, op):
-    """Mass Flow Controller node for gas streams — styled text box."""
+    """Mass Flow Controller node for gas streams.
+
+    Rendered as a red-bordered rounded box with the gas name in red to
+    visually distinguish it from syringe pumps. Exposes a `needle` port
+    (same name as the syringe pump) so the edge router can stay generic.
+    """
     label_html = _mfc_label(op)
-    rows = "".join(
+    label_rows = "".join(
         f'<TR><TD ALIGN="CENTER">{part}</TD></TR>'
         for part in label_html.split("<BR/>")
     )
+    # Outer table has two cells in the header row: the inner MFC box,
+    # plus a tiny right-edge port cell named "needle" so edges attach
+    # at the right side. Keeps the edge-routing code provider-agnostic.
     html = (
-        '<<TABLE BORDER="2" COLOR="#DC2626" CELLBORDER="0" CELLSPACING="0"'
+        '<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">'
+        '<TR>'
+        '<TD>'
+        '<TABLE BORDER="2" COLOR="#DC2626" CELLBORDER="0" CELLSPACING="0"'
         ' CELLPADDING="8" BGCOLOR="#FFF5F5" STYLE="ROUNDED">'
         f'<TR><TD ALIGN="CENTER"><FONT POINT-SIZE="9" COLOR="#7F1D1D"><B>MFC</B></FONT></TD></TR>'
-        f'{rows}'
+        f'{label_rows}'
+        '</TABLE>'
+        '</TD>'
+        '<TD PORT="needle" WIDTH="1" HEIGHT="1"></TD>'
+        '</TR>'
         "</TABLE>>"
     )
     dot.node(node_id, label=html, shape="plain")
@@ -499,7 +514,13 @@ class FlowsheetBuilder:
             vid = gv_id[op.op_id]
 
             if op.op_type == "pump":
-                _add_pump(dot, vid, op, pump_img)
+                # Gas streams (O₂, H₂, CO₂, N₂, Ar, air) get the MFC icon/box
+                # instead of a syringe pump — a syringe pump cannot meter gas
+                # reliably, and showing one is misleading in the P&ID.
+                if _is_gas_pump(op):
+                    _add_mfc_node(dot, vid, op)
+                else:
+                    _add_pump(dot, vid, op, pump_img)
 
             elif op.op_type in MIXER_TYPES_SET:
                 n_inp = mixer_input_counts.get(op.op_id, 2)

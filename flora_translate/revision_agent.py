@@ -18,7 +18,7 @@ from pathlib import Path
 
 import anthropic
 
-from flora_translate.config import LAB_INVENTORY_PATH, TRANSLATION_MODEL
+from flora_translate.config import LAB_INVENTORY_PATH, MODEL_REVISION_AGENT as TRANSLATION_MODEL
 from flora_translate.design_calculator import DesignCalculator
 from flora_translate.engine.orchestrator import Orchestrator
 from flora_translate.input_parser import InputParser

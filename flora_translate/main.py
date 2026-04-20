@@ -19,7 +19,7 @@ from pathlib import Path
 from flora_translate.analogy_selector import AnalogySelector
 from flora_translate.chemistry_agent import ChemistryReasoningAgent
 from flora_translate.config import LAB_INVENTORY_PATH, RECORDS_DIR
-from flora_translate.engine.orchestrator import Orchestrator
+from flora_translate.engine.council_v3 import CouncilV3
 from flora_translate.input_parser import InputParser
 from flora_translate.output_formatter import OutputFormatter
 from flora_translate.prompt_builder import TranslationPromptBuilder
@@ -458,6 +458,26 @@ def translate(
         f"BPR = {'yes' if calculations.bpr_required else 'no'}"
     )
 
+    # 3c. Design space grid search — enumerate feasible (τ, d, Q) candidates
+    logger.info("Step 3c: Design space grid search")
+    from flora_translate.engine.design_space import DesignSpaceSearch, candidates_to_dicts, get_council_starting_point
+    design_candidates = DesignSpaceSearch().run(
+        batch_record=batch_record,
+        chemistry_plan=chemistry_plan,
+        calculations=calculations,
+        inventory=LabInventory.from_json(inventory_path),
+        reaction_class=chemistry_plan.reaction_class if chemistry_plan else "default",
+    )
+    logger.info(f"  Design space: {len(design_candidates)} candidates, "
+                f"{sum(1 for c in design_candidates if c.feasible)} feasible")
+
+    # Use top design space candidate as council starting point (replaces LLM guess)
+    _top_candidate = get_council_starting_point(design_candidates)
+    if _top_candidate:
+        logger.info(f"  Top candidate: τ={_top_candidate.tau_min}min, "
+                    f"Q={_top_candidate.Q_mL_min}mL/min, d={_top_candidate.d_mm}mm, "
+                    f"L={_top_candidate.L_m}m, score={_top_candidate.score:.3f}")
+
     # 4. Generate flow proposal
     logger.info("Step 4: Generating flow proposal via LLM")
     system_prompt, user_prompt = TranslationPromptBuilder().build(
@@ -467,10 +487,18 @@ def translate(
     logger.info(f"  Proposal: {proposal.residence_time_min}min, {proposal.reactor_type}, "
                 f"{len(proposal.streams)} streams")
 
+    # Override proposal geometry with top design space candidate
+    if _top_candidate:
+        proposal.residence_time_min = _top_candidate.tau_min
+        proposal.flow_rate_mL_min = _top_candidate.Q_mL_min
+        proposal.tubing_ID_mm = _top_candidate.d_mm
+        proposal.reactor_volume_mL = round(_top_candidate.V_R_mL, 3)
+        logger.info("  Proposal geometry updated from design space top candidate")
+
     # 5. ENGINE deliberation council — Layer 3
     logger.info("Step 5: Multi-agent deliberation council (ENGINE)")
     inventory = LabInventory.from_json(inventory_path)
-    design_candidate, calculations = Orchestrator().run(
+    design_candidate, calculations = CouncilV3().run(
         proposal, batch_record, analogies, inventory,
         chemistry_plan=chemistry_plan, calculations=calculations
     )
@@ -483,6 +511,9 @@ def translate(
     # Attach 9-step design calculations for Streamlit rendering
     from dataclasses import asdict
     result["design_calculations"] = asdict(calculations)
+
+    # Attach design space grid search results
+    result["design_space"] = candidates_to_dicts(design_candidates)
 
     # ── Single source of truth: synchronise τ across all result sections ──
     # The validated proposal is authoritative for residence_time_min and

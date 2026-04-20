@@ -25,7 +25,7 @@ import anthropic
 
 logger = logging.getLogger("flora.conversation")
 
-_CLAUDE_MODEL = "claude-sonnet-4-6"
+from flora_translate.config import MODEL_CONVERSATION_AGENT as _CLAUDE_MODEL
 
 # ── Base system prompt (static part) ──────────────────────────────────────────
 

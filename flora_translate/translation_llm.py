@@ -6,7 +6,7 @@ import re
 
 import anthropic
 
-from flora_translate.config import TRANSLATION_MODEL
+from flora_translate.config import MODEL_TRANSLATION as TRANSLATION_MODEL
 from flora_translate.schemas import FlowProposal
 
 logger = logging.getLogger("flora.translation_llm")

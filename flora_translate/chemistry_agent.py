@@ -17,7 +17,7 @@ import re
 
 import anthropic
 
-from flora_translate.config import CHEMISTRY_MODEL, CHEMISTRY_MAX_TOKENS, PROMPTS_DIR
+from flora_translate.config import MODEL_CHEMISTRY_AGENT as CHEMISTRY_MODEL, CHEMISTRY_MAX_TOKENS, PROMPTS_DIR
 from flora_translate.schemas import BatchRecord, ChemistryPlan
 
 logger = logging.getLogger("flora.chemistry_agent")

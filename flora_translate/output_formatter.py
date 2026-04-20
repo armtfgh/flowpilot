@@ -5,7 +5,7 @@ import logging
 
 import anthropic
 
-from flora_translate.config import SUMMARY_MODEL
+from flora_translate.config import MODEL_OUTPUT_FORMATTER as SUMMARY_MODEL
 from flora_translate.schemas import DesignCandidate
 
 logger = logging.getLogger("flora.output")

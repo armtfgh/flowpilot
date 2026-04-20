@@ -1,17 +1,32 @@
-"""FLORA-Translate ENGINE — Engineering validation council."""
+"""FLORA-Translate ENGINE — Multi-agent deliberation council (v2)."""
 
-from flora_translate.engine.kinetics_agent import KineticsAgent
-from flora_translate.engine.fluidics_agent import FluidicsAgent
-from flora_translate.engine.process_architect import ProcessArchitectAgent
-from flora_translate.engine.safety_critic import SafetyCriticAgent
-from flora_translate.engine.chemistry_validator import ChemistryValidator
-from flora_translate.engine.moderator import Moderator
+from flora_translate.engine.orchestrator import Orchestrator
+from flora_translate.engine.llm_agents import call_llm
+from flora_translate.engine.triage import generate_triage, TriageReport
+from flora_translate.engine.tools import (
+    beer_lambert,
+    check_material_compatibility,
+    calculate_bpr_required,
+    calculate_mixing_ratio,
+    calculate_reynolds,
+    calculate_pressure_drop,
+    check_redox_feasibility,
+    estimate_residence_time,
+    compute_design_envelope,
+)
 
 __all__ = [
-    "KineticsAgent",
-    "FluidicsAgent",
-    "ProcessArchitectAgent",
-    "SafetyCriticAgent",
-    "ChemistryValidator",
-    "Moderator",
+    "Orchestrator",
+    "call_llm",
+    "generate_triage",
+    "TriageReport",
+    "beer_lambert",
+    "check_material_compatibility",
+    "calculate_bpr_required",
+    "calculate_mixing_ratio",
+    "calculate_reynolds",
+    "calculate_pressure_drop",
+    "check_redox_feasibility",
+    "estimate_residence_time",
+    "compute_design_envelope",
 ]

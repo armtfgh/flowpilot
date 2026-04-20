@@ -74,12 +74,22 @@ DELTA_H_ESTIMATES = {
 }
 
 # ── Intensification factors (batch time / flow time) from literature ────────
+# CLASS-LEVEL defaults — conservative midpoints of the ranges from the
+# FLORA Council Calculation Protocol (April 2026).
+# Photoredox / photocatalysis: class range 4–8×.  48× was an analogy-derived
+# value mistakenly used as the class default; that overshot every τ estimate
+# for runs without analogy data.  If strong analogies exist (≥2 datapoints),
+# Step 2 will use IF_analogy instead of IF_class automatically.
 INTENSIFICATION = {
-    "photoredox": 48.0, "photocatalysis": 48.0,
-    "photochem": 30.0, "thermal": 10.0,
-    "cross-coupling": 15.0, "hydrogenation": 50.0,
-    "electrochemistry": 20.0, "biocatalysis": 8.0,
-    "radical": 30.0, "default": 20.0,
+    "photoredox": 6.0, "photocatalysis": 6.0,   # class range 4–8×
+    "photochem": 6.0,                             # same class range
+    "thermal": 10.0,                              # class range 8–15×
+    "cross-coupling": 15.0,                       # class range 10–20×
+    "hydrogenation": 30.0,                        # class range 20–50×
+    "electrochemistry": 20.0,
+    "biocatalysis": 8.0,
+    "radical": 30.0,                              # class range 10–60×
+    "default": 10.0,
 }
 
 # ── Estimated Ea by reaction class (J/mol) for Arrhenius correction ─────────
@@ -876,6 +886,17 @@ class DesignCalculator:
         else:
             calc.intensification_factor = IF_class
 
+        # ── Compute rate_constant so Step 6 uses k·d²/D (scales as d²) ──
+        # Without this, Step 6 falls back to τ/t_mix which scales as 1/d²
+        # — the wrong direction when d decreases to fix mixing.
+        X = calc.target_conversion
+        if t_batch > 0 and X > 0 and tau_s > 0:
+            k_batch = -math.log(1.0 - X) / t_batch   # s⁻¹
+            # Use implied IF (from approved τ) for k_flow; ensures Da ∝ d²
+            k_flow = k_batch * (t_batch / tau_s)
+            calc.rate_constant = k_flow
+        # else: leave at default 0 — fallback formula used (acceptable for edge cases)
+
         summary = (
             f"τ = {tau_min:.1f} min (council-approved — not re-derived from kinetics). "
             f"Implied IF = {calc.intensification_factor:.0f}× vs batch."
@@ -890,6 +911,7 @@ class DesignCalculator:
                 "method": "council-approved",
                 "IF_implied": calc.intensification_factor,
                 "IF_class": IF_class,
+                "k_flow": calc.rate_constant,
             },
             assumptions=["τ set by ENGINE council — kinetics estimation bypassed"],
         ))
