@@ -522,6 +522,9 @@ def format_candidate_table(candidates: list[dict], max_rows: int = 15) -> str:
             flags.append(f"⚠{len(c['warnings'])}")
         if not c.get("feasible", True):
             flags.append("✗")
+        hg = c.get("hard_gate_flags") or []
+        if hg:
+            flags.append(f"⛔{len(hg)}")
         rows.append(
             f"| {i+1} | {c['tau_min']} | {c['d_mm']} | {c['Q_mL_min']} | "
             f"{c['V_R_mL']} | {c['L_m']} | {c['Re']:.0f} | {c['delta_P_bar']:.3f} | "

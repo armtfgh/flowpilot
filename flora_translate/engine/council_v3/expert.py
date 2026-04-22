@@ -11,9 +11,10 @@ Advocates:
   • Kinetics       — argues for the candidate with the best conversion-margin
                      and τ-anchor alignment
   • Fluidics       — argues for the candidate with best ΔP/Re/mixing headroom
-  • Photonics      — argues for the candidate with best photon budget (photochem only)
   • Chemistry      — argues for the candidate most consistent with mechanism,
-                     stream compatibility, atmosphere integrity
+                     stream compatibility, atmosphere integrity, and (for
+                     photochem) photon economy
+  • Safety         — argues for the candidate with the safest operating profile
 """
 
 from __future__ import annotations
@@ -22,7 +23,11 @@ import json
 import logging
 from typing import Optional
 
-from flora_translate.engine.llm_agents import call_llm
+from flora_translate.engine.llm_agents import call_llm, call_llm_with_tools
+from flora_translate.engine.tool_definitions import (
+    KINETICS_TOOLS, FLUIDICS_TOOLS, CHEMISTRY_TOOLS, SAFETY_TOOLS,
+    execute_tool,
+)
 
 logger = logging.getLogger("flora.engine.council_v3.expert")
 
@@ -67,7 +72,11 @@ Evaluation priorities (in order):
       claims ("better mixing in flow") do not count. Rank τ ≥ τ_lit above
       τ < τ_lit/2.
   (2) **Expected conversion**: X = 1 − exp(−τ/τ_k). Prefer X ≥ 0.90. Below 0.85
-      is a genuine yield risk; strongly penalize such candidates.
+      is a genuine yield risk; strongly penalize such candidates. NEVER advocate
+      for a candidate with X < 0.70 — this represents majority unreacted starting
+      material and is not an acceptable trade-off regardless of other metrics.
+      If all candidates have X < 0.70, advocate for the highest X available and
+      flag this as a critical issue requiring τ increase beyond the current grid.
   (3) **Intensification factor sanity**: IF in the class range (photoredox 4–8×,
       thermal 8–15×, radical 10–60×, cross-coupling 5–20×). Candidates outside
       these must be justified; IF > 20× is a HIGH_IF warning regardless of class.
@@ -80,6 +89,11 @@ Evaluation priorities (in order):
       prediction. Slight τ > τ_k gives a safety margin against RTD spread.
 
 Advocate for the candidate that best answers **"this τ will yield robustly."**
+
+## Tools available
+Use `estimate_residence_time` to independently verify τ_kinetics before advocating.
+Use `check_redox_feasibility` if redox margin data is available.
+Call tools first, then output your JSON pick.
 
 ## Required output (JSON only)
 ```json
@@ -104,9 +118,11 @@ Evaluation priorities (in order):
   (1) **ΔP headroom**: ΔP should be comfortably below 0.8 × pump_max.
       Prefer delta_P_headroom_pct ≥ 50%. Aggressive ΔP is fragile — one clogged
       frit or scale bump and the pump stalls.
-  (2) **Flow regime**: Re deep laminar (Re < 100) is the photoredox norm. Re
-      in 100–1000 is fine for purely thermal flow. Re > 1000 is transitional and
-      unforgiving; avoid.
+  (2) **Flow regime**: Re < 2300 is the laminar regime where Hagen-Poiseuille
+      applies. Re in 100–1500 is the photoredox/flow chemistry norm — Dean vortex
+      mixing is active, RTD is well-behaved. Re in 1500–2000 is elevated but still
+      laminar; flag as a caution but do not penalise heavily. Re > 2000 is near
+      transitional — flag strongly. Re ≥ 2300 is hard-blocked by code.
   (3) **Mixing margin**: r_mix = t_mix/τ. Target r_mix < 0.05 (safe), tolerate
       up to 0.20. Combined Da_mass > 1 AND r_mix > 0.20 ⇒ mixing-limited; prefer
       a smaller d (t_mix ∝ d²) even if productivity drops. For mixing-critical
@@ -114,6 +130,10 @@ Evaluation priorities (in order):
   (4) **Length practicality**: L ≤ 15 m is a single coil; 15–20 m is a
       two-coil-in-series build — adds fittings, dead volume, debug surface.
       Prefer L ≤ 15 m at equal productivity.
+  (4b) **Blockage risk at very small d**: candidates with d ≤ 0.5 mm and
+       Q < 0.08 mL/min are at elevated blockage risk from particulates,
+       crystallisation, or pump pulsation. Flag these with a warning even if
+       ΔP looks acceptable.
   (5) **Velocity & RTD**: very low v (< 0.005 m/s) invites axial diffusion
       broadening the RTD; very high v (> 0.1 m/s) approaches transitional Re.
       Middle ground is best.
@@ -124,6 +144,11 @@ Evaluation priorities (in order):
 Advocate for the candidate with the most **operator-friendly fluidics**:
 pressure margin, laminar comfort, mixing safety, practical L.
 
+## Tools available
+Use `calculate_pressure_drop` and `calculate_reynolds` to probe what-if scenarios
+(e.g., Q+20%, partial blockage). Use `calculate_mixing_ratio` to verify r_mix.
+Call tools first, then output your JSON pick.
+
 ## Required output (JSON only)
 ```json
 {
@@ -133,56 +158,6 @@ pressure margin, laminar comfort, mixing safety, practical L.
   "concerns_on_other_picks": ["id 6: ΔP headroom only 12%", "id 8: Re=1400 transitional"],
   "domain": "FLUIDICS"
 }
-```
-"""
-
-
-_PHOTONICS_ADVOCATE = _EXPERT_PREAMBLE + """
-## You are Dr. Photonics — the light-delivery advocate.
-
-Your question (photochem only): **which candidate delivers photons most
-efficiently to every molecule — no inner filter, full irradiation, reasonable
-photon/throughput balance?**
-
-Evaluation priorities (in order):
-  (1) **Beer-Lambert transparency**: absorbance A = ε·C·(d/10 cm). Target
-      A < 0.5 (LOW inner-filter risk) so every cross-sectional element sees
-      photons. A in 0.5–1.0 is MODERATE (reduce d). A > 1 is HIGH (dilute
-      or reduce d). If ε not provided, use d ≤ 0.75 mm as a conservative
-      default and note ε assumption.
-  (2) **Tubing diameter**: smaller d = shorter optical path = less inner
-      filter = higher specific photon flux (photons absorbed per mL·s).
-      Trade-off: smaller d → higher ΔP, longer L. Prefer d ∈ {0.5, 0.75} mm
-      for photoredox with ε > 1000 M⁻¹cm⁻¹; d = 1.0 mm acceptable for low-ε
-      organic dyes.
-  (3) **Material transparency**: FEP and PFA are transparent 200–800 nm
-      (photoreactor-ready). PTFE, PEEK, SS316 are opaque — never in the
-      photoreactor section. Flag any candidate whose tubing_material is opaque
-      even if it made the shortlist (it's a hard rule, not a preference).
-  (4) **Wavelength–catalyst match**: Ir cyclometallates 380–460 nm
-      (450 nm blue LED standard); Ru polypyridyls 420–480 nm; organic dyes
-      peak-dependent. Do not invent extinction coefficients — if ε unknown,
-      state it.
-  (5) **Photon budget vs τ**: short τ with small d maximises photons/mole.
-      Very long τ with large d wastes photons (long time in the dark shell).
-      Prefer τ_short · d_small candidates for high-intensification targets.
-
-Advocate for the candidate with the **cleanest photon economy**.
-
-## Required output (JSON only)
-```json
-{
-  "pick_id": 4,
-  "runner_up_id": 1,
-  "pick_reason": "2-3 sentences citing d, A (if available), photon economy.",
-  "concerns_on_other_picks": ["id 7: d=1.0 mm + ε=1200 → A=0.72 moderate"],
-  "domain": "PHOTONICS"
-}
-```
-
-If this reaction is NOT photochemical, output:
-```json
-{"pick_id": null, "domain": "PHOTONICS", "pick_reason": "not applicable — non-photochemical reaction"}
 ```
 """
 
@@ -199,6 +174,10 @@ Evaluation priorities (in order):
       where Stage 1 is O₂-free and Stage 2 is aerobic, verify the candidate's τ
       allows a physical degas + gas-introduction step between stages — typical
       minimum dead time 30 s per stage boundary.
+      Note: degassing time is determined by the degasser module specification,
+      NOT by reactor τ. Do not use τ as a proxy for degassing adequacy — this
+      is out of scope for Chemistry; it belongs to Safety (atmosphere integrity)
+      or hardware specification.
   (2) **Stream compatibility**: photocatalyst in same stream as substrate is
       OK only if excited-state lifetime is short (ns, not μs). Oxidant + reductant
       in same feed = pre-reaction losses. Strong base + sensitive electrophile =
@@ -219,16 +198,87 @@ Evaluation priorities (in order):
       should support the suppression conditions (pH, base, T) that the batch
       protocol used.
 
+## Photon economy (photochemical reactions only)
+When the reaction is photochemical, also evaluate:
+  (7) **Beer-Lambert transparency**: call `beer_lambert` tool with the ACTUAL ε for
+      this photocatalyst. If ε is unknown, assume ε = 20 M⁻¹cm⁻¹ for Ir complexes
+      at 450 nm (conservative). DO NOT assume ε > 100 unless explicitly provided.
+      A < 0.5 = LOW risk; A 0.5–1.0 = MODERATE; A > 1.0 = HIGH.
+  (8) **Tubing material**: FEP and PFA are transparent 200–800 nm. PTFE, PEEK, SS are
+      opaque. Never recommend opaque material for the photoreactor section.
+  (9) **d selection for photochem**: small d maximises photon flux per molecule.
+      Prefer d ≤ 0.75 mm for ε > 500; d ≤ 1.0 mm is acceptable for ε < 100.
+      ALWAYS use the beer_lambert tool before making a d recommendation.
+
 Advocate for the candidate that the **mechanism itself would pick**.
+
+## Tools available
+Use `beer_lambert` to verify photon economy when the reaction is photochemical.
+Use `check_material_compatibility` to verify tubing material against solvent.
+Use `check_redox_feasibility` if E* and E_ox data is available.
+Call tools first, then output your JSON pick.
 
 ## Required output (JSON only)
 ```json
 {
   "pick_id": 2,
   "runner_up_id": 4,
-  "pick_reason": "2-3 sentences citing mechanism, atmosphere, stream logic.",
+  "pick_reason": "2-3 sentences citing mechanism, atmosphere, stream logic, and (if photochem) photon economy.",
   "concerns_on_other_picks": ["id 6: τ too short for SET margin of 0.12 V"],
   "domain": "CHEMISTRY"
+}
+```
+"""
+
+
+_SAFETY_ADVOCATE = _EXPERT_PREAMBLE + """
+## You are Dr. Safety — the process safety advocate.
+
+Your question: **which candidate has the safest operating profile — lowest risk
+of runaway, reagent incompatibility, pressure failure, or toxic intermediate
+accumulation?**
+
+Evaluation priorities (in order):
+  (1) **BPR adequacy**: BPR must exceed P_vapor + ΔP + margin. For gas-liquid
+      systems BPR ≥ 5 bar is a hard floor. A candidate with thin BPR headroom
+      at elevated temperature is a pressure safety risk.
+  (2) **Reactive intermediate handling**: ketyl radicals, organolithiums,
+      peroxides, diazonium salts, and strong oxidants require inline quench
+      before any open collection. If the mechanism produces such an intermediate,
+      verify the candidate's τ leaves room for inline quench unit (typically
+      +0.5–1 min dead volume downstream of reactor).
+  (3) **Material compatibility at operating conditions**: use `check_material_compatibility`
+      tool. FEP degrades in strong oxidisers above 150°C; PEEK swells in DCM/THF;
+      SS corrodes in halide media. An incompatible material is a leak and
+      contamination risk, not just a lifetime issue.
+  (4) **Exothermic risk**: for reactions with large −ΔH (Grignard, nitration,
+      strong acid/base neutralisation, peroxide formation), small d = better
+      heat dissipation. Prefer d ≤ 0.75 mm for highly exothermic chemistries.
+      Larger d = lower surface/volume ratio = higher adiabatic temperature rise risk.
+  (5) **O₂/moisture atmosphere integrity**: O₂-sensitive radicals require
+      completely sealed, degassed feed lines. Verify the candidate's Q is
+      high enough that residence time in fittings + dead volume does not
+      allow O₂ back-diffusion from atmosphere.
+  (6) **Pressure drop safety margin**: ΔP headroom (1 − ΔP/pump_max) < 20% is
+      a safety risk — pump overpressure on any flow restriction. Prefer > 40%.
+  (7) **Scale-up hazard flag**: candidates with very short τ (< 2 min) and high
+      concentration (> 0.3 M) of reactive intermediates represent accumulated
+      hazard if a downstream blockage occurs. Flag these.
+
+Use `check_material_compatibility` and `calculate_bpr_required` tools before
+advocating. A candidate that passes kinetics and fluidics but fails on safety
+grounds should NOT be advocated for — switch to the next safest candidate.
+
+Advocate for the candidate with the **lowest overall process safety risk**.
+
+## Required output (JSON only)
+```json
+{
+  "pick_id": 2,
+  "runner_up_id": 4,
+  "pick_reason": "2-3 sentences citing BPR, material compatibility, reactive intermediate handling, exothermic risk.",
+  "concerns_on_other_picks": ["id 6: BPR headroom only 8% at operating T"],
+  "domain": "SAFETY"
 }
 ```
 """
@@ -237,8 +287,8 @@ Advocate for the candidate that the **mechanism itself would pick**.
 _SPECIALISTS = [
     ("Dr. Kinetics",   "KINETICS",   _KINETICS_ADVOCATE),
     ("Dr. Fluidics",   "FLUIDICS",   _FLUIDICS_ADVOCATE),
-    ("Dr. Photonics",  "PHOTONICS",  _PHOTONICS_ADVOCATE),
     ("Dr. Chemistry",  "CHEMISTRY",  _CHEMISTRY_ADVOCATE),
+    ("Dr. Safety",     "SAFETY",     _SAFETY_ADVOCATE),
 ]
 
 
@@ -286,6 +336,7 @@ def _build_context(
     objectives: str,
     prior_picks: Optional[list[dict]] = None,
     skeptic_notes: Optional[list[str]] = None,
+    peer_concerns: Optional[list[dict]] = None,
 ) -> str:
     parts = [
         "## Chemistry brief\n" + chemistry_brief,
@@ -307,6 +358,14 @@ def _build_context(
             "## Skeptic's outstanding objections (address these if you keep the same pick)\n"
             + "\n".join(f"- {n}" for n in skeptic_notes)
         )
+    if peer_concerns:
+        parts.append(
+            "## Your colleagues' concerns about each other's picks (round 1)\n"
+            + "\n".join(
+                f"- **{c['domain']}** on id {c['pick_id']}: {c['concern']}"
+                for c in peer_concerns
+            )
+        )
     parts.append(
         "\nNow output YOUR pick as JSON (per the required schema). "
         "Pick the candidate your DOMAIN would defend — disagreement is welcome."
@@ -327,7 +386,8 @@ def run_expert_panel(
     is_photochem: bool,
     prior_picks: Optional[list[dict]] = None,
     skeptic_notes: Optional[list[str]] = None,
-    max_tokens: int = 700,
+    peer_concerns: Optional[list[dict]] = None,
+    max_tokens: int = 900,
 ) -> list[dict]:
     """Run the 4-specialist advocacy panel.
 
@@ -346,25 +406,29 @@ def run_expert_panel(
         objectives=objectives,
         prior_picks=prior_picks,
         skeptic_notes=skeptic_notes,
+        peer_concerns=peer_concerns,
     )
+
+    domain_tools = {
+        "KINETICS":  KINETICS_TOOLS,
+        "FLUIDICS":  FLUIDICS_TOOLS,
+        "CHEMISTRY": CHEMISTRY_TOOLS,   # now includes beer_lambert
+        "SAFETY":    SAFETY_TOOLS,
+    }
 
     picks: list[dict] = []
     valid_ids = {i + 1 for i in range(len(candidates))}
 
     for name, domain, system_prompt in _SPECIALISTS:
-        # Skip Photonics for non-photochem
-        if domain == "PHOTONICS" and not is_photochem:
-            picks.append({
-                "specialist_name": name, "domain": domain,
-                "pick_id": None, "runner_up_id": None,
-                "pick_reason": "not applicable — non-photochemical reaction",
-                "concerns_on_other_picks": [],
-                "status": "NO_PICK",
-            })
-            continue
-
+        tool_calls_log: list[dict] = []
         try:
-            raw = call_llm(system_prompt, context, max_tokens=max_tokens)
+            raw, tool_calls_log = call_llm_with_tools(
+                system_prompt, context,
+                tools=domain_tools[domain],
+                tool_executor=execute_tool,
+                max_tokens=max_tokens,
+                max_tool_turns=3,
+            )
             data = _parse_pick(raw)
         except Exception as e:
             logger.warning("%s LLM call failed: %s", name, e)
@@ -396,6 +460,7 @@ def run_expert_panel(
                 str(c)[:200] for c in (data.get("concerns_on_other_picks") or [])
             ][:5],
             "status": status,
+            "tool_calls": tool_calls_log,
         })
         logger.info(
             "    %s advocates candidate id=%s (runner-up id=%s)",

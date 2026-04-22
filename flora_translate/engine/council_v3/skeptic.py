@@ -27,7 +27,8 @@ import json
 import logging
 from typing import Optional
 
-from flora_translate.engine.llm_agents import call_llm
+from flora_translate.engine.llm_agents import call_llm, call_llm_with_tools
+from flora_translate.engine.tool_definitions import SKEPTIC_TOOLS, execute_tool
 
 logger = logging.getLogger("flora.engine.council_v3.skeptic")
 
@@ -92,8 +93,17 @@ def sanity_code_check(
     re = candidate.get("Re", 0.0)
     if re >= 2300:
         blocks.append(f"Re={re:.0f} ≥ 2300 — laminar-flow equations invalid")
-    elif re > 1000:
-        warnings.append(f"Re={re:.0f} > 1000 — transitional, RTD model weakened")
+    elif re > 1500:
+        warnings.append(f"Re={re:.0f} > 1500 — approaching transitional; RTD model weakened above 2000")
+
+    # Very narrow tubing blockage risk
+    d_mm = candidate.get("d_mm", 1.0)
+    Q = candidate.get("Q_mL_min", 1.0)
+    if d_mm <= 0.5 and Q < 0.08:
+        warnings.append(
+            f"d={d_mm} mm + Q={Q:.3f} mL/min — elevated blockage risk from particulates "
+            "or crystallisation; verify reagent solubility and use inline filter"
+        )
 
     # Bench geometry (hard)
     if candidate.get("L_m", 0) > 20.0:
@@ -110,8 +120,10 @@ def sanity_code_check(
 
     # Conversion gate
     X = candidate.get("expected_conversion", 1.0)
-    if X < 0.80:
-        warnings.append(f"X={X:.2f} < 0.80 — τ likely too short for kinetics")
+    if X < 0.70:
+        blocks.append(f"X={X:.2f} < 0.70 — unacceptable conversion; majority unreacted starting material")
+    elif X < 0.80:
+        warnings.append(f"X={X:.2f} < 0.80 — τ likely too short; yield risk")
 
     return {"blocks": blocks, "warnings": warnings}
 
@@ -184,6 +196,23 @@ For each Expert pick, identify AT MOST TWO most-likely-to-bite assumptions
 and one concrete mitigation each. If a pick passes cleanly, say so — do NOT
 manufacture objections. Over-skepticism is as bad as rubber-stamping.
 
+## Comparative narrative — trade_off_summary
+After attacking individual picks, write ONE paragraph that reads ACROSS all picks:
+- Where do the specialists disagree (which candidates, which metrics)?
+- What is the core trade-off the disagreement reveals (e.g. τ vs ΔP, yield safety vs operational comfort)?
+- What does the lab chemist need to decide in order to choose?
+Be specific: cite the candidate ids and the actual numbers.
+
+## Tools available to you
+You have access to calculation tools. Use them to QUANTIFY your attacks — do not just
+state "the margin looks thin", compute it. Examples:
+- Use `estimate_residence_time` to compute τ_kinetics independently and verify the τ/τ_k margin
+- Use `beer_lambert` to compute absorbance at a WORST-CASE ε (e.g., ε/3 for off-peak LED)
+- Use `calculate_pressure_drop` to probe what 20% Q increase does to ΔP headroom
+- Use `calculate_reynolds` to verify Re stays laminar at operating conditions
+
+Call tools BEFORE writing your JSON. Ground every HIGH or MEDIUM attack in a tool result.
+
 ## REQUIRED OUTPUT — JSON ONLY
 ```json
 {
@@ -197,7 +226,8 @@ manufacture objections. Over-skepticism is as bad as rubber-stamping.
     }
   ],
   "clean_picks": [{"pick_id": 5, "specialist": "FLUIDICS"}],
-  "summary": "One-sentence overall read."
+  "summary": "One-sentence overall read.",
+  "trade_off_summary": "One paragraph: where do the picks disagree? What metric drives that gap? What does the lab chemist need to decide between them?"
 }
 ```
 
@@ -254,7 +284,7 @@ def run_skeptic(
     pump_max_bar: float,
     BPR_bar: float = 0.0,
     tubing_material: str = "FEP",
-    max_tokens: int = 900,
+    max_tokens: int = 1200,
 ) -> dict:
     """Run the Skeptic on the Expert's picks.
 
@@ -264,7 +294,8 @@ def run_skeptic(
         "llm_attacks": [...],          # LLM-generated assumption attacks
         "clean_picks": [...],
         "summary": "...",
-        "blocked_picks": [pick_id, ...]    # picks demoted by code blocks (hard)
+        "blocked_picks": [pick_id, ...],   # picks demoted by code blocks (hard)
+        "tool_calls": [...],               # tool calls made by Skeptic LLM
       }
     """
     # ── Deterministic rule check on every pick (hard blocks) ─────────────────
@@ -296,7 +327,9 @@ def run_skeptic(
             "llm_attacks": [],
             "clean_picks": [],
             "summary": "All picks blocked by hard code rules — see blocks.",
+            "trade_off_summary": "",
             "blocked_picks": sorted(blocked),
+            "tool_calls": [],
         }
 
     picks_summary = "\n".join(
@@ -319,8 +352,16 @@ def run_skeptic(
     llm_attacks: list[dict] = []
     clean_picks: list[dict] = []
     summary = ""
+    trade_off_summary = ""
+    tool_calls_log: list[dict] = []
     try:
-        raw = call_llm(_SKEPTIC_SYSTEM, context, max_tokens=max_tokens)
+        raw, tool_calls_log = call_llm_with_tools(
+            _SKEPTIC_SYSTEM, context,
+            tools=SKEPTIC_TOOLS,
+            tool_executor=execute_tool,
+            max_tokens=max_tokens,
+            max_tool_turns=4,
+        )
         data = _parse_skeptic(raw)
         for a in data.get("attacks", []) or []:
             if isinstance(a, dict) and a.get("pick_id") is not None:
@@ -337,6 +378,7 @@ def run_skeptic(
             if isinstance(c, dict) and c.get("pick_id") is not None
         ]
         summary = str(data.get("summary", ""))[:300]
+        trade_off_summary = str(data.get("trade_off_summary", ""))[:600]
     except Exception as e:
         logger.warning("Skeptic LLM call failed: %s", e)
 
@@ -351,5 +393,7 @@ def run_skeptic(
         "llm_attacks": llm_attacks,
         "clean_picks": clean_picks,
         "summary": summary,
+        "trade_off_summary": trade_off_summary,
         "blocked_picks": sorted(blocked),
+        "tool_calls": tool_calls_log,
     }

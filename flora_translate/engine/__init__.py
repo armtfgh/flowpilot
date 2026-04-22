@@ -1,8 +1,8 @@
-"""FLORA-Translate ENGINE — Multi-agent deliberation council (v2)."""
+"""FLORA-Translate ENGINE — Multi-agent deliberation council (v4 active)."""
 
-from flora_translate.engine.orchestrator import Orchestrator
+from flora_translate.engine.council_v3 import CouncilV3
+from flora_translate.engine.council_v4 import CouncilV4
 from flora_translate.engine.llm_agents import call_llm
-from flora_translate.engine.triage import generate_triage, TriageReport
 from flora_translate.engine.tools import (
     beer_lambert,
     check_material_compatibility,
@@ -16,10 +16,9 @@ from flora_translate.engine.tools import (
 )
 
 __all__ = [
-    "Orchestrator",
+    "CouncilV3",
+    "CouncilV4",
     "call_llm",
-    "generate_triage",
-    "TriageReport",
     "beer_lambert",
     "check_material_compatibility",
     "calculate_bpr_required",

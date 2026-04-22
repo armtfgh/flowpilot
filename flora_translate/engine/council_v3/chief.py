@@ -20,7 +20,8 @@ from typing import Optional
 
 from flora_translate.config import ENGINE_PROVIDER
 from flora_translate.design_calculator import DesignCalculator, DesignCalculations
-from flora_translate.engine.llm_agents import call_llm
+from flora_translate.engine.llm_agents import call_llm, call_llm_with_tools
+from flora_translate.engine.tool_definitions import CHIEF_TOOLS, execute_tool
 from flora_translate.engine.council_v3.designer import run_designer
 from flora_translate.engine.council_v3.expert import run_expert_panel
 from flora_translate.engine.council_v3.skeptic import run_skeptic, sanity_code_check
@@ -85,6 +86,11 @@ concentration_M, tubing_material, wavelength_nm, deoxygenation_method,
 mixer_type, reactor_volume_mL.
 
 All values in changes_to_apply must be strings.
+
+## Tool available
+Use `compute_design_envelope` on each surviving pick to assess its operating window width
+before choosing. A wider envelope means more robustness to lab variability (pump drift,
+temperature fluctuation). Call it on 2-3 candidates, then decide.
 """
 
 
@@ -159,6 +165,56 @@ def _deterministic_resolve(
     return winner, reason
 
 
+def _build_tradeoff_matrix(
+    expert_picks: list[dict],
+    skeptic: dict,
+    candidates: list[dict],
+    pump_max_bar: float,
+) -> str:
+    """Build a concise comparison table of surviving picks for the Chief."""
+    blocked = set(skeptic.get("blocked_picks", []))
+    high_per_id: Counter = Counter(
+        a["pick_id"] for a in skeptic.get("llm_attacks", [])
+        if a.get("severity") == "HIGH"
+    )
+    # Collect unique surviving pick ids, preserving order
+    seen: set = set()
+    surviving_ids: list[int] = []
+    for p in expert_picks:
+        pid = p.get("pick_id")
+        if pid is not None and pid not in blocked and pid not in seen:
+            surviving_ids.append(pid)
+            seen.add(pid)
+
+    if not surviving_ids:
+        return "_All picks blocked._"
+
+    # Advocates per id
+    advocates: dict[int, list[str]] = {}
+    for p in expert_picks:
+        pid = p.get("pick_id")
+        if pid in seen:
+            advocates.setdefault(pid, []).append(p.get("domain", "?"))
+
+    header = "| id | Advocates | τ (min) | Q (mL/min) | d (mm) | X | ΔP (bar) | ΔP head% | r_mix | L (m) | Pareto | HIGH attacks |"
+    sep    = "|---|---|---|---|---|---|---|---|---|---|---|---|"
+    rows   = [header, sep]
+    for pid in surviving_ids:
+        c = candidates[pid - 1]
+        dP = c.get("delta_P_bar", 0.0)
+        head_pct = round(100 * (1 - dP / pump_max_bar), 1) if pump_max_bar > 0 else "?"
+        rows.append(
+            f"| {pid} | {'+'.join(advocates.get(pid, ['?']))} "
+            f"| {c.get('tau_min','?')} | {c.get('Q_mL_min','?')} "
+            f"| {c.get('d_mm','?')} | {c.get('expected_conversion',0):.2f} "
+            f"| {dP:.3f} | {head_pct}% "
+            f"| {c.get('r_mix',0):.3f} | {c.get('L_m','?')} "
+            f"| {'★' if c.get('pareto_front') else ''} "
+            f"| {high_per_id.get(pid, 0)} |"
+        )
+    return "\n".join(rows)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Chief LLM call
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -170,8 +226,13 @@ def _run_chief_llm(
     table_markdown: str,
     chemistry_brief: str,
     objectives: str,
-    max_tokens: int = 800,
-) -> dict:
+    trade_off_matrix: str = "",
+    max_tokens: int = 1000,
+) -> tuple[dict, list[dict]]:
+    """Run the Chief LLM call.
+
+    Returns (chief_data_dict, tool_calls_log).
+    """
     blocked = set(skeptic.get("blocked_picks", []))
     surviving = [p for p in expert_picks
                  if p.get("pick_id") is not None and p["pick_id"] not in blocked]
@@ -192,19 +253,26 @@ def _run_chief_llm(
     context = (
         "## User objectives\n" + (objectives or "balanced (no explicit preference stated)") +
         "\n\n## Chemistry brief\n" + chemistry_brief +
-        "\n\n## Candidate table\n" + table_markdown +
-        "\n\n## Surviving Expert picks\n" + picks_str +
+        "\n\n## Full candidate table\n" + table_markdown +
+        "\n\n## Surviving picks — comparison matrix\n" + (trade_off_matrix or "_not available_") +
+        "\n\n## Surviving Expert picks (with reasoning)\n" + picks_str +
         "\n\n## Skeptic's outstanding attacks\n" + attacks_str +
         "\n\n## Blocked by hard code rules (not available)\n" + blocked_str +
         "\n\nChoose ONE winner. Output JSON only."
     )
 
     try:
-        raw = call_llm(_CHIEF_SYSTEM, context, max_tokens=max_tokens)
-        return _parse_chief(raw)
+        raw, tool_calls_log = call_llm_with_tools(
+            _CHIEF_SYSTEM, context,
+            tools=CHIEF_TOOLS,
+            tool_executor=execute_tool,
+            max_tokens=max_tokens,
+            max_tool_turns=4,
+        )
+        return _parse_chief(raw), tool_calls_log
     except Exception as e:
         logger.warning("Chief LLM call failed: %s", e)
-        return {}
+        return {}, []
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -260,72 +328,101 @@ def _to_deliberations(
     skeptic_rounds: list[dict],
     winner_id: Optional[int],
     candidates: list[dict],
-) -> list[AgentDeliberation]:
-    """Convert council_v3 output into AgentDeliberation records for downstream UI."""
-    delibs: list[AgentDeliberation] = []
+    tool_calls_by_agent: Optional[dict] = None,
+) -> list[list[AgentDeliberation]]:
+    """Convert council_v3 output into per-round AgentDeliberation lists for UI.
 
-    # Designer record
-    n_feasible = len(designer.get("feasible", []))
-    n_infeasible = len(designer.get("infeasible", []))
-    delibs.append(AgentDeliberation(
-        agent="DesignerV3", agent_display_name="Designer",
-        round=1,
-        chain_of_thought=(
-            f"Sampled {n_feasible + n_infeasible} candidates; "
-            f"{n_feasible} feasible after hard filter. "
-            f"Strategy: {designer.get('strategy_reasoning', '')}"
-        ),
-        findings=[
-            f"Strategy: τ ∈ [{designer['strategy']['tau_low_factor']:.2f}×, "
-            f"{designer['strategy']['tau_high_factor']:.2f}×], "
-            f"n_tau={designer['strategy']['n_tau']}, "
-            f"d≤{designer['strategy']['d_exclude_above_mm']} mm"
-        ],
-        status="ACCEPT",
-    ))
+    Returns a list of rounds, each round is a list of AgentDeliberation.
+    Round 1: Designer + Expert round 1 + Skeptic round 1
+    Round 2 (if exists): Expert round 2 + Skeptic round 2
+    Final: Chief Engineer (appended to last round)
+    """
+    if tool_calls_by_agent is None:
+        tool_calls_by_agent = {}
 
-    # Expert records (one per specialist, latest round)
-    if expert_picks_rounds:
-        for p in expert_picks_rounds[-1]:
-            status = "ACCEPT" if p["status"] == "OK" else "WARNING"
-            delibs.append(AgentDeliberation(
-                agent=f"Expert_{p['domain']}_V3",
+    all_rounds: list[list[AgentDeliberation]] = []
+    n_expert_rounds = len(expert_picks_rounds)
+
+    for rnd_idx in range(n_expert_rounds):
+        rnd_num = rnd_idx + 1
+        round_delibs: list[AgentDeliberation] = []
+
+        # Designer only in round 1
+        if rnd_idx == 0:
+            n_feasible = len(designer.get("feasible", []))
+            n_infeasible = len(designer.get("infeasible", []))
+            round_delibs.append(AgentDeliberation(
+                agent="DesignerV3", agent_display_name="Designer",
+                round=1,
+                chain_of_thought=(
+                    f"Sampled {n_feasible + n_infeasible} candidates; "
+                    f"{n_feasible} feasible after hard filter. "
+                    f"Strategy: {designer.get('strategy_reasoning', '')}"
+                ),
+                findings=[
+                    f"Strategy: τ ∈ [{designer['strategy']['tau_low_factor']:.2f}×, "
+                    f"{designer['strategy']['tau_high_factor']:.2f}×], "
+                    f"n_tau={designer['strategy']['n_tau']}, "
+                    f"d≤{designer['strategy']['d_exclude_above_mm']} mm"
+                ],
+                status="ACCEPT",
+            ))
+
+        # Expert picks for this round
+        for p in expert_picks_rounds[rnd_idx]:
+            domain = p.get("domain", "UNKNOWN")
+            status = "ACCEPT" if p.get("status") == "OK" else "WARNING"
+            key = f"expert_{domain}_r{rnd_num}"
+            tc = tool_calls_by_agent.get(key, p.get("tool_calls", []))
+            round_delibs.append(AgentDeliberation(
+                agent=f"Expert_{domain}_V3",
                 agent_display_name=p["specialist_name"],
-                round=len(expert_picks_rounds),
+                round=rnd_num,
                 chain_of_thought=p.get("pick_reason", ""),
                 findings=[f"Advocates candidate id={p.get('pick_id')}"],
                 concerns=p.get("concerns_on_other_picks", []),
                 status=status,
+                tool_calls=tc,
             ))
 
-    # Skeptic record (latest round)
-    if skeptic_rounds:
-        sk = skeptic_rounds[-1]
-        attacks = sk.get("llm_attacks", [])
-        blocks = sk.get("blocked_picks", [])
-        cot_lines = [f"Skeptic summary: {sk.get('summary', '')}"]
-        for a in attacks[:5]:
-            cot_lines.append(
-                f"  • id {a['pick_id']} ({a['severity']}): {a['assumption_at_risk']}"
-            )
-        if blocks:
-            cot_lines.append(f"  • Blocked by code: {blocks}")
-        status = "REVISE" if blocks else ("WARNING" if attacks else "ACCEPT")
-        delibs.append(AgentDeliberation(
-            agent="SkepticV3", agent_display_name="Skeptic",
-            round=len(skeptic_rounds),
-            chain_of_thought="\n".join(cot_lines),
-            findings=[f"{len(attacks)} attacks, {len(blocks)} hard blocks"],
-            concerns=[f"id {a['pick_id']}: {a['assumption_at_risk']}" for a in attacks],
-            status=status,
-        ))
+        # Skeptic for this round
+        if rnd_idx < len(skeptic_rounds):
+            sk = skeptic_rounds[rnd_idx]
+            attacks = sk.get("llm_attacks", [])
+            blocks = sk.get("blocked_picks", [])
+            cot_lines = [f"Skeptic summary: {sk.get('summary', '')}"]
+            for a in attacks[:8]:
+                cot_lines.append(
+                    f"  • id {a['pick_id']} ({a['severity']}): {a['assumption_at_risk']}"
+                )
+            if blocks:
+                cot_lines.append(f"  • Blocked by code: {blocks}")
+            sk_status = "REVISE" if blocks else ("WARNING" if attacks else "ACCEPT")
+            findings_list = [f"{len(attacks)} attacks, {len(blocks)} hard blocks"]
+            ts = sk.get("trade_off_summary", "")
+            if ts:
+                findings_list.append(f"Trade-off: {ts}")
+            key = f"skeptic_r{rnd_num}"
+            tc = tool_calls_by_agent.get(key, sk.get("tool_calls", []))
+            round_delibs.append(AgentDeliberation(
+                agent="SkepticV3", agent_display_name="Skeptic",
+                round=rnd_num,
+                chain_of_thought="\n".join(cot_lines),
+                findings=findings_list,
+                concerns=[f"id {a['pick_id']}: {a['assumption_at_risk']}" for a in attacks],
+                status=sk_status,
+                tool_calls=tc,
+            ))
 
-    # Chief record
+        all_rounds.append(round_delibs)
+
+    # Chief goes in the last round
     if winner_id is not None and 1 <= winner_id <= len(candidates):
         w = candidates[winner_id - 1]
-        delibs.append(AgentDeliberation(
+        chief_tc = tool_calls_by_agent.get("chief", [])
+        chief_delib = AgentDeliberation(
             agent="ChiefV3", agent_display_name="Chief Engineer",
-            round=1,
+            round=n_expert_rounds,
             chain_of_thought=(
                 f"Winner: candidate id={winner_id} — "
                 f"τ={w['tau_min']} min, d={w['d_mm']} mm, Q={w['Q_mL_min']} mL/min, "
@@ -333,9 +430,14 @@ def _to_deliberations(
             ),
             findings=[f"Final design id={winner_id}"],
             status="ACCEPT",
-        ))
+            tool_calls=chief_tc,
+        )
+        if all_rounds:
+            all_rounds[-1].append(chief_delib)
+        else:
+            all_rounds.append([chief_delib])
 
-    return delibs
+    return all_rounds
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -489,6 +591,8 @@ class CouncilV3:
         expert_rounds: list[list[dict]] = []
         skeptic_rounds: list[dict] = []
         skeptic_notes: list[str] = []
+        peer_concerns_for_next: list[dict] = []
+        tool_calls_by_agent: dict = {}
 
         for rnd in range(1, max_loop_rounds + 1):
             logger.info("  Council v3 — Round %d/%d: Expert panel", rnd, max_loop_rounds)
@@ -500,8 +604,14 @@ class CouncilV3:
                 is_photochem=is_photochem,
                 prior_picks=expert_rounds[-1] if expert_rounds else None,
                 skeptic_notes=skeptic_notes or None,
+                peer_concerns=peer_concerns_for_next if expert_rounds else None,
             )
             expert_rounds.append(picks)
+            # Collect expert tool calls
+            for p in picks:
+                domain = p.get("domain", "UNKNOWN")
+                key = f"expert_{domain}_r{rnd}"
+                tool_calls_by_agent[key] = p.get("tool_calls", [])
 
             logger.info("  Council v3 — Round %d/%d: Skeptic", rnd, max_loop_rounds)
             sk = run_skeptic(
@@ -516,13 +626,33 @@ class CouncilV3:
                 tubing_material=current.tubing_material or "FEP",
             )
             skeptic_rounds.append(sk)
+            # Collect skeptic tool calls
+            tool_calls_by_agent[f"skeptic_r{rnd}"] = sk.get("tool_calls", [])
 
             # Convergence: stop if no HIGH attacks, no blocks
             high_attacks = [a for a in sk.get("llm_attacks", [])
                             if a.get("severity") == "HIGH"]
-            if not high_attacks and not sk.get("blocked_picks"):
-                logger.info("  Council v3 — Skeptic clean, converged at round %d", rnd)
+            unique_picks = {p["pick_id"] for p in picks if p.get("pick_id") is not None}
+            # Converge only when consensus (≤1 unique pick) AND no HIGH attacks AND no blocks
+            if len(unique_picks) <= 1 and not high_attacks and not sk.get("blocked_picks"):
+                logger.info("  Council v3 — Consensus + clean Skeptic, converged at round %d", rnd)
                 break
+            elif not high_attacks and not sk.get("blocked_picks"):
+                logger.info(
+                    "  Council v3 — Skeptic clean but %d specialists disagree (ids: %s) — continuing",
+                    len(unique_picks), sorted(unique_picks),
+                )
+
+            # Collect peer concerns for round 2 Expert context
+            peer_concerns_for_next: list[dict] = []
+            for p in picks:
+                for concern in (p.get("concerns_on_other_picks") or []):
+                    # Parse "id X: ..." format to extract pick_id if possible
+                    peer_concerns_for_next.append({
+                        "domain": p.get("domain", "?"),
+                        "pick_id": p.get("pick_id"),
+                        "concern": str(concern)[:200],
+                    })
 
             # Build notes for next round's Expert
             skeptic_notes = [
@@ -534,14 +664,23 @@ class CouncilV3:
         #  STEP 6 — Chief resolution
         # ═══════════════════════════════════════════════════════════════════
         logger.info("  Council v3 — Step 6: Chief resolution")
-        chief_data = _run_chief_llm(
+        trade_off_matrix = _build_tradeoff_matrix(
+            expert_picks=expert_rounds[-1],
+            skeptic=skeptic_rounds[-1],
+            candidates=candidates,
+            pump_max_bar=pump_max,
+        )
+        logger.info("  Council v3 — Trade-off matrix:\n%s", trade_off_matrix)
+        chief_data, chief_tool_calls = _run_chief_llm(
             expert_picks=expert_rounds[-1],
             skeptic=skeptic_rounds[-1],
             candidates=candidates,
             table_markdown=designer["table_markdown"],
             chemistry_brief=chem_brief,
             objectives=objectives,
+            trade_off_matrix=trade_off_matrix,
         )
+        tool_calls_by_agent["chief"] = chief_tool_calls
         winner_id = chief_data.get("winning_pick_id")
         try:
             winner_id = int(winner_id) if winner_id is not None else None
@@ -580,10 +719,14 @@ class CouncilV3:
         )
 
         # ── Build output ────────────────────────────────────────────────────
-        delibs = _to_deliberations(
+        all_round_delibs = _to_deliberations(
             designer, expert_rounds, skeptic_rounds, winner_id, candidates,
+            tool_calls_by_agent=tool_calls_by_agent,
         )
-        log.rounds = [delibs]
+        log.rounds = all_round_delibs
+        # Store trade-off data for UI
+        log.trade_off_matrix = trade_off_matrix
+        log.trade_off_summary = skeptic_rounds[-1].get("trade_off_summary", "")
         log.total_rounds = len(expert_rounds)
         log.consensus_reached = True
         log.summary = self._build_summary(
@@ -598,7 +741,8 @@ class CouncilV3:
                 concern=(d.concerns[0] if d.concerns else ""),
                 revision_required=(d.status == "REVISE"),
             )
-            for d in delibs
+            for rnd in all_round_delibs
+            for d in rnd
         ]
 
         current.engine_validated = True
