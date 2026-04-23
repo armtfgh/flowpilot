@@ -29,6 +29,7 @@ from flora_translate.engine.tool_definitions import CHIEF_TOOLS, execute_tool
 from flora_translate.engine.council_v4.designer import run_designer_v4, run_problem_framing
 from flora_translate.engine.council_v4.scoring import (
     run_domain_scoring,
+    run_revision_stage,
     get_chemistry_combined, get_kinetics_score,
     get_fluidics_score, get_safety_score,
     geometry_practicality_score,
@@ -1042,6 +1043,7 @@ def _to_deliberations_v4(
     dfmea: Optional[dict],
     chief_data: dict,
     tool_calls: dict,
+    revision_result: Optional[dict] = None,
 ) -> list[list[AgentDeliberation]]:
     """Convert v4 council output to UI-compatible AgentDeliberation lists with rich markdown."""
     round1: list[AgentDeliberation] = []
@@ -1196,6 +1198,37 @@ def _to_deliberations_v4(
         status=("REVISE" if not audit.get("council_may_proceed") else
                 ("WARNING" if errors else "ACCEPT")),
     ))
+
+    # ── Revision Agent (Stage 3.5) ────────────────────────────────────────────
+    if revision_result is not None:
+        rev_rationale = revision_result.get("revision_rationale", {})
+        rev_domains   = revision_result.get("revision_domains", [])
+        rev_lines = [
+            "### Stage 3.5 — Parameter Revision\n",
+            f"**Domains that triggered revision:** {', '.join(rev_domains)}\n",
+            "**Changes applied to winner:**\n",
+        ]
+        if rev_rationale:
+            for param, reason in rev_rationale.items():
+                rev_lines.append(f"- **{param}**: {reason}")
+        else:
+            rev_lines.append("(No detailed rationale provided)")
+
+        round1.append(AgentDeliberation(
+            agent="RevisionAgent", agent_display_name="Revision Engineer",
+            round=1,
+            chain_of_thought="\n".join(rev_lines),
+            findings=[
+                f"Revised {len(rev_rationale)} parameter(s) on winner id={winner_id}: "
+                + ", ".join(f"{k}={v}" for k, v in {
+                    "tau_min": revision_result.get("tau_min"),
+                    "d_mm": revision_result.get("d_mm"),
+                    "BPR_bar": revision_result.get("BPR_bar"),
+                    "tubing_material": revision_result.get("tubing_material"),
+                }.items() if k in rev_rationale)
+            ],
+            status="REVISE",
+        ))
 
     # ── Chief Engineer + DFMEA ────────────────────────────────────────────────
     round2: list[AgentDeliberation] = []
@@ -1358,7 +1391,14 @@ class CouncilV4:
         calculations: Optional[DesignCalculations] = None,
         objectives: str = "balanced",
         max_loop_rounds: int = 3,
+        fixed_candidates: Optional[list[dict]] = None,
     ) -> tuple[DesignCandidate, DesignCalculations]:
+        """Run the full council pipeline.
+
+        If *fixed_candidates* is provided, Stage 1 (Designer) is skipped and
+        those candidates are passed directly to Stage 2 (domain scoring).
+        Use this for ablation studies comparing 1-candidate vs N-candidate modes.
+        """
 
         current = proposal.model_copy(deep=True)
         log = DeliberationLog()
@@ -1418,27 +1458,44 @@ class CouncilV4:
         )
 
         # ═══════════════════════════════════════════════════════════════════
-        #  STAGE 1 — Designer: Candidate Matrix
+        #  STAGE 1 — Designer: Candidate Matrix  (or bypass with fixed_candidates)
         # ═══════════════════════════════════════════════════════════════════
-        logger.info("  Council v4 — Stage 1: Designer candidate matrix")
-        designer_result = run_designer_v4(
-            reaction_class=reaction_class,
-            is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,
-            is_O2_sensitive=is_O2_sensitive,
-            tau_center_min=tau_center, tau_lit_min=tau_lit,
-            tau_kinetics_min=tau_kinetics,
-            d_center_mm=current.tubing_ID_mm or 1.0,
-            Q_center_mL_min=current.flow_rate_mL_min or 1.0,
-            solvent=solvent, temperature_C=current.temperature_C,
-            concentration_M=current.concentration_M,
-            assumed_MW=assumed_MW, IF_used=IF_used,
-            pump_max_bar=pump_max,
-            BPR_bar=current.BPR_bar or 0.0,
-            extinction_coeff_M_cm=ext_coeff,
-            tubing_material=current.tubing_material or "FEP",
-            N_target=12,
-            problem_statement=problem_statement,
-        )
+        if fixed_candidates is not None:
+            logger.info(
+                "  Council v4 — Stage 1: BYPASSED (fixed_candidates=%d provided)",
+                len(fixed_candidates),
+            )
+            from flora_translate.engine.sampling import format_candidate_table
+            survivors = fixed_candidates
+            table_markdown = format_candidate_table(survivors, max_rows=len(survivors))
+            designer_result = {
+                "survivors":                  survivors,
+                "disqualified":               [],
+                "table_markdown":             table_markdown,
+                "strategy_reasoning":         f"Stage 1 bypassed — {len(survivors)} fixed candidate(s) provided",
+                "design_envelope_preliminary":{},
+                "problem_statement":          problem_statement,
+            }
+        else:
+            logger.info("  Council v4 — Stage 1: Designer candidate matrix")
+            designer_result = run_designer_v4(
+                reaction_class=reaction_class,
+                is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,
+                is_O2_sensitive=is_O2_sensitive,
+                tau_center_min=tau_center, tau_lit_min=tau_lit,
+                tau_kinetics_min=tau_kinetics,
+                d_center_mm=current.tubing_ID_mm or 1.0,
+                Q_center_mL_min=current.flow_rate_mL_min or 1.0,
+                solvent=solvent, temperature_C=current.temperature_C,
+                concentration_M=current.concentration_M,
+                assumed_MW=assumed_MW, IF_used=IF_used,
+                pump_max_bar=pump_max,
+                BPR_bar=current.BPR_bar or 0.0,
+                extinction_coeff_M_cm=ext_coeff,
+                tubing_material=current.tubing_material or "FEP",
+                N_target=12,
+                problem_statement=problem_statement,
+            )
 
         survivors = designer_result["survivors"]
         if not survivors:
@@ -1580,6 +1637,28 @@ class CouncilV4:
         )
 
         # ═══════════════════════════════════════════════════════════════════
+        #  STAGE 3.5 — Revision Agent: fix REVISE/BLOCK issues on winner
+        # ═══════════════════════════════════════════════════════════════════
+        logger.info("  Council v4 — Stage 3.5: Revision Agent on winner id=%d", winner_id)
+        revision_result = run_revision_stage(
+            winner           = winner,
+            scoring          = scoring,
+            chemistry_brief  = chem_brief,
+            is_photochem     = is_photochem,
+            pump_max_bar     = pump_max,
+            solvent          = solvent,
+            temperature_C    = current.temperature_C,
+            concentration_M  = current.concentration_M,
+            extinction_coeff_M_cm = ext_coeff,
+        )
+        if revision_result is not None:
+            winner = revision_result
+            logger.info(
+                "  Stage 3.5 applied revisions to winner id=%d: τ→%.1f min, d→%.2f mm, BPR→%.2f bar",
+                winner_id, winner.get("tau_min", 0), winner.get("d_mm", 0), winner.get("BPR_bar", 0),
+            )
+
+        # ═══════════════════════════════════════════════════════════════════
         #  DFMEA on winner
         # ═══════════════════════════════════════════════════════════════════
         logger.info("  Council v4 — DFMEA on winning candidate id=%d", winner_id)
@@ -1606,6 +1685,14 @@ class CouncilV4:
             fc_key, patch_key = field_map
             if fc_key in final_consensus:
                 extra_changes[patch_key] = str(final_consensus[fc_key])
+
+        # Revision Stage 3.5: also apply BPR and material from revised winner
+        # (these are not in chief final_consensus, but were set by revision agent)
+        if revision_result is not None:
+            if "BPR_bar" not in extra_changes and revision_result.get("BPR_bar") is not None:
+                extra_changes["BPR_bar"] = str(revision_result["BPR_bar"])
+            if "tubing_material" not in extra_changes and revision_result.get("tubing_material"):
+                extra_changes["tubing_material"] = revision_result["tubing_material"]
 
         current, changes = _apply_winner(
             current, winner, extra_changes, chief_data=chief_data,
@@ -1635,6 +1722,7 @@ class CouncilV4:
             dfmea=dfmea,
             chief_data=chief_data,
             tool_calls=tool_calls,
+            revision_result=revision_result,
         )
         log.rounds = all_round_delibs
 

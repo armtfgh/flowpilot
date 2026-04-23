@@ -17,7 +17,7 @@ import json
 import logging
 from typing import Optional
 
-from flora_translate.engine.llm_agents import call_llm_with_tools
+from flora_translate.engine.llm_agents import call_llm, call_llm_with_tools
 from flora_translate.engine.tool_definitions import (
     CHEMISTRY_TOOLS, KINETICS_TOOLS, SAFETY_TOOLS,
     TOOL_CALCULATE_BPR_REQUIRED, TOOL_CALCULATE_MIXING_RATIO,
@@ -511,13 +511,13 @@ def _run_scoring_agent(
 
     Returns (overall_analysis, score_list, tool_calls_log).
     """
-    def _attempt(ctx: str, mt: int) -> tuple[str, list[dict], list[dict]]:
+    def _attempt(ctx: str, mt: int, tool_turns: int) -> tuple[str, list[dict], list[dict]]:
         raw, tc_log = call_llm_with_tools(
             system_prompt, ctx,
             tools=tools,
             tool_executor=execute_tool,
             max_tokens=mt,
-            max_tool_turns=3,
+            max_tool_turns=tool_turns,
         )
         overall_analysis, scores = _parse_score_response(raw)
         cleaned: list[dict] = []
@@ -538,7 +538,7 @@ def _run_scoring_agent(
         return overall_analysis, cleaned, tc_log
 
     try:
-        oa, cleaned, tc_log = _attempt(context, max_tokens)
+        oa, cleaned, tc_log = _attempt(context, max_tokens, tool_turns=6)
 
         # Retry if no candidates were scored — likely a truncated JSON response
         if not cleaned and valid_ids:
@@ -555,7 +555,7 @@ def _run_scoring_agent(
                 f"Return ONLY valid JSON with 'overall_analysis' and 'scores' array. "
                 f"No prose before the JSON. Start your response with '{{'"
             )
-            oa, cleaned, tc_log2 = _attempt(retry_context, max_tokens + 1500)
+            oa, cleaned, tc_log2 = _attempt(retry_context, max_tokens + 2000, tool_turns=8)
             tc_log = tc_log + tc_log2
             if not cleaned:
                 logger.error(
@@ -579,7 +579,7 @@ def run_chemistry_scoring(
     objectives: str,
     is_photochem: bool,
     pump_max_bar: float,
-    max_tokens: int = 3000,
+    max_tokens: int = 4000,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Chemistry. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     context = _build_scoring_context(
@@ -603,7 +603,7 @@ def run_kinetics_scoring(
     objectives: str,
     is_photochem: bool,
     pump_max_bar: float,
-    max_tokens: int = 3000,
+    max_tokens: int = 4000,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Kinetics. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     context = _build_scoring_context(
@@ -627,7 +627,7 @@ def run_fluidics_scoring(
     objectives: str,
     is_photochem: bool,
     pump_max_bar: float,
-    max_tokens: int = 3000,
+    max_tokens: int = 4000,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Fluidics. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     context = _build_scoring_context(
@@ -651,7 +651,7 @@ def run_safety_scoring(
     objectives: str,
     is_photochem: bool,
     pump_max_bar: float,
-    max_tokens: int = 3000,
+    max_tokens: int = 4000,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Safety. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     context = _build_scoring_context(
@@ -780,3 +780,243 @@ def geometry_practicality_score(candidate: dict) -> float:
     L_score = max(0.0, min(1.0, 1.0 - (L - 10.0) / 15.0)) if L > 10.0 else 1.0
     V_score = max(0.0, min(1.0, 1.0 - (V_R - 10.0) / 40.0)) if V_R > 10.0 else 1.0
     return 0.5 * L_score + 0.5 * V_score
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STAGE 3.5 — Revision Agent
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_REVISION_SYSTEM = """\
+You are the REVISION ENGINEER in the FLORA ENGINE v4 council (Stage 3.5).
+Your role: synthesize domain expert REVISE/BLOCK verdicts for the selected winner
+candidate into concrete, minimal, justified parameter edits.
+
+## Rules — only change what was explicitly flagged
+
+**τ (residence time) — revise only if Dr. Kinetics gave REVISE/BLOCK for low X:**
+  Target X = 0.90. τ_revised = −τ_kinetics_min × ln(1 − 0.90) = τ_kinetics × 2.303.
+  Cap at min(4 × τ_original, 300 min). Show arithmetic.
+
+**d (tube diameter) — revise only if Dr. Fluidics flagged r_mix > 0.20:**
+  d_fix = d_current × √(0.15 / r_mix_current).
+  Round DOWN to nearest commercial size: [0.5, 0.75, 1.0, 1.6, 2.0, 3.0 mm].
+  NEVER increase d to fix mixing. Show arithmetic.
+
+**BPR — revise only if Dr. Safety flagged BPR_adequate=false:**
+  Liquid-only: BPR_bar = P_vap(T) + ΔP + 0.5 bar safety margin.
+  Gas-liquid:  BPR_bar = max(5.0, P_vap + ΔP) + 2.0 bar.
+  If agent reported BPR_required_bar, set BPR = BPR_required_bar + 0.5.
+  Show arithmetic.
+
+**tubing_material — revise only if Dr. Safety or Dr. Chemistry flagged incompatibility:**
+  Photochem → FEP or PFA (never PTFE/SS).
+  High-T/high-P (> 80°C AND > 10 bar) → PFA.
+  Standard thermal → FEP (preferred) or PFA.
+  State the reason.
+
+**concentration_M — revise only if Dr. Chemistry explicitly flagged concentration issue:**
+  Photoredox: sweet spot 0.05–0.20 M. Adjust to midpoint of valid range.
+
+## Important
+- If ALL flagged issues are already BPR/material (rule-based) and no kinetics/fluidics REVISE
+  exists, propose BPR and material only.
+- If no parameter needs changing (all verdicts ACCEPT/WARNING), output empty proposed_changes.
+- Be conservative: a WARNING alone does not justify revision.
+
+## REQUIRED OUTPUT — JSON only
+```json
+{
+  "proposed_changes": {
+    "tau_min": 127.3,
+    "d_mm": 0.75,
+    "BPR_bar": 0.6,
+    "tubing_material": "FEP"
+  },
+  "unchanged_fields": ["concentration_M", "temperature_C"],
+  "change_rationale": {
+    "tau_min": "Dr. Kinetics REVISE: X=0.63 < 0.85 target. τ_kinetics=55 min. τ_revised = 55×2.303 = 126.7 → 127.3 min (capped at 4×90=360).",
+    "d_mm": "Dr. Fluidics REVISE: r_mix=0.31. d_fix = 1.6×√(0.15/0.31) = 1.6×0.695 = 1.11 → rounded down to 1.0 mm.",
+    "BPR_bar": "Dr. Safety: BPR_adequate=false. BPR_required=0.11 bar + 0.5 margin = 0.6 bar.",
+    "tubing_material": "Dr. Safety: recommended FEP for DMF at 120°C, pH neutral."
+  },
+  "domains_that_triggered_revision": ["kinetics", "fluidics", "safety"]
+}
+```
+"""
+
+
+def run_revision_stage(
+    winner: dict,
+    scoring: dict,
+    chemistry_brief: str,
+    is_photochem: bool,
+    pump_max_bar: float,
+    solvent: str,
+    temperature_C: float,
+    concentration_M: float,
+    extinction_coeff_M_cm: Optional[float] = None,
+) -> Optional[dict]:
+    """Stage 3.5: Revision Agent proposes parameter edits for the council winner.
+
+    Examines REVISE/BLOCK verdicts from all domain agents on the winning candidate
+    and proposes concrete parameter fixes (τ, d, BPR, material). Recomputes all
+    derived metrics (Re, ΔP, r_mix, X, V_R, L) via compute_metrics().
+
+    Returns a revised candidate dict (same id, updated fields + revision metadata),
+    or None if no revisions are warranted.
+    """
+    cid = winner.get("id")
+
+    # Collect domain verdicts and specifics for the winner
+    revision_domains: list[str] = []
+    domain_specifics: dict[str, dict] = {}
+
+    for domain, score_list_key in [
+        ("chemistry", "chemistry_scores"),
+        ("kinetics",  "kinetics_scores"),
+        ("fluidics",  "fluidics_scores"),
+        ("safety",    "safety_scores"),
+    ]:
+        entries = scoring.get(score_list_key, [])
+        entry = next((e for e in entries if e.get("candidate_id") == cid), None)
+        if entry:
+            verdict = str(entry.get("verdict", "ACCEPT")).upper()
+            domain_specifics[domain] = entry
+            if verdict in ("REVISE", "BLOCK"):
+                revision_domains.append(domain)
+
+    if not revision_domains:
+        logger.info("  Stage 3.5: winner id=%d has no REVISE/BLOCK verdicts — skipping", cid)
+        return None
+
+    # Build context for revision agent
+    lines = [
+        f"## Winner candidate (id={cid})",
+        f"τ={winner.get('tau_min')} min | d={winner.get('d_mm')} mm | "
+        f"Q={winner.get('Q_mL_min', 0):.4f} mL/min | "
+        f"Re={winner.get('Re', 0):.1f} | r_mix={winner.get('r_mix', 0):.3f} | "
+        f"X={winner.get('expected_conversion', 0):.2f} | "
+        f"BPR={winner.get('BPR_bar', 0)} bar | material={winner.get('tubing_material', 'FEP')} | "
+        f"solvent={solvent} | T={temperature_C}°C | C={concentration_M} M",
+        "",
+        f"## Chemistry brief\n{chemistry_brief}",
+        "",
+        f"## Domain verdicts requiring revision: {', '.join(revision_domains)}",
+    ]
+
+    for domain in revision_domains:
+        entry = domain_specifics[domain]
+        verdict = str(entry.get("verdict", "?")).upper()
+        reasoning = entry.get("reasoning", "")
+        lines.append(f"\n### {domain.upper()} — {verdict}")
+        lines.append(f"Reasoning: {reasoning[:400]}")
+
+        if domain == "kinetics":
+            lines.append(
+                f"X_estimated={entry.get('X_estimated')} | "
+                f"tau_proposed_final_min={entry.get('tau_proposed_final_min')} | "
+                f"tau_kinetics_min={winner.get('tau_kinetics_min')}"
+            )
+        elif domain == "fluidics":
+            lines.append(
+                f"r_mix={entry.get('r_mix')} | d_fix_mm={entry.get('d_fix_mm')} | "
+                f"d_change_direction={entry.get('d_change_direction', '')}"
+            )
+        elif domain == "safety":
+            lines.append(
+                f"BPR_required_bar={entry.get('BPR_required_bar')} | "
+                f"BPR_current_bar={entry.get('BPR_current_bar')} | "
+                f"BPR_adequate={entry.get('BPR_adequate')} | "
+                f"material_recommendation={entry.get('material_recommendation')}"
+            )
+        elif domain == "chemistry":
+            lines.append(
+                f"beer_lambert_A={entry.get('beer_lambert_A')} | "
+                f"material_transparent={entry.get('material_transparent')} | "
+                f"blocking_issues={entry.get('blocking_issues', [])}"
+            )
+
+    lines.append("\n\nPropose concrete parameter edits only for flagged issues. Output JSON only.")
+    context = "\n".join(lines)
+
+    revision_data: dict = {}
+    try:
+        raw = call_llm(_REVISION_SYSTEM, context, max_tokens=700)
+        s = raw.strip()
+        if "```" in s:
+            for part in s.split("```")[1::2]:
+                try:
+                    revision_data = json.loads(part.lstrip("json").strip())
+                    break
+                except json.JSONDecodeError:
+                    continue
+        if not revision_data:
+            try:
+                revision_data = json.loads(s)
+            except json.JSONDecodeError:
+                pass
+    except Exception as e:
+        logger.warning("Revision agent LLM call failed: %s", e)
+        return None
+
+    proposed = revision_data.get("proposed_changes", {})
+    if not proposed:
+        logger.info("  Stage 3.5: revision agent proposed no changes for winner id=%d", cid)
+        return None
+
+    # Build revised candidate by recomputing metrics with new τ/d if changed
+    new_tau = float(proposed.get("tau_min", winner.get("tau_min")))
+    new_d   = float(proposed.get("d_mm",   winner.get("d_mm")))
+    orig_Q  = float(winner.get("Q_mL_min") or 0.01)
+    tau_k   = float(winner.get("tau_kinetics_min") or new_tau)
+    IF_used = float(winner.get("IF_used") or 6.0)
+    MW      = float(winner.get("assumed_MW") or 250.0)
+
+    try:
+        from flora_translate.engine.sampling import compute_metrics
+        revised = compute_metrics(
+            tau_min          = new_tau,
+            d_mm             = new_d,
+            Q_mL_min         = orig_Q,
+            solvent          = solvent,
+            temperature_C    = temperature_C,
+            concentration_M  = concentration_M,
+            assumed_MW       = MW,
+            IF_used          = IF_used,
+            tau_kinetics_min = tau_k,
+            pump_max_bar     = pump_max_bar,
+            is_photochem     = is_photochem,
+            extinction_coeff_M_cm = extinction_coeff_M_cm,
+            tau_source       = "revision_agent_stage_3.5",
+        )
+    except Exception as e:
+        logger.warning("compute_metrics failed during revision: %s — using shallow copy", e)
+        revised = dict(winner)
+
+    # Carry forward winner identity and non-physics fields
+    revised["id"]             = cid
+    revised["pareto_front"]   = True
+    revised["feasible"]       = True
+    revised["hard_gate_flags"]  = []
+    revised["hard_gate_status"] = "PASS"
+    # BPR and material are not recomputed by compute_metrics — apply from proposed
+    revised["BPR_bar"]        = float(proposed.get("BPR_bar", winner.get("BPR_bar", 0.0)))
+    revised["tubing_material"]= proposed.get("tubing_material", winner.get("tubing_material", "FEP"))
+    # Revision provenance
+    revised["revision_applied"]   = True
+    revised["revision_rationale"] = revision_data.get("change_rationale", {})
+    revised["revision_domains"]   = revision_data.get("domains_that_triggered_revision",
+                                                       revision_domains)
+
+    logger.info(
+        "  Stage 3.5 applied: id=%d | τ %.1f→%.1f min | d %.2f→%.2f mm | "
+        "BPR %.2f→%.2f bar | mat %s→%s | X %.2f→%.2f | domains=%s",
+        cid,
+        winner.get("tau_min", 0), revised.get("tau_min", 0),
+        winner.get("d_mm", 0),    revised.get("d_mm", 0),
+        winner.get("BPR_bar", 0), revised.get("BPR_bar", 0),
+        winner.get("tubing_material", "?"), revised.get("tubing_material", "?"),
+        winner.get("expected_conversion", 0), revised.get("expected_conversion", 0),
+        revision_domains,
+    )
+    return revised

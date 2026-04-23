@@ -195,8 +195,35 @@ def call_llm_with_tools(
                     })
                 messages.append({"role": "assistant", "content": resp.content})
                 messages.append({"role": "user", "content": tool_results})
-            # Exhausted max turns without a final text response
-            logger.warning("call_llm_with_tools: exhausted %d tool turns without final text", max_tool_turns)
+            # Tool turns exhausted — force one final text-only response using
+            # accumulated tool results already in the message history.
+            logger.warning(
+                "call_llm_with_tools: exhausted %d tool turns — forcing final text response",
+                max_tool_turns,
+            )
+            try:
+                force_msgs = messages + [{
+                    "role": "user",
+                    "content": (
+                        "You have completed all necessary tool calls. "
+                        "Now produce your final JSON response. "
+                        "Do NOT call any more tools. Output only the JSON."
+                    ),
+                }]
+                final_resp = client.messages.create(
+                    model=ENGINE_MODEL_ANTHROPIC,
+                    max_tokens=max_tokens,
+                    system=system,
+                    tools=tools,
+                    tool_choice={"type": "none"},
+                    messages=force_msgs,
+                )
+                text_blocks = [b for b in final_resp.content if hasattr(b, "text")]
+                final_text = text_blocks[0].text.strip() if text_blocks else ""
+                if final_text:
+                    return final_text, tool_calls_log
+            except Exception as force_err:
+                logger.warning("call_llm_with_tools: forced final call failed: %s", force_err)
             return "", tool_calls_log
         except Exception as e:
             logger.warning("call_llm_with_tools (anthropic) failed: %s — falling back to call_llm", e)
