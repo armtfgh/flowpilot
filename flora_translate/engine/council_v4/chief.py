@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections import defaultdict
 from typing import Optional
 
@@ -26,7 +27,11 @@ from flora_translate.config import ENGINE_PROVIDER
 from flora_translate.design_calculator import DesignCalculator, DesignCalculations
 from flora_translate.engine.llm_agents import call_llm, call_llm_with_tools
 from flora_translate.engine.tool_definitions import CHIEF_TOOLS, execute_tool
-from flora_translate.engine.council_v4.designer import run_designer_v4, run_problem_framing
+from flora_translate.engine.council_v4.designer import (
+    _apply_v4_hard_gates,
+    run_designer_v4,
+    run_problem_framing,
+)
 from flora_translate.engine.council_v4.scoring import (
     run_domain_scoring,
     run_revision_stage,
@@ -35,6 +40,7 @@ from flora_translate.engine.council_v4.scoring import (
     geometry_practicality_score,
 )
 from flora_translate.engine.council_v4.skeptic import run_skeptic_audit
+from flora_translate.engine.sampling import compute_metrics, format_candidate_table, hard_filter
 from flora_translate.schemas import (
     BatchRecord, ChemistryPlan, FlowProposal, LabInventory,
     DesignCandidate, CouncilMessage, DeliberationLog,
@@ -482,6 +488,335 @@ def _deterministic_resolve(weighted_scores: list[dict]) -> tuple[Optional[int], 
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  Pre-selection expert refinement loop
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_COMMERCIAL_D_MM = [0.50, 0.75, 1.00, 1.60, 2.00, 3.00]
+_FIELD_OWNER = {
+    "tau_min": "kinetics",
+    "d_mm": "fluidics",
+    "BPR_bar": "safety",
+    "tubing_material": "safety",
+    "concentration_M": "chemistry",
+}
+_AGENT_TO_DOMAIN = {
+    "DR. CHEMISTRY": "chemistry",
+    "DR. KINETICS": "kinetics",
+    "DR. FLUIDICS": "fluidics",
+    "DR. SAFETY": "safety",
+}
+
+
+def _round_down_commercial_d(value_mm: float) -> float:
+    eligible = [d for d in _COMMERCIAL_D_MM if d <= value_mm + 1e-9]
+    return eligible[-1] if eligible else _COMMERCIAL_D_MM[0]
+
+
+def _build_domain_blocklist(audit: dict) -> dict[int, set[str]]:
+    blocked: dict[int, set[str]] = defaultdict(set)
+    for err in audit.get("all_errors", []):
+        if err.get("severity") not in ("CRITICAL", "HIGH"):
+            continue
+        cid = err.get("candidate_id")
+        domain = _AGENT_TO_DOMAIN.get(str(err.get("agent", "")).upper())
+        if cid is not None and domain:
+            blocked[int(cid)].add(domain)
+    return blocked
+
+
+def _entry_by_candidate(entries: list[dict], candidate_id: int) -> Optional[dict]:
+    return next((e for e in entries if e.get("candidate_id") == candidate_id), None)
+
+
+def _extract_explicit_patch(entry: dict, domain: str) -> tuple[dict, dict]:
+    patch = {}
+    rationale = {}
+    raw = entry.get("proposed_changes")
+    if not isinstance(raw, dict):
+        return patch, rationale
+    for field, value in raw.items():
+        if _FIELD_OWNER.get(field) != domain:
+            continue
+        patch[field] = value
+        rationale[field] = "Explicit patch proposed by domain scorer."
+    return patch, rationale
+
+
+def _derive_domain_patch(
+    *,
+    domain: str,
+    entry: dict,
+    candidate: dict,
+    concentration_M: float,
+    allow_warning_refinement: bool = False,
+) -> tuple[dict, dict]:
+    verdict = str(entry.get("verdict", "ACCEPT")).upper()
+    patch, rationale = _extract_explicit_patch(entry, domain)
+    active_verdicts = {"REVISE", "BLOCK"}
+    if allow_warning_refinement:
+        active_verdicts.add("WARNING")
+    if verdict not in active_verdicts:
+        return patch, rationale
+
+    if domain == "kinetics" and "tau_min" not in patch:
+        tau_target = entry.get("tau_proposed_final_min") or entry.get("tau_mixing_required_min")
+        try:
+            tau_target_f = float(tau_target)
+        except (TypeError, ValueError):
+            tau_target_f = 0.0
+        if tau_target_f > float(candidate.get("tau_min", 0.0)) * 1.02:
+            patch["tau_min"] = round(tau_target_f, 2)
+            rationale["tau_min"] = (
+                f"Dr. Kinetics {verdict}: raise tau to the explicit final target "
+                f"{tau_target_f:.2f} min."
+            )
+
+    if domain == "fluidics" and "d_mm" not in patch:
+        direction = str(entry.get("d_change_direction", "none")).lower()
+        d_fix = entry.get("d_fix_mm")
+        try:
+            d_fix_f = float(d_fix)
+        except (TypeError, ValueError):
+            d_fix_f = 0.0
+        current_d = float(candidate.get("d_mm", 0.0))
+        if direction == "decrease" and d_fix_f > 0:
+            d_rounded = _round_down_commercial_d(d_fix_f)
+            if d_rounded < current_d - 1e-6:
+                patch["d_mm"] = d_rounded
+                rationale["d_mm"] = (
+                    f"Dr. Fluidics {verdict}: decrease d from {current_d:.2f} mm "
+                    f"to commercial size {d_rounded:.2f} mm from d_fix={d_fix_f:.2f} mm."
+                )
+
+    if domain == "safety":
+        if "BPR_bar" not in patch and entry.get("BPR_adequate") is False:
+            required = entry.get("BPR_required_bar")
+            try:
+                required_f = float(required)
+            except (TypeError, ValueError):
+                required_f = 0.0
+            system_type = str(entry.get("system_type", "")).lower()
+            if required_f > 0:
+                bpr = required_f + 0.5
+                if "gas" in system_type:
+                    bpr = max(5.0, bpr)
+                current_bpr = float(candidate.get("BPR_bar", 0.0))
+                if abs(bpr - current_bpr) > 0.05:
+                    patch["BPR_bar"] = round(bpr, 2)
+                    rationale["BPR_bar"] = (
+                        f"Dr. Safety {verdict}: current BPR inadequate; set to "
+                        f"{bpr:.2f} bar from required={required_f:.2f} bar."
+                    )
+        if "tubing_material" not in patch:
+            material = entry.get("material_recommendation")
+            if material:
+                current_mat = str(candidate.get("tubing_material", "FEP"))
+                if str(material).upper() != current_mat.upper():
+                    patch["tubing_material"] = str(material)
+                    rationale["tubing_material"] = (
+                        f"Dr. Safety {verdict}: switch tubing material from "
+                        f"{current_mat} to {material}."
+                    )
+
+    if domain == "chemistry" and "concentration_M" not in patch:
+        try:
+            A = float(entry.get("beer_lambert_A"))
+        except (TypeError, ValueError):
+            A = 0.0
+        current_c = float(candidate.get("concentration_M", concentration_M) or concentration_M)
+        if A > 1.0 and current_c > 0.20:
+            patch["concentration_M"] = 0.20
+            rationale["concentration_M"] = (
+                f"Dr. Chemistry {verdict}: concentration reduced from {current_c:.2f} M "
+                f"to 0.20 M to ease photon attenuation."
+            )
+
+    return patch, rationale
+
+
+def _tag_pareto_front(candidates: list[dict]) -> None:
+    objectives = [
+        ("productivity_mg_h", "max"),
+        ("L_m", "min"),
+        ("r_mix", "min"),
+    ]
+    for a in candidates:
+        dominated = False
+        for b in candidates:
+            if a is b:
+                continue
+            strictly_better = False
+            for key, direction in objectives:
+                av = a.get(key, 0.0)
+                bv = b.get(key, 0.0)
+                if direction == "max":
+                    if bv < av:
+                        strictly_better = False
+                        break
+                    if bv > av:
+                        strictly_better = True
+                else:
+                    if bv > av:
+                        strictly_better = False
+                        break
+                    if bv < av:
+                        strictly_better = True
+            if strictly_better:
+                dominated = True
+                break
+        a["pareto_front"] = not dominated
+
+
+def _run_candidate_refinement_loop(
+    *,
+    candidates: list[dict],
+    scoring: dict,
+    audit: dict,
+    solvent: str,
+    temperature_C: float,
+    concentration_M: float,
+    assumed_MW: float,
+    IF_used: float,
+    pump_max_bar: float,
+    is_photochem: bool,
+    is_gas_liquid: bool,
+    extinction_coeff_M_cm: Optional[float],
+    allow_warning_refinement: bool = False,
+) -> tuple[list[dict], dict]:
+    blocked_domains = _build_domain_blocklist(audit)
+    revised_candidates: list[dict] = []
+    change_rows: list[dict] = []
+    changed_ids: list[int] = []
+
+    for candidate in candidates:
+        cid = int(candidate.get("id"))
+        combined_patch: dict = {}
+        combined_rationale: dict = {}
+        revision_domains: list[str] = []
+        skipped_domains: list[str] = []
+
+        domain_entries = {
+            "chemistry": _entry_by_candidate(scoring.get("chemistry_scores", []), cid),
+            "kinetics": _entry_by_candidate(scoring.get("kinetics_scores", []), cid),
+            "fluidics": _entry_by_candidate(scoring.get("fluidics_scores", []), cid),
+            "safety": _entry_by_candidate(scoring.get("safety_scores", []), cid),
+        }
+
+        for domain, entry in domain_entries.items():
+            if not entry:
+                continue
+            if domain in blocked_domains.get(cid, set()):
+                skipped_domains.append(domain)
+                continue
+            patch, rationale = _derive_domain_patch(
+                domain=domain,
+                entry=entry,
+                candidate=candidate,
+                concentration_M=concentration_M,
+                allow_warning_refinement=allow_warning_refinement,
+            )
+            if not patch:
+                continue
+            revision_domains.append(domain)
+            combined_patch.update(patch)
+            combined_rationale.update(rationale)
+
+        if not combined_patch:
+            revised = dict(candidate)
+            revised["revision_applied_preselection"] = False
+            revised["revision_domains_preselection"] = []
+            revised["revision_rationale_preselection"] = {}
+            revised_candidates.append(revised)
+            if skipped_domains:
+                change_rows.append({
+                    "candidate_id": cid,
+                    "changes": {},
+                    "rationale": {},
+                    "domains": [],
+                    "skipped_domains": skipped_domains,
+                })
+            continue
+
+        new_tau = float(combined_patch.get("tau_min", candidate.get("tau_min")))
+        new_d = float(combined_patch.get("d_mm", candidate.get("d_mm")))
+        new_Q = float(candidate.get("Q_mL_min", 0.01))
+        new_c = float(combined_patch.get("concentration_M", candidate.get("concentration_M", concentration_M)))
+        new_bpr = float(combined_patch.get("BPR_bar", candidate.get("BPR_bar", 0.0)))
+        new_mat = str(combined_patch.get("tubing_material", candidate.get("tubing_material", "FEP")))
+
+        revised = compute_metrics(
+            tau_min=new_tau,
+            d_mm=new_d,
+            Q_mL_min=new_Q,
+            solvent=solvent,
+            temperature_C=temperature_C,
+            concentration_M=new_c,
+            assumed_MW=assumed_MW,
+            IF_used=IF_used,
+            tau_kinetics_min=float(candidate.get("tau_kinetics_min") or new_tau),
+            pump_max_bar=pump_max_bar,
+            is_photochem=is_photochem,
+            extinction_coeff_M_cm=extinction_coeff_M_cm,
+            tau_source="preselection_revision_loop",
+        )
+        feasible, violations, warnings = hard_filter(
+            revised,
+            is_photochem=is_photochem,
+            is_gas_liquid=is_gas_liquid,
+            pump_max_bar=pump_max_bar,
+            BPR_bar=new_bpr,
+        )
+        revised["id"] = cid
+        revised["feasible"] = feasible
+        revised["violations"] = violations
+        revised["warnings"] = warnings
+        revised["BPR_bar"] = round(new_bpr, 2)
+        revised["tubing_material"] = new_mat
+        revised["concentration_M"] = round(new_c, 4)
+        revised["temperature_C"] = candidate.get("temperature_C", temperature_C)
+        revised["revision_applied_preselection"] = True
+        revised["revision_domains_preselection"] = sorted(set(revision_domains))
+        revised["revision_rationale_preselection"] = combined_rationale
+        revised["revision_changes_preselection"] = combined_patch
+        revised_candidates.append(revised)
+        changed_ids.append(cid)
+        change_rows.append({
+            "candidate_id": cid,
+            "changes": combined_patch,
+            "rationale": combined_rationale,
+            "domains": sorted(set(revision_domains)),
+            "skipped_domains": skipped_domains,
+        })
+
+    for revised in revised_candidates:
+        _apply_v4_hard_gates(
+            [revised],
+            pump_max_bar=pump_max_bar,
+            is_photochem=is_photochem,
+            is_gas_liquid=is_gas_liquid,
+            BPR_bar=float(revised.get("BPR_bar", 0.0)),
+            X_minimum=0.50,
+            tubing_material=str(revised.get("tubing_material", "FEP")),
+        )
+    _tag_pareto_front(revised_candidates)
+
+    changed = len(changed_ids)
+    summary = {
+        "changed_candidate_ids": sorted(changed_ids),
+        "changed_count": changed,
+        "candidate_changes": change_rows,
+        "had_changes": bool(changed),
+        "summary": (
+            f"Pre-selection expert refinement applied bounded edits to {changed}/"
+            f"{len(candidates)} candidates before rescoring."
+            if changed
+            else "Pre-selection expert refinement found no bounded edits to apply."
+        ),
+    }
+    return revised_candidates, summary
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  Apply winner to FlowProposal
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -655,6 +990,30 @@ def _apply_winner(
         ]
 
     return FlowProposal(**data), changes
+
+
+def _bench_stage_start(recorder, name: str, details: Optional[dict] = None):
+    if recorder and hasattr(recorder, "start_stage"):
+        try:
+            recorder.start_stage(name, details or {})
+        except Exception:
+            pass
+
+
+def _bench_stage_end(recorder, name: str, details: Optional[dict] = None, status: str = "completed"):
+    if recorder and hasattr(recorder, "end_stage"):
+        try:
+            recorder.end_stage(name, details or {}, status=status)
+        except Exception:
+            pass
+
+
+def _bench_snapshot(recorder, name: str, payload):
+    if recorder and hasattr(recorder, "save_snapshot"):
+        try:
+            recorder.save_snapshot(name, payload)
+        except Exception:
+            pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -915,6 +1274,41 @@ def _build_skeptic_cot(audit: dict) -> str:
     return "\n".join(lines)
 
 
+def _build_refinement_cot(refinement: dict) -> str:
+    lines = []
+    summary = refinement.get("summary", "")
+    if summary:
+        lines.append(f"### Pre-selection Expert Refinement\n\n{summary}\n")
+    rows = refinement.get("candidate_changes") or []
+    if not rows:
+        lines.append("No bounded candidate edits were applied before final selection.")
+        return "\n".join(lines)
+
+    changed_rows = [r for r in rows if r.get("changes")]
+    skipped_rows = [r for r in rows if r.get("skipped_domains")]
+
+    if changed_rows:
+        lines.append("### Applied Candidate Edits\n")
+        for row in changed_rows:
+            cid = row.get("candidate_id")
+            domains = ", ".join(row.get("domains") or [])
+            lines.append(f"#### Candidate {cid} ({domains or 'unknown domains'})")
+            for field, value in (row.get("changes") or {}).items():
+                reason = (row.get("rationale") or {}).get(field, "")
+                lines.append(f"- **{field}** → `{value}`: {reason}")
+            lines.append("")
+
+    if skipped_rows:
+        lines.append("### Skipped Domains Due To Audit Findings\n")
+        for row in skipped_rows:
+            lines.append(
+                f"- Candidate {row.get('candidate_id')}: "
+                f"{', '.join(row.get('skipped_domains') or [])}"
+            )
+
+    return "\n".join(lines)
+
+
 def _build_chief_cot(
     chief_data: dict,
     weighted_scores: list[dict],
@@ -1044,6 +1438,7 @@ def _to_deliberations_v4(
     chief_data: dict,
     tool_calls: dict,
     revision_result: Optional[dict] = None,
+    preselection_refinement: Optional[dict] = None,
 ) -> list[list[AgentDeliberation]]:
     """Convert v4 council output to UI-compatible AgentDeliberation lists with rich markdown."""
     round1: list[AgentDeliberation] = []
@@ -1090,6 +1485,28 @@ def _to_deliberations_v4(
         ],
         status="ACCEPT",
     ))
+
+    if preselection_refinement and (
+        preselection_refinement.get("had_changes")
+        or preselection_refinement.get("candidate_changes")
+    ):
+        changed = preselection_refinement.get("changed_count", 0)
+        round1.append(AgentDeliberation(
+            agent="CandidateRefinementV4",
+            agent_display_name="Candidate Refinement Board",
+            round=1,
+            chain_of_thought=_build_refinement_cot(preselection_refinement),
+            findings=[
+                f"Bounded expert edits applied to {changed} candidate(s) before the final scoring pass",
+                "All revised candidates were recomputed deterministically before rescoring",
+            ],
+            concerns=[
+                f"Candidate {row.get('candidate_id')}: skipped {', '.join(row.get('skipped_domains') or [])}"
+                for row in (preselection_refinement.get("candidate_changes") or [])
+                if row.get("skipped_domains")
+            ],
+            status="REVISE" if changed else "ACCEPT",
+        ))
 
     # ── Dr. Chemistry ─────────────────────────────────────────────────────────
     chem_blocked = [e for e in scoring.get("chemistry_scores", [])
@@ -1266,12 +1683,26 @@ def _build_summary_v4(
     chief_data: dict,
     dfmea: Optional[dict],
     objectives: str,
+    preselection_refinement: Optional[dict] = None,
 ) -> str:
     lines = ["## Council v4 — Stage-gated Engineering Design Summary"]
     lines.append(f"\n**Objectives**: {objectives}")
     lines.append(f"**Designer**: {len(designer_result.get('survivors', []))} survivors, "
                  f"{len(designer_result.get('disqualified', []))} hard-gate disqualified")
     lines.append(f"\n### Candidate Shortlist\n{designer_result.get('table_markdown', '')}")
+
+    if preselection_refinement:
+        lines.append("\n### Pre-selection Expert Refinement")
+        lines.append(preselection_refinement.get("summary", ""))
+        changed_rows = [
+            row for row in (preselection_refinement.get("candidate_changes") or [])
+            if row.get("changes")
+        ]
+        for row in changed_rows:
+            rendered = ", ".join(
+                f"{field}={value}" for field, value in (row.get("changes") or {}).items()
+            )
+            lines.append(f"- id {row.get('candidate_id')}: {rendered}")
 
     lines.append("\n### Weighted Scores (all surviving candidates)")
     lines.append("| id | combined | chemistry | kinetics | fluidics | safety | geometry | disq |")
@@ -1392,6 +1823,9 @@ class CouncilV4:
         objectives: str = "balanced",
         max_loop_rounds: int = 3,
         fixed_candidates: Optional[list[dict]] = None,
+        candidate_budget: int = 12,
+        allow_warning_refinement: bool = False,
+        benchmark_recorder=None,
     ) -> tuple[DesignCandidate, DesignCalculations]:
         """Run the full council pipeline.
 
@@ -1441,6 +1875,7 @@ class CouncilV4:
         #  STAGE 0 — Problem Framing
         # ═══════════════════════════════════════════════════════════════════
         logger.info("  Council v4 — Stage 0: Problem framing")
+        _bench_stage_start(benchmark_recorder, "council_stage_0_problem_framing")
         problem_statement = run_problem_framing(
             reaction_class=reaction_class,
             is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,
@@ -1456,16 +1891,29 @@ class CouncilV4:
             problem_statement.get("special_flags"),
             problem_statement.get("flow_justified"),
         )
+        _bench_stage_end(
+            benchmark_recorder,
+            "council_stage_0_problem_framing",
+            {
+                "reaction_class": problem_statement.get("reaction_class"),
+                "flow_justified": problem_statement.get("flow_justified"),
+                "special_flags": problem_statement.get("special_flags", []),
+            },
+        )
 
         # ═══════════════════════════════════════════════════════════════════
         #  STAGE 1 — Designer: Candidate Matrix  (or bypass with fixed_candidates)
         # ═══════════════════════════════════════════════════════════════════
+        _bench_stage_start(
+            benchmark_recorder,
+            "council_stage_1_designer",
+            {"candidate_budget": candidate_budget, "fixed_candidates": len(fixed_candidates or [])},
+        )
         if fixed_candidates is not None:
             logger.info(
                 "  Council v4 — Stage 1: BYPASSED (fixed_candidates=%d provided)",
                 len(fixed_candidates),
             )
-            from flora_translate.engine.sampling import format_candidate_table
             survivors = fixed_candidates
             table_markdown = format_candidate_table(survivors, max_rows=len(survivors))
             designer_result = {
@@ -1493,11 +1941,30 @@ class CouncilV4:
                 BPR_bar=current.BPR_bar or 0.0,
                 extinction_coeff_M_cm=ext_coeff,
                 tubing_material=current.tubing_material or "FEP",
-                N_target=12,
+                N_target=candidate_budget,
                 problem_statement=problem_statement,
             )
 
         survivors = designer_result["survivors"]
+        _bench_snapshot(
+            benchmark_recorder,
+            "stage1_designer_result",
+            {
+                "strategy_reasoning": designer_result.get("strategy_reasoning"),
+                "problem_statement": designer_result.get("problem_statement"),
+                "survivors": survivors,
+                "disqualified": designer_result.get("disqualified", []),
+            },
+        )
+        _bench_stage_end(
+            benchmark_recorder,
+            "council_stage_1_designer",
+            {
+                "survivor_count": len(survivors),
+                "disqualified_count": len(designer_result.get("disqualified", [])),
+            },
+            status="completed" if survivors else "empty",
+        )
         if not survivors:
             logger.warning("Council v4: no survivors after hard-gate filter — falling back")
             return self._fallback(current, chemistry_plan, calc, log, designer_result)
@@ -1508,7 +1975,8 @@ class CouncilV4:
         #  STAGE 2 — Domain Scoring (max max_loop_rounds iterations if needed)
         # ═══════════════════════════════════════════════════════════════════
         logger.info("  Council v4 — Stage 2: Domain scoring (%d survivors)", len(survivors))
-        scoring = run_domain_scoring(
+        _bench_stage_start(benchmark_recorder, "council_stage_2_domain_scoring", {"survivor_count": len(survivors)})
+        initial_scoring = run_domain_scoring(
             candidates=survivors,
             table_markdown=table_markdown,
             chemistry_brief=chem_brief,
@@ -1516,49 +1984,137 @@ class CouncilV4:
             is_photochem=is_photochem,
             pump_max_bar=pump_max,
         )
+        _bench_snapshot(benchmark_recorder, "stage2_initial_scoring", initial_scoring)
+        _bench_stage_end(
+            benchmark_recorder,
+            "council_stage_2_domain_scoring",
+            {"blocked_by_scoring": initial_scoring.get("blocked_by_scoring", [])},
+        )
 
         # Remove scoring-blocked candidates from survivors for audit
-        scoring_blocked_ids = set(scoring.get("blocked_by_scoring", []))
-        survivors_for_audit = [c for c in survivors if c.get("id") not in scoring_blocked_ids]
+        scoring_blocked_ids = set(initial_scoring.get("blocked_by_scoring", []))
 
         # ═══════════════════════════════════════════════════════════════════
         #  STAGE 3 — Skeptic Audit
         # ═══════════════════════════════════════════════════════════════════
         logger.info("  Council v4 — Stage 3: Skeptic audit")
-        audit = run_skeptic_audit(
+        _bench_stage_start(benchmark_recorder, "council_stage_3_skeptic_audit")
+        initial_audit = run_skeptic_audit(
             candidates=survivors,
-            chemistry_scores=scoring["chemistry_scores"],
-            kinetics_scores=scoring["kinetics_scores"],
-            fluidics_scores=scoring["fluidics_scores"],
-            safety_scores=scoring["safety_scores"],
+            chemistry_scores=initial_scoring["chemistry_scores"],
+            kinetics_scores=initial_scoring["kinetics_scores"],
+            fluidics_scores=initial_scoring["fluidics_scores"],
+            safety_scores=initial_scoring["safety_scores"],
             is_gas_liquid=is_gas_liquid,
             concentration_M=current.concentration_M,
             pump_max_bar=pump_max,
         )
 
         # If CRITICAL errors found, log and continue (v4 selects best available)
-        if not audit["council_may_proceed"]:
+        if not initial_audit["council_may_proceed"]:
             logger.warning(
                 "  Council v4 — Skeptic found CRITICAL errors: %s. "
                 "Proceeding with disqualification of affected candidates.",
-                [e["description"][:80] for e in audit["all_errors"]
+                [e["description"][:80] for e in initial_audit["all_errors"]
                  if e.get("severity") == "CRITICAL"]
             )
+        _bench_snapshot(benchmark_recorder, "stage3_initial_audit", initial_audit)
+        _bench_stage_end(
+            benchmark_recorder,
+            "council_stage_3_skeptic_audit",
+            {
+                "council_may_proceed": initial_audit.get("council_may_proceed"),
+                "disqualify_ids": initial_audit.get("disqualify_ids", []),
+                "error_count": len(initial_audit.get("all_errors", [])),
+            },
+        )
+
+        # ═══════════════════════════════════════════════════════════════════
+        #  STAGE 3.5 — Pre-selection expert refinement + rescoring
+        # ═══════════════════════════════════════════════════════════════════
+        logger.info("  Council v4 — Stage 3.5: Pre-selection expert refinement")
+        _bench_stage_start(
+            benchmark_recorder,
+            "council_stage_3_5_preselection_refinement",
+            {"allow_warning_refinement": allow_warning_refinement},
+        )
+        revised_survivors, refinement_summary = _run_candidate_refinement_loop(
+            candidates=survivors,
+            scoring=initial_scoring,
+            audit=initial_audit,
+            solvent=solvent,
+            temperature_C=current.temperature_C,
+            concentration_M=current.concentration_M,
+            assumed_MW=assumed_MW,
+            IF_used=IF_used,
+            pump_max_bar=pump_max,
+            is_photochem=is_photochem,
+            is_gas_liquid=is_gas_liquid,
+            extinction_coeff_M_cm=ext_coeff,
+            allow_warning_refinement=allow_warning_refinement,
+        )
+        _bench_snapshot(benchmark_recorder, "stage3_5_refinement_summary", refinement_summary)
+
+        refinement_applied = bool(refinement_summary.get("had_changes"))
+        if refinement_applied:
+            logger.info(
+                "  Council v4 — rescoring %d revised candidates after bounded expert edits",
+                len(revised_survivors),
+            )
+            revised_table_markdown = format_candidate_table(
+                revised_survivors, max_rows=len(revised_survivors)
+            )
+            final_scoring = run_domain_scoring(
+                candidates=revised_survivors,
+                table_markdown=revised_table_markdown,
+                chemistry_brief=chem_brief,
+                objectives=objectives,
+                is_photochem=is_photochem,
+                pump_max_bar=pump_max,
+            )
+            final_audit = run_skeptic_audit(
+                candidates=revised_survivors,
+                chemistry_scores=final_scoring["chemistry_scores"],
+                kinetics_scores=final_scoring["kinetics_scores"],
+                fluidics_scores=final_scoring["fluidics_scores"],
+                safety_scores=final_scoring["safety_scores"],
+                is_gas_liquid=is_gas_liquid,
+                concentration_M=current.concentration_M,
+                pump_max_bar=pump_max,
+            )
+            survivors_for_selection = revised_survivors
+            table_for_selection = revised_table_markdown
+            _bench_snapshot(benchmark_recorder, "stage3_5_final_scoring", final_scoring)
+            _bench_snapshot(benchmark_recorder, "stage3_5_final_audit", final_audit)
+        else:
+            final_scoring = initial_scoring
+            final_audit = initial_audit
+            survivors_for_selection = survivors
+            table_for_selection = table_markdown
+        _bench_stage_end(
+            benchmark_recorder,
+            "council_stage_3_5_preselection_refinement",
+            {
+                "refinement_applied": refinement_applied,
+                "changed_candidate_ids": refinement_summary.get("changed_candidate_ids", []),
+            },
+        )
 
         # Collect disqualified IDs — hard-gate flags are NOT removals; only scoring
-        # blocks and Skeptic CRITICAL disqualifications actually remove a candidate.
+        # blocks and Skeptic CRITICAL/HIGH disqualifications actually remove a candidate.
         disqualify_ids = (
-            scoring_blocked_ids
-            | set(audit.get("disqualify_ids", []))
+            set(final_scoring.get("blocked_by_scoring", []))
+            | set(final_audit.get("disqualify_ids", []))
         )
 
         # ═══════════════════════════════════════════════════════════════════
         #  CHIEF ENGINEER — Weighted Selection (with optional ask-back)
         # ═══════════════════════════════════════════════════════════════════
         logger.info("  Council v4 — Chief Engineer: weighted selection")
+        _bench_stage_start(benchmark_recorder, "council_stage_4_chief_selection")
         weighted_scores = compute_weighted_scores(
-            candidates=survivors,
-            scoring=scoring,
+            candidates=survivors_for_selection,
+            scoring=final_scoring,
             objectives=objectives,
             disqualify_ids=disqualify_ids,
         )
@@ -1568,11 +2124,11 @@ class CouncilV4:
         P_batch_val = getattr(calc, "P_batch_mmol_h", None)
 
         chief_data, chief_tc = _run_chief_llm(
-            candidates=survivors,
+            candidates=survivors_for_selection,
             weighted_scores=weighted_scores,
-            scoring=scoring,
-            audit=audit,
-            table_markdown=table_markdown,
+            scoring=final_scoring,
+            audit=final_audit,
+            table_markdown=table_for_selection,
             chemistry_brief=chem_brief,
             objectives=objectives,
             disqualify_ids=disqualify_ids,
@@ -1592,15 +2148,15 @@ class CouncilV4:
                 domain=ask_domain,
                 question=ask_question,
                 chemistry_brief=chem_brief,
-                candidates=survivors,
-                scoring=scoring,
+                candidates=survivors_for_selection,
+                scoring=final_scoring,
             )
             chief_data2, chief_tc2 = _run_chief_llm(
-                candidates=survivors,
+                candidates=survivors_for_selection,
                 weighted_scores=weighted_scores,
-                scoring=scoring,
-                audit=audit,
-                table_markdown=table_markdown,
+                scoring=final_scoring,
+                audit=final_audit,
+                table_markdown=table_for_selection,
                 chemistry_brief=chem_brief,
                 objectives=objectives,
                 disqualify_ids=disqualify_ids,
@@ -1620,7 +2176,9 @@ class CouncilV4:
             winner_id = None
 
         # Validate winner_id is in survivors and not disqualified
-        valid_survivor_ids = {c.get("id") for c in survivors if c.get("id") not in disqualify_ids}
+        valid_survivor_ids = {
+            c.get("id") for c in survivors_for_selection if c.get("id") not in disqualify_ids
+        }
         if winner_id not in valid_survivor_ids:
             winner_id, fallback_reason = _deterministic_resolve(weighted_scores)
             logger.info("  Chief LLM invalid/failed — deterministic: %s", fallback_reason)
@@ -1629,7 +2187,21 @@ class CouncilV4:
         if winner_id is None:
             return self._fallback(current, chemistry_plan, calc, log, designer_result)
 
-        winner = next(c for c in survivors if c.get("id") == winner_id)
+        winner = next(c for c in survivors_for_selection if c.get("id") == winner_id)
+        _bench_snapshot(
+            benchmark_recorder,
+            "stage4_chief_selection",
+            {
+                "weighted_scores": weighted_scores,
+                "chief_data": chief_data,
+                "disqualify_ids": sorted(disqualify_ids),
+            },
+        )
+        _bench_stage_end(
+            benchmark_recorder,
+            "council_stage_4_chief_selection",
+            {"winner_id": winner_id, "disqualify_ids": sorted(disqualify_ids)},
+        )
         logger.info(
             "  Council v4 — Winner: id=%d τ=%s min, d=%s mm, Q=%s mL/min, X=%s",
             winner_id, winner.get("tau_min"), winner.get("d_mm"),
@@ -1640,9 +2212,10 @@ class CouncilV4:
         #  STAGE 3.5 — Revision Agent: fix REVISE/BLOCK issues on winner
         # ═══════════════════════════════════════════════════════════════════
         logger.info("  Council v4 — Stage 3.5: Revision Agent on winner id=%d", winner_id)
+        _bench_stage_start(benchmark_recorder, "council_stage_5_revision_agent", {"winner_id": winner_id})
         revision_result = run_revision_stage(
             winner           = winner,
-            scoring          = scoring,
+            scoring          = final_scoring,
             chemistry_brief  = chem_brief,
             is_photochem     = is_photochem,
             pump_max_bar     = pump_max,
@@ -1657,13 +2230,20 @@ class CouncilV4:
                 "  Stage 3.5 applied revisions to winner id=%d: τ→%.1f min, d→%.2f mm, BPR→%.2f bar",
                 winner_id, winner.get("tau_min", 0), winner.get("d_mm", 0), winner.get("BPR_bar", 0),
             )
+        _bench_snapshot(benchmark_recorder, "stage5_revision_result", revision_result)
+        _bench_stage_end(
+            benchmark_recorder,
+            "council_stage_5_revision_agent",
+            {"winner_id": winner_id, "revision_applied": revision_result is not None},
+        )
 
         # ═══════════════════════════════════════════════════════════════════
         #  DFMEA on winner
         # ═══════════════════════════════════════════════════════════════════
         logger.info("  Council v4 — DFMEA on winning candidate id=%d", winner_id)
+        _bench_stage_start(benchmark_recorder, "council_stage_6_dfmea", {"winner_id": winner_id})
         safety_entry = next(
-            (e for e in scoring["safety_scores"] if e.get("candidate_id") == winner_id),
+            (e for e in final_scoring["safety_scores"] if e.get("candidate_id") == winner_id),
             None,
         )
         dfmea = run_dfmea(
@@ -1672,11 +2252,18 @@ class CouncilV4:
             chemistry_brief=chem_brief,
             safety_score_entry=safety_entry,
         )
+        _bench_snapshot(benchmark_recorder, "stage6_dfmea", dfmea)
+        _bench_stage_end(
+            benchmark_recorder,
+            "council_stage_6_dfmea",
+            {"winner_id": winner_id, "failure_mode_count": len(dfmea.get("failure_modes", []))},
+        )
 
         # ═══════════════════════════════════════════════════════════════════
         #  Apply winner + re-run calculator
         # ═══════════════════════════════════════════════════════════════════
-        final_consensus = chief_data.get("final_consensus", {})
+        _bench_stage_start(benchmark_recorder, "council_stage_7_apply_winner", {"winner_id": winner_id})
+        final_consensus = chief_data.get("final_consensus") or {}
         extra_changes: dict = {}
         for field_map in [
             ("BPR_bar", "BPR_bar"),
@@ -1706,28 +2293,40 @@ class CouncilV4:
             target_tubing_ID_mm=current.tubing_ID_mm or None,
             target_residence_time_min=current.residence_time_min or None,
         )
+        _bench_stage_end(
+            benchmark_recorder,
+            "council_stage_7_apply_winner",
+            {
+                "winner_id": winner_id,
+                "applied_changes": changes,
+                "final_residence_time_min": current.residence_time_min,
+                "final_flow_rate_mL_min": current.flow_rate_mL_min,
+                "final_tubing_ID_mm": current.tubing_ID_mm,
+            },
+        )
 
         # ── Build output ────────────────────────────────────────────────────
         tool_calls = {
             "chief": chief_tc,
-            **scoring.get("tool_calls", {}),
+            **final_scoring.get("tool_calls", {}),
         }
         all_round_delibs = _to_deliberations_v4(
             designer_result=designer_result,
-            scoring=scoring,
-            audit=audit,
+            scoring=final_scoring,
+            audit=final_audit,
             weighted_scores=weighted_scores,
             winner_id=winner_id,
-            candidates=survivors,
+            candidates=survivors_for_selection,
             dfmea=dfmea,
             chief_data=chief_data,
             tool_calls=tool_calls,
             revision_result=revision_result,
+            preselection_refinement=refinement_summary,
         )
         log.rounds = all_round_delibs
 
         # Skeptic trade-off summary
-        log.trade_off_summary = audit.get("audit_summary", "")
+        log.trade_off_summary = final_audit.get("audit_summary", "")
         log.trade_off_matrix = (
             "| id | combined | chemistry | kinetics | fluidics | safety | geometry |\n"
             "|---|---|---|---|---|---|---|\n" +
@@ -1738,19 +2337,20 @@ class CouncilV4:
                 for r in weighted_scores
             )
         )
-        log.total_rounds = 2
-        log.consensus_reached = audit["council_may_proceed"]
+        log.total_rounds = len(all_round_delibs)
+        log.consensus_reached = final_audit["council_may_proceed"]
 
         log.summary = _build_summary_v4(
             designer_result=designer_result,
-            scoring=scoring,
-            audit=audit,
+            scoring=final_scoring,
+            audit=final_audit,
             weighted_scores=weighted_scores,
             winner_id=winner_id,
-            candidates=survivors,
+            candidates=survivors_for_selection,
             chief_data=chief_data,
             dfmea=dfmea,
             objectives=objectives,
+            preselection_refinement=refinement_summary,
         )
 
         legacy = [
@@ -1773,8 +2373,8 @@ class CouncilV4:
             council_messages=legacy,
             council_rounds=log.total_rounds,
             safety_report={
-                "total_checks": len(audit.get("all_errors", [])),
-                "critical": len([e for e in audit.get("all_errors", [])
+                "total_checks": len(final_audit.get("all_errors", [])),
+                "critical": len([e for e in final_audit.get("all_errors", [])
                                  if e.get("severity") == "CRITICAL"]),
                 "dfmea_modes": len(dfmea.get("failure_modes", [])) if dfmea else 0,
                 "validation_experiments": dfmea.get("validation_experiments", []) if dfmea else [],

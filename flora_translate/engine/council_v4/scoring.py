@@ -181,6 +181,7 @@ redox potentials are available.
       "photonics_score": 0.90,
       "combined_score": 0.87,
       "verdict": "ACCEPT",
+      "proposed_changes": {},
       "beer_lambert_A": 0.18,
       "epsilon_used": 20.0,
       "wavelength_match": true,
@@ -195,6 +196,8 @@ redox potentials are available.
 }
 ```
 Score ALL candidates. One entry per candidate_id. Reasoning must be specific to each candidate's numbers.
+`proposed_changes` may only contain fields owned by chemistry: `concentration_M`.
+If no chemistry edit is needed, return `{}`.
 """
 
 
@@ -274,12 +277,15 @@ show the result. Use `check_redox_feasibility` if redox potential data is availa
       "productivity_mg_h": 117.5,
       "t_steady_min": 135.0,
       "verdict": "ACCEPT",
+      "proposed_changes": {},
       "concerns": ["Laminar RTD: τ/τ_k = 3.0×. Centerline fluid sees 22.5 min — still above τ_kinetics (15 min). Acceptable margin."]
     }
   ]
 }
 ```
 Score ALL candidates. Reasoning must cite specific numbers for each candidate.
+`proposed_changes` may only contain fields owned by kinetics: `tau_min`.
+If no kinetics edit is needed, return `{}`.
 """
 
 
@@ -366,12 +372,15 @@ Show tool call results in your reasoning.
       "dead_volume_mL": 0.1,
       "dead_volume_impact": "V_dead/Q = 0.18 min = 0.4% of τ=45 min — negligible",
       "verdict": "ACCEPT",
+      "proposed_changes": {},
       "concerns": []
     }
   ]
 }
 ```
 Score ALL candidates. Reasoning must cite actual numbers for each candidate.
+`proposed_changes` may only contain fields owned by fluidics: `d_mm`.
+If no fluidics edit is needed, return `{}`.
 """
 
 
@@ -460,6 +469,7 @@ Call `calculate_bpr_required` to compute BPR need. Show P_vapor, P_min, P_recomm
         "Ir(ppy)₃ — potential skin sensitiser; handle as potent pharmaceutical"
       ],
       "verdict": "ACCEPT",
+      "proposed_changes": {},
       "blocking_issues": [],
       "conditions": ["Ensure N₂ blanket on all feed reservoirs before pressurising"]
     }
@@ -467,6 +477,8 @@ Call `calculate_bpr_required` to compute BPR need. Show P_vapor, P_min, P_recomm
 }
 ```
 Score ALL candidates. Reasoning must cite tool results and specific numbers.
+`proposed_changes` may only contain fields owned by safety: `BPR_bar`, `tubing_material`.
+If no safety edit is needed, return `{}`.
 """
 
 

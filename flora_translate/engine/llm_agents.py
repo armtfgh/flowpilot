@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 
 import anthropic
 
@@ -31,6 +32,117 @@ logger = logging.getLogger("flora.engine.llm_agents")
 _ANTHROPIC_CLIENT = None
 _OPENAI_CLIENT    = None
 _OLLAMA_CLIENT    = None
+_LLM_OBSERVER     = None
+_RUNTIME_OVERRIDES: dict = {}
+
+
+def set_llm_observer(observer) -> None:
+    """Register an optional observer(event_dict) for benchmark telemetry."""
+    global _LLM_OBSERVER
+    _LLM_OBSERVER = observer
+
+
+def clear_llm_observer() -> None:
+    global _LLM_OBSERVER
+    _LLM_OBSERVER = None
+
+
+def set_llm_runtime_overrides(**kwargs) -> None:
+    """Set optional runtime overrides such as temperature or seed."""
+    global _RUNTIME_OVERRIDES
+    _RUNTIME_OVERRIDES = {k: v for k, v in kwargs.items() if v is not None}
+
+
+def clear_llm_runtime_overrides() -> None:
+    global _RUNTIME_OVERRIDES
+    _RUNTIME_OVERRIDES = {}
+
+
+def get_llm_runtime_overrides() -> dict:
+    return dict(_RUNTIME_OVERRIDES)
+
+
+def _emit_llm_event(event: dict) -> None:
+    if _LLM_OBSERVER is None:
+        return
+    try:
+        _LLM_OBSERVER(event)
+    except Exception as exc:
+        logger.debug("LLM observer raised: %s", exc)
+
+
+def _usage_to_dict(resp) -> dict:
+    usage = getattr(resp, "usage", None)
+    if usage is None:
+        return {}
+
+    def _get(name: str):
+        value = getattr(usage, name, None)
+        return value if isinstance(value, (int, float)) else None
+
+    data = {
+        "input_tokens": _get("input_tokens"),
+        "output_tokens": _get("output_tokens"),
+        "prompt_tokens": _get("prompt_tokens"),
+        "completion_tokens": _get("completion_tokens"),
+        "total_tokens": _get("total_tokens"),
+        "cache_creation_input_tokens": _get("cache_creation_input_tokens"),
+        "cache_read_input_tokens": _get("cache_read_input_tokens"),
+    }
+    return {k: v for k, v in data.items() if v is not None}
+
+
+def _base_event(
+    *,
+    api_name: str,
+    provider: str,
+    model: str,
+    max_tokens: int,
+    system: str,
+    user_content: str,
+) -> dict:
+    event = {
+        "api_name": api_name,
+        "provider": provider,
+        "model": model,
+        "max_tokens": max_tokens,
+        "system_chars": len(system or ""),
+        "user_chars": len(user_content or ""),
+    }
+    if "temperature" in _RUNTIME_OVERRIDES:
+        event["temperature"] = _RUNTIME_OVERRIDES["temperature"]
+    if "seed" in _RUNTIME_OVERRIDES:
+        event["seed"] = _RUNTIME_OVERRIDES["seed"]
+    return event
+
+
+def emit_component_llm_event(
+    *,
+    component: str,
+    provider: str,
+    model: str,
+    max_tokens: int,
+    system: str,
+    user_content: str,
+    resp,
+    started: float,
+    extra: dict | None = None,
+) -> None:
+    event = {
+        **_base_event(
+            api_name=component,
+            provider=provider,
+            model=model,
+            max_tokens=max_tokens,
+            system=system,
+            user_content=user_content,
+        ),
+        "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+        "usage": _usage_to_dict(resp),
+    }
+    if extra:
+        event.update(extra)
+    _emit_llm_event(event)
 
 
 def _get_anthropic_client() -> anthropic.Anthropic:
@@ -74,6 +186,12 @@ def call_llm(system: str, user_content: str, max_tokens: int) -> str:
       "ollama"    → local model at OLLAMA_BASE_URL
     """
     if ENGINE_PROVIDER in ("openai",):
+        kwargs = {}
+        if "temperature" in _RUNTIME_OVERRIDES:
+            kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
+        if "seed" in _RUNTIME_OVERRIDES:
+            kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
+        started = time.perf_counter()
         resp = _get_openai_client().chat.completions.create(
             model=ENGINE_MODEL_OPENAI,
             max_tokens=max_tokens,
@@ -81,16 +199,38 @@ def call_llm(system: str, user_content: str, max_tokens: int) -> str:
                 {"role": "system", "content": system},
                 {"role": "user",   "content": user_content},
             ],
+            **kwargs,
         )
-        return resp.choices[0].message.content.strip()
+        content = resp.choices[0].message.content.strip()
+        _emit_llm_event({
+            **_base_event(
+                api_name="call_llm",
+                provider="openai",
+                model=ENGINE_MODEL_OPENAI,
+                max_tokens=max_tokens,
+                system=system,
+                user_content=user_content,
+            ),
+            "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+            "usage": _usage_to_dict(resp),
+            "response_chars": len(content),
+        })
+        return content
 
     elif ENGINE_PROVIDER == "ollama":
         client = _get_ollama_client()
+        extra_body = {"think": False}
+        kwargs = {}
+        if "temperature" in _RUNTIME_OVERRIDES:
+            kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
+        if "seed" in _RUNTIME_OVERRIDES:
+            kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
 
         # gemma4 (and similar) are "thinking" models: they spend all tokens on an
         # internal scratchpad ("reasoning" field) and never write to "content".
         # Disable thinking via the Ollama API flag (0.9+) AND via the /no_think
         # user-message prefix (all versions that support it).
+        started = time.perf_counter()
         resp = client.chat.completions.create(
             model=ENGINE_MODEL_OLLAMA,
             max_tokens=max_tokens,
@@ -99,7 +239,8 @@ def call_llm(system: str, user_content: str, max_tokens: int) -> str:
                 {"role": "system", "content": system},
                 {"role": "user",   "content": f"/no_think\n{user_content}"},
             ],
-            extra_body={"think": False},
+            extra_body=extra_body,
+            **kwargs,
         )
 
         choice  = resp.choices[0] if resp.choices else None
@@ -119,18 +260,68 @@ def call_llm(system: str, user_content: str, max_tokens: int) -> str:
                 ENGINE_MODEL_OLLAMA,
                 choice.finish_reason if choice else "N/A",
             )
+            _emit_llm_event({
+                **_base_event(
+                    api_name="call_llm",
+                    provider="ollama",
+                    model=ENGINE_MODEL_OLLAMA,
+                    max_tokens=max_tokens,
+                    system=system,
+                    user_content=user_content,
+                ),
+                "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                "usage": _usage_to_dict(resp),
+                "response_chars": 0,
+                "finish_reason": choice.finish_reason if choice else None,
+                "empty_content": True,
+            })
             return ""
 
-        return content.strip()
+        content = content.strip()
+        _emit_llm_event({
+            **_base_event(
+                api_name="call_llm",
+                provider="ollama",
+                model=ENGINE_MODEL_OLLAMA,
+                max_tokens=max_tokens,
+                system=system,
+                user_content=user_content,
+            ),
+            "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+            "usage": _usage_to_dict(resp),
+            "response_chars": len(content),
+            "finish_reason": choice.finish_reason if choice else None,
+        })
+        return content
 
     else:  # "anthropic" (default)
+        kwargs = {}
+        if "temperature" in _RUNTIME_OVERRIDES:
+            kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
+        started = time.perf_counter()
         resp = _get_anthropic_client().messages.create(
             model=ENGINE_MODEL_ANTHROPIC,
             max_tokens=max_tokens,
             system=system,
             messages=[{"role": "user", "content": user_content}],
+            **kwargs,
         )
-        return resp.content[0].text.strip()
+        content = resp.content[0].text.strip()
+        _emit_llm_event({
+            **_base_event(
+                api_name="call_llm",
+                provider="anthropic",
+                model=ENGINE_MODEL_ANTHROPIC,
+                max_tokens=max_tokens,
+                system=system,
+                user_content=user_content,
+            ),
+            "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+            "usage": _usage_to_dict(resp),
+            "response_chars": len(content),
+            "stop_reason": getattr(resp, "stop_reason", None),
+        })
+        return content
 
 
 def call_llm_with_tools(
@@ -167,13 +358,32 @@ def call_llm_with_tools(
             client = _get_anthropic_client()
             messages = [{"role": "user", "content": user_content}]
             for _ in range(max_tool_turns):
+                kwargs = {}
+                if "temperature" in _RUNTIME_OVERRIDES:
+                    kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
+                started = time.perf_counter()
                 resp = client.messages.create(
                     model=ENGINE_MODEL_ANTHROPIC,
                     max_tokens=max_tokens,
                     system=system,
                     tools=tools,
                     messages=messages,
+                    **kwargs,
                 )
+                _emit_llm_event({
+                    **_base_event(
+                        api_name="call_llm_with_tools_turn",
+                        provider="anthropic",
+                        model=ENGINE_MODEL_ANTHROPIC,
+                        max_tokens=max_tokens,
+                        system=system,
+                        user_content=user_content,
+                    ),
+                    "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                    "usage": _usage_to_dict(resp),
+                    "tool_calls_requested": len([b for b in resp.content if getattr(b, "type", "") == "tool_use"]),
+                    "stop_reason": getattr(resp, "stop_reason", None),
+                })
                 if resp.stop_reason != "tool_use":
                     text_blocks = [b for b in resp.content if hasattr(b, "text")]
                     final_text = text_blocks[0].text.strip() if text_blocks else ""
@@ -210,6 +420,7 @@ def call_llm_with_tools(
                         "Do NOT call any more tools. Output only the JSON."
                     ),
                 }]
+                started = time.perf_counter()
                 final_resp = client.messages.create(
                     model=ENGINE_MODEL_ANTHROPIC,
                     max_tokens=max_tokens,
@@ -217,7 +428,22 @@ def call_llm_with_tools(
                     tools=tools,
                     tool_choice={"type": "none"},
                     messages=force_msgs,
+                    **kwargs,
                 )
+                _emit_llm_event({
+                    **_base_event(
+                        api_name="call_llm_with_tools_force_final",
+                        provider="anthropic",
+                        model=ENGINE_MODEL_ANTHROPIC,
+                        max_tokens=max_tokens,
+                        system=system,
+                        user_content=user_content,
+                    ),
+                    "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                    "usage": _usage_to_dict(final_resp),
+                    "tool_calls_requested": 0,
+                    "stop_reason": getattr(final_resp, "stop_reason", None),
+                })
                 text_blocks = [b for b in final_resp.content if hasattr(b, "text")]
                 final_text = text_blocks[0].text.strip() if text_blocks else ""
                 if final_text:
@@ -244,14 +470,35 @@ def call_llm_with_tools(
             {"role": "user", "content": user_content},
         ]
         for _ in range(max_tool_turns):
+            kwargs = {}
+            if "temperature" in _RUNTIME_OVERRIDES:
+                kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
+            if "seed" in _RUNTIME_OVERRIDES:
+                kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
+            started = time.perf_counter()
             resp = client.chat.completions.create(
                 model=ENGINE_MODEL_OPENAI,
                 max_tokens=max_tokens,
                 tools=openai_tools,
                 tool_choice="auto",
                 messages=messages,
+                **kwargs,
             )
             choice = resp.choices[0]
+            _emit_llm_event({
+                **_base_event(
+                    api_name="call_llm_with_tools_turn",
+                    provider="openai",
+                    model=ENGINE_MODEL_OPENAI,
+                    max_tokens=max_tokens,
+                    system=system,
+                    user_content=user_content,
+                ),
+                "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                "usage": _usage_to_dict(resp),
+                "tool_calls_requested": len(choice.message.tool_calls or []),
+                "finish_reason": choice.finish_reason,
+            })
             msg = choice.message
             if not msg.tool_calls:
                 return (msg.content or "").strip(), tool_calls_log

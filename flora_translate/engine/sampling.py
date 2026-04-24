@@ -509,9 +509,9 @@ def format_candidate_table(candidates: list[dict], max_rows: int = 15) -> str:
     if not candidates:
         return "_no candidates_"
     header = (
-        "| id | τ min | d mm | Q mL/min | V_R mL | L m | Re | ΔP bar | "
-        "r_mix | X | prod mg/h | pareto | flags |\n"
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|"
+        "| id | τ min | d mm | Q mL/min | C M | V_R mL | L m | Re | ΔP bar | "
+        "BPR bar | material | r_mix | X | prod mg/h | pareto | flags |\n"
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"
     )
     rows = []
     for i, c in enumerate(candidates[:max_rows]):
@@ -527,7 +527,9 @@ def format_candidate_table(candidates: list[dict], max_rows: int = 15) -> str:
             flags.append(f"⛔{len(hg)}")
         rows.append(
             f"| {i+1} | {c['tau_min']} | {c['d_mm']} | {c['Q_mL_min']} | "
+            f"{c.get('concentration_M', '')} | "
             f"{c['V_R_mL']} | {c['L_m']} | {c['Re']:.0f} | {c['delta_P_bar']:.3f} | "
+            f"{c.get('BPR_bar', 0.0)} | {c.get('tubing_material', 'FEP')} | "
             f"{c['r_mix']:.3f} | {c['expected_conversion']:.2f} | "
             f"{c['productivity_mg_h']:.1f} | "
             f"{'✓' if c.get('pareto_front') else ' '} | {' '.join(flags)} |"

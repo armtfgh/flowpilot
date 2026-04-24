@@ -442,6 +442,15 @@ def run_designer_v4(
     # Re-assign sequential IDs to all_feasible
     for i, c in enumerate(all_feasible, 1):
         c["id"] = i
+        c["BPR_bar"] = round(BPR_bar or 0.0, 2)
+        c["tubing_material"] = tubing_material
+        c["concentration_M"] = concentration_M
+        c["temperature_C"] = temperature_C
+    for c in all_infeasible:
+        c["BPR_bar"] = round(BPR_bar or 0.0, 2)
+        c["tubing_material"] = tubing_material
+        c["concentration_M"] = concentration_M
+        c["temperature_C"] = temperature_C
 
     # Apply v4 hard-gate flags (all candidates proceed; flagged ones carry reasons)
     survivors, flagged = _apply_v4_hard_gates(
