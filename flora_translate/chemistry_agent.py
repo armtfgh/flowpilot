@@ -14,10 +14,12 @@ Outputs a ChemistryPlan — no hardware decisions.
 import json
 import logging
 import re
+import time
 
 import anthropic
 
 from flora_translate.config import MODEL_CHEMISTRY_AGENT as CHEMISTRY_MODEL, CHEMISTRY_MAX_TOKENS, PROMPTS_DIR
+from flora_translate.engine.llm_agents import emit_component_llm_event, get_llm_runtime_overrides
 from flora_translate.schemas import BatchRecord, ChemistryPlan
 
 logger = logging.getLogger("flora.chemistry_agent")
@@ -104,6 +106,23 @@ For EACH stage, specify:
   inline filter, heat exchange)
 
 If it is a single-step reaction, set n_stages=1 and leave stages=[].
+
+STRICT RULES FOR post_stage_action:
+- Leave post_stage_action="" unless there is a SPECIFIC, CHEMISTRY-DRIVEN reason.
+- "inline filter": ONLY if solid by-products, precipitates, or heterogeneous
+  catalyst fines must be removed (e.g. Mg turnings, Pd/C, resin).
+- "quench with X": ONLY if the reaction must be quenched inline (e.g. organolithium,
+  strong acid/base work-up, reactive intermediate).
+- "solvent switch to X": ONLY if the next stage requires a different solvent that
+  is incompatible with the current one.
+- "liquid-liquid extraction" / "separator": ONLY if TWO IMMISCIBLE LIQUID PHASES
+  genuinely exist at the inter-stage point AND the batch protocol explicitly mentions
+  an aqueous work-up, extraction, or phase separation between steps.
+  DO NOT use this for: atmosphere changes, gas switching, deoxygenation, or just
+  because the chemistry is sensitive. Gas-liquid phase changes use gas injection
+  (pump_role="gas injection"), not a separator.
+- post_stage_reasoning MUST be non-empty whenever post_stage_action is non-empty.
+  Cite the specific chemical reason (species, phase, constraint).
 
 Return JSON:
 {{
@@ -310,11 +329,30 @@ class ChemistryReasoningAgent:
 
     def _call_with_retry(self, system: str, user_prompt: str) -> str:
         """Call the model. Warn if truncated but do not retry — 8192 is the hard cap."""
+        kwargs = {}
+        if "temperature" in get_llm_runtime_overrides():
+            kwargs["temperature"] = get_llm_runtime_overrides()["temperature"]
+        started = time.perf_counter()
         resp = _get_client().messages.create(
             model=CHEMISTRY_MODEL,
             max_tokens=CHEMISTRY_MAX_TOKENS,
             system=system,
             messages=[{"role": "user", "content": user_prompt}],
+            **kwargs,
+        )
+        emit_component_llm_event(
+            component="chemistry_agent",
+            provider="anthropic",
+            model=CHEMISTRY_MODEL,
+            max_tokens=CHEMISTRY_MAX_TOKENS,
+            system=system,
+            user_content=user_prompt,
+            resp=resp,
+            started=started,
+            extra={
+                "response_chars": len(resp.content[0].text),
+                "stop_reason": resp.stop_reason,
+            },
         )
         if resp.stop_reason == "max_tokens":
             logger.warning("    Chemistry Agent output hit token limit — JSON may be incomplete")

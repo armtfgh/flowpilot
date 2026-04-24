@@ -22,8 +22,11 @@ class AnalogySelector:
         if record_id in self._cache:
             return self._cache[record_id]
 
-        # record_id is typically the PDF stem
+        # record_id from ChromaDB may carry a .pdf extension — strip it
+        stem = record_id.removesuffix(".pdf") if record_id.endswith(".pdf") else record_id
+
         candidates = [
+            self.records_dir / f"{stem}.json",
             self.records_dir / f"{record_id}.json",
             self.records_dir / f"{record_id}",
         ]
@@ -33,9 +36,9 @@ class AnalogySelector:
                 self._cache[record_id] = data
                 return data
 
-        # Try fuzzy match on filename
+        # Fuzzy match: check both stem-in-filename and filename-in-stem
         for f in self.records_dir.glob("*.json"):
-            if record_id in f.stem:
+            if stem in f.stem or f.stem in stem:
                 data = json.loads(f.read_text())
                 self._cache[record_id] = data
                 return data

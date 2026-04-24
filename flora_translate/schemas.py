@@ -176,6 +176,8 @@ class StreamLogic(BaseModel):
     stream_label: str = ""               # "A", "B"
     reagents: list[str] = Field(default_factory=list)   # names of reagents in this stream
     reasoning: str = ""                  # WHY these go together
+    molar_equiv: float = 1.0             # stoichiometric equivalents relative to limiting reagent
+    concentration_M: Optional[float] = None  # concentration of this stream (for Q calculation)
 
 
 class ProcessStage(BaseModel):
@@ -285,6 +287,7 @@ class StreamAssignment(BaseModel):
     solvent: str = ""
     concentration_M: Optional[float] = None
     flow_rate_mL_min: Optional[float] = None
+    molar_equiv: float = 1.0            # stoichiometric equivalents relative to limiting reagent (substrate=1.0)
     reasoning: str = ""                 # why these go together
 
 
@@ -310,6 +313,10 @@ class FlowProposal(BaseModel):
     pre_reactor_steps: list[str] = Field(default_factory=list)  # e.g. ["degas stream A with N2"]
     post_reactor_steps: list[str] = Field(default_factory=list)  # e.g. ["inline quench with Na2S2O3"]
     chemistry_notes: str = ""            # mechanism-specific design notes
+
+    # Per-stage parameters (populated by council Chief for multi-step processes)
+    # Each dict: {stage_number, tau_fraction, d_mm, Q_inlet_mL_min, V_R_mL}
+    stage_parameters: list[dict] = Field(default_factory=list)
 
     # Reasoning
     reasoning_per_field: dict[str, str] = Field(default_factory=dict)
@@ -444,6 +451,7 @@ class AgentDeliberation(BaseModel):
     had_error: bool = False              # True if agent LLM call failed — blocks convergence
     references_to_agents: list[str] = Field(default_factory=list)
     rules_cited: list[str] = Field(default_factory=list)
+    tool_calls: list[dict] = Field(default_factory=list)  # [{"tool": name, "input": {...}, "result": {...}}, ...]
 
 
 class SanityCheckResult(BaseModel):
@@ -466,6 +474,8 @@ class DeliberationLog(BaseModel):
     # Cumulative record of all field changes applied across all rounds
     all_changes_applied: dict[str, str] = Field(default_factory=dict)
     summary: str = ""                    # Human-readable summary of deliberation
+    trade_off_summary: str = ""   # Skeptic's cross-pick comparative narrative
+    trade_off_matrix: str = ""    # Pre-computed surviving-picks comparison table (Chief input)
 
 
 class DesignCandidate(BaseModel):

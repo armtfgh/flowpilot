@@ -2,10 +2,12 @@
 
 import json
 import logging
+import time
 
 import anthropic
 
 from flora_translate.config import MODEL_OUTPUT_FORMATTER as SUMMARY_MODEL
+from flora_translate.engine.llm_agents import emit_component_llm_event, get_llm_runtime_overrides
 from flora_translate.schemas import DesignCandidate
 
 logger = logging.getLogger("flora.output")
@@ -108,6 +110,10 @@ class OutputFormatter:
         )
         system_with_numbers = EXPLANATION_SYSTEM + key_numbers
         try:
+            kwargs = {}
+            if "temperature" in get_llm_runtime_overrides():
+                kwargs["temperature"] = get_llm_runtime_overrides()["temperature"]
+            started = time.perf_counter()
             resp = _get_client().messages.create(
                 model=SUMMARY_MODEL,
                 max_tokens=1500,
@@ -120,6 +126,18 @@ class OutputFormatter:
                         ),
                     }
                 ],
+                **kwargs,
+            )
+            emit_component_llm_event(
+                component="output_formatter",
+                provider="anthropic",
+                model=SUMMARY_MODEL,
+                max_tokens=1500,
+                system=system_with_numbers,
+                user_content=json.dumps(candidate.model_dump(), indent=2, default=str),
+                resp=resp,
+                started=started,
+                extra={"response_chars": len(resp.content[0].text.strip())},
             )
             return resp.content[0].text.strip()
         except Exception as e:

@@ -210,6 +210,18 @@ class DesignCalculations:
     space_time_yield_mol_L_h: float | None = None
     productivity_mmol_h: float | None = None
 
+    # Step 9 extended — forward productivity (ṅ_limiting path)
+    n_molar_flow_mmol_min: float | None = None   # ṅ_limiting = P_batch / Y
+    P_batch_mmol_h: float | None = None          # batch productivity baseline
+    P_flow_mmol_h: float | None = None           # flow productivity (from ṅ_limiting)
+    C_reactor_M: float | None = None             # concentration inside reactor after stream mixing
+    startup_waste_mL: float | None = None        # 3×τ × Q_total
+    productivity_closure_ok: bool | None = None  # P_flow ≥ P_batch?
+
+    # Step 3 extended — plug flow validity
+    Pe: float | None = None                      # Péclet number (plug flow validity)
+    Pe_adequate: bool = True                     # Pe ≥ 100 → plug flow valid
+
     # Consistency
     consistent: bool = True
     consistency_notes: list[str] = field(default_factory=list)
@@ -269,11 +281,20 @@ class DesignCalculations:
         lines.append(
             f"\n**Key numbers:** τ = {self.residence_time_min:.1f} min"
             f"{range_str}, "
-            f"Q = {self.flow_rate_mL_min:.3f} mL/min, "
+            f"Q_total = {self.flow_rate_mL_min:.3f} mL/min, "
             f"V_R = {self.reactor_volume_mL:.2f} mL, "
             f"d = {self.tubing_ID_mm:.2f} mm, L = {self.tubing_length_m:.2f} m, "
-            f"Re = {self.reynolds_number:.0f}, ΔP = {self.pressure_drop_bar:.3f} bar"
+            f"Re = {self.reynolds_number:.0f}, ΔP = {self.pressure_drop_bar:.3f} bar, "
+            f"Pe = {self.Pe or '?'} ({'✓ plug flow' if self.Pe_adequate else '⚠ axial dispersion'})"
         )
+        if self.n_molar_flow_mmol_min is not None:
+            lines.append(
+                f"**Molar flow:** ṅ_limiting = {self.n_molar_flow_mmol_min:.4f} mmol/min | "
+                f"P_batch = {self.P_batch_mmol_h or '?'} mmol/h | "
+                f"C_reactor = {self.C_reactor_M or '?'} M"
+            )
+        if self.startup_waste_mL is not None:
+            lines.append(f"**Startup waste:** {self.startup_waste_mL} mL (3×τ×Q)")
         # Kinetics provenance
         if self.kinetics_method == "analogy":
             lines.append(
@@ -1004,7 +1025,22 @@ class DesignCalculator:
         calc.pressure_drop_bar = round(dP_bar, 6)
         calc.pump_adequate = dP_bar <= pump_max
 
+        # Péclet number: Pe = 192·τ·D_mol / d²
+        # Pe ≥ 100 → plug flow valid; Pe < 100 → significant axial dispersion
+        if d_m > 0 and tau_s > 0:
+            Pe = 192.0 * tau_s * D_MOLECULAR / (d_m ** 2)
+            calc.Pe = round(Pe, 1)
+            calc.Pe_adequate = Pe >= 100.0
+
         # ── Emit Step 3: Reactor Sizing ─────────────────────────────────
+        Pe_val = calc.Pe or 0.0
+        Pe_warn: list[str] = []
+        if calc.Pe is not None and not calc.Pe_adequate:
+            Pe_warn.append(
+                f"Pe = {Pe_val:.0f} < 100 — significant axial dispersion. "
+                f"Reactor behaves closer to CSTR than PFR. "
+                f"Reduce d (smaller d → higher Pe) or accept lower conversion efficiency."
+            )
         eqs_3 = [
             (rf"V_R = \tau \times Q = {tau_s:.1f}"
              rf" \times {Q_m3s:.3e}"
@@ -1014,17 +1050,25 @@ class DesignCalculator:
              rf" = \frac{{4 \times {V_m3:.3e}}}"
              rf"{{\pi \times ({d_m:.4f})^2}}"
              rf" = {L:.2f}\;\mathrm{{m}}"),
+            (rf"Pe = \frac{{192\,\tau\,D_{{\mathrm{{mol}}}}}}{{d^2}}"
+             rf" = \frac{{192 \times {tau_s:.1f} \times {D_MOLECULAR:.0e}}}"
+             rf"{{{d_m:.4f}^2}}"
+             rf" = {Pe_val:.0f}"
+             + (r"\;\checkmark" if calc.Pe_adequate else r"\;\mathbf{WARNING}")),
         ]
         self._emit(calc, StepResult(
             step=3, name="Reactor Sizing",
-            status="PASS",
+            status="WARNING" if Pe_warn else "PASS",
             summary=(
                 f"V_R = {V_mL:.2f} mL, d = {d_mm:.2f} mm, "
-                f"L = {L:.2f} m (Q = {Q_mL_min:.3f} mL/min)"
+                f"L = {L:.2f} m, Pe = {Pe_val:.0f} "
+                f"({'✓ plug flow' if calc.Pe_adequate else '⚠ axial dispersion'})"
             ),
             values={"V_R_mL": V_mL, "d_mm": d_mm, "L_m": L,
-                    "Q_mL_min": Q_mL_min, "v_m_s": v},
+                    "Q_mL_min": Q_mL_min, "v_m_s": v,
+                    "Pe": Pe_val, "Pe_adequate": calc.Pe_adequate},
             equations=eqs_3,
+            warnings=Pe_warn,
         ))
 
         # ── Emit Step 4: Fluid Dynamics ─────────────────────────────────
@@ -1380,6 +1424,7 @@ class DesignCalculator:
         t_batch_s = calc.batch_time_s
 
         equations: list[str] = []
+        warnings: list[str] = []
 
         # Space-Time Yield:  STY = C₀ · X · 60 / τ_min  [mol/(L·h)]
         STY = None
@@ -1392,7 +1437,7 @@ class DesignCalculator:
                 rf" = {STY:.4f}\;\mathrm{{mol/(L \cdot h)}}"
             )
 
-        # Productivity:  P = Q · C₀ · X · 60  [mmol/h]
+        # Productivity (backward):  P = Q · C₀ · X · 60  [mmol/h]
         prod = None
         if Q > 0:
             prod = Q * C0 * X * 60.0
@@ -1403,6 +1448,76 @@ class DesignCalculator:
                 rf" = {prod:.3f}\;\mathrm{{mmol/h}}"
             )
 
+        # ── Forward productivity path (ṅ_limiting method) ───────────────
+        # Step 0: Batch baseline
+        n_batch_mmol = (
+            getattr(br, "batch_scale_mmol", None)
+            or getattr(br, "scale_mmol", None)
+        )
+        Y_pct = getattr(br, "yield_pct", None) or (X * 100)
+        t_batch_h_val = getattr(br, "reaction_time_h", None) or (t_batch_s / 3600.0)
+        Y_frac = min(max((Y_pct / 100.0) if Y_pct else X, 0.01), 0.9999)
+
+        if n_batch_mmol and n_batch_mmol > 0 and t_batch_h_val and t_batch_h_val > 0:
+            # P_batch = (n_batch × Y) / t_batch  [mmol/h]
+            P_batch = (n_batch_mmol * Y_frac) / t_batch_h_val
+            calc.P_batch_mmol_h = round(P_batch, 3)
+            equations.append(
+                rf"P_{{\mathrm{{batch}}}} = \frac{{n_{{\mathrm{{batch}}}} \cdot Y}}"
+                rf"{{t_{{\mathrm{{batch}}}}}}"
+                rf" = \frac{{{n_batch_mmol:.1f} \times {Y_frac:.2f}}}"
+                rf"{{{t_batch_h_val:.2f}}}"
+                rf" = {P_batch:.2f}\;\mathrm{{mmol/h}}"
+            )
+
+            # ṅ_limiting = P_batch / (Y × 60)  [mmol/min]
+            n_lim = P_batch / (Y_frac * 60.0)
+            calc.n_molar_flow_mmol_min = round(n_lim, 4)
+            equations.append(
+                rf"\dot{{n}}_{{\mathrm{{lim}}}} = \frac{{P_{{\mathrm{{batch}}}}}}{{Y \cdot 60}}"
+                rf" = \frac{{{P_batch:.2f}}}{{{Y_frac:.2f} \times 60}}"
+                rf" = {n_lim:.4f}\;\mathrm{{mmol/min}}"
+            )
+
+            # C_reactor = ṅ_limiting / Q_total  [mmol/mL = mol/L = M]
+            if Q > 0:
+                C_rxr = n_lim / Q
+                calc.C_reactor_M = round(C_rxr, 4)
+                equations.append(
+                    rf"C_{{\mathrm{{reactor}}}} = \frac{{\dot{{n}}_{{\mathrm{{lim}}}}}}"
+                    rf"{{Q_{{\mathrm{{total}}}}}}"
+                    rf" = \frac{{{n_lim:.4f}}}{{{Q:.4f}}}"
+                    rf" = {C_rxr:.4f}\;\mathrm{{M}}"
+                )
+
+            # P_flow = ṅ_limiting × Y × 60  [mmol/h]
+            P_flow = n_lim * Y_frac * 60.0
+            calc.P_flow_mmol_h = round(P_flow, 3)
+            equations.append(
+                rf"P_{{\mathrm{{flow}}}} = \dot{{n}}_{{\mathrm{{lim}}}} \cdot Y \cdot 60"
+                rf" = {n_lim:.4f} \times {Y_frac:.2f} \times 60"
+                rf" = {P_flow:.2f}\;\mathrm{{mmol/h}}"
+            )
+
+            # Productivity closure check
+            calc.productivity_closure_ok = P_flow >= P_batch * 0.95
+            if not calc.productivity_closure_ok:
+                warnings.append(
+                    f"Productivity closure FAIL: P_flow = {P_flow:.2f} mmol/h < "
+                    f"P_batch = {P_batch:.2f} mmol/h. "
+                    "Increase C_feed or check yield assumptions."
+                )
+
+        # Startup waste:  V_waste = 3·τ·Q  [mL]
+        if tau_min > 0 and Q > 0:
+            startup = round(3.0 * tau_min * Q, 1)
+            calc.startup_waste_mL = startup
+            equations.append(
+                rf"V_{{\mathrm{{startup}}}} = 3 \cdot \tau \cdot Q"
+                rf" = 3 \times {tau_min:.1f} \times {Q:.3f}"
+                rf" = {startup:.1f}\;\mathrm{{mL}}"
+            )
+
         # Intensification factor:  IF = t_batch / τ_flow
         IF = t_batch_s / tau_s if (t_batch_s > 0 and tau_s > 0) else calc.intensification_factor
         equations.append(
@@ -1411,16 +1526,32 @@ class DesignCalculator:
             rf" = {IF:.1f}\times"
         )
 
+        summary_parts = []
+        if STY is not None:
+            summary_parts.append(f"STY = {STY:.4f} mol/(L·h)")
+        if prod is not None:
+            summary_parts.append(f"P = {prod:.3f} mmol/h")
+        if calc.n_molar_flow_mmol_min is not None:
+            summary_parts.append(f"ṅ_lim = {calc.n_molar_flow_mmol_min:.4f} mmol/min")
+        if calc.startup_waste_mL is not None:
+            summary_parts.append(f"startup waste = {calc.startup_waste_mL} mL")
+        summary_parts.append(f"IF = {IF:.0f}×")
+
         self._emit(calc, StepResult(
             step=9, name="Process Metrics",
-            status="PASS",
-            summary=(
-                f"STY = {STY:.4f} mol/(L·h), "
-                f"Productivity = {prod:.3f} mmol/h, "
-                f"Intensification = {IF:.0f}×"
-            ),
-            values={"STY_mol_L_h": STY, "productivity_mmol_h": prod, "IF": IF},
+            status="WARNING" if warnings else "PASS",
+            summary=", ".join(summary_parts),
+            values={
+                "STY_mol_L_h": STY, "productivity_mmol_h": prod, "IF": IF,
+                "n_molar_flow_mmol_min": calc.n_molar_flow_mmol_min,
+                "P_batch_mmol_h": calc.P_batch_mmol_h,
+                "P_flow_mmol_h": calc.P_flow_mmol_h,
+                "C_reactor_M": calc.C_reactor_M,
+                "startup_waste_mL": calc.startup_waste_mL,
+                "productivity_closure_ok": calc.productivity_closure_ok,
+            },
             equations=equations,
+            warnings=warnings,
         ))
 
     # ═══════════════════════════════════════════════════════════════════

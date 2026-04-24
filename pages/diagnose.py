@@ -39,7 +39,7 @@ def render():
     with st.spinner("ENGINE council is deliberating..."):
         try:
             from flora_translate.schemas import BatchRecord, FlowProposal, LabInventory
-            from flora_translate.engine.moderator import Moderator
+            from flora_translate.engine.council_v3 import CouncilV3
             from flora_translate.config import LAB_INVENTORY_PATH
 
             reactor_vol = round(rt * flow_rate, 2)
@@ -69,7 +69,7 @@ def render():
             )
 
             inventory = LabInventory.from_json(str(LAB_INVENTORY_PATH))
-            candidate = Moderator().run(proposal, batch_record, [], inventory)
+            candidate, _ = CouncilV3().run(proposal, batch_record, [], inventory)
 
             # Overall status
             n_reject = sum(1 for m in candidate.council_messages if m.status == "REJECT")

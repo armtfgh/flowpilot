@@ -30,7 +30,7 @@ from flora_design.topology_agent import TopologyAgent
 from flora_design.unit_op_selector import UnitOpSelector
 from flora_design.visualizer.flowsheet_builder import FlowsheetBuilder
 from flora_translate.config import LAB_INVENTORY_PATH, TRANSLATION_MODEL
-from flora_translate.engine.moderator import Moderator
+from flora_translate.engine.council_v3 import CouncilV3
 from flora_translate.schemas import (
     BatchRecord,
     DesignResult,
@@ -84,7 +84,7 @@ def design(
     inventory = LabInventory.from_json(inventory_path)
     proposal = _topology_to_proposal(primary_topology, features)
     batch_record = _features_to_batch_record(features, goal_text)
-    design_candidate = Moderator().run(proposal, batch_record, [], inventory)
+    design_candidate, _ = CouncilV3().run(proposal, batch_record, [], inventory)
 
     # 6. Generate flowsheet diagram
     logger.info("Step 6: Generating flowsheet diagram")

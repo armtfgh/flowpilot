@@ -190,7 +190,7 @@ def _reactor_label(op) -> str:
         parts.append(f"λ={p['wavelength_nm']:.0f} nm")
     if p.get("residence_time_min") is not None:
         rt = float(p["residence_time_min"])
-        parts.append(f"τ={rt:.0f} min" if rt >= 1 else f"τ={rt*60:.0f} s")
+        parts.append(f"τ={rt:.1f} min" if rt >= 1 else f"τ={rt*60:.0f} s")
 
     return "  ·  ".join(parts) if parts else ""
 
@@ -471,7 +471,7 @@ class FlowsheetBuilder:
                 in_edges[s.to_op].append(s.from_op)
 
         op_map   = {o.op_id: o for o in ops}
-        pump_ids = {o.op_id for o in ops if o.op_type == "pump"}
+        pump_ids = {o.op_id for o in ops if o.op_type in ("pump", "mfc")}
         led_ids  = {o.op_id for o in ops if o.op_type == "led_module"}
         skip_ids = pump_ids | led_ids
 
@@ -513,14 +513,11 @@ class FlowsheetBuilder:
 
             vid = gv_id[op.op_id]
 
-            if op.op_type == "pump":
-                # Gas streams (O₂, H₂, CO₂, N₂, Ar, air) get the MFC icon/box
-                # instead of a syringe pump — a syringe pump cannot meter gas
-                # reliably, and showing one is misleading in the P&ID.
-                if _is_gas_pump(op):
-                    _add_mfc_node(dot, vid, op)
-                else:
-                    _add_pump(dot, vid, op, pump_img)
+            if op.op_type == "mfc":
+                _add_mfc_node(dot, vid, op)
+
+            elif op.op_type == "pump":
+                _add_pump(dot, vid, op, pump_img)
 
             elif op.op_type in MIXER_TYPES_SET:
                 n_inp = mixer_input_counts.get(op.op_id, 2)
@@ -572,7 +569,7 @@ class FlowsheetBuilder:
                 return gv_id.get(op_id, op_id)
             vid = gv_id[op_id]
             ot  = op.op_type
-            if ot == "pump":
+            if ot in ("pump", "mfc"):
                 return f"{vid}:needle:e"
             if ot == "led_module":
                 return vid
@@ -712,7 +709,7 @@ class FlowsheetBuilder:
             in_edges[s.to_op].append(s.from_op)
 
         op_map   = {o.op_id: o for o in ops}
-        pump_ids = {o.op_id for o in ops if o.op_type == "pump"}
+        pump_ids = {o.op_id for o in ops if o.op_type in ("pump", "mfc")}
         led_ids  = {o.op_id for o in ops if o.op_type == "led_module"}
 
         # Walk main lane (non-pump, non-led) and find consecutive duplicates

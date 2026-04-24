@@ -50,6 +50,24 @@ def render_design_steps(calc_dict: dict, key_prefix: str = "ds"):
     bpr = calc_dict.get("bpr_pressure_bar", 0)
     c8.metric("BPR", f"{bpr:.1f} bar" if bpr else "Not required")
 
+    # Row 3 — flow chemistry specific
+    c9, c10, c11, c12 = st.columns(4)
+    Pe = calc_dict.get("Pe")
+    Pe_ok = calc_dict.get("Pe_adequate", True)
+    c9.metric("Péclet (Pe)", f"{Pe:.0f}" if Pe else "N/A",
+              delta="plug flow ✓" if Pe_ok else "⚠ axial dispersion",
+              delta_color="normal" if Pe_ok else "inverse",
+              help="Pe = 192·τ·D_mol/d² — must be ≥100 for plug-flow approximation")
+    n_lim = calc_dict.get("n_molar_flow_mmol_min")
+    c10.metric("ṅ_limiting", f"{n_lim:.4f} mmol/min" if n_lim else "N/A",
+               help="Molar flow of limiting reagent = P_batch/(Y×60)")
+    P_flow = calc_dict.get("P_flow_mmol_h")
+    c11.metric("P_flow", f"{P_flow:.1f} mmol/h" if P_flow else "N/A",
+               help="Forward productivity check: ṅ_lim × Y × 60")
+    startup = calc_dict.get("startup_waste_mL")
+    c12.metric("Startup Waste", f"{startup} mL" if startup else "N/A",
+               help="Volume wasted during startup = 3×τ×Q")
+
     # Consistency badge
     if calc_dict.get("consistent", True):
         st.success("All consistency checks passed — τ = V_R/Q, L = 4V/(πd²), Re = ρvd/μ ✓")

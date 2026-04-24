@@ -247,13 +247,78 @@ def _render_chemistry_plan(plan: dict):
         st.caption(f"Retrieval keywords: {', '.join(keywords)}")
 
 
-def _render_streams(proposal: dict):
+def _render_streams(proposal: dict, design_calc: dict | None = None):
     streams = proposal.get("streams", [])
     if not streams:
         st.info("No stream assignments available.")
         return
 
+    # ── Engineering context from design calculator ─────────────────────────
+    if design_calc:
+        n_lim = design_calc.get("n_molar_flow_mmol_min")
+        q_proposal = proposal.get("flow_rate_mL_min")
+
+        # Classify streams: reactor feeds go into the main reactor,
+        # quench streams are injected downstream.
+        _QUENCH_KW = ("quench", "neutraliz", "workup", "post-reactor")
+
+        def _is_quench(s):
+            role = (s.get("pump_role") or "").lower()
+            return any(kw in role for kw in _QUENCH_KW)
+
+        def _is_gas(s):
+            role = (s.get("pump_role") or "").lower().strip()
+            return role in {"n2", "n₂", "nitrogen", "o2", "o₂", "oxygen", "co2", "co₂",
+                            "h2", "h₂", "hydrogen", "ar", "argon", "helium", "air", "mfc"}
+
+        feed_rates = [
+            s.get("flow_rate_mL_min") for s in streams
+            if s.get("flow_rate_mL_min") and not _is_quench(s) and not _is_gas(s)
+        ]
+        quench_rates = [
+            s.get("flow_rate_mL_min") for s in streams
+            if s.get("flow_rate_mL_min") and _is_quench(s) and not _is_gas(s)
+        ]
+        q_reactor = round(sum(feed_rates), 4) if feed_rates else q_proposal
+        q_quench_total = round(sum(quench_rates), 4)
+        q_outlet = round((q_reactor or 0.0) + q_quench_total, 4) if q_quench_total else q_reactor
+
+        n_metric_cols = 3 + (1 if q_quench_total else 0)
+        ctx_cols = st.columns(n_metric_cols)
+        col_i = 0
+        if n_lim:
+            ctx_cols[col_i].metric(
+                "ṅ_limiting", f"{n_lim:.4f} mmol/min",
+                help="Molar flow of limiting reagent",
+            )
+            col_i += 1
+        if q_reactor:
+            ctx_cols[col_i].metric(
+                "Q_reactor_inlet", f"{q_reactor} mL/min",
+                help="Σ feed pumps entering the main reactor (excludes quench streams)",
+            )
+            col_i += 1
+        if q_quench_total:
+            ctx_cols[col_i].metric(
+                "Q_outlet (after quench)", f"{q_outlet} mL/min",
+                help="Reactor outlet + quench stream(s)",
+            )
+            col_i += 1
+        C_rxr = design_calc.get("C_reactor_M")
+        if C_rxr and col_i < n_metric_cols:
+            ctx_cols[col_i].metric(
+                "C_reactor", f"{C_rxr:.3f} M",
+                help="[limiting reagent] inside reactor after stream mixing",
+            )
+        st.divider()
+
+    # ── Summary table ─────────────────────────────────────────────────────
     st.markdown("#### Pump / Stream Assignments")
+    chief_derived = any(s.get("reasoning") for s in streams)
+    if chief_derived:
+        st.caption("Flowrates derived by the Chief Engineer from ṅ_limiting and feed concentrations. "
+                   "Expand each pump below for the derivation formula.")
+
     for s in streams:
         label = s.get("stream_label", "?")
         role = s.get("pump_role", "")
@@ -263,20 +328,39 @@ def _render_streams(proposal: dict):
         rate = s.get("flow_rate_mL_min")
         reasoning = s.get("reasoning", "")
 
-        st.markdown(f"##### Stream {label}: {role}")
-        for item in contents:
-            st.markdown(f"- {item}")
-        details = []
-        if solvent:
-            details.append(f"Solvent: {solvent}")
-        if conc:
-            details.append(f"{conc} M")
-        if rate:
-            details.append(f"{rate} mL/min")
-        if details:
-            st.markdown(" | ".join(details))
-        if reasoning:
-            st.info(reasoning)
+        # Compact header with flowrate badge
+        rate_badge = f" — **{rate} mL/min**" if rate else ""
+        with st.expander(f"Pump {label}: {role}{rate_badge}", expanded=True):
+            if contents:
+                cols = st.columns([1, 2])
+                with cols[0]:
+                    st.markdown("**Contents:**")
+                    for item in contents:
+                        st.markdown(f"- {item}")
+                with cols[1]:
+                    detail_rows = []
+                    if solvent:
+                        detail_rows.append(("Solvent", solvent))
+                    if conc:
+                        detail_rows.append(("Feed conc.", f"{conc} M"))
+                    if rate:
+                        detail_rows.append(("Flow rate", f"{rate} mL/min"))
+                    for k, v in detail_rows:
+                        st.markdown(f"**{k}:** {v}")
+            else:
+                details = []
+                if solvent:
+                    details.append(f"Solvent: {solvent}")
+                if conc:
+                    details.append(f"{conc} M")
+                if rate:
+                    details.append(f"**{rate} mL/min**")
+                if details:
+                    st.markdown(" | ".join(details))
+
+            if reasoning:
+                st.markdown("**Chief derivation:**")
+                st.code(reasoning, language=None)
 
     mixing = proposal.get("mixing_order_reasoning", "")
     if mixing:
@@ -286,11 +370,12 @@ def _render_streams(proposal: dict):
     pre = proposal.get("pre_reactor_steps", [])
     post = proposal.get("post_reactor_steps", [])
     if pre:
-        st.markdown("**Pre-reactor:**")
+        st.divider()
+        st.markdown("**Pre-reactor steps:**")
         for s in pre:
             st.markdown(f"- {s}")
     if post:
-        st.markdown("**Post-reactor:**")
+        st.markdown("**Post-reactor steps:**")
         for s in post:
             st.markdown(f"- {s}")
 

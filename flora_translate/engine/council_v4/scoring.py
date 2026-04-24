@@ -17,6 +17,7 @@ import json
 import logging
 from typing import Optional
 
+import flora_translate.engine.llm_agents as llm_agents
 from flora_translate.engine.llm_agents import call_llm, call_llm_with_tools
 from flora_translate.engine.tool_definitions import (
     CHEMISTRY_TOOLS, KINETICS_TOOLS, SAFETY_TOOLS,
@@ -26,6 +27,10 @@ from flora_translate.engine.tool_definitions import (
 )
 
 logger = logging.getLogger("flora.engine.council_v4.scoring")
+
+_GEMMA_BATCH_SIZE = 1
+_GEMMA_MAX_TOKENS = 260
+_GEMMA_RETRY_MAX_TOKENS = 420
 
 # Fluidics v4 tools include BPR (merged with hardware)
 _FLUIDICS_V4_TOOLS = [
@@ -115,6 +120,185 @@ def _safe_float(v, default: float = 0.0) -> float:
 
 def _clamp_score(v) -> float:
     return max(0.0, min(1.0, _safe_float(v, 0.5)))
+
+
+def _is_gemma_local_mode() -> bool:
+    provider = str(getattr(llm_agents, "ENGINE_PROVIDER", "") or "").lower()
+    model = str(getattr(llm_agents, "ENGINE_MODEL_OLLAMA", "") or "").lower()
+    return provider == "ollama" and "gemma" in model
+
+
+def _slim_candidate(candidate: dict) -> dict:
+    return {
+        "id": candidate.get("id", candidate.get("candidate_id")),
+        "tau_min": candidate.get("tau_min"),
+        "d_mm": candidate.get("d_mm"),
+        "Q_mL_min": candidate.get("Q_mL_min"),
+        "concentration_M": candidate.get("concentration_M"),
+        "V_R_mL": candidate.get("V_R_mL"),
+        "L_m": candidate.get("L_m"),
+        "Re": candidate.get("Re"),
+        "delta_P_bar": candidate.get("delta_P_bar"),
+        "BPR_bar": candidate.get("BPR_bar"),
+        "tubing_material": candidate.get("tubing_material"),
+        "r_mix": candidate.get("r_mix"),
+        "Da_mass": candidate.get("Da_mass"),
+        "expected_conversion": candidate.get("expected_conversion"),
+        "tau_kinetics_min": candidate.get("tau_kinetics_min"),
+        "IF_used": candidate.get("IF_used"),
+        "temperature_C": candidate.get("temperature_C"),
+        "hard_gate_flags": candidate.get("hard_gate_flags") or [],
+        "warnings": candidate.get("warnings") or [],
+    }
+
+
+def _gemma_prompt_bundle(domain: str) -> tuple[str, str]:
+    bundles = {
+        "chemistry": (
+            """You are Dr. Chemistry for FLORA Gemma mode.
+Score exactly one candidate using the provided numbers as authoritative.
+Return one JSON object only, no markdown, no extra text.
+Required keys:
+candidate_id, reasoning, combined_score, verdict, proposed_changes, concerns.
+Use very short reasoning. Own only proposed_changes.concentration_M.""",
+            "combined_score",
+        ),
+        "kinetics": (
+            """You are Dr. Kinetics for FLORA Gemma mode.
+Score exactly one candidate using the provided numbers as authoritative.
+Return one JSON object only, no markdown, no extra text.
+Required keys:
+candidate_id, reasoning, kinetics_score, X_estimated, X_adequate,
+tau_proposed_final_min, verdict, proposed_changes, concerns.
+Use expected_conversion as X_estimated if needed. Own only proposed_changes.tau_min.""",
+            "kinetics_score",
+        ),
+        "fluidics": (
+            """You are Dr. Fluidics for FLORA Gemma mode.
+Score exactly one candidate using the provided numbers as authoritative.
+Return one JSON object only, no markdown, no extra text.
+Required keys:
+candidate_id, reasoning, fluidics_score, Re, dP_bar, r_mix, dual_criterion_mixing_fail,
+verdict, proposed_changes, concerns.
+If r_mix > 0.20 and Da_mass > 1.0, set dual_criterion_mixing_fail=true and
+you may propose a smaller d_mm. Own only proposed_changes.d_mm.""",
+            "fluidics_score",
+        ),
+        "safety": (
+            """You are Dr. Safety for FLORA Gemma mode.
+Score exactly one candidate using the provided numbers as authoritative.
+Return one JSON object only, no markdown, no extra text.
+Required keys:
+candidate_id, reasoning, safety_score, BPR_current_bar, material_recommendation,
+BPR_adequate, verdict, proposed_changes, blocking_issues, concerns, conditions.
+Be conservative. If no concrete problem is visible from the given numbers, do not
+invent one. Own only proposed_changes.BPR_bar and proposed_changes.tubing_material.""",
+            "safety_score",
+        ),
+    }
+    return bundles[domain]
+
+
+def _build_gemma_context(
+    *,
+    domain: str,
+    candidates: list[dict],
+    chemistry_brief: str,
+    objectives: str,
+    is_photochem: bool,
+    pump_max_bar: float,
+) -> str:
+    slim = [_slim_candidate(c) for c in candidates]
+    batch_ids = [c["id"] for c in slim]
+    brief = chemistry_brief[:600]
+    return (
+        f"Domain: {domain}\n"
+        f"User objective: {objectives or 'balanced'}\n"
+        f"Photochemical reaction: {is_photochem}\n"
+        f"Pump max pressure bar: {pump_max_bar}\n"
+        f"Score only candidate ids: {batch_ids}\n\n"
+        f"Chemistry brief:\n{brief}\n\n"
+        f"Candidate data JSON:\n{json.dumps(slim, ensure_ascii=False)}\n\n"
+        "Return one JSON object for the single candidate in the batch. No prose outside JSON."
+    )
+
+
+def _clean_local_scores(scores: list[dict], valid_ids: set[int], score_key: str) -> list[dict]:
+    cleaned: list[dict] = []
+    for entry in scores:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            cid = int(entry.get("candidate_id"))
+        except (TypeError, ValueError):
+            continue
+        if cid not in valid_ids:
+            continue
+        entry["candidate_id"] = cid
+        if score_key in entry:
+            entry[score_key] = _clamp_score(entry.get(score_key))
+        cleaned.append(entry)
+    return cleaned
+
+
+def _run_scoring_agent_gemma_local(
+    *,
+    domain: str,
+    agent_name: str,
+    candidates: list[dict],
+    chemistry_brief: str,
+    objectives: str,
+    is_photochem: bool,
+    pump_max_bar: float,
+) -> tuple[str, list[dict], list[dict]]:
+    system_prompt, score_key = _gemma_prompt_bundle(domain)
+    all_scores: list[dict] = []
+    all_overall: list[str] = []
+
+    for start in range(0, len(candidates), _GEMMA_BATCH_SIZE):
+        batch = candidates[start:start + _GEMMA_BATCH_SIZE]
+        valid_ids = {int(c.get("id", i + 1)) for i, c in enumerate(batch)}
+        context = _build_gemma_context(
+            domain=domain,
+            candidates=batch,
+            chemistry_brief=chemistry_brief,
+            objectives=objectives,
+            is_photochem=is_photochem,
+            pump_max_bar=pump_max_bar,
+        )
+        raw = call_llm(system_prompt, context, max_tokens=_GEMMA_MAX_TOKENS)
+        overall, scores = _parse_score_response(raw)
+        cleaned = _clean_local_scores(scores, valid_ids, score_key)
+        if not cleaned:
+            retry_context = (
+                context
+                + "\n\nRETRY: Return only valid JSON. Score every listed candidate id exactly once. "
+                  "Use very short reasoning. Do not include markdown fences."
+            )
+            raw = call_llm(system_prompt, retry_context, max_tokens=_GEMMA_RETRY_MAX_TOKENS)
+            overall, scores = _parse_score_response(raw)
+            cleaned = _clean_local_scores(scores, valid_ids, score_key)
+        if not cleaned:
+            logger.warning(
+                "%s Gemma batch failed to return usable scores for ids %s",
+                agent_name,
+                sorted(valid_ids),
+            )
+        else:
+            seen = {row["candidate_id"] for row in cleaned}
+            missing = sorted(valid_ids - seen)
+            if missing:
+                logger.warning(
+                    "%s Gemma batch omitted candidate ids %s",
+                    agent_name,
+                    missing,
+                )
+        if overall:
+            all_overall.append(overall)
+        all_scores.extend(cleaned)
+
+    overall_analysis = " ".join(s.strip() for s in all_overall if s.strip())
+    return overall_analysis, all_scores, []
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -594,6 +778,18 @@ def run_chemistry_scoring(
     max_tokens: int = 4000,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Chemistry. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
+    if _is_gemma_local_mode():
+        oa, scores, tc = _run_scoring_agent_gemma_local(
+            domain="chemistry",
+            agent_name="Dr. Chemistry",
+            candidates=candidates,
+            chemistry_brief=chemistry_brief,
+            objectives=objectives,
+            is_photochem=is_photochem,
+            pump_max_bar=pump_max_bar,
+        )
+        logger.info("    Dr. Chemistry scored %d/%d candidates", len(scores), len(candidates))
+        return oa, scores, tc
     context = _build_scoring_context(
         candidates, table_markdown, chemistry_brief, objectives,
         is_photochem, pump_max_bar,
@@ -618,6 +814,18 @@ def run_kinetics_scoring(
     max_tokens: int = 4000,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Kinetics. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
+    if _is_gemma_local_mode():
+        oa, scores, tc = _run_scoring_agent_gemma_local(
+            domain="kinetics",
+            agent_name="Dr. Kinetics",
+            candidates=candidates,
+            chemistry_brief=chemistry_brief,
+            objectives=objectives,
+            is_photochem=is_photochem,
+            pump_max_bar=pump_max_bar,
+        )
+        logger.info("    Dr. Kinetics scored %d/%d candidates", len(scores), len(candidates))
+        return oa, scores, tc
     context = _build_scoring_context(
         candidates, table_markdown, chemistry_brief, objectives,
         is_photochem, pump_max_bar,
@@ -642,6 +850,18 @@ def run_fluidics_scoring(
     max_tokens: int = 4000,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Fluidics. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
+    if _is_gemma_local_mode():
+        oa, scores, tc = _run_scoring_agent_gemma_local(
+            domain="fluidics",
+            agent_name="Dr. Fluidics",
+            candidates=candidates,
+            chemistry_brief=chemistry_brief,
+            objectives=objectives,
+            is_photochem=is_photochem,
+            pump_max_bar=pump_max_bar,
+        )
+        logger.info("    Dr. Fluidics scored %d/%d candidates", len(scores), len(candidates))
+        return oa, scores, tc
     context = _build_scoring_context(
         candidates, table_markdown, chemistry_brief, objectives,
         is_photochem, pump_max_bar,
@@ -666,6 +886,18 @@ def run_safety_scoring(
     max_tokens: int = 4000,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Safety. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
+    if _is_gemma_local_mode():
+        oa, scores, tc = _run_scoring_agent_gemma_local(
+            domain="safety",
+            agent_name="Dr. Safety",
+            candidates=candidates,
+            chemistry_brief=chemistry_brief,
+            objectives=objectives,
+            is_photochem=is_photochem,
+            pump_max_bar=pump_max_bar,
+        )
+        logger.info("    Dr. Safety scored %d/%d candidates", len(scores), len(candidates))
+        return oa, scores, tc
     context = _build_scoring_context(
         candidates, table_markdown, chemistry_brief, objectives,
         is_photochem, pump_max_bar,

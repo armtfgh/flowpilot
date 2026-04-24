@@ -20,7 +20,7 @@ import anthropic
 
 from flora_translate.config import LAB_INVENTORY_PATH, MODEL_REVISION_AGENT as TRANSLATION_MODEL
 from flora_translate.design_calculator import DesignCalculator
-from flora_translate.engine.orchestrator import Orchestrator
+from flora_translate.engine.council_v4 import CouncilV4 as CouncilV3
 from flora_translate.input_parser import InputParser
 from flora_translate.output_formatter import OutputFormatter
 from flora_translate.schemas import (
@@ -158,7 +158,7 @@ class RevisionAgent:
         #   rounds since the LLM already produced a coherent proposal.
         logger.info("  Step 3/5: ENGINE validation")
         original_analogies = current_result.get("_analogies", [])
-        design_candidate, calculations = Orchestrator().run(
+        design_candidate, calculations = CouncilV3().run(
             revised_proposal,
             batch_record,
             analogies=original_analogies,

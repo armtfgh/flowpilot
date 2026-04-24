@@ -234,7 +234,6 @@ def _render_result(result: dict, key_prefix: str = ""):
 
     tabs = st.tabs([
         "Summary",
-        "Design Space",
         "Engineering Design",
         "Process Diagram",
         "Chemistry Plan & Recipe",
@@ -244,35 +243,19 @@ def _render_result(result: dict, key_prefix: str = ""):
         "Raw JSON",
     ])
 
+    # ── Tab 0: Summary ────────────────────────────────────────────────────────
     with tabs[0]:
-        st.markdown(result.get("explanation", ""))
-        notes = proposal.get("chemistry_notes", "")
-        if notes:
-            st.divider()
-            st.info(notes)
+        _render_summary(result, proposal)
 
-    with tabs[1]:  # Design Space
-        st.markdown("### Design Space — Pre-Council Candidates")
-        st.caption(
-            "Grid search run BEFORE the council. Each point is a (τ, d, Q) combination "
-            "that satisfies geometric constraints. The highlighted candidate was used as "
-            "the council starting point."
-        )
-        design_space = result.get("design_space", [])
-        if design_space:
-            from components.design_space_viz import render_design_space
-            render_design_space(design_space, key_prefix=key_prefix)
-        else:
-            st.info("Design space search was not run for this result (older format).")
-
-    with tabs[2]:
-        # 9-step engineering design calculations
+    # ── Tab 1: Engineering Design ─────────────────────────────────────────────
+    with tabs[1]:
         design_calc = result.get("design_calculations")
         if design_calc:
             from components.design_steps import render_design_steps
             render_design_steps(design_calc, key_prefix=f"{key_prefix}_ds")
         else:
             st.info("No design calculations available for this result.")
+
         # Per-reactor breakdown from topology
         topo_for_eng = result.get("process_topology", {})
         reactor_ops = [
@@ -292,46 +275,86 @@ def _render_result(result: dict, key_prefix: str = ""):
                     cols[1].metric("Volume", f"{p.get('volume_mL', '?')} mL")
                     cols[2].metric("ID", f"{p.get('ID_mm', '?')} mm")
                     cols[3].metric("Temperature", f"{p.get('temperature_C', '?')} °C")
-                    c2 = st.columns(3)
+                    c2 = st.columns(4)
                     c2[0].metric("Material", p.get("material", "?"))
                     length = p.get("length_m")
                     c2[1].metric("Length", f"{length} m" if length else "?")
                     wl = p.get("wavelength_nm")
                     c2[2].metric("Wavelength", f"{wl} nm" if wl else "N/A")
+                    q_inlet = p.get("Q_inlet_mL_min")
+                    c2[3].metric("Q_inlet", f"{q_inlet} mL/min" if q_inlet else "?")
 
-    with tabs[3]:
+        # Before vs After council comparison table
+        pre = result.get("pre_council_proposal")
+        if pre and proposal:
+            _render_before_after_table(pre, proposal, result.get("deliberation_log"))
+
+    # ── Tab 2: Process Diagram ────────────────────────────────────────────────
+    with tabs[2]:
         from components.process_diagram import render_process_diagram
         render_process_diagram(result.get("svg_path", ""), result.get("png_path", ""), key_prefix=key_prefix)
         topo = result.get("process_topology", {})
         if topo:
             st.divider()
+            st.markdown("#### Unit Operations")
             for i, op in enumerate(topo.get("unit_operations", []), 1):
                 if op.get("op_type") == "led_module":
                     continue
-                with st.expander(f"{i}. {op.get('label', '?')}"):
+                rationale = op.get("rationale") or ""
+                label = op.get("label", "?")
+                # Flag separator/filter/special nodes that lack a rationale
+                missing_rationale = (
+                    not rationale
+                    and op.get("op_type") not in ("pump", "mfc", "mixer", "collector",
+                                                   "coil_reactor", "photoreactor",
+                                                   "reactor", "bpr")
+                )
+                expander_label = f"{i}. {label}"
+                if missing_rationale:
+                    expander_label += " ⚠️"
+                with st.expander(expander_label, expanded=missing_rationale):
+                    # Why it's here
+                    if rationale:
+                        st.info(f"**Why:** {rationale}")
+                    elif missing_rationale:
+                        st.warning(
+                            "No rationale provided for this module. "
+                            "If you did not request this step, it may have been "
+                            "inferred incorrectly — check the chemistry plan."
+                        )
+                    # Parameters
                     p = op.get("parameters", {})
-                    for k, v in p.items():
-                        if v is not None and k not in ("light_required",):
+                    param_items = [(k, v) for k, v in p.items()
+                                   if v is not None and k not in ("light_required",)]
+                    if param_items:
+                        for k, v in param_items:
                             st.markdown(f"**{k.replace('_', ' ')}:** {v}")
-                    if op.get("rationale"):
-                        st.caption(op["rationale"])
             if topo.get("pid_description"):
                 st.code(topo["pid_description"])
 
-    with tabs[4]:
+    # ── Tab 3: Chemistry Plan & Recipe ────────────────────────────────────────
+    with tabs[3]:
         from pages.translate import _render_chemistry_plan
         _render_chemistry_plan(result.get("chemistry_plan", {}))
         st.divider()
         _render_recipe(result)
 
-    with tabs[5]:
+    # ── Tab 4: Stream Assignments ─────────────────────────────────────────────
+    with tabs[4]:
+        st.caption(
+            "Pump flowrates are derived by the Chief Engineer from ṅ_limiting and feed "
+            "concentrations (Q_i = ṅ_lim × eq_i / C_feed_i). Stream contents are from "
+            "the chemistry agent."
+        )
         from pages.translate import _render_streams
-        _render_streams(proposal)
+        _render_streams(proposal, design_calc=result.get("design_calculations"))
 
-    with tabs[6]:
+    # ── Tab 5: Council Deliberation ───────────────────────────────────────────
+    with tabs[5]:
         _render_council_deliberation(result)
 
-    with tabs[7]:
+    # ── Tab 6: Council Report ─────────────────────────────────────────────────
+    with tabs[6]:
         from components.council_report import render_council_report
         class _C:
             def __init__(self, r):
@@ -340,11 +363,182 @@ def _render_result(result: dict, key_prefix: str = ""):
                 self.council_messages = r.get("council_messages", [])
         render_council_report(_C(result))
 
-    with tabs[8]:
+    # ── Tab 7: Raw JSON ───────────────────────────────────────────────────────
+    with tabs[7]:
         st.json(result)
 
     from components.feedback import render_feedback_widget
     render_feedback_widget(result, context="flora_design_translate")
+
+
+def _render_summary(result: dict, proposal: dict):
+    """Summary tab: direct council results, no LLM hallucinations."""
+    delib_log = result.get("deliberation_log", {})
+    council_summary = delib_log.get("summary", "")
+    dc = result.get("design_calculations", {})
+
+    # ── Key parameters grid ───────────────────────────────────────────────────
+    st.markdown("### Final Design Parameters")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Residence Time", f"{proposal.get('residence_time_min', '?')} min")
+    c2.metric("Flow Rate", f"{proposal.get('flow_rate_mL_min', '?')} mL/min")
+    c3.metric("Tubing ID", f"{proposal.get('tubing_ID_mm', '?')} mm")
+    c4.metric("Reactor Volume", f"{proposal.get('reactor_volume_mL', '?')} mL")
+
+    c5, c6, c7, c8 = st.columns(4)
+    c5.metric("Material", proposal.get("tubing_material", "?"))
+    c6.metric("Temperature", f"{proposal.get('temperature_C', '?')} °C")
+    bpr = proposal.get("BPR_bar")
+    c7.metric("BPR", f"{bpr} bar" if bpr else "N/A")
+    wl = proposal.get("wavelength_nm")
+    c8.metric("Wavelength", f"{wl} nm" if wl else "N/A")
+
+    # ── Engineering metrics row (from design calculator) ──────────────────────
+    if dc:
+        st.markdown("---")
+        st.markdown("### Engineering Metrics")
+        e1, e2, e3, e4 = st.columns(4)
+        n_lim = dc.get("n_molar_flow_mmol_min")
+        e1.metric("ṅ_limiting", f"{n_lim:.4f} mmol/min" if n_lim else "N/A")
+        P_flow = dc.get("P_flow_mmol_h")
+        P_batch = dc.get("P_batch_mmol_h")
+        e2.metric("Productivity", f"{P_flow:.1f} mmol/h" if P_flow else
+                  f"{dc.get('productivity_mmol_h', '?')} mmol/h")
+        C_rxr = dc.get("C_reactor_M")
+        e3.metric("C_reactor", f"{C_rxr:.3f} M" if C_rxr else "N/A",
+                  help="Concentration inside reactor after stream mixing")
+        startup = dc.get("startup_waste_mL")
+        e4.metric("Startup Waste", f"{startup} mL" if startup else "N/A",
+                  help="Volume wasted during start-up (3×τ×Q)")
+
+        e5, e6, e7, e8 = st.columns(4)
+        Pe_val = dc.get("Pe")
+        Pe_ok = dc.get("Pe_adequate", True)
+        e5.metric("Péclet (Pe)", f"{Pe_val:.0f}" if Pe_val else "N/A",
+                  delta="✓ plug flow" if Pe_ok else "⚠ axial dispersion",
+                  delta_color="normal" if Pe_ok else "inverse")
+        e6.metric("Re", f"{dc.get('reynolds_number', '?'):.0f}"
+                  if isinstance(dc.get("reynolds_number"), (int, float)) else "?")
+        e7.metric("ΔP", f"{dc.get('pressure_drop_bar', '?'):.4f} bar"
+                  if isinstance(dc.get("pressure_drop_bar"), (int, float)) else "?")
+        STY = dc.get("space_time_yield_mol_L_h")
+        e8.metric("STY", f"{STY:.4f} mol/(L·h)" if STY else "N/A")
+
+        # Productivity closure check
+        closure_ok = dc.get("productivity_closure_ok")
+        if closure_ok is not None:
+            if closure_ok:
+                st.success(
+                    f"✓ Productivity closure: P_flow = {P_flow:.1f} mmol/h ≥ "
+                    f"P_batch = {P_batch:.1f} mmol/h"
+                )
+            else:
+                st.error(
+                    f"✗ Productivity closure FAIL: P_flow = {P_flow:.1f} mmol/h < "
+                    f"P_batch = {P_batch:.1f} mmol/h — increase C_feed or check yield"
+                )
+
+    # ── Council winner reasoning ──────────────────────────────────────────────
+    if council_summary:
+        # Extract the "Winner" section from the council summary markdown
+        winner_section = ""
+        if "### Winner" in council_summary:
+            winner_section = council_summary.split("### Winner")[1].split("###")[0].strip()
+        elif "**Chief**:" in council_summary:
+            for line in council_summary.split("\n"):
+                if "**Chief**:" in line:
+                    winner_section = line.replace("- **Chief**:", "").strip()
+                    break
+
+        if winner_section:
+            st.divider()
+            st.markdown("### Why This Design Was Chosen")
+            st.markdown(winner_section)
+
+        # Open risks
+        risk_lines = []
+        in_risks = False
+        for line in council_summary.split("\n"):
+            if "**Open risks" in line or "open risks" in line.lower():
+                in_risks = True
+                continue
+            if in_risks:
+                if line.startswith("  - ") or line.startswith("- "):
+                    risk_lines.append(line.lstrip("- ").strip())
+                elif line.startswith("###") or line.startswith("**"):
+                    break
+        if risk_lines:
+            st.divider()
+            st.markdown("### Open Risks for the Lab")
+            for r in risk_lines:
+                st.warning(r)
+
+    # ── AI narrative in expander ──────────────────────────────────────────────
+    explanation = result.get("explanation", "")
+    if explanation:
+        st.divider()
+        with st.expander("Detailed narrative (AI-generated)", expanded=False):
+            st.markdown(explanation)
+            notes = proposal.get("chemistry_notes", "")
+            if notes:
+                st.info(notes)
+
+
+def _render_before_after_table(pre: dict, post: dict, delib_log: dict | None):
+    """Show a before/after council comparison for key design parameters."""
+    st.divider()
+    st.markdown("### Before vs After Council")
+    st.caption("Initial conditions (from calculator + design-space top candidate) vs final validated design.")
+
+    fields = [
+        ("residence_time_min",  "τ (Residence Time)",   "min"),
+        ("flow_rate_mL_min",    "Q (Flow Rate)",        "mL/min"),
+        ("tubing_ID_mm",        "d (Tubing ID)",        "mm"),
+        ("reactor_volume_mL",   "V_R (Reactor Volume)", "mL"),
+        ("tubing_material",     "Material",             ""),
+        ("temperature_C",       "Temperature",          "°C"),
+        ("BPR_bar",             "BPR",                  "bar"),
+        ("wavelength_nm",       "Wavelength",           "nm"),
+        ("concentration_M",     "Concentration",        "M"),
+        ("deoxygenation_method","Deoxygenation",        ""),
+    ]
+
+    changed_fields = set((delib_log or {}).get("all_changes_applied", {}).keys())
+
+    rows = []
+    for field, label, unit in fields:
+        v_pre  = pre.get(field)
+        v_post = post.get(field)
+        if v_pre is None and v_post is None:
+            continue
+
+        def _fmt(v, u):
+            if v is None:
+                return "—"
+            try:
+                return f"{float(v):.4g} {u}".strip() if u else str(v)
+            except (TypeError, ValueError):
+                return str(v)
+
+        changed = field in changed_fields or _fmt(v_pre, unit) != _fmt(v_post, unit)
+        rows.append({
+            "Parameter": label,
+            "Before Council": _fmt(v_pre, unit),
+            "After Council":  _fmt(v_post, unit),
+            "Changed": "★" if changed else "",
+        })
+
+    if rows:
+        import pandas as pd
+        df = pd.DataFrame(rows)
+        st.dataframe(
+            df,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "Changed": st.column_config.TextColumn("★", width="small"),
+            },
+        )
 
 
 def _render_design_result(result):
@@ -434,7 +628,6 @@ def _render_council_deliberation(result: dict):
     rounds_count = result.get("council_rounds", 0)
 
     if not delib_log:
-        # Fallback to legacy format
         _render_legacy_deliberation(result)
         return
 
@@ -442,7 +635,53 @@ def _render_council_deliberation(result: dict):
     sanity_checks = delib_log.get("sanity_checks", [])
     total_rounds = delib_log.get("total_rounds", len(rounds))
     consensus = delib_log.get("consensus_reached", False)
+    council_summary = delib_log.get("summary", "")
 
+    # ── Input Design ──────────────────────────────────────────────────────────
+    design_calc = result.get("design_calculations", {})
+    pre = result.get("pre_council_proposal", {})
+    if design_calc or pre:
+        with st.expander("Input Design (fed to the Designer agent)", expanded=True):
+            st.caption(
+                "These are the conditions the Designer received as the starting "
+                "center-point. The council then generated a shortlist around these values."
+            )
+            src = pre if pre else proposal
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("τ center", f"{src.get('residence_time_min', '?')} min")
+            c2.metric("Q center", f"{src.get('flow_rate_mL_min', '?')} mL/min")
+            c3.metric("d center", f"{src.get('tubing_ID_mm', '?')} mm")
+            c4.metric("V_R center", f"{src.get('reactor_volume_mL', '?')} mL")
+            if design_calc:
+                c5, c6, c7, c8 = st.columns(4)
+                c5.metric("Re", f"{design_calc.get('reynolds_number', '?'):.0f}"
+                           if isinstance(design_calc.get('reynolds_number'), (int, float)) else "?")
+                c6.metric("ΔP", f"{design_calc.get('pressure_drop_bar', '?'):.4f} bar"
+                           if isinstance(design_calc.get('pressure_drop_bar'), (int, float)) else "?")
+                c7.metric("Da", f"{design_calc.get('damkohler_mass', '?'):.2f}"
+                           if isinstance(design_calc.get('damkohler_mass'), (int, float)) else "?")
+                c8.metric("τ_lit (analogy)", f"{design_calc.get('tau_analogy_min', '?')} min"
+                           if design_calc.get('tau_analogy_min') else "—")
+
+    # ── Designer candidate shortlist ──────────────────────────────────────────
+    if council_summary and "### Shortlist" in council_summary:
+        shortlist_md = council_summary.split("### Shortlist")[1].split("\n###")[0].strip()
+        with st.expander("Designer Candidate Shortlist", expanded=True):
+            st.caption(
+                "The Designer agent sampled the design space and generated these "
+                "feasible candidates. The Expert panel then each advocated for one."
+            )
+            st.markdown(shortlist_md)
+        # Also show Designer strategy if available
+        strategy_line = ""
+        for line in council_summary.split("\n"):
+            if "**Designer strategy**:" in line:
+                strategy_line = line.replace("**Designer strategy**:", "").strip()
+                break
+        if strategy_line:
+            st.caption(f"Designer strategy: {strategy_line}")
+
+    st.divider()
     st.markdown(f"### Multi-Agent Deliberation — {total_rounds} Round{'s' if total_rounds != 1 else ''}")
 
     # ── Header stats ──────────────────────────────────────────────────
@@ -470,8 +709,8 @@ def _render_council_deliberation(result: dict):
     for r_idx, round_delibs in enumerate(rounds):
         round_num = r_idx + 1
         st.divider()
-        st.markdown(f"#### Round {round_num}" +
-                    (" — Independent Analysis" if round_num == 1 else " — Cross-Agent Debate"))
+        round_label = {1: "Independent Analysis", 2: "Peer-Informed Revision"}.get(round_num, f"Round {round_num}")
+        st.markdown(f"#### Round {round_num} — {round_label}")
 
         for d in round_delibs:
             agent_name = d.get("agent_display_name", d.get("agent", "?"))
@@ -517,10 +756,12 @@ def _render_council_deliberation(result: dict):
                         elif isinstance(p, str):
                             st.info(f"💡 {p}")
 
-                # Concerns
+                # Concerns (peer critiques for Expert agents, assumption attacks for Skeptic)
                 concerns = d.get("concerns", [])
+                agent = d.get("agent_display_name", d.get("agent", ""))
                 if concerns:
-                    st.markdown("**Concerns:**")
+                    label = "**Concerns about other picks:**" if "Expert" in d.get("agent", "") else "**Concerns:**"
+                    st.markdown(label)
                     for c in concerns:
                         st.warning(c)
 
@@ -533,6 +774,30 @@ def _render_council_deliberation(result: dict):
                 rules = d.get("rules_cited", [])
                 if rules:
                     st.caption("Handbook rules cited: " + ", ".join(rules[:5]))
+
+                # Tool calls made by this agent
+                tool_calls = d.get("tool_calls", [])
+                if tool_calls:
+                    with st.expander(f"🔧 Tool calls ({len(tool_calls)})", expanded=False):
+                        for tc in tool_calls:
+                            tool_name = tc.get("tool", "unknown")
+                            tool_input = tc.get("input", {})
+                            tool_result = tc.get("result", {})
+                            st.markdown(f"**`{tool_name}`**")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.caption("Input")
+                                st.json(tool_input)
+                            with col2:
+                                st.caption("Result")
+                                st.json(tool_result)
+
+        # Show Skeptic's comparative trade-off summary for this round
+        sk_delib = next((d for d in round_delibs if "Skeptic" in d.get("agent_display_name", "")), None)
+        if sk_delib:
+            ts = next((f for f in sk_delib.get("findings", []) if f.startswith("Trade-off:")), "")
+            if ts:
+                st.info(f"**Cross-pick trade-off:** {ts[len('Trade-off:'):].strip()}")
 
         # ── Sanity check for this round ───────────────────────────────
         if r_idx < len(sanity_checks):
@@ -561,6 +826,19 @@ def _render_council_deliberation(result: dict):
                     st.markdown("**Applied changes:**")
                     for field, val in changes.items():
                         st.markdown(f"- `{field}` → **{val}**")
+
+    # Trade-off matrix (pre-Chief comparison)
+    trade_off_matrix = delib_log.get("trade_off_matrix", "")
+    if trade_off_matrix:
+        st.divider()
+        st.markdown("#### Surviving Picks — Comparison Matrix")
+        st.caption("This table was computed before the Chief's decision to make the trade-offs explicit.")
+        st.markdown(trade_off_matrix)
+
+    # Trade-off summary
+    trade_off_summary = delib_log.get("trade_off_summary", "")
+    if trade_off_summary:
+        st.info(f"**Skeptic's comparative assessment:** {trade_off_summary}")
 
     # ── Final outcome ─────────────────────────────────────────────────
     st.divider()
