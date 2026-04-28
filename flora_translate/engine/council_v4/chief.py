@@ -505,6 +505,12 @@ _AGENT_TO_DOMAIN = {
     "DR. FLUIDICS": "fluidics",
     "DR. SAFETY": "safety",
 }
+_DOMAIN_PRIORITY = {
+    "kinetics": 0,
+    "fluidics": 1,
+    "safety": 2,
+    "chemistry": 3,
+}
 
 
 def _round_down_commercial_d(value_mm: float) -> float:
@@ -549,12 +555,15 @@ def _derive_domain_patch(
     candidate: dict,
     concentration_M: float,
     allow_warning_refinement: bool = False,
+    strong_revision_mode: bool = False,
 ) -> tuple[dict, dict]:
     verdict = str(entry.get("verdict", "ACCEPT")).upper()
     patch, rationale = _extract_explicit_patch(entry, domain)
     active_verdicts = {"REVISE", "BLOCK"}
     if allow_warning_refinement:
         active_verdicts.add("WARNING")
+    if strong_revision_mode:
+        active_verdicts.update({"WARNING", "ACCEPT"})
     if verdict not in active_verdicts:
         return patch, rationale
 
@@ -667,6 +676,132 @@ def _tag_pareto_front(candidates: list[dict]) -> None:
         a["pareto_front"] = not dominated
 
 
+def _candidate_revision_variants(
+    *,
+    candidate: dict,
+    cid: int,
+    domain_patch_map: dict[str, tuple[dict, dict]],
+    strong_revision_mode: bool,
+    max_descendants_per_candidate: int,
+) -> list[dict]:
+    variants: list[dict] = []
+
+    combined_patch: dict = {}
+    combined_rationale: dict = {}
+    combined_domains: list[str] = []
+    for domain in ("chemistry", "kinetics", "fluidics", "safety"):
+        patch, rationale = domain_patch_map.get(domain, ({}, {}))
+        if not patch:
+            continue
+        combined_patch.update(patch)
+        combined_rationale.update(rationale)
+        combined_domains.append(domain)
+
+    if combined_patch:
+        variants.append({
+            "variant_key": f"{cid}_merged",
+            "patch": combined_patch,
+            "rationale": combined_rationale,
+            "domains": combined_domains,
+            "mode": "merged",
+        })
+
+    if strong_revision_mode:
+        ranked_domains = sorted(
+            (
+                domain for domain, (patch, _) in domain_patch_map.items()
+                if patch
+            ),
+            key=lambda domain: (_DOMAIN_PRIORITY.get(domain, 99), domain),
+        )
+        for domain in ranked_domains:
+            patch, rationale = domain_patch_map[domain]
+            variants.append({
+                "variant_key": f"{cid}_{domain}",
+                "patch": patch,
+                "rationale": rationale,
+                "domains": [domain],
+                "mode": "domain_focus",
+            })
+
+    seen: set[str] = set()
+    deduped: list[dict] = []
+    for variant in variants:
+        key = json.dumps(variant["patch"], sort_keys=True, ensure_ascii=False)
+        if not key or key == "{}" or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(variant)
+        if len(deduped) >= max_descendants_per_candidate:
+            break
+    return deduped
+
+
+def _materialize_revised_candidate(
+    *,
+    candidate: dict,
+    patch: dict,
+    rationale: dict,
+    revision_domains: list[str],
+    solvent: str,
+    temperature_C: float,
+    concentration_M: float,
+    assumed_MW: float,
+    IF_used: float,
+    pump_max_bar: float,
+    is_photochem: bool,
+    is_gas_liquid: bool,
+    extinction_coeff_M_cm: Optional[float],
+    new_id: int,
+    parent_id: int,
+    variant_mode: str,
+) -> dict:
+    new_tau = float(patch.get("tau_min", candidate.get("tau_min")))
+    new_d = float(patch.get("d_mm", candidate.get("d_mm")))
+    new_Q = float(patch.get("Q_mL_min", candidate.get("Q_mL_min", 0.01)))
+    new_c = float(patch.get("concentration_M", candidate.get("concentration_M", concentration_M)))
+    new_bpr = float(patch.get("BPR_bar", candidate.get("BPR_bar", 0.0)))
+    new_mat = str(patch.get("tubing_material", candidate.get("tubing_material", "FEP")))
+
+    revised = compute_metrics(
+        tau_min=new_tau,
+        d_mm=new_d,
+        Q_mL_min=new_Q,
+        solvent=solvent,
+        temperature_C=temperature_C,
+        concentration_M=new_c,
+        assumed_MW=assumed_MW,
+        IF_used=IF_used,
+        tau_kinetics_min=float(candidate.get("tau_kinetics_min") or new_tau),
+        pump_max_bar=pump_max_bar,
+        is_photochem=is_photochem,
+        extinction_coeff_M_cm=extinction_coeff_M_cm,
+        tau_source="preselection_revision_loop",
+    )
+    feasible, violations, warnings = hard_filter(
+        revised,
+        is_photochem=is_photochem,
+        is_gas_liquid=is_gas_liquid,
+        pump_max_bar=pump_max_bar,
+        BPR_bar=new_bpr,
+    )
+    revised["id"] = new_id
+    revised["parent_id"] = parent_id
+    revised["variant_mode"] = variant_mode
+    revised["feasible"] = feasible
+    revised["violations"] = violations
+    revised["warnings"] = warnings
+    revised["BPR_bar"] = round(new_bpr, 2)
+    revised["tubing_material"] = new_mat
+    revised["concentration_M"] = round(new_c, 4)
+    revised["temperature_C"] = candidate.get("temperature_C", temperature_C)
+    revised["revision_applied_preselection"] = True
+    revised["revision_domains_preselection"] = sorted(set(revision_domains))
+    revised["revision_rationale_preselection"] = rationale
+    revised["revision_changes_preselection"] = patch
+    return revised
+
+
 def _run_candidate_refinement_loop(
     *,
     candidates: list[dict],
@@ -682,18 +817,20 @@ def _run_candidate_refinement_loop(
     is_gas_liquid: bool,
     extinction_coeff_M_cm: Optional[float],
     allow_warning_refinement: bool = False,
+    strong_revision_mode: bool = False,
+    branching_revision_mode: bool = False,
+    max_descendants_per_candidate: int = 2,
 ) -> tuple[list[dict], dict]:
     blocked_domains = _build_domain_blocklist(audit)
     revised_candidates: list[dict] = []
     change_rows: list[dict] = []
     changed_ids: list[int] = []
+    next_candidate_id = max((int(c.get("id", 0)) for c in candidates), default=0) + 1
 
     for candidate in candidates:
         cid = int(candidate.get("id"))
-        combined_patch: dict = {}
-        combined_rationale: dict = {}
-        revision_domains: list[str] = []
         skipped_domains: list[str] = []
+        domain_patch_map: dict[str, tuple[dict, dict]] = {}
 
         domain_entries = {
             "chemistry": _entry_by_candidate(scoring.get("chemistry_scores", []), cid),
@@ -714,18 +851,19 @@ def _run_candidate_refinement_loop(
                 candidate=candidate,
                 concentration_M=concentration_M,
                 allow_warning_refinement=allow_warning_refinement,
+                strong_revision_mode=strong_revision_mode,
             )
             if not patch:
                 continue
-            revision_domains.append(domain)
-            combined_patch.update(patch)
-            combined_rationale.update(rationale)
+            domain_patch_map[domain] = (patch, rationale)
 
-        if not combined_patch:
+        if not domain_patch_map:
             revised = dict(candidate)
             revised["revision_applied_preselection"] = False
             revised["revision_domains_preselection"] = []
             revised["revision_rationale_preselection"] = {}
+            revised["parent_id"] = cid
+            revised["variant_mode"] = "original"
             revised_candidates.append(revised)
             if skipped_domains:
                 change_rows.append({
@@ -737,55 +875,65 @@ def _run_candidate_refinement_loop(
                 })
             continue
 
-        new_tau = float(combined_patch.get("tau_min", candidate.get("tau_min")))
-        new_d = float(combined_patch.get("d_mm", candidate.get("d_mm")))
-        new_Q = float(candidate.get("Q_mL_min", 0.01))
-        new_c = float(combined_patch.get("concentration_M", candidate.get("concentration_M", concentration_M)))
-        new_bpr = float(combined_patch.get("BPR_bar", candidate.get("BPR_bar", 0.0)))
-        new_mat = str(combined_patch.get("tubing_material", candidate.get("tubing_material", "FEP")))
+        if branching_revision_mode:
+            original = dict(candidate)
+            original["revision_applied_preselection"] = False
+            original["revision_domains_preselection"] = []
+            original["revision_rationale_preselection"] = {}
+            original["parent_id"] = cid
+            original["variant_mode"] = "original"
+            revised_candidates.append(original)
 
-        revised = compute_metrics(
-            tau_min=new_tau,
-            d_mm=new_d,
-            Q_mL_min=new_Q,
-            solvent=solvent,
-            temperature_C=temperature_C,
-            concentration_M=new_c,
-            assumed_MW=assumed_MW,
-            IF_used=IF_used,
-            tau_kinetics_min=float(candidate.get("tau_kinetics_min") or new_tau),
-            pump_max_bar=pump_max_bar,
-            is_photochem=is_photochem,
-            extinction_coeff_M_cm=extinction_coeff_M_cm,
-            tau_source="preselection_revision_loop",
+        variants = _candidate_revision_variants(
+            candidate=candidate,
+            cid=cid,
+            domain_patch_map=domain_patch_map,
+            strong_revision_mode=strong_revision_mode,
+            max_descendants_per_candidate=max_descendants_per_candidate,
         )
-        feasible, violations, warnings = hard_filter(
-            revised,
-            is_photochem=is_photochem,
-            is_gas_liquid=is_gas_liquid,
-            pump_max_bar=pump_max_bar,
-            BPR_bar=new_bpr,
-        )
-        revised["id"] = cid
-        revised["feasible"] = feasible
-        revised["violations"] = violations
-        revised["warnings"] = warnings
-        revised["BPR_bar"] = round(new_bpr, 2)
-        revised["tubing_material"] = new_mat
-        revised["concentration_M"] = round(new_c, 4)
-        revised["temperature_C"] = candidate.get("temperature_C", temperature_C)
-        revised["revision_applied_preselection"] = True
-        revised["revision_domains_preselection"] = sorted(set(revision_domains))
-        revised["revision_rationale_preselection"] = combined_rationale
-        revised["revision_changes_preselection"] = combined_patch
-        revised_candidates.append(revised)
+
+        primary_changes: dict = {}
+        primary_rationale: dict = {}
+        primary_domains: list[str] = []
+        descendant_ids: list[int] = []
+        for idx, variant in enumerate(variants):
+            new_id = cid if (idx == 0 and not branching_revision_mode) else next_candidate_id
+            if new_id != cid or branching_revision_mode:
+                next_candidate_id += 1
+            revised = _materialize_revised_candidate(
+                candidate=candidate,
+                patch=variant["patch"],
+                rationale=variant["rationale"],
+                revision_domains=variant["domains"],
+                solvent=solvent,
+                temperature_C=temperature_C,
+                concentration_M=concentration_M,
+                assumed_MW=assumed_MW,
+                IF_used=IF_used,
+                pump_max_bar=pump_max_bar,
+                is_photochem=is_photochem,
+                is_gas_liquid=is_gas_liquid,
+                extinction_coeff_M_cm=extinction_coeff_M_cm,
+                new_id=new_id,
+                parent_id=cid,
+                variant_mode=variant["mode"],
+            )
+            revised_candidates.append(revised)
+            descendant_ids.append(new_id)
+            if not primary_changes:
+                primary_changes = variant["patch"]
+                primary_rationale = variant["rationale"]
+                primary_domains = variant["domains"]
         changed_ids.append(cid)
         change_rows.append({
             "candidate_id": cid,
-            "changes": combined_patch,
-            "rationale": combined_rationale,
-            "domains": sorted(set(revision_domains)),
+            "changes": primary_changes,
+            "rationale": primary_rationale,
+            "domains": sorted(set(primary_domains)),
             "skipped_domains": skipped_domains,
+            "descendant_ids": descendant_ids,
+            "descendant_count": len(descendant_ids),
+            "branching_revision_mode": branching_revision_mode,
         })
 
     for revised in revised_candidates:
@@ -812,6 +960,9 @@ def _run_candidate_refinement_loop(
             if changed
             else "Pre-selection expert refinement found no bounded edits to apply."
         ),
+        "branching_revision_mode": branching_revision_mode,
+        "strong_revision_mode": strong_revision_mode,
+        "final_candidate_count": len(revised_candidates),
     }
     return revised_candidates, summary
 
@@ -1826,6 +1977,11 @@ class CouncilV4:
         candidate_budget: int = 12,
         allow_warning_refinement: bool = False,
         benchmark_recorder=None,
+        benchmark_strict_scoring: bool = False,
+        benchmark_scoring_batch_size: Optional[int] = None,
+        benchmark_strong_revision_mode: bool = False,
+        benchmark_branching_revision_mode: bool = False,
+        benchmark_max_descendants_per_candidate: int = 2,
     ) -> tuple[DesignCandidate, DesignCalculations]:
         """Run the full council pipeline.
 
@@ -1976,6 +2132,9 @@ class CouncilV4:
         # ═══════════════════════════════════════════════════════════════════
         logger.info("  Council v4 — Stage 2: Domain scoring (%d survivors)", len(survivors))
         _bench_stage_start(benchmark_recorder, "council_stage_2_domain_scoring", {"survivor_count": len(survivors)})
+        scoring_batch_size = benchmark_scoring_batch_size
+        if scoring_batch_size is None and benchmark_recorder is not None and candidate_budget > 1:
+            scoring_batch_size = 3 if candidate_budget <= 6 else 4
         initial_scoring = run_domain_scoring(
             candidates=survivors,
             table_markdown=table_markdown,
@@ -1983,6 +2142,8 @@ class CouncilV4:
             objectives=objectives,
             is_photochem=is_photochem,
             pump_max_bar=pump_max,
+            batch_size=scoring_batch_size,
+            strict_coverage=benchmark_strict_scoring,
         )
         _bench_snapshot(benchmark_recorder, "stage2_initial_scoring", initial_scoring)
         _bench_stage_end(
@@ -2052,6 +2213,9 @@ class CouncilV4:
             is_gas_liquid=is_gas_liquid,
             extinction_coeff_M_cm=ext_coeff,
             allow_warning_refinement=allow_warning_refinement,
+            strong_revision_mode=benchmark_strong_revision_mode,
+            branching_revision_mode=benchmark_branching_revision_mode,
+            max_descendants_per_candidate=benchmark_max_descendants_per_candidate,
         )
         _bench_snapshot(benchmark_recorder, "stage3_5_refinement_summary", refinement_summary)
 
@@ -2071,6 +2235,8 @@ class CouncilV4:
                 objectives=objectives,
                 is_photochem=is_photochem,
                 pump_max_bar=pump_max,
+                batch_size=scoring_batch_size,
+                strict_coverage=benchmark_strict_scoring,
             )
             final_audit = run_skeptic_audit(
                 candidates=revised_survivors,

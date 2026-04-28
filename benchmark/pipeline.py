@@ -215,6 +215,11 @@ def run_council_from_context(
     allow_warning_refinement: bool = True,
     temperature: float = 0.2,
     seed: int | None = None,
+    benchmark_strict_scoring: bool = True,
+    benchmark_scoring_batch_size: int | None = None,
+    benchmark_strong_revision_mode: bool = False,
+    benchmark_branching_revision_mode: bool = False,
+    benchmark_max_descendants_per_candidate: int = 2,
 ) -> dict:
     set_llm_observer(recorder.observe_llm)
     set_llm_runtime_overrides(temperature=temperature, seed=seed)
@@ -228,6 +233,9 @@ def run_council_from_context(
                 "temperature": temperature,
                 "seed": seed,
                 "allow_warning_refinement": allow_warning_refinement,
+                "benchmark_strong_revision_mode": benchmark_strong_revision_mode,
+                "benchmark_branching_revision_mode": benchmark_branching_revision_mode,
+                "benchmark_max_descendants_per_candidate": benchmark_max_descendants_per_candidate,
             },
         )
 
@@ -242,6 +250,11 @@ def run_council_from_context(
             candidate_budget=candidate_budget,
             allow_warning_refinement=allow_warning_refinement,
             benchmark_recorder=recorder,
+            benchmark_strict_scoring=benchmark_strict_scoring,
+            benchmark_scoring_batch_size=benchmark_scoring_batch_size,
+            benchmark_strong_revision_mode=benchmark_strong_revision_mode,
+            benchmark_branching_revision_mode=benchmark_branching_revision_mode,
+            benchmark_max_descendants_per_candidate=benchmark_max_descendants_per_candidate,
         )
 
         formatted = OutputFormatter().format(design_candidate, context.analogies)
@@ -252,6 +265,9 @@ def run_council_from_context(
             "temperature": temperature,
             "seed": seed,
             "allow_warning_refinement": allow_warning_refinement,
+            "benchmark_strong_revision_mode": benchmark_strong_revision_mode,
+            "benchmark_branching_revision_mode": benchmark_branching_revision_mode,
+            "benchmark_max_descendants_per_candidate": benchmark_max_descendants_per_candidate,
             "pre_council_proposal": _safe(context.pre_council_proposal),
             "final_design_candidate": _safe(design_candidate),
             "final_calculations": _safe(asdict(final_calc)),

@@ -32,6 +32,10 @@ _GEMMA_BATCH_SIZE = 1
 _GEMMA_MAX_TOKENS = 260
 _GEMMA_RETRY_MAX_TOKENS = 420
 
+
+class ScoringCoverageError(RuntimeError):
+    """Raised when Stage 2 scoring does not cover the required candidates."""
+
 # Fluidics v4 tools include BPR (merged with hardware)
 _FLUIDICS_V4_TOOLS = [
     TOOL_CALCULATE_PRESSURE_DROP,
@@ -691,6 +695,137 @@ def _build_scoring_context(
     )
 
 
+def _build_subset_table(candidates: list[dict]) -> str:
+    """Render a markdown table preserving actual candidate ids for subset scoring."""
+    if not candidates:
+        return "_no candidates_"
+    header = (
+        "| id | τ min | d mm | Q mL/min | C M | V_R mL | L m | Re | ΔP bar | "
+        "BPR bar | material | r_mix | X | prod mg/h | pareto | flags |\n"
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"
+    )
+    rows = []
+    for c in candidates:
+        flags = []
+        if c.get("pareto_front"):
+            flags.append("★")
+        if c.get("warnings"):
+            flags.append(f"⚠{len(c['warnings'])}")
+        if not c.get("feasible", True):
+            flags.append("✗")
+        hg = c.get("hard_gate_flags") or []
+        if hg:
+            flags.append(f"⛔{len(hg)}")
+        rows.append(
+            f"| {c.get('id', '')} | {c['tau_min']} | {c['d_mm']} | {c['Q_mL_min']} | "
+            f"{c.get('concentration_M', '')} | "
+            f"{c['V_R_mL']} | {c['L_m']} | {c['Re']:.0f} | {c['delta_P_bar']:.3f} | "
+            f"{c.get('BPR_bar', 0.0)} | {c.get('tubing_material', 'FEP')} | "
+            f"{c['r_mix']:.3f} | {c['expected_conversion']:.2f} | "
+            f"{c['productivity_mg_h']:.1f} | "
+            f"{'✓' if c.get('pareto_front') else ' '} | {' '.join(flags)} |"
+        )
+    return header + "\n" + "\n".join(rows)
+
+
+def _ordered_scores(score_map: dict[int, dict], candidates: list[dict]) -> list[dict]:
+    ordered: list[dict] = []
+    for c in candidates:
+        cid = int(c.get("id", 0))
+        if cid in score_map:
+            ordered.append(score_map[cid])
+    return ordered
+
+
+def _enforce_coverage(
+    *,
+    agent_name: str,
+    scores: list[dict],
+    valid_ids: set[int],
+    strict_coverage: bool,
+) -> None:
+    seen = {int(entry.get("candidate_id")) for entry in scores if entry.get("candidate_id") is not None}
+    missing = sorted(valid_ids - seen)
+    if not missing:
+        return
+    msg = (
+        f"{agent_name} returned scores for {len(seen)}/{len(valid_ids)} candidates; "
+        f"missing candidate ids {missing}"
+    )
+    if strict_coverage:
+        raise ScoringCoverageError(msg)
+    logger.error("%s — Chief selection will be unreliable.", msg)
+
+
+def _run_scoring_agent_batched(
+    *,
+    agent_name: str,
+    system_prompt: str,
+    candidates: list[dict],
+    chemistry_brief: str,
+    objectives: str,
+    is_photochem: bool,
+    pump_max_bar: float,
+    tools: list[dict],
+    max_tokens: int,
+    batch_size: int,
+    strict_coverage: bool,
+) -> tuple[str, list[dict], list[dict]]:
+    """Run one scoring agent over candidate subsets, retrying only missing ids."""
+    remaining = list(candidates)
+    score_map: dict[int, dict] = {}
+    all_tc: list[dict] = []
+    overall_parts: list[str] = []
+    attempts = 0
+
+    while remaining and attempts < 2:
+        attempts += 1
+        still_missing: set[int] = set()
+
+        for start in range(0, len(remaining), batch_size):
+            batch = remaining[start:start + batch_size]
+            batch_table = _build_subset_table(batch)
+            batch_context = _build_scoring_context(
+                batch,
+                batch_table,
+                chemistry_brief,
+                objectives,
+                is_photochem,
+                pump_max_bar,
+            )
+            valid_ids = {int(c.get("id", i + 1)) for i, c in enumerate(batch)}
+            oa, cleaned, tc_log = _run_scoring_agent(
+                agent_name,
+                system_prompt,
+                batch_context,
+                tools,
+                valid_ids,
+                max_tokens,
+            )
+            if oa:
+                overall_parts.append(oa.strip())
+            all_tc.extend(tc_log)
+            for entry in cleaned:
+                score_map[int(entry["candidate_id"])] = entry
+            seen = {int(entry["candidate_id"]) for entry in cleaned}
+            missing = sorted(valid_ids - seen)
+            if missing:
+                logger.warning("%s batch missing candidate ids %s", agent_name, missing)
+                still_missing.update(missing)
+
+        remaining = [c for c in candidates if int(c.get("id", 0)) in still_missing and int(c.get("id", 0)) not in score_map]
+
+    ordered_scores = _ordered_scores(score_map, candidates)
+    _enforce_coverage(
+        agent_name=agent_name,
+        scores=ordered_scores,
+        valid_ids={int(c.get("id", 0)) for c in candidates},
+        strict_coverage=strict_coverage,
+    )
+    overall_analysis = " ".join(part for part in overall_parts if part)
+    return overall_analysis, ordered_scores, all_tc
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Per-agent run functions
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -776,6 +911,8 @@ def run_chemistry_scoring(
     is_photochem: bool,
     pump_max_bar: float,
     max_tokens: int = 4000,
+    batch_size: int | None = None,
+    strict_coverage: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Chemistry. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     if _is_gemma_local_mode():
@@ -795,10 +932,31 @@ def run_chemistry_scoring(
         is_photochem, pump_max_bar,
     )
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
-    oa, scores, tc = _run_scoring_agent(
-        "Dr. Chemistry", _CHEMISTRY_SYSTEM, context,
-        CHEMISTRY_TOOLS, valid_ids, max_tokens,
-    )
+    if batch_size and batch_size < len(candidates):
+        oa, scores, tc = _run_scoring_agent_batched(
+            agent_name="Dr. Chemistry",
+            system_prompt=_CHEMISTRY_SYSTEM,
+            candidates=candidates,
+            chemistry_brief=chemistry_brief,
+            objectives=objectives,
+            is_photochem=is_photochem,
+            pump_max_bar=pump_max_bar,
+            tools=CHEMISTRY_TOOLS,
+            max_tokens=max_tokens,
+            batch_size=batch_size,
+            strict_coverage=strict_coverage,
+        )
+    else:
+        oa, scores, tc = _run_scoring_agent(
+            "Dr. Chemistry", _CHEMISTRY_SYSTEM, context,
+            CHEMISTRY_TOOLS, valid_ids, max_tokens,
+        )
+        _enforce_coverage(
+            agent_name="Dr. Chemistry",
+            scores=scores,
+            valid_ids={int(v) for v in valid_ids},
+            strict_coverage=strict_coverage,
+        )
     logger.info("    Dr. Chemistry scored %d/%d candidates", len(scores), len(candidates))
     return oa, scores, tc
 
@@ -812,6 +970,8 @@ def run_kinetics_scoring(
     is_photochem: bool,
     pump_max_bar: float,
     max_tokens: int = 4000,
+    batch_size: int | None = None,
+    strict_coverage: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Kinetics. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     if _is_gemma_local_mode():
@@ -831,10 +991,31 @@ def run_kinetics_scoring(
         is_photochem, pump_max_bar,
     )
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
-    oa, scores, tc = _run_scoring_agent(
-        "Dr. Kinetics", _KINETICS_SYSTEM, context,
-        KINETICS_TOOLS, valid_ids, max_tokens,
-    )
+    if batch_size and batch_size < len(candidates):
+        oa, scores, tc = _run_scoring_agent_batched(
+            agent_name="Dr. Kinetics",
+            system_prompt=_KINETICS_SYSTEM,
+            candidates=candidates,
+            chemistry_brief=chemistry_brief,
+            objectives=objectives,
+            is_photochem=is_photochem,
+            pump_max_bar=pump_max_bar,
+            tools=KINETICS_TOOLS,
+            max_tokens=max_tokens,
+            batch_size=batch_size,
+            strict_coverage=strict_coverage,
+        )
+    else:
+        oa, scores, tc = _run_scoring_agent(
+            "Dr. Kinetics", _KINETICS_SYSTEM, context,
+            KINETICS_TOOLS, valid_ids, max_tokens,
+        )
+        _enforce_coverage(
+            agent_name="Dr. Kinetics",
+            scores=scores,
+            valid_ids={int(v) for v in valid_ids},
+            strict_coverage=strict_coverage,
+        )
     logger.info("    Dr. Kinetics scored %d/%d candidates", len(scores), len(candidates))
     return oa, scores, tc
 
@@ -848,6 +1029,8 @@ def run_fluidics_scoring(
     is_photochem: bool,
     pump_max_bar: float,
     max_tokens: int = 4000,
+    batch_size: int | None = None,
+    strict_coverage: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Fluidics. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     if _is_gemma_local_mode():
@@ -867,10 +1050,31 @@ def run_fluidics_scoring(
         is_photochem, pump_max_bar,
     )
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
-    oa, scores, tc = _run_scoring_agent(
-        "Dr. Fluidics", _FLUIDICS_SYSTEM, context,
-        _FLUIDICS_V4_TOOLS, valid_ids, max_tokens,
-    )
+    if batch_size and batch_size < len(candidates):
+        oa, scores, tc = _run_scoring_agent_batched(
+            agent_name="Dr. Fluidics",
+            system_prompt=_FLUIDICS_SYSTEM,
+            candidates=candidates,
+            chemistry_brief=chemistry_brief,
+            objectives=objectives,
+            is_photochem=is_photochem,
+            pump_max_bar=pump_max_bar,
+            tools=_FLUIDICS_V4_TOOLS,
+            max_tokens=max_tokens,
+            batch_size=batch_size,
+            strict_coverage=strict_coverage,
+        )
+    else:
+        oa, scores, tc = _run_scoring_agent(
+            "Dr. Fluidics", _FLUIDICS_SYSTEM, context,
+            _FLUIDICS_V4_TOOLS, valid_ids, max_tokens,
+        )
+        _enforce_coverage(
+            agent_name="Dr. Fluidics",
+            scores=scores,
+            valid_ids={int(v) for v in valid_ids},
+            strict_coverage=strict_coverage,
+        )
     logger.info("    Dr. Fluidics scored %d/%d candidates", len(scores), len(candidates))
     return oa, scores, tc
 
@@ -884,6 +1088,8 @@ def run_safety_scoring(
     is_photochem: bool,
     pump_max_bar: float,
     max_tokens: int = 4000,
+    batch_size: int | None = None,
+    strict_coverage: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Safety. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     if _is_gemma_local_mode():
@@ -903,10 +1109,31 @@ def run_safety_scoring(
         is_photochem, pump_max_bar,
     )
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
-    oa, scores, tc = _run_scoring_agent(
-        "Dr. Safety", _SAFETY_SYSTEM, context,
-        SAFETY_TOOLS, valid_ids, max_tokens,
-    )
+    if batch_size and batch_size < len(candidates):
+        oa, scores, tc = _run_scoring_agent_batched(
+            agent_name="Dr. Safety",
+            system_prompt=_SAFETY_SYSTEM,
+            candidates=candidates,
+            chemistry_brief=chemistry_brief,
+            objectives=objectives,
+            is_photochem=is_photochem,
+            pump_max_bar=pump_max_bar,
+            tools=SAFETY_TOOLS,
+            max_tokens=max_tokens,
+            batch_size=batch_size,
+            strict_coverage=strict_coverage,
+        )
+    else:
+        oa, scores, tc = _run_scoring_agent(
+            "Dr. Safety", _SAFETY_SYSTEM, context,
+            SAFETY_TOOLS, valid_ids, max_tokens,
+        )
+        _enforce_coverage(
+            agent_name="Dr. Safety",
+            scores=scores,
+            valid_ids={int(v) for v in valid_ids},
+            strict_coverage=strict_coverage,
+        )
     logger.info("    Dr. Safety scored %d/%d candidates", len(scores), len(candidates))
     return oa, scores, tc
 
@@ -923,6 +1150,8 @@ def run_domain_scoring(
     objectives: str,
     is_photochem: bool,
     pump_max_bar: float,
+    batch_size: int | None = None,
+    strict_coverage: bool = False,
 ) -> dict:
     """Run all four domain scoring agents (Stage 2).
 
@@ -944,21 +1173,25 @@ def run_domain_scoring(
         candidates=candidates, table_markdown=table_markdown,
         chemistry_brief=chemistry_brief, objectives=objectives,
         is_photochem=is_photochem, pump_max_bar=pump_max_bar,
+        batch_size=batch_size, strict_coverage=strict_coverage,
     )
     kin_oa, kinetics_scores, kin_tc = run_kinetics_scoring(
         candidates=candidates, table_markdown=table_markdown,
         chemistry_brief=chemistry_brief, objectives=objectives,
         is_photochem=is_photochem, pump_max_bar=pump_max_bar,
+        batch_size=batch_size, strict_coverage=strict_coverage,
     )
     flu_oa, fluidics_scores, flu_tc = run_fluidics_scoring(
         candidates=candidates, table_markdown=table_markdown,
         chemistry_brief=chemistry_brief, objectives=objectives,
         is_photochem=is_photochem, pump_max_bar=pump_max_bar,
+        batch_size=batch_size, strict_coverage=strict_coverage,
     )
     saf_oa, safety_scores, saf_tc = run_safety_scoring(
         candidates=candidates, table_markdown=table_markdown,
         chemistry_brief=chemistry_brief, objectives=objectives,
         is_photochem=is_photochem, pump_max_bar=pump_max_bar,
+        batch_size=batch_size, strict_coverage=strict_coverage,
     )
 
     blocked: set[int] = set()

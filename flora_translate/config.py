@@ -64,7 +64,7 @@ MODEL_EMBEDDING_SUMMARY  = _SONNET   # LLM summary written before ChromaDB index
 #   To Anthropic: set ENGINE_PROVIDER = "anthropic"
 # ---------------------------------------------------------------------------
 
-ENGINE_PROVIDER        = "anthropic"             # ← flip this to switch
+ENGINE_PROVIDER        = "openai"                # ← flip this to switch
 
 ENGINE_MODEL_ANTHROPIC = TRANSLATION_MODEL       # claude-sonnet-4-20250514
 ENGINE_MODEL_OPENAI    = "gpt-4o"                # gpt-4o | gpt-4o-mini | o1-mini

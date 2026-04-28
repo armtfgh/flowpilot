@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -44,6 +45,13 @@ def _timestamp() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the DES isoxazole protocol with Gemma/Ollama as council model.")
+    parser.add_argument("--candidate-budget", type=int, default=12)
+    parser.add_argument("--model", default="gemma4-flora:latest")
+    return parser.parse_args()
+
+
 def _switch_council_to_ollama(model_name: str = "gemma4-flora:latest") -> dict:
     import flora_translate.config as cfg
     import flora_translate.engine.llm_agents as llm_agents
@@ -75,6 +83,7 @@ def _restore_council_provider(state: dict) -> None:
 
 
 def main() -> int:
+    args = parse_args()
     run_dir = Path("benchmark/data") / f"protocol_gemma_council_{_timestamp()}"
     recorder = BenchmarkRecorder(
         run_dir,
@@ -83,8 +92,8 @@ def main() -> int:
             "title": "Isoxazole in TBAB/EG DES with Gemma council",
             "protocol": PROTOCOL,
             "council_provider": "ollama",
-            "council_model": "gemma4-flora:latest",
-            "candidate_budget": 12,
+            "council_model": args.model,
+            "candidate_budget": args.candidate_budget,
             "allow_warning_refinement": True,
             "retrieval_mode": "skip_if_no_openai_embedding_key",
         },
@@ -95,8 +104,8 @@ def main() -> int:
         "protocol": PROTOCOL,
         "run_dir": str(run_dir),
         "council_provider": "ollama",
-        "council_model": "gemma4-flora:latest",
-        "candidate_budget": 12,
+        "council_model": args.model,
+        "candidate_budget": args.candidate_budget,
         "allow_warning_refinement": True,
     }
 
@@ -214,8 +223,8 @@ def main() -> int:
             },
         )
 
-        recorder.start_stage("council_run", {"provider": "ollama", "model": "gemma4-flora:latest"})
-        council_state = _switch_council_to_ollama("gemma4-flora:latest")
+        recorder.start_stage("council_run", {"provider": "ollama", "model": args.model})
+        council_state = _switch_council_to_ollama(args.model)
         design_candidate, final_calc = CouncilV4().run(
             proposal=proposal,
             batch_record=deepcopy(batch_record),
@@ -224,7 +233,7 @@ def main() -> int:
             chemistry_plan=deepcopy(chemistry_plan),
             calculations=deepcopy(calculations),
             objectives="balanced",
-            candidate_budget=12,
+            candidate_budget=args.candidate_budget,
             allow_warning_refinement=True,
             benchmark_recorder=recorder,
         )
