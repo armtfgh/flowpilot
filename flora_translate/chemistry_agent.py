@@ -16,17 +16,12 @@ import logging
 import re
 import time
 
-import anthropic
-
-from flora_translate.config import MODEL_CHEMISTRY_AGENT as CHEMISTRY_MODEL, CHEMISTRY_MAX_TOKENS, PROMPTS_DIR
-from flora_translate.engine.llm_agents import emit_component_llm_event, get_llm_runtime_overrides
+import flora_translate.config as cfg
+from flora_translate.config import PROMPTS_DIR
+from flora_translate.engine.llm_agents import call_model_text
 from flora_translate.schemas import BatchRecord, ChemistryPlan
 
 logger = logging.getLogger("flora.chemistry_agent")
-
-
-def _get_client():
-    return anthropic.Anthropic()
 
 
 def _parse_json_from_tagged(text: str) -> dict:
@@ -291,7 +286,7 @@ class ChemistryReasoningAgent:
 
     def analyze(self, batch_record: BatchRecord) -> ChemistryPlan:
         """Analyze a batch protocol and return a ChemistryPlan."""
-        logger.info(f"  Chemistry Agent: Analyzing with {CHEMISTRY_MODEL}")
+        logger.info(f"  Chemistry Agent: Analyzing with {cfg.MODEL_CHEMISTRY_AGENT}")
 
         # Load fundamentals rules if available
         fundamentals_block = self._load_fundamentals(batch_record)
@@ -329,34 +324,18 @@ class ChemistryReasoningAgent:
 
     def _call_with_retry(self, system: str, user_prompt: str) -> str:
         """Call the model. Warn if truncated but do not retry — 8192 is the hard cap."""
-        kwargs = {}
-        if "temperature" in get_llm_runtime_overrides():
-            kwargs["temperature"] = get_llm_runtime_overrides()["temperature"]
         started = time.perf_counter()
-        resp = _get_client().messages.create(
-            model=CHEMISTRY_MODEL,
-            max_tokens=CHEMISTRY_MAX_TOKENS,
-            system=system,
-            messages=[{"role": "user", "content": user_prompt}],
-            **kwargs,
-        )
-        emit_component_llm_event(
-            component="chemistry_agent",
-            provider="anthropic",
-            model=CHEMISTRY_MODEL,
-            max_tokens=CHEMISTRY_MAX_TOKENS,
+        result = call_model_text(
+            model=cfg.MODEL_CHEMISTRY_AGENT,
+            api_name="chemistry_agent",
+            max_tokens=cfg.CHEMISTRY_MAX_TOKENS,
             system=system,
             user_content=user_prompt,
-            resp=resp,
-            started=started,
-            extra={
-                "response_chars": len(resp.content[0].text),
-                "stop_reason": resp.stop_reason,
-            },
         )
-        if resp.stop_reason == "max_tokens":
+        logger.debug("Chemistry agent LLM call completed in %.2f ms", (time.perf_counter() - started) * 1000)
+        if result.stop_reason == "max_tokens" or result.finish_reason == "length":
             logger.warning("    Chemistry Agent output hit token limit — JSON may be incomplete")
-        return resp.content[0].text
+        return result.text
 
     def _extract_reasoning(self, text: str) -> str:
         """Extract the NOTES section (between <NOTES> tags)."""

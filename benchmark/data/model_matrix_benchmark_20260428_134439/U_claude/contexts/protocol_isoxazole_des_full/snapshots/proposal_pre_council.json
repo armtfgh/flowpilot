@@ -1,0 +1,59 @@
+{
+  "residence_time_min": 30.0,
+  "flow_rate_mL_min": 0.67021,
+  "temperature_C": 120.0,
+  "concentration_M": 0.067,
+  "BPR_bar": 5.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.6,
+  "reactor_volume_mL": 20.106,
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "single feed containing all reagents premixed in DES",
+      "contents": [
+        "phenylacetylene (1.0 equiv)",
+        "ethyl nitroacetate (2.0 equiv)",
+        "TBAB/EG (1:5) DES"
+      ],
+      "solvent": "TBAB/EG (1:5) deep eutectic solvent",
+      "concentration_M": 0.067,
+      "flow_rate_mL_min": 0.5,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: All components premixed in single stream. Phenylacetylene and ethyl nitroacetate are stable together at room temperature; nitrile oxide only forms upon heating. Premixing ensures dipolarophile is present to trap transient nitrile oxide immediately, suppressing dimerization to furoxan. Concentration adjusted from batch 0.5 M to 0.067 M based on calculation results for optimal residence time."
+    }
+  ],
+  "mixer_type": "none",
+  "mixing_order_reasoning": "From Chemistry Plan: Single premixed feed is optimal. Ethyl nitroacetate and phenylacetylene are mutually stable at ambient temperature. The nitrile oxide intermediate only forms at elevated temperature (≥100°C), so premixing before the heated reactor zone ensures immediate trapping of the 1,3-dipole by the alkyne, minimizing nitrile oxide dimerization.",
+  "pre_reactor_steps": [
+    "Heat feed line to 50°C to reduce DES viscosity for improved pumping"
+  ],
+  "post_reactor_steps": [
+    "Cool reactor outlet to room temperature",
+    "Collect product for offline aqueous workup and DCM extraction"
+  ],
+  "chemistry_notes": "This is a thermal 1,3-dipolar cycloaddition proceeding via in-situ nitrile oxide generation from ethyl nitroacetate at 120°C, followed by [3+2] cycloaddition with phenylacetylene. The rate-limiting step is nitrile oxide formation, requiring precise temperature control. DES viscosity (~50 cP at RT) necessitates heated feed lines. The 60-minute residence time from analogies is much longer than the 15-minute batch time, suggesting mass transfer limitations in flow or different kinetics in the narrow reactor geometry. BPR is critical to prevent DES/EG boiling at 120°C.",
+  "stage_parameters": [],
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation estimated 60.0 min (range 1.0-90.0 min) from analogies. Analogy 3 used 20 min for [3+2] cycloaddition but at lower temperature (60°C vs 120°C). Analogy 2 used 179 min at 154°C but different chemistry. Using 60.0 min as it matches calculation and accounts for potential mass transfer limitations in narrow tubing with viscous DES.",
+    "flow_rate_mL_min": "Calculation: V_R/τ = 30.0 mL / 60.0 min = 0.5 mL/min. Verified against analogies: Analogy 3 used 0.165 mL/min, Analogy 2 used 0.12 mL/min - our 0.5 mL/min is reasonable for this scale.",
+    "temperature_C": "Same as batch (120°C) - required for nitrile oxide generation from ethyl nitroacetate. Chemistry Plan confirms this temperature is critical for the rate-limiting dehydration/tautomerization step.",
+    "concentration_M": "Calculation result: 0.067 M in reactor (diluted from batch 0.5 M). This accounts for the longer residence time needed in flow and ensures proper heat/mass transfer in narrow tubing.",
+    "BPR_bar": "Calculation: BPR REQUIRED at 5.0 bar. EG boiling point ~197°C, but DES mixture may have lower effective bp. BPR prevents solvent boiling and maintains liquid phase at 120°C operation.",
+    "tubing_material": "PFA chosen for high temperature operation (120°C) and chemical compatibility with DES. Not photochemistry so transparency not required. PFA handles temperature better than FEP.",
+    "tubing_ID_mm": "Calculation: 1.0 mm ID gives optimal heat transfer and reasonable pressure drop (0.13 bar). Matches calculation assumptions and provides good plug flow (Pe = 691).",
+    "reactor_volume_mL": "Calculation: 30.0 mL required for 60 min residence time at 0.5 mL/min flow rate. Verified: τ = V/Q = 30.0/0.5 = 60.0 min."
+  },
+  "literature_analogies": [
+    "Analogy 1: photocycloaddition with thermal cascade",
+    "Analogy 2: oxadiazole synthesis at high temperature",
+    "Analogy 3: [3+2] dipolar cycloaddition in flow"
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

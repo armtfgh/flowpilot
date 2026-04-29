@@ -47,6 +47,7 @@ MODEL_OUTPUT_FORMATTER   = _SONNET   # generates human-readable explanation
 MODEL_REVISION_AGENT     = _SONNET   # targeted patch to an existing design
 MODEL_CONVERSATION_AGENT = _SONNET   # chat intent classifier (TRANSLATE/REVISE/ANSWER/ASK)
 MODEL_EMBEDDING_SUMMARY  = _SONNET   # LLM summary written before ChromaDB indexing
+MODEL_TOPOLOGY_POLISHER  = "claude-haiku-4-5-20251001"  # lightweight topology review
 
 # ---------------------------------------------------------------------------
 # ENGINE Council — provider and rounds

@@ -16,11 +16,11 @@ import logging
 from dataclasses import asdict
 from pathlib import Path
 
-import anthropic
-
-from flora_translate.config import LAB_INVENTORY_PATH, MODEL_REVISION_AGENT as TRANSLATION_MODEL
+import flora_translate.config as cfg
+from flora_translate.config import LAB_INVENTORY_PATH
 from flora_translate.design_calculator import DesignCalculator
 from flora_translate.engine.council_v4 import CouncilV4 as CouncilV3
+from flora_translate.engine.llm_agents import call_model_text
 from flora_translate.input_parser import InputParser
 from flora_translate.output_formatter import OutputFormatter
 from flora_translate.schemas import (
@@ -89,9 +89,6 @@ def _parse_llm_json(raw: str) -> dict:
 
 class RevisionAgent:
     """Apply targeted revisions to an existing FLORA flow design."""
-
-    def __init__(self):
-        self._client = anthropic.Anthropic()
 
     # ── Public entry point ─────────────────────────────────────────────────
 
@@ -211,13 +208,14 @@ class RevisionAgent:
 
         raw = ""
         try:
-            resp = self._client.messages.create(
-                model=TRANSLATION_MODEL,
+            result = call_model_text(
+                model=cfg.MODEL_REVISION_AGENT,
+                api_name="revision_agent",
                 max_tokens=6144,
                 system=_REVISION_SYSTEM,
-                messages=[{"role": "user", "content": user_content}],
+                user_content=user_content,
             )
-            raw = resp.content[0].text.strip()
+            raw = result.text.strip()
             data = _parse_llm_json(raw)
 
             revised_proposal = FlowProposal(**data["revised_proposal"])

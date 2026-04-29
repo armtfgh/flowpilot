@@ -5,16 +5,11 @@ import logging
 import re
 import time
 
-import anthropic
-
-from flora_translate.config import MODEL_TRANSLATION as TRANSLATION_MODEL
-from flora_translate.engine.llm_agents import emit_component_llm_event, get_llm_runtime_overrides
+import flora_translate.config as cfg
+from flora_translate.engine.llm_agents import call_model_text
 from flora_translate.schemas import FlowProposal
 
 logger = logging.getLogger("flora.translation_llm")
-
-def _get_client():
-    return anthropic.Anthropic()
 
 
 def _parse_json(text: str) -> dict:
@@ -39,29 +34,16 @@ class TranslationLLM:
     def generate(self, system_prompt: str, user_prompt: str) -> FlowProposal:
         """Generate a FlowProposal from the translation prompt."""
         logger.info("Generating flow proposal via LLM")
-        kwargs = {}
-        if "temperature" in get_llm_runtime_overrides():
-            kwargs["temperature"] = get_llm_runtime_overrides()["temperature"]
         started = time.perf_counter()
-        resp = _get_client().messages.create(
-            model=TRANSLATION_MODEL,
-            max_tokens=4096,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-            **kwargs,
-        )
-        emit_component_llm_event(
-            component="translation_llm",
-            provider="anthropic",
-            model=TRANSLATION_MODEL,
+        result = call_model_text(
+            model=cfg.MODEL_TRANSLATION,
+            api_name="translation_llm",
             max_tokens=4096,
             system=system_prompt,
             user_content=user_prompt,
-            resp=resp,
-            started=started,
-            extra={"response_chars": len(resp.content[0].text)},
         )
-        data = _parse_json(resp.content[0].text)
+        logger.debug("Translation LLM call completed in %.2f ms", (time.perf_counter() - started) * 1000)
+        data = _parse_json(result.text)
 
         # Validate residence_time consistency
         vol = data.get("reactor_volume_mL", 0)

@@ -32,6 +32,9 @@ def summarize_experiment(experiment_dir: Path) -> dict:
         )
         run_rows.append({
             "case_id": metadata.get("case_id"),
+            "upstream_bundle": metadata.get("upstream_bundle"),
+            "council_bundle": metadata.get("council_bundle"),
+            "council_provider": metadata.get("council_provider"),
             "candidate_budget": metadata.get("candidate_budget"),
             "repeat_index": metadata.get("repeat_index"),
             "status": summary.get("status"),
@@ -71,6 +74,9 @@ def summarize_experiment(experiment_dir: Path) -> dict:
                 )
                 llm_rows.append({
                     "case_id": metadata.get("case_id"),
+                    "upstream_bundle": metadata.get("upstream_bundle"),
+                    "council_bundle": metadata.get("council_bundle"),
+                    "council_provider": metadata.get("council_provider"),
                     "candidate_budget": metadata.get("candidate_budget"),
                     "repeat_index": metadata.get("repeat_index"),
                     "timestamp": event.get("timestamp"),

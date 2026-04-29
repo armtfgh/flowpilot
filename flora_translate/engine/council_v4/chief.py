@@ -820,6 +820,7 @@ def _run_candidate_refinement_loop(
     strong_revision_mode: bool = False,
     branching_revision_mode: bool = False,
     max_descendants_per_candidate: int = 2,
+    max_total_revised_candidates: Optional[int] = None,
 ) -> tuple[list[dict], dict]:
     blocked_domains = _build_domain_blocklist(audit)
     revised_candidates: list[dict] = []
@@ -936,6 +937,33 @@ def _run_candidate_refinement_loop(
             "branching_revision_mode": branching_revision_mode,
         })
 
+    truncated = False
+    dropped_candidate_ids: list[int] = []
+    retained_candidate_ids: list[int] = []
+    if max_total_revised_candidates is not None and max_total_revised_candidates > 0:
+        def _variant_priority(row: dict) -> tuple[int, int, int, int]:
+            variant_mode = str(row.get("variant_mode", "original"))
+            mode_rank = {
+                "merged": 0,
+                "domain_focus": 1,
+                "original": 2,
+            }.get(variant_mode, 3)
+            return (
+                0 if bool(row.get("feasible", True)) else 1,
+                0 if bool(row.get("revision_applied_preselection")) else 1,
+                mode_rank,
+                int(row.get("id", 0)),
+            )
+
+        ranked_candidates = sorted(revised_candidates, key=_variant_priority)
+        retained = ranked_candidates[:max_total_revised_candidates]
+        dropped = ranked_candidates[max_total_revised_candidates:]
+        if dropped:
+            truncated = True
+            retained_candidate_ids = [int(r.get("id", 0)) for r in retained]
+            dropped_candidate_ids = [int(r.get("id", 0)) for r in dropped]
+            revised_candidates = retained
+
     for revised in revised_candidates:
         _apply_v4_hard_gates(
             [revised],
@@ -963,6 +991,11 @@ def _run_candidate_refinement_loop(
         "branching_revision_mode": branching_revision_mode,
         "strong_revision_mode": strong_revision_mode,
         "final_candidate_count": len(revised_candidates),
+        "max_total_revised_candidates": max_total_revised_candidates,
+        "truncated_to_max_total_revised_candidates": truncated,
+        "retained_candidate_ids": retained_candidate_ids,
+        "dropped_candidate_ids": dropped_candidate_ids,
+        "dropped_candidate_count": len(dropped_candidate_ids),
     }
     return revised_candidates, summary
 
@@ -1979,9 +2012,11 @@ class CouncilV4:
         benchmark_recorder=None,
         benchmark_strict_scoring: bool = False,
         benchmark_scoring_batch_size: Optional[int] = None,
+        benchmark_claude_compact_mode: bool = False,
         benchmark_strong_revision_mode: bool = False,
         benchmark_branching_revision_mode: bool = False,
         benchmark_max_descendants_per_candidate: int = 2,
+        benchmark_max_total_revised_candidates: Optional[int] = None,
     ) -> tuple[DesignCandidate, DesignCalculations]:
         """Run the full council pipeline.
 
@@ -2144,6 +2179,7 @@ class CouncilV4:
             pump_max_bar=pump_max,
             batch_size=scoring_batch_size,
             strict_coverage=benchmark_strict_scoring,
+            benchmark_claude_compact_mode=benchmark_claude_compact_mode,
         )
         _bench_snapshot(benchmark_recorder, "stage2_initial_scoring", initial_scoring)
         _bench_stage_end(
@@ -2216,6 +2252,7 @@ class CouncilV4:
             strong_revision_mode=benchmark_strong_revision_mode,
             branching_revision_mode=benchmark_branching_revision_mode,
             max_descendants_per_candidate=benchmark_max_descendants_per_candidate,
+            max_total_revised_candidates=benchmark_max_total_revised_candidates,
         )
         _bench_snapshot(benchmark_recorder, "stage3_5_refinement_summary", refinement_summary)
 
@@ -2237,6 +2274,7 @@ class CouncilV4:
                 pump_max_bar=pump_max,
                 batch_size=scoring_batch_size,
                 strict_coverage=benchmark_strict_scoring,
+                benchmark_claude_compact_mode=benchmark_claude_compact_mode,
             )
             final_audit = run_skeptic_audit(
                 candidates=revised_survivors,
@@ -2263,6 +2301,11 @@ class CouncilV4:
             {
                 "refinement_applied": refinement_applied,
                 "changed_candidate_ids": refinement_summary.get("changed_candidate_ids", []),
+                "final_candidate_count": refinement_summary.get("final_candidate_count"),
+                "truncated_to_max_total_revised_candidates": refinement_summary.get(
+                    "truncated_to_max_total_revised_candidates", False
+                ),
+                "dropped_candidate_count": refinement_summary.get("dropped_candidate_count", 0),
             },
         )
 

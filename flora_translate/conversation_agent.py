@@ -21,11 +21,10 @@ import json
 import logging
 from dataclasses import dataclass, field
 
-import anthropic
-
 logger = logging.getLogger("flora.conversation")
 
-from flora_translate.config import MODEL_CONVERSATION_AGENT as _CLAUDE_MODEL
+import flora_translate.config as cfg
+from flora_translate.engine.llm_agents import call_model_messages
 
 # ── Base system prompt (static part) ──────────────────────────────────────────
 
@@ -198,7 +197,6 @@ class ConversationAgent:
     """Multi-turn conversational wrapper around the FLORA translate pipeline."""
 
     def __init__(self):
-        self._client = anthropic.Anthropic()
         self._history: list[dict] = []       # clean conversation turns {role, content}
         self.current_result: dict | None = None
         self.original_query: str | None = None
@@ -266,15 +264,16 @@ class ConversationAgent:
     # ── Internal ───────────────────────────────────────────────────────────────
 
     def _classify(self, system: str, messages: list[dict]) -> dict:
-        """Call Claude with full context in system prompt, history as messages."""
+        """Call the configured classification model with full context."""
         try:
-            resp = self._client.messages.create(
-                model=_CLAUDE_MODEL,
+            result = call_model_messages(
+                model=cfg.MODEL_CONVERSATION_AGENT,
+                api_name="conversation_agent",
                 max_tokens=1024,          # enough for a detailed ANSWER response
                 system=system,
                 messages=messages[-20:],  # keep last 20 turns to stay within limits
             )
-            raw = resp.content[0].text.strip()
+            raw = result.text.strip()
             if raw.startswith("```"):
                 raw = raw.split("```")[1]
                 if raw.startswith("json"):

@@ -22,18 +22,10 @@ import json
 import logging
 from collections import defaultdict
 
-import anthropic
+import flora_translate.config as cfg
+from flora_translate.engine.llm_agents import call_model_text
 
 logger = logging.getLogger("flora.topology_polisher")
-
-_CLIENT = None
-
-
-def _get_client():
-    global _CLIENT
-    if _CLIENT is None:
-        _CLIENT = anthropic.Anthropic()
-    return _CLIENT
 
 
 # ── Topology → human-readable description ─────────────────────────────────────
@@ -153,13 +145,14 @@ def _llm_review(topology) -> list[str]:
     """Ask Claude Haiku which op_ids to remove. Returns list of op_ids."""
     description = _describe_topology(topology)
     try:
-        resp = _get_client().messages.create(
-            model="claude-haiku-4-5-20251001",
+        result = call_model_text(
+            model=cfg.MODEL_TOPOLOGY_POLISHER,
+            api_name="topology_polisher",
             max_tokens=256,
             system=_SYSTEM,
-            messages=[{"role": "user", "content": description}],
+            user_content=description,
         )
-        raw = resp.content[0].text.strip()
+        raw = result.text.strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):

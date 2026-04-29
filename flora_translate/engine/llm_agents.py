@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from dataclasses import dataclass
 
 import anthropic
 
@@ -34,6 +35,16 @@ _OPENAI_CLIENT    = None
 _OLLAMA_CLIENT    = None
 _LLM_OBSERVER     = None
 _RUNTIME_OVERRIDES: dict = {}
+
+
+@dataclass
+class TextGenerationResult:
+    text: str
+    provider: str
+    model: str
+    usage: dict
+    stop_reason: str | None = None
+    finish_reason: str | None = None
 
 
 def set_llm_observer(observer) -> None:
@@ -175,6 +186,201 @@ def _get_ollama_client():
 def get_max_rounds() -> int:
     """Return the configured number of council rounds for the active provider."""
     return ENGINE_MAX_ROUNDS.get(ENGINE_PROVIDER, 2)
+
+
+def infer_provider_for_model(model: str, provider: str | None = None) -> str:
+    """Infer provider from model name unless explicitly given."""
+    if provider:
+        return provider
+    name = (model or "").strip().lower()
+    if name.startswith("claude"):
+        return "anthropic"
+    if (
+        name.startswith("gpt-")
+        or name.startswith("o1")
+        or name.startswith("o3")
+        or name.startswith("o4")
+        or name.startswith("chatgpt-")
+    ):
+        return "openai"
+    return "ollama"
+
+
+def _stringify_messages(messages: list[dict]) -> str:
+    parts: list[str] = []
+    for msg in messages:
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            parts.append(content)
+        else:
+            parts.append(json.dumps(content, default=str))
+    return "\n".join(parts)
+
+
+def call_model_messages(
+    *,
+    model: str,
+    system: str,
+    messages: list[dict],
+    max_tokens: int,
+    provider: str | None = None,
+    api_name: str = "call_model_messages",
+) -> TextGenerationResult:
+    """Provider-agnostic text generation for upstream modules."""
+    resolved_provider = infer_provider_for_model(model, provider)
+    user_content = _stringify_messages(messages)
+
+    if resolved_provider == "openai":
+        kwargs = {}
+        if "temperature" in _RUNTIME_OVERRIDES:
+            kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
+        if "seed" in _RUNTIME_OVERRIDES:
+            kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
+        started = time.perf_counter()
+        resp = _get_openai_client().chat.completions.create(
+            model=model,
+            max_tokens=max_tokens,
+            messages=[{"role": "system", "content": system}, *messages],
+            **kwargs,
+        )
+        content = (resp.choices[0].message.content or "").strip()
+        usage = _usage_to_dict(resp)
+        finish_reason = getattr(resp.choices[0], "finish_reason", None)
+        _emit_llm_event({
+            **_base_event(
+                api_name=api_name,
+                provider="openai",
+                model=model,
+                max_tokens=max_tokens,
+                system=system,
+                user_content=user_content,
+            ),
+            "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+            "usage": usage,
+            "response_chars": len(content),
+            "finish_reason": finish_reason,
+        })
+        return TextGenerationResult(
+            text=content,
+            provider="openai",
+            model=model,
+            usage=usage,
+            finish_reason=finish_reason,
+        )
+
+    if resolved_provider == "ollama":
+        client = _get_ollama_client()
+        kwargs = {}
+        if "temperature" in _RUNTIME_OVERRIDES:
+            kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
+        if "seed" in _RUNTIME_OVERRIDES:
+            kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
+
+        started = time.perf_counter()
+        resp = client.chat.completions.create(
+            model=model,
+            max_tokens=max_tokens,
+            stream=False,
+            messages=[{"role": "system", "content": system}, *[
+                {
+                    **msg,
+                    "content": f"/no_think\n{msg['content']}" if idx == len(messages) - 1 and isinstance(msg.get("content"), str) else msg.get("content", "")
+                }
+                for idx, msg in enumerate(messages)
+            ]],
+            extra_body={"think": False},
+            **kwargs,
+        )
+        choice = resp.choices[0] if resp.choices else None
+        content = choice.message.content if choice else None
+        if not content and choice:
+            extra = getattr(choice.message, "model_extra", None) or {}
+            reasoning = extra.get("reasoning") or getattr(choice.message, "reasoning", None)
+            if reasoning:
+                logger.info("Ollama: content empty — extracting from reasoning field")
+                content = reasoning
+        if not content:
+            content = ""
+        content = content.strip()
+        usage = _usage_to_dict(resp)
+        finish_reason = getattr(choice, "finish_reason", None) if choice else None
+        _emit_llm_event({
+            **_base_event(
+                api_name=api_name,
+                provider="ollama",
+                model=model,
+                max_tokens=max_tokens,
+                system=system,
+                user_content=user_content,
+            ),
+            "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+            "usage": usage,
+            "response_chars": len(content),
+            "finish_reason": finish_reason,
+            "empty_content": not bool(content),
+        })
+        return TextGenerationResult(
+            text=content,
+            provider="ollama",
+            model=model,
+            usage=usage,
+            finish_reason=finish_reason,
+        )
+
+    kwargs = {}
+    if "temperature" in _RUNTIME_OVERRIDES:
+        kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
+    started = time.perf_counter()
+    resp = _get_anthropic_client().messages.create(
+        model=model,
+        max_tokens=max_tokens,
+        system=system,
+        messages=messages,
+        **kwargs,
+    )
+    content = resp.content[0].text.strip()
+    usage = _usage_to_dict(resp)
+    stop_reason = getattr(resp, "stop_reason", None)
+    _emit_llm_event({
+        **_base_event(
+            api_name=api_name,
+            provider="anthropic",
+            model=model,
+            max_tokens=max_tokens,
+            system=system,
+            user_content=user_content,
+        ),
+        "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+        "usage": usage,
+        "response_chars": len(content),
+        "stop_reason": stop_reason,
+    })
+    return TextGenerationResult(
+        text=content,
+        provider="anthropic",
+        model=model,
+        usage=usage,
+        stop_reason=stop_reason,
+    )
+
+
+def call_model_text(
+    *,
+    model: str,
+    system: str,
+    user_content: str,
+    max_tokens: int,
+    provider: str | None = None,
+    api_name: str = "call_model_text",
+) -> TextGenerationResult:
+    return call_model_messages(
+        model=model,
+        system=system,
+        messages=[{"role": "user", "content": user_content}],
+        max_tokens=max_tokens,
+        provider=provider,
+        api_name=api_name,
+    )
 
 
 def call_llm(system: str, user_content: str, max_tokens: int) -> str:

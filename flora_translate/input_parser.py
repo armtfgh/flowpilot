@@ -4,17 +4,11 @@ import json
 import logging
 import time
 
-import anthropic
-
-from flora_translate.config import MODEL_INPUT_PARSER as TRANSLATION_MODEL
-from flora_translate.engine.llm_agents import emit_component_llm_event, get_llm_runtime_overrides
+import flora_translate.config as cfg
+from flora_translate.engine.llm_agents import call_model_text
 from flora_translate.schemas import BatchRecord
 
 logger = logging.getLogger("flora.input_parser")
-
-
-def _get_client():
-    return anthropic.Anthropic()
 
 PARSE_SYSTEM = (
     "You are a chemistry data extraction assistant. "
@@ -70,34 +64,16 @@ class InputParser:
         return self._llm_parse(batch_input)
 
     def _llm_parse(self, text: str) -> BatchRecord:
-        kwargs = {}
-        if "temperature" in get_llm_runtime_overrides():
-            kwargs["temperature"] = get_llm_runtime_overrides()["temperature"]
         started = time.perf_counter()
-        resp = _get_client().messages.create(
-            model=TRANSLATION_MODEL,
-            max_tokens=1024,
-            system=PARSE_SYSTEM,
-            messages=[
-                {
-                    "role": "user",
-                    "content": PARSE_PROMPT.format(input_text=text),
-                }
-            ],
-            **kwargs,
-        )
-        emit_component_llm_event(
-            component="input_parser",
-            provider="anthropic",
-            model=TRANSLATION_MODEL,
+        result = call_model_text(
+            model=cfg.MODEL_INPUT_PARSER,
+            api_name="input_parser",
             max_tokens=1024,
             system=PARSE_SYSTEM,
             user_content=PARSE_PROMPT.format(input_text=text),
-            resp=resp,
-            started=started,
-            extra={"response_chars": len(resp.content[0].text.strip())},
         )
-        raw = resp.content[0].text.strip()
+        logger.debug("Input parser LLM call completed in %.2f ms", (time.perf_counter() - started) * 1000)
+        raw = result.text.strip()
         # Strip markdown fences if present
         if raw.startswith("```"):
             raw = raw.split("```")[1]

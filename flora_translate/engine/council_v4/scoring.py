@@ -31,6 +31,7 @@ logger = logging.getLogger("flora.engine.council_v4.scoring")
 _GEMMA_BATCH_SIZE = 1
 _GEMMA_MAX_TOKENS = 260
 _GEMMA_RETRY_MAX_TOKENS = 420
+_CLAUDE_COMPACT_MAX_TOKENS = 1400
 
 
 class ScoringCoverageError(RuntimeError):
@@ -132,6 +133,12 @@ def _is_gemma_local_mode() -> bool:
     return provider == "ollama" and "gemma" in model
 
 
+def _is_anthropic_council_mode() -> bool:
+    provider = str(getattr(llm_agents, "ENGINE_PROVIDER", "") or "").lower()
+    model = str(getattr(llm_agents, "ENGINE_MODEL_ANTHROPIC", "") or "").lower()
+    return provider == "anthropic" and model.startswith("claude")
+
+
 def _slim_candidate(candidate: dict) -> dict:
     return {
         "id": candidate.get("id", candidate.get("candidate_id")),
@@ -227,6 +234,77 @@ def _build_gemma_context(
     )
 
 
+def _claude_compact_prompt_bundle(domain: str) -> tuple[str, str]:
+    bundles = {
+        "chemistry": (
+            """You are Dr. Chemistry in FLORA Claude benchmark mode.
+Score the listed candidates using the provided numeric data only. Do not call tools.
+Be concise. Use BLOCK only for explicit hard-gate impossibility, not mere suboptimality.
+Return JSON only:
+{"overall_analysis":"1-2 short sentences","scores":[{"candidate_id":1,"reasoning":"short reason","combined_score":0.0,"verdict":"ACCEPT|WARNING|REVISE|BLOCK","proposed_changes":{"concentration_M":0.2}}]}
+If no chemistry edit is needed, use proposed_changes: {}.
+Own only concentration_M.""",
+            "combined_score",
+        ),
+        "kinetics": (
+            """You are Dr. Kinetics in FLORA Claude benchmark mode.
+Score the listed candidates using the provided numeric data only. Do not call tools.
+Use BLOCK only for clearly unacceptable conversion/time logic, not mere weakness.
+Return JSON only:
+{"overall_analysis":"1-2 short sentences","scores":[{"candidate_id":1,"reasoning":"short reason","kinetics_score":0.0,"X_estimated":0.0,"tau_proposed_final_min":0.0,"verdict":"ACCEPT|WARNING|REVISE|BLOCK","proposed_changes":{"tau_min":9.0}}]}
+If no kinetics edit is needed, use proposed_changes: {}.
+Own only tau_min.""",
+            "kinetics_score",
+        ),
+        "fluidics": (
+            """You are Dr. Fluidics in FLORA Claude benchmark mode.
+Score the listed candidates using the provided numeric data only. Do not call tools.
+Use BLOCK only for explicit severe fluidic impossibility, not simple room for improvement.
+Return JSON only:
+{"overall_analysis":"1-2 short sentences","scores":[{"candidate_id":1,"reasoning":"short reason","fluidics_score":0.0,"Re":0.0,"dP_bar":0.0,"r_mix":0.0,"verdict":"ACCEPT|WARNING|REVISE|BLOCK","proposed_changes":{"d_mm":0.5}}]}
+If no fluidics edit is needed, use proposed_changes: {}.
+Own only d_mm.""",
+            "fluidics_score",
+        ),
+        "safety": (
+            """You are Dr. Safety in FLORA Claude benchmark mode.
+Score the listed candidates using the provided numeric data only. Do not call tools.
+Be conservative, but do not invent hazards not supported by the given data.
+Return JSON only:
+{"overall_analysis":"1-2 short sentences","scores":[{"candidate_id":1,"reasoning":"short reason","safety_score":0.0,"BPR_current_bar":0.0,"BPR_adequate":true,"material_recommendation":"FEP","verdict":"ACCEPT|WARNING|REVISE|BLOCK","proposed_changes":{"BPR_bar":5.0,"tubing_material":"FEP"}}]}
+If no safety edit is needed, use proposed_changes: {}.
+Own only BPR_bar and tubing_material.""",
+            "safety_score",
+        ),
+    }
+    return bundles[domain]
+
+
+def _build_claude_compact_context(
+    *,
+    domain: str,
+    candidates: list[dict],
+    chemistry_brief: str,
+    objectives: str,
+    is_photochem: bool,
+    pump_max_bar: float,
+) -> str:
+    slim = [_slim_candidate(c) for c in candidates]
+    batch_ids = [c["id"] for c in slim]
+    brief = chemistry_brief[:500]
+    return (
+        f"Domain: {domain}\n"
+        f"Objective: {objectives or 'balanced'}\n"
+        f"Photochemical reaction: {is_photochem}\n"
+        f"Pump max pressure bar: {pump_max_bar}\n"
+        f"Candidate ids in this batch: {batch_ids}\n"
+        "Treat the provided numbers as authoritative.\n"
+        "Prefer REVISE over BLOCK unless a candidate is clearly impossible or already hard-gated.\n\n"
+        f"Chemistry brief:\n{brief}\n\n"
+        f"Candidate data JSON:\n{json.dumps(slim, ensure_ascii=False)}\n"
+    )
+
+
 def _clean_local_scores(scores: list[dict], valid_ids: set[int], score_key: str) -> list[dict]:
     cleaned: list[dict] = []
     for entry in scores:
@@ -303,6 +381,74 @@ def _run_scoring_agent_gemma_local(
 
     overall_analysis = " ".join(s.strip() for s in all_overall if s.strip())
     return overall_analysis, all_scores, []
+
+
+def _run_scoring_agent_claude_compact(
+    *,
+    domain: str,
+    agent_name: str,
+    candidates: list[dict],
+    chemistry_brief: str,
+    objectives: str,
+    is_photochem: bool,
+    pump_max_bar: float,
+    batch_size: int,
+    strict_coverage: bool,
+) -> tuple[str, list[dict], list[dict]]:
+    system_prompt, score_key = _claude_compact_prompt_bundle(domain)
+    score_map: dict[int, dict] = {}
+    overall_parts: list[str] = []
+
+    remaining = list(candidates)
+    attempts = 0
+    while remaining and attempts < 2:
+        attempts += 1
+        still_missing: set[int] = set()
+        for start in range(0, len(remaining), batch_size):
+            batch = remaining[start:start + batch_size]
+            valid_ids = {int(c.get("id", i + 1)) for i, c in enumerate(batch)}
+            context = _build_claude_compact_context(
+                domain=domain,
+                candidates=batch,
+                chemistry_brief=chemistry_brief,
+                objectives=objectives,
+                is_photochem=is_photochem,
+                pump_max_bar=pump_max_bar,
+            )
+            raw = call_llm(system_prompt, context, max_tokens=_CLAUDE_COMPACT_MAX_TOKENS)
+            oa, scores = _parse_score_response(raw)
+            cleaned = _clean_local_scores(scores, valid_ids, score_key)
+            if not cleaned:
+                retry_context = (
+                    context
+                    + "\nRETRY: Return ONLY valid JSON with one scores entry per listed candidate id."
+                )
+                raw = call_llm(system_prompt, retry_context, max_tokens=_CLAUDE_COMPACT_MAX_TOKENS)
+                oa, scores = _parse_score_response(raw)
+                cleaned = _clean_local_scores(scores, valid_ids, score_key)
+            if oa:
+                overall_parts.append(oa.strip())
+            for entry in cleaned:
+                entry.setdefault("reasoning", "")
+                entry.setdefault("verdict", "WARNING")
+                entry.setdefault("proposed_changes", {})
+                score_map[int(entry["candidate_id"])] = entry
+            seen = {int(entry["candidate_id"]) for entry in cleaned}
+            missing = sorted(valid_ids - seen)
+            if missing:
+                logger.warning("%s compact batch missing candidate ids %s", agent_name, missing)
+                still_missing.update(missing)
+        remaining = [c for c in candidates if int(c.get("id", 0)) in still_missing and int(c.get("id", 0)) not in score_map]
+
+    ordered_scores = _ordered_scores(score_map, candidates)
+    _enforce_coverage(
+        agent_name=agent_name,
+        scores=ordered_scores,
+        valid_ids={int(c.get("id", 0)) for c in candidates},
+        strict_coverage=strict_coverage,
+    )
+    overall_analysis = " ".join(s for s in overall_parts if s)
+    return overall_analysis, ordered_scores, []
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -913,6 +1059,7 @@ def run_chemistry_scoring(
     max_tokens: int = 4000,
     batch_size: int | None = None,
     strict_coverage: bool = False,
+    benchmark_claude_compact_mode: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Chemistry. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     if _is_gemma_local_mode():
@@ -924,6 +1071,20 @@ def run_chemistry_scoring(
             objectives=objectives,
             is_photochem=is_photochem,
             pump_max_bar=pump_max_bar,
+        )
+        logger.info("    Dr. Chemistry scored %d/%d candidates", len(scores), len(candidates))
+        return oa, scores, tc
+    if benchmark_claude_compact_mode and _is_anthropic_council_mode():
+        oa, scores, tc = _run_scoring_agent_claude_compact(
+            domain="chemistry",
+            agent_name="Dr. Chemistry",
+            candidates=candidates,
+            chemistry_brief=chemistry_brief,
+            objectives=objectives,
+            is_photochem=is_photochem,
+            pump_max_bar=pump_max_bar,
+            batch_size=batch_size or 3,
+            strict_coverage=strict_coverage,
         )
         logger.info("    Dr. Chemistry scored %d/%d candidates", len(scores), len(candidates))
         return oa, scores, tc
@@ -972,6 +1133,7 @@ def run_kinetics_scoring(
     max_tokens: int = 4000,
     batch_size: int | None = None,
     strict_coverage: bool = False,
+    benchmark_claude_compact_mode: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Kinetics. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     if _is_gemma_local_mode():
@@ -983,6 +1145,20 @@ def run_kinetics_scoring(
             objectives=objectives,
             is_photochem=is_photochem,
             pump_max_bar=pump_max_bar,
+        )
+        logger.info("    Dr. Kinetics scored %d/%d candidates", len(scores), len(candidates))
+        return oa, scores, tc
+    if benchmark_claude_compact_mode and _is_anthropic_council_mode():
+        oa, scores, tc = _run_scoring_agent_claude_compact(
+            domain="kinetics",
+            agent_name="Dr. Kinetics",
+            candidates=candidates,
+            chemistry_brief=chemistry_brief,
+            objectives=objectives,
+            is_photochem=is_photochem,
+            pump_max_bar=pump_max_bar,
+            batch_size=batch_size or 3,
+            strict_coverage=strict_coverage,
         )
         logger.info("    Dr. Kinetics scored %d/%d candidates", len(scores), len(candidates))
         return oa, scores, tc
@@ -1031,6 +1207,7 @@ def run_fluidics_scoring(
     max_tokens: int = 4000,
     batch_size: int | None = None,
     strict_coverage: bool = False,
+    benchmark_claude_compact_mode: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Fluidics. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     if _is_gemma_local_mode():
@@ -1042,6 +1219,20 @@ def run_fluidics_scoring(
             objectives=objectives,
             is_photochem=is_photochem,
             pump_max_bar=pump_max_bar,
+        )
+        logger.info("    Dr. Fluidics scored %d/%d candidates", len(scores), len(candidates))
+        return oa, scores, tc
+    if benchmark_claude_compact_mode and _is_anthropic_council_mode():
+        oa, scores, tc = _run_scoring_agent_claude_compact(
+            domain="fluidics",
+            agent_name="Dr. Fluidics",
+            candidates=candidates,
+            chemistry_brief=chemistry_brief,
+            objectives=objectives,
+            is_photochem=is_photochem,
+            pump_max_bar=pump_max_bar,
+            batch_size=batch_size or 3,
+            strict_coverage=strict_coverage,
         )
         logger.info("    Dr. Fluidics scored %d/%d candidates", len(scores), len(candidates))
         return oa, scores, tc
@@ -1090,6 +1281,7 @@ def run_safety_scoring(
     max_tokens: int = 4000,
     batch_size: int | None = None,
     strict_coverage: bool = False,
+    benchmark_claude_compact_mode: bool = False,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Safety. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     if _is_gemma_local_mode():
@@ -1101,6 +1293,20 @@ def run_safety_scoring(
             objectives=objectives,
             is_photochem=is_photochem,
             pump_max_bar=pump_max_bar,
+        )
+        logger.info("    Dr. Safety scored %d/%d candidates", len(scores), len(candidates))
+        return oa, scores, tc
+    if benchmark_claude_compact_mode and _is_anthropic_council_mode():
+        oa, scores, tc = _run_scoring_agent_claude_compact(
+            domain="safety",
+            agent_name="Dr. Safety",
+            candidates=candidates,
+            chemistry_brief=chemistry_brief,
+            objectives=objectives,
+            is_photochem=is_photochem,
+            pump_max_bar=pump_max_bar,
+            batch_size=batch_size or 3,
+            strict_coverage=strict_coverage,
         )
         logger.info("    Dr. Safety scored %d/%d candidates", len(scores), len(candidates))
         return oa, scores, tc
@@ -1152,6 +1358,7 @@ def run_domain_scoring(
     pump_max_bar: float,
     batch_size: int | None = None,
     strict_coverage: bool = False,
+    benchmark_claude_compact_mode: bool = False,
 ) -> dict:
     """Run all four domain scoring agents (Stage 2).
 
@@ -1174,24 +1381,28 @@ def run_domain_scoring(
         chemistry_brief=chemistry_brief, objectives=objectives,
         is_photochem=is_photochem, pump_max_bar=pump_max_bar,
         batch_size=batch_size, strict_coverage=strict_coverage,
+        benchmark_claude_compact_mode=benchmark_claude_compact_mode,
     )
     kin_oa, kinetics_scores, kin_tc = run_kinetics_scoring(
         candidates=candidates, table_markdown=table_markdown,
         chemistry_brief=chemistry_brief, objectives=objectives,
         is_photochem=is_photochem, pump_max_bar=pump_max_bar,
         batch_size=batch_size, strict_coverage=strict_coverage,
+        benchmark_claude_compact_mode=benchmark_claude_compact_mode,
     )
     flu_oa, fluidics_scores, flu_tc = run_fluidics_scoring(
         candidates=candidates, table_markdown=table_markdown,
         chemistry_brief=chemistry_brief, objectives=objectives,
         is_photochem=is_photochem, pump_max_bar=pump_max_bar,
         batch_size=batch_size, strict_coverage=strict_coverage,
+        benchmark_claude_compact_mode=benchmark_claude_compact_mode,
     )
     saf_oa, safety_scores, saf_tc = run_safety_scoring(
         candidates=candidates, table_markdown=table_markdown,
         chemistry_brief=chemistry_brief, objectives=objectives,
         is_photochem=is_photochem, pump_max_bar=pump_max_bar,
         batch_size=batch_size, strict_coverage=strict_coverage,
+        benchmark_claude_compact_mode=benchmark_claude_compact_mode,
     )
 
     blocked: set[int] = set()

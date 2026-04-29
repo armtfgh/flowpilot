@@ -217,9 +217,11 @@ def run_council_from_context(
     seed: int | None = None,
     benchmark_strict_scoring: bool = True,
     benchmark_scoring_batch_size: int | None = None,
+    benchmark_claude_compact_mode: bool = False,
     benchmark_strong_revision_mode: bool = False,
     benchmark_branching_revision_mode: bool = False,
     benchmark_max_descendants_per_candidate: int = 2,
+    benchmark_max_total_revised_candidates: int | None = None,
 ) -> dict:
     set_llm_observer(recorder.observe_llm)
     set_llm_runtime_overrides(temperature=temperature, seed=seed)
@@ -233,9 +235,11 @@ def run_council_from_context(
                 "temperature": temperature,
                 "seed": seed,
                 "allow_warning_refinement": allow_warning_refinement,
+                "benchmark_claude_compact_mode": benchmark_claude_compact_mode,
                 "benchmark_strong_revision_mode": benchmark_strong_revision_mode,
                 "benchmark_branching_revision_mode": benchmark_branching_revision_mode,
                 "benchmark_max_descendants_per_candidate": benchmark_max_descendants_per_candidate,
+                "benchmark_max_total_revised_candidates": benchmark_max_total_revised_candidates,
             },
         )
 
@@ -252,9 +256,11 @@ def run_council_from_context(
             benchmark_recorder=recorder,
             benchmark_strict_scoring=benchmark_strict_scoring,
             benchmark_scoring_batch_size=benchmark_scoring_batch_size,
+            benchmark_claude_compact_mode=benchmark_claude_compact_mode,
             benchmark_strong_revision_mode=benchmark_strong_revision_mode,
             benchmark_branching_revision_mode=benchmark_branching_revision_mode,
             benchmark_max_descendants_per_candidate=benchmark_max_descendants_per_candidate,
+            benchmark_max_total_revised_candidates=benchmark_max_total_revised_candidates,
         )
 
         formatted = OutputFormatter().format(design_candidate, context.analogies)
