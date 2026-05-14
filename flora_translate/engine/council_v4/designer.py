@@ -15,6 +15,9 @@ import logging
 import math
 from typing import Optional
 
+import flora_translate.config as cfg
+from flora_translate.config import FLOW_MAX_TAU_TO_BATCH_RATIO, FLOW_TRANSLATION_POLICY
+from flora_translate.engine.flow_value import attach_flow_sense_reports, mandate_dict
 from flora_translate.engine.llm_agents import call_llm
 from flora_translate.engine.sampling import (
     generate_candidates,
@@ -357,11 +360,15 @@ def run_designer_v4(
     IF_used: float,
     pump_max_bar: float,
     BPR_bar: float = 0.0,
+    batch_time_min: Optional[float] = None,
+    translation_policy: str = FLOW_TRANSLATION_POLICY,
     extinction_coeff_M_cm: Optional[float] = None,
     tubing_material: str = "FEP",
     X_minimum: float = V4_X_MIN,
     N_target: int = 12,
     problem_statement: Optional[dict] = None,
+    intensification_mandate: Optional[dict] = None,
+    redesign_instructions: Optional[dict] = None,
 ) -> dict:
     """Run Stage 1: Designer candidate matrix for v4.
 
@@ -391,6 +398,11 @@ def run_designer_v4(
         chem_brief += (
             f"\nε(photocatalyst)={extinction_coeff_M_cm or 'not provided'} M⁻¹cm⁻¹"
         )
+    mandate = mandate_dict(intensification_mandate)
+    if mandate:
+        chem_brief += f"\nintensification_mandate={json.dumps(mandate, ensure_ascii=False)}"
+    if redesign_instructions:
+        chem_brief += f"\nredesign_instructions={json.dumps(redesign_instructions, ensure_ascii=False)}"
 
     user_msg = (
         "## Chemistry & calculator center-point\n" + chem_brief +
@@ -419,10 +431,36 @@ def run_designer_v4(
         [0.40, 0.60, 0.80, 0.95] if strategy["include_long_L_fraction"]
         else [0.40, 0.60, 0.80]
     )
+    max_tau_min = None
+    if (
+        (translation_policy or "").lower() == "intensify"
+        and batch_time_min is not None
+        and batch_time_min > 0
+    ):
+        max_tau_min = batch_time_min * FLOW_MAX_TAU_TO_BATCH_RATIO
+    if redesign_instructions and redesign_instructions.get("tau_ceiling"):
+        try:
+            ceiling = float(redesign_instructions["tau_ceiling"])
+            max_tau_min = min(max_tau_min, ceiling) if max_tau_min else ceiling
+        except (TypeError, ValueError):
+            pass
+
+    effective_tau_center = tau_center_min
+    if max_tau_min and effective_tau_center > max_tau_min:
+        effective_tau_center = max(2.0, max_tau_min * 0.75)
+    if redesign_instructions:
+        strategy["tau_low_factor"] = min(strategy["tau_low_factor"], 0.25)
+        strategy["tau_high_factor"] = min(strategy["tau_high_factor"], 1.15)
+        strategy["n_tau"] = max(strategy["n_tau"], 5)
+        if mandate:
+            target = max(float(mandate.get("tau_reduction_target") or 2.0), 1.0)
+            if batch_time_min and batch_time_min > 0:
+                max_tau_min = min(max_tau_min or batch_time_min, batch_time_min / target)
+                effective_tau_center = min(effective_tau_center, max_tau_min * 0.75)
 
     # Generate candidates (v3 sampling engine — still correct)
     all_feasible, all_infeasible = generate_candidates(
-        tau_center_min=tau_center_min,
+        tau_center_min=effective_tau_center,
         tau_lit_min=tau_lit_min,
         solvent=solvent, temperature_C=temperature_C,
         concentration_M=concentration_M, assumed_MW=assumed_MW,
@@ -437,6 +475,7 @@ def run_designer_v4(
         d_exclude_above_mm=strategy["d_exclude_above_mm"],
         L_fractions=L_fractions,
         N_target=N_target,
+        max_tau_min=max_tau_min,
     )
 
     # Re-assign sequential IDs to all_feasible
@@ -446,15 +485,124 @@ def run_designer_v4(
         c["tubing_material"] = tubing_material
         c["concentration_M"] = concentration_M
         c["temperature_C"] = temperature_C
+        c["batch_time_min"] = batch_time_min
+        c["translation_policy"] = translation_policy
     for c in all_infeasible:
         c["BPR_bar"] = round(BPR_bar or 0.0, 2)
         c["tubing_material"] = tubing_material
         c["concentration_M"] = concentration_M
         c["temperature_C"] = temperature_C
+        c["batch_time_min"] = batch_time_min
+        c["translation_policy"] = translation_policy
+
+    attach_flow_sense_reports(
+        all_feasible,
+        batch_time_min=batch_time_min,
+        batch_concentration_M=concentration_M,
+        solvent_name=solvent,
+        intensification_mandate=mandate,
+    )
+
+    def _self_challenge(candidates: list[dict]) -> tuple[list[dict], dict]:
+        kept: list[dict] = []
+        dropped: list[dict] = []
+        for candidate in candidates:
+            report = candidate.get("flow_sense_report") or {}
+            reasons: list[str] = []
+            tau_ratio = report.get("tau_ratio")
+            if tau_ratio is not None and float(tau_ratio) >= cfg.BATCH_PROXIMITY_THRESHOLD:
+                reasons.append("tau_flow too close to batch_time; no meaningful intensification")
+            if float(report.get("process_value_score") or 0.0) < 0.15:
+                reasons.append("no measurable flow advantage identified")
+            if (
+                report.get("boundary_hugging")
+                and float(report.get("primary_advantage_proxy_score") or 0.0) <= 0.4
+            ):
+                reasons.append("candidate is batch-equivalent; not a flow design")
+            if reasons:
+                row = dict(candidate)
+                row["designer_drop_reasons"] = reasons
+                dropped.append(row)
+            else:
+                kept.append(candidate)
+        total = len(candidates)
+        drop_fraction = (len(dropped) / total) if total else 0.0
+        metadata = {
+            "candidates_generated": total,
+            "candidates_dropped": len(dropped),
+            "drop_reasons": sorted({reason for row in dropped for reason in row["designer_drop_reasons"]}),
+            "pool_quality": "NORMAL",
+            "regeneration_triggered": False,
+            "drop_fraction": round(drop_fraction, 3),
+            "dropped_candidates": dropped,
+        }
+        return kept, metadata
+
+    filtered_feasible, pool_metadata = _self_challenge(all_feasible)
+    if (
+        not redesign_instructions
+        and all_feasible
+        and pool_metadata["drop_fraction"] >= cfg.POOL_REJECTION_THRESHOLD
+        and batch_time_min
+        and mandate
+    ):
+        pool_metadata["regeneration_triggered"] = True
+        target = max(float(mandate.get("tau_reduction_target") or 2.0), 1.0)
+        regen_tau_ceiling = batch_time_min / target
+        regen_tau_center = max(2.0, regen_tau_ceiling * 0.75)
+        regen_feasible, regen_infeasible = generate_candidates(
+            tau_center_min=regen_tau_center,
+            tau_lit_min=min(tau_lit_min, regen_tau_ceiling) if tau_lit_min else None,
+            solvent=solvent, temperature_C=temperature_C,
+            concentration_M=concentration_M, assumed_MW=assumed_MW,
+            IF_used=IF_used, tau_kinetics_min=tau_kinetics_min,
+            pump_max_bar=pump_max_bar, is_photochem=is_photochem,
+            is_gas_liquid=is_gas_liquid, BPR_bar=BPR_bar,
+            extinction_coeff_M_cm=extinction_coeff_M_cm,
+            tau_low_factor=0.25,
+            tau_high_factor=1.15,
+            n_tau=max(strategy["n_tau"], 5),
+            tau_log_spaced=True,
+            d_exclude_above_mm=min(strategy["d_exclude_above_mm"] or 2.0, 1.6),
+            L_fractions=[0.40, 0.60, 0.80],
+            N_target=N_target,
+            max_tau_min=regen_tau_ceiling,
+        )
+        for i, c in enumerate(regen_feasible, 1):
+            c["id"] = i
+            c["BPR_bar"] = round(BPR_bar or 0.0, 2)
+            c["tubing_material"] = tubing_material
+            c["concentration_M"] = concentration_M
+            c["temperature_C"] = temperature_C
+            c["batch_time_min"] = batch_time_min
+            c["translation_policy"] = translation_policy
+        attach_flow_sense_reports(
+            regen_feasible,
+            batch_time_min=batch_time_min,
+            batch_concentration_M=concentration_M,
+            solvent_name=solvent,
+            intensification_mandate=mandate,
+        )
+        regen_filtered, regen_metadata = _self_challenge(regen_feasible)
+        regen_metadata["regeneration_triggered"] = True
+        if regen_metadata["drop_fraction"] >= cfg.POOL_REJECTION_THRESHOLD:
+            regen_metadata["pool_quality"] = "DEGRADED"
+            filtered_feasible = regen_filtered or regen_feasible
+        else:
+            filtered_feasible = regen_filtered
+        all_feasible = regen_feasible
+        all_infeasible.extend(regen_infeasible)
+        pool_metadata = regen_metadata
+
+    if filtered_feasible:
+        all_feasible_for_gates = filtered_feasible
+    else:
+        pool_metadata["pool_quality"] = "DEGRADED"
+        all_feasible_for_gates = all_feasible
 
     # Apply v4 hard-gate flags (all candidates proceed; flagged ones carry reasons)
     survivors, flagged = _apply_v4_hard_gates(
-        all_feasible, pump_max_bar=pump_max_bar,
+        all_feasible_for_gates, pump_max_bar=pump_max_bar,
         is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,
         BPR_bar=BPR_bar, X_minimum=X_minimum,
         tubing_material=tubing_material,
@@ -479,6 +627,7 @@ def run_designer_v4(
         "disqualified": flagged,   # kept for UI backward compat; these are flags, not removals
         "all_candidates": all_feasible,
         "table_markdown": table,
+        "pool_metadata": pool_metadata,
         "design_envelope_preliminary": {
             "tau_range": [min(tau_range), max(tau_range)],
             "d_range": d_range,

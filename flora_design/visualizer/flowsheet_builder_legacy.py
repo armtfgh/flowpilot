@@ -22,6 +22,7 @@ logger = logging.getLogger("flora.design.visualizer")
 # ── Palette ────────────────────────────────────────────────────────────────
 PAL = {
     "pump":               "#1d4ed8",
+    "mfc":                "#dc2626",
     "mixer":              "#7c3aed",
     "deoxygenation_unit": "#059669",
     "coil_reactor":       "#d97706",
@@ -191,7 +192,7 @@ def _icon_collector(cx, cy, color):
             f'stroke="{color}" stroke-width="3" stroke-linecap="round"/>')
 
 ICON_RENDERERS = {
-    "pump": _icon_pump, "mixer": _icon_mixer,
+    "pump": _icon_pump, "mfc": _icon_pump, "mixer": _icon_mixer,
     "deoxygenation_unit": _icon_degas,
     "coil_reactor": _icon_coil, "chip_reactor": _icon_coil,
     "led_module": _icon_led, "bpr": _icon_bpr,
@@ -205,7 +206,7 @@ def _param_lines(op) -> list[str]:
     p = op.parameters
     ot = op.op_type
     lines = []
-    if ot == "pump":
+    if ot in ("pump", "mfc"):
         for c in (p.get("contents") or [])[:2]:
             lines.append(c)
         if p.get("solvent"): lines.append(f"in {p['solvent']}")
@@ -297,7 +298,7 @@ class FlowsheetBuilder:
             in_edges[sc.to_op].append(sc.from_op)
 
         op_map = {o.op_id: o for o in ops}
-        pump_ids = {o.op_id for o in ops if o.op_type == "pump"}
+        pump_ids = {o.op_id for o in ops if o.op_type in ("pump", "mfc")}
         led_ids  = {o.op_id for o in ops if o.op_type == "led_module"}
 
         # ── Find main sequential lane ──────────────────────────────────────
@@ -309,7 +310,7 @@ class FlowsheetBuilder:
             end = next((o.op_id for o in ops if o.op_type == "collector"), None)
             if not end:
                 # Fallback: last non-pump non-LED op
-                main_ops = [o for o in ops if o.op_type not in ("pump","led_module")]
+                main_ops = [o for o in ops if o.op_type not in ("pump", "mfc", "led_module")]
                 return [o.op_id for o in main_ops]
 
             # Walk backward from collector using in_edges

@@ -7,6 +7,7 @@ def render_sidebar() -> str:
     with st.sidebar:
         st.markdown("## FLORA")
         st.caption("Flow Literature Oriented Retrieval Agent")
+        _model_routing_status()
         st.divider()
 
         st.markdown("##### DESIGN")
@@ -37,6 +38,44 @@ def render_sidebar() -> str:
         _corpus_status()
 
     return st.session_state.get("page", "flora_design")
+
+
+def _model_routing_status():
+    try:
+        import flora_translate.config as cfg
+
+        upstream_models = [
+            cfg.MODEL_INPUT_PARSER,
+            cfg.MODEL_CHEMISTRY_AGENT,
+            cfg.MODEL_TRANSLATION,
+            cfg.MODEL_OUTPUT_FORMATTER,
+            cfg.MODEL_CONVERSATION_AGENT,
+        ]
+        upstream_is_claude = all(str(model).startswith("claude") for model in upstream_models)
+        council_is_4o = cfg.ENGINE_PROVIDER == "openai" and cfg.ENGINE_MODEL_OPENAI == "gpt-4o"
+
+        with st.expander("Model routing", expanded=False):
+            if upstream_is_claude:
+                st.success("Upstream: Claude")
+            else:
+                st.warning("Upstream: mixed/non-Claude")
+            st.caption(
+                f"Parser: {cfg.MODEL_INPUT_PARSER}\n\n"
+                f"Chemistry: {cfg.MODEL_CHEMISTRY_AGENT}\n\n"
+                f"Translation: {cfg.MODEL_TRANSLATION}"
+            )
+
+            if council_is_4o:
+                st.success("Council/downstream: OpenAI GPT-4o")
+            else:
+                st.warning("Council/downstream is not GPT-4o")
+            st.caption(
+                f"Provider: {cfg.ENGINE_PROVIDER}\n\n"
+                f"OpenAI model: {cfg.ENGINE_MODEL_OPENAI}\n\n"
+                f"Lightweight upstream mode: {cfg.LIGHTWEIGHT_UPSTREAM_MODE}"
+            )
+    except Exception as exc:
+        st.warning(f"Model routing unavailable: {exc}")
 
 
 def _corpus_status():

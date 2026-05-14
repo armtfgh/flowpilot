@@ -13,14 +13,14 @@ Pipeline:
 
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 
 from flora_translate.analogy_selector import AnalogySelector
-from flora_translate.chemistry_agent import ChemistryReasoningAgent
 from flora_translate.config import LAB_INVENTORY_PATH, RECORDS_DIR
 from flora_translate.engine.council_v4 import CouncilV4
-from flora_translate.input_parser import InputParser
+from flora_translate.lightweight_upstream import analyze_batch_chemistry, parse_batch_input
 from flora_translate.output_formatter import OutputFormatter
 from flora_translate.prompt_builder import TranslationPromptBuilder
 from flora_translate.retriever import VectorRetriever
@@ -74,28 +74,104 @@ def _connect(ops, streams, counter, from_op, to_op, label=""):
     ))
 
 
-_GAS_PURE_ROLES = {
+_GAS_IDENTITIES = {
     "n2", "n₂", "nitrogen", "o2", "o₂", "oxygen", "co2", "co₂", "h2", "h₂",
-    "hydrogen", "ar", "argon", "helium", "air", "compressed air", "mfc",
-    "n2 gas", "o2 gas", "gas injection", "gas stream", "gas feed",
+    "hydrogen", "ar", "argon", "he", "helium", "air", "compressed air",
+    "co", "carbon monoxide", "cl2", "chlorine", "nh3", "ammonia",
+    "so2", "sulfur dioxide", "n2o", "nitrous oxide",
 }
-_GAS_ROLE_SUBSTRINGS = ("compressed air", "gas injection", " gas feed", "mfc stream")
+_GAS_PHASE_WORDS = {"gas", "gaseous", "vapor", "vapour", "mfc"}
+_LIQUID_PHASE_WORDS = {
+    "liquid", "solution", "solvent", "dissolved", "degassed", "sparged",
+    "reagent", "substrate",
+}
+
+
+def _normalized_words(text: str) -> list[str]:
+    return re.sub(r"[^a-z0-9₂]+", " ", str(text).lower()).split()
+
+
+def _has_explicit_gas_identity(text: str) -> bool:
+    normalized = " " + " ".join(_normalized_words(text)) + " "
+    for kw in _GAS_IDENTITIES:
+        key = re.sub(r"[^a-z0-9₂]+", " ", kw.lower()).strip()
+        if key and f" {key} " in normalized:
+            return True
+    return False
+
+
+def _is_gas_phase_value(value) -> bool:
+    words = set(_normalized_words(value))
+    return bool(words & _GAS_PHASE_WORDS) and not bool(words & _LIQUID_PHASE_WORDS)
+
+
+def _is_pure_gas_text(text: str) -> bool:
+    words = set(_normalized_words(text))
+    if not _has_explicit_gas_identity(text):
+        return False
+    if words & _LIQUID_PHASE_WORDS:
+        return False
+    return True
+
+
+def _is_gas_contents(contents) -> bool:
+    if isinstance(contents, str):
+        contents = [contents]
+    items = [str(c).strip() for c in (contents or []) if str(c).strip()]
+    return bool(items) and all(_is_pure_gas_text(item) for item in items)
 
 def _stream_is_gas(stream) -> bool:
     """True only for genuine gas feed streams (not degassed liquid solutions)."""
-    role = (getattr(stream, "pump_role", None) or "").lower().strip()
-    if role in _GAS_PURE_ROLES:
+    phase = getattr(stream, "phase", None) or getattr(stream, "state", None)
+    if phase and _is_gas_phase_value(phase):
         return True
-    if any(sub in role for sub in _GAS_ROLE_SUBSTRINGS):
+    if phase and set(_normalized_words(phase)) & _LIQUID_PHASE_WORDS:
+        return False
+
+    role = getattr(stream, "pump_role", None) or ""
+    if _is_pure_gas_text(role):
         return True
-    contents = getattr(stream, "contents", None) or []
-    if contents:
-        _gas_kw = {"n2", "n₂", "nitrogen", "o2", "o₂", "oxygen", "co2", "co₂",
-                   "h2", "h₂", "hydrogen", "ar", "argon", "helium", "air",
-                   "compressed air", "mfc"}
-        if all(any(kw == str(c).lower().strip() for kw in _gas_kw) for c in contents if c):
-            return True
-    return False
+
+    solvent = getattr(stream, "solvent", None)
+    if solvent:
+        return False
+
+    contents = (
+        getattr(stream, "contents", None)
+        or getattr(stream, "reagents", None)
+        or []
+    )
+    return _is_gas_contents(contents)
+
+
+def _enforce_gas_delivery_hardware(ops: list[UnitOperation]) -> None:
+    """Final topology pass: gas delivery streams must use MFC nodes."""
+    for op in ops:
+        if op.op_type not in ("pump", "mfc"):
+            continue
+        p = op.parameters or {}
+        phase = p.get("phase") or p.get("state") or p.get("stream_type")
+        has_solvent = bool(p.get("solvent"))
+        contents = p.get("contents") or p.get("components") or []
+
+        is_gas = False
+        if phase and _is_gas_phase_value(phase):
+            is_gas = True
+        elif phase and set(_normalized_words(phase)) & _LIQUID_PHASE_WORDS:
+            is_gas = False
+        elif not has_solvent and _is_gas_contents(contents):
+            is_gas = True
+        elif not has_solvent and not contents and _is_pure_gas_text(op.label or ""):
+            is_gas = True
+
+        if not is_gas:
+            continue
+        op.op_type = "mfc"
+        if not str(op.label or "").lower().startswith("mfc"):
+            label = str(op.label or "").replace("Pump", "MFC", 1)
+            op.label = label if label.startswith("MFC") else f"MFC — {label}"
+        p["delivery_hardware"] = "MFC"
+        op.parameters = p
 
 
 def _add_pump(ops, label_char, role, contents, solvent, flow_rate, reasoning,
@@ -350,6 +426,8 @@ def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
         label="Product Collection", parameters={}, required=True, rationale="Outlet"))
     _connect(ops, streams, sc, prev, "collector_1")
 
+    _enforce_gas_delivery_hardware(ops)
+
     pid_parts = [o.label for o in ops if o.op_type != "led_module"]
     return ProcessTopology(
         topology_id="translate", unit_operations=ops, streams=streams,
@@ -389,11 +467,6 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
         pump_char_counter[0] += 1
         return c
 
-    import math as _math
-
-    # Import here to avoid circular; INTENSIFICATION is the IF table
-    from flora_translate.design_calculator import INTENSIFICATION, ESTIMATED_EA
-
     n_stages = len(chemistry_plan.stages)
     total_Q   = proposal.flow_rate_mL_min or 0.5
 
@@ -404,15 +477,56 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
         if isinstance(p, dict) and "stage_number" in p
     }
 
+    def _planned_stage_residence_times() -> dict[int, float]:
+        """Return complete per-stage tau values for topology construction.
+
+        The council currently selects one global residence time.  If per-stage
+        tau values are incomplete, treat that council value as total process
+        residence time and allocate it across stages.  Never let later stages
+        silently fall back to batch/IF kinetics after council selection.
+        """
+        explicit: dict[int, float] = {}
+        for sn, sp in stage_params_by_sn.items():
+            try:
+                tau = float(sp.get("residence_time_min") or 0.0)
+            except (TypeError, ValueError):
+                tau = 0.0
+            if tau > 0:
+                explicit[int(sn)] = round(tau, 2)
+
+        stage_numbers = [int(s.stage_number) for s in chemistry_plan.stages]
+        if stage_numbers and all(sn in explicit for sn in stage_numbers):
+            return explicit
+
+        total_tau = float(proposal.residence_time_min or 0.0)
+        if total_tau <= 0:
+            return explicit
+
+        weights = []
+        for stage in chemistry_plan.stages:
+            try:
+                stage_batch_h = float(getattr(stage, "batch_time_h", None) or 0.0)
+            except (TypeError, ValueError):
+                stage_batch_h = 0.0
+            weights.append(stage_batch_h if stage_batch_h > 0 else 0.0)
+
+        if not weights or sum(weights) <= 0:
+            weights = [1.0 for _ in chemistry_plan.stages]
+
+        total_weight = sum(weights)
+        return {
+            int(stage.stage_number): round(total_tau * weight / total_weight, 2)
+            for stage, weight in zip(chemistry_plan.stages, weights)
+        }
+
+    stage_tau_by_sn = _planned_stage_residence_times()
+
     prev_op: str | None = None
     Q_prev_outlet: float = 0.0  # cumulative Q leaving the previous reactor
 
     # Reference Q and C for stoichiometric new-feed sizing in stages 2+
     Q_reference: float = total_Q
     C_reference: float = proposal.concentration_M or 0.1
-
-    # Batch-level data for independent τ computation
-    _t_batch_h = getattr(batch_record, "reaction_time_h", None) or 0.0
 
     # Pre-compute which feed-stream labels first appear in a LATER stage.
     # The chemistry LLM sometimes lists a quench/workup stream in Stage 1's
@@ -432,34 +546,14 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
         sp = stage_params_by_sn.get(sn, {})
 
         # ── Per-stage τ ─────────────────────────────────────────────────────
-        # Priority: (1) council-stored value in stage_parameters, (2) batch/IF,
-        # (3) equal split of proposal τ as last resort.
-        if sp.get("residence_time_min"):
-            stage_rt = round(float(sp["residence_time_min"]), 2)
+        # Council-approved topology uses the complete per-stage allocation.
+        # If the council did not provide all stage taus, the allocation above
+        # splits the global council tau across stages. This prevents an
+        # unreviewed Stage 2 from reverting to batch/IF timing.
+        if stage_tau_by_sn.get(sn):
+            stage_rt = stage_tau_by_sn[sn]
         else:
-            stage_t_batch_h = getattr(stage, "batch_time_h", None) or _t_batch_h
-            stage_t_batch_min = (stage_t_batch_h or 0.0) * 60.0
-
-            stage_rc = (getattr(stage, "reaction_class", None) or "").lower()
-            if not stage_rc and chemistry_plan.reaction_class:
-                stage_rc = chemistry_plan.reaction_class.lower()
-            IF_key = next(
-                (k for k in INTENSIFICATION if k in stage_rc),
-                "default"
-            )
-            IF_stage = INTENSIFICATION[IF_key]
-
-            stage_T_flow = getattr(stage, "temperature_C", None)
-            batch_T = getattr(batch_record, "temperature_C", None) or 25.0
-            if stage_T_flow and abs(stage_T_flow - batch_T) > 2:
-                Ea = ESTIMATED_EA.get(IF_key, ESTIMATED_EA["default"])
-                exponent = -Ea / 8.314 * (1.0 / (stage_T_flow + 273.15) - 1.0 / (batch_T + 273.15))
-                IF_stage = IF_stage * math.exp(exponent)
-
-            if stage_t_batch_min > 0 and IF_stage > 0:
-                stage_rt = round(stage_t_batch_min / IF_stage, 2)
-            else:
-                stage_rt = round((proposal.residence_time_min or 5.0) / max(n_stages, 1), 2)
+            stage_rt = round((proposal.residence_time_min or 5.0) / max(n_stages, 1), 2)
 
         # ── Per-stage d_mm (council override or proposal default) ──────────
         stage_id_mm = float(sp.get("d_mm") or proposal.tubing_ID_mm or 1.0)
@@ -708,6 +802,8 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
         label="Product Collection", parameters={}, required=True, rationale="Outlet"))
     _connect(ops, streams, sc, prev_op, "collector_1")
 
+    _enforce_gas_delivery_hardware(ops)
+
     # PID description
     pid_parts = [o.label for o in ops if o.op_type != "led_module"]
     # Q_prev_outlet is the true final outlet Q — Stage 1 Q plus any additions
@@ -741,14 +837,15 @@ def translate(
     """
     # 1. Parse input
     logger.info("Step 1: Parsing batch input")
-    batch_record = InputParser().parse(batch_input)
+    batch_record = parse_batch_input(batch_input)
     logger.info(f"  Parsed: {batch_record.reaction_description[:80]}...")
 
     # 2. Chemistry Reasoning — Layer 1
     logger.info("Step 2: Chemistry analysis (Layer 1)")
-    chemistry_plan = ChemistryReasoningAgent().analyze(batch_record)
+    chemistry_plan = analyze_batch_chemistry(batch_record)
     logger.info(f"  Mechanism: {chemistry_plan.mechanism_type}")
     logger.info(f"  Streams: {len(chemistry_plan.stream_logic)}  O2: {chemistry_plan.oxygen_sensitive}")
+    logger.info(f"  Upstream mode: {getattr(chemistry_plan, '_upstream_mode', 'full')}")
 
     # 3. Plan-aware retrieval — Layer 2
     logger.info("Step 3: Retrieving literature analogies (plan-aware)")

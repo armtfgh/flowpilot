@@ -33,10 +33,16 @@ import logging
 from dataclasses import dataclass, field
 
 from flora_translate.config import (
+    FLOW_MAX_TAU_TO_BATCH_RATIO,
+    FLOW_TRANSLATION_POLICY,
     SOLVENT_VISCOSITY_cP,
     SOLVENT_DENSITY_g_mL,
     SOLVENT_BOILING_POINT_C,
     INCOMPATIBLE_COMBOS,
+)
+from flora_translate.batch_normalization import (
+    infer_batch_concentration_M,
+    infer_reaction_time_h,
 )
 
 logger = logging.getLogger("flora.design_calculator")
@@ -554,8 +560,19 @@ class DesignCalculator:
     def _step1(self, calc: DesignCalculations, br):
         T_C = getattr(br, "temperature_C", None) or 25.0
         T_K = T_C + 273.15
-        C_M = getattr(br, "concentration_M", None) or 0.1
-        t_h = getattr(br, "reaction_time_h", None) or 0
+        raw_text = getattr(br, "raw_text", None) or getattr(br, "reaction_description", "")
+
+        explicit_C = getattr(br, "concentration_M", None)
+        inferred_C = infer_batch_concentration_M(
+            raw_text,
+            explicit_concentration_M=explicit_C,
+            explicit_scale_mmol=getattr(br, "scale_mmol", None),
+        )
+        C_M = explicit_C or inferred_C or 0.1
+
+        explicit_t_h = getattr(br, "reaction_time_h", None)
+        inferred_t_h = infer_reaction_time_h(raw_text, explicit_t_h)
+        t_h = explicit_t_h or inferred_t_h or 0
         t_s = t_h * 3600.0
         y = getattr(br, "yield_pct", None)
         X = min((y or 95) / 100.0, 0.99)
@@ -569,10 +586,25 @@ class DesignCalculator:
         assumptions = []
         if not getattr(br, "temperature_C", None):
             assumptions.append("Temperature not specified → assumed 25 °C")
-        if not getattr(br, "concentration_M", None):
-            assumptions.append("Concentration not specified → assumed 0.1 M")
+        if not explicit_C:
+            if inferred_C is not None:
+                assumptions.append(
+                    f"Concentration recovered deterministically from protocol text → {inferred_C:.3g} M"
+                )
+            else:
+                assumptions.append("Concentration not specified → assumed 0.1 M")
+        if not explicit_t_h and inferred_t_h is not None:
+            assumptions.append(
+                f"Batch reaction time recovered deterministically from protocol text → {inferred_t_h:.3g} h"
+            )
         if not y:
             assumptions.append("Yield not specified → targeting 95 % conversion")
+
+        if FLOW_TRANSLATION_POLICY == "intensify" and t_h > 0:
+            assumptions.append(
+                f"Intensification policy active downstream → tau_flow must remain ≤ "
+                f"{t_h * 60.0 * FLOW_MAX_TAU_TO_BATCH_RATIO:.1f} min"
+            )
 
         self._emit(calc, StepResult(
             step=1, name="Batch Conditions",
@@ -598,8 +630,8 @@ class DesignCalculator:
     # ═══════════════════════════════════════════════════════════════════
 
     @staticmethod
-    def _extract_analogy_IFs(analogies: list[dict] | None) -> list[float]:
-        """Extract batch-to-flow intensification factors from analogy records."""
+    def _extract_raw_analogy_IFs(analogies: list[dict] | None) -> list[float]:
+        """Extract raw batch-to-flow intensification factors from analogy records."""
         if not analogies:
             return []
         factors = []
@@ -630,6 +662,16 @@ class DesignCalculator:
                 factors.append(float(bt) / float(ft))
         return factors
 
+    @staticmethod
+    def _floor_analogy_IFs(factors: list[float]) -> list[float]:
+        """Prevent literature extraction artifacts from de-intensifying flow designs."""
+        return [max(1.0, float(f)) for f in factors if f and float(f) > 0]
+
+    @classmethod
+    def _extract_analogy_IFs(cls, analogies: list[dict] | None) -> list[float]:
+        """Extract analogy IFs and floor sub-unity values to no intensification."""
+        return cls._floor_analogy_IFs(cls._extract_raw_analogy_IFs(analogies))
+
     def _step2(self, calc: DesignCalculations, br, chem_plan,
                analogies=None, T_flow_C=None):
         X = calc.target_conversion
@@ -646,9 +688,15 @@ class DesignCalculator:
         calc.if_class = IF_class
 
         # ── Analogy-derived IF ──────────────────────────────────────────
-        analogy_factors = self._extract_analogy_IFs(analogies)
+        raw_analogy_factors = self._extract_raw_analogy_IFs(analogies)
+        analogy_factors = self._floor_analogy_IFs(raw_analogy_factors)
         n_analogy = len(analogy_factors)
         calc.n_analogy_datapoints = n_analogy
+        if any(float(f) < 1.0 for f in raw_analogy_factors):
+            warnings.append(
+                "One or more analogy IF values were below 1.0 and were floored to 1.0 "
+                "to prevent extracted literature records from de-intensifying the flow design."
+            )
 
         IF_analogy = None
         if n_analogy >= 1:
@@ -860,6 +908,8 @@ class DesignCalculator:
             values["tau_analogy_min"] = tau_analogy_min
             values["n_analogy_datapoints"] = n_analogy
             values["analogy_IFs"] = analogy_factors
+            values["raw_analogy_IFs"] = raw_analogy_factors
+            values["IF_floor_applied"] = any(float(f) < 1.0 for f in raw_analogy_factors)
         if T_flow_C is not None:
             values["arrhenius_factor"] = arrhenius_factor
             values["Ea_J_mol"] = Ea

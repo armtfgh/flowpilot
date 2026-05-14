@@ -50,6 +50,67 @@ MODEL_EMBEDDING_SUMMARY  = _SONNET   # LLM summary written before ChromaDB index
 MODEL_TOPOLOGY_POLISHER  = "claude-haiku-4-5-20251001"  # lightweight topology review
 
 # ---------------------------------------------------------------------------
+# Lightweight upstream mode for weak/local models
+# ---------------------------------------------------------------------------
+# The main upstream path remains the default. A separate lightweight chemistry
+# planning path can be enabled for weaker or local models that struggle with the
+# full one-shot ChemistryPlan schema.
+#
+# Modes:
+#   "auto"   → use lightweight path only for models matching weak/local markers
+#   "always" → force lightweight upstream path
+#   "v2"     → force fair lightweight path: compact JSON + evidence-backed
+#              deterministic extraction; no kinetic/design anchor overwrite
+#   "never"  → force full upstream path
+# ---------------------------------------------------------------------------
+
+LIGHTWEIGHT_UPSTREAM_MODE = "auto"
+LIGHTWEIGHT_CHEMISTRY_MAX_TOKENS = 3072
+LIGHTWEIGHT_LOCAL_INPUT_PARSER_MAX_TOKENS = 768
+LIGHTWEIGHT_UPSTREAM_WEAK_MODEL_MARKERS = (
+    "mini",
+    "haiku",
+    "gemma",
+    "llama",
+    "mistral",
+    "qwen",
+    "local",
+)
+
+# ---------------------------------------------------------------------------
+# Flow translation policy
+# ---------------------------------------------------------------------------
+# This controls whether FLORA treats de-intensified flow designs as acceptable.
+# For the current benchmark philosophy, the default is intensification-first:
+# proposed flow residence time should not exceed the batch reaction time unless
+# the policy is explicitly relaxed.
+# ---------------------------------------------------------------------------
+
+FLOW_TRANSLATION_POLICY = "intensify"   # "intensify" | "neutral"
+FLOW_MAX_TAU_TO_BATCH_RATIO = 1.0
+
+# ---------------------------------------------------------------------------
+# Flow-value / process-intensification policy
+# ---------------------------------------------------------------------------
+# These parameters make "better than batch" an explicit design objective rather
+# than only a hard feasibility ceiling.
+# ---------------------------------------------------------------------------
+
+BATCH_PROXIMITY_THRESHOLD = 0.85
+POOL_REJECTION_THRESHOLD = 0.50
+PVS_THRESHOLD = 0.35
+MAX_WEAK_POOL_CYCLES = 2
+
+PVS_WEIGHT_SELECTIVITY = 0.20
+PVS_WEIGHT_TAU = 0.35
+PVS_WEIGHT_SAFETY = 0.25
+PVS_WEIGHT_HEAT = 0.20
+
+CHIEF_SCORE_WEIGHT_DOMAIN = 0.45
+CHIEF_SCORE_WEIGHT_PVS = 0.40
+CHIEF_SCORE_WEIGHT_GEOMETRY = 0.15
+
+# ---------------------------------------------------------------------------
 # ENGINE Council — provider and rounds
 # ---------------------------------------------------------------------------
 # Change ENGINE_PROVIDER to route specialist agents + Chief Engineer through

@@ -32,6 +32,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+import flora_translate.config as cfg
+
 PI = math.pi
 L_MAX_BENCH_M = 20.0
 V_MAX_SINGLE_REACTOR_ML = 25.0
@@ -189,6 +191,22 @@ class DesignSpaceSearch:
                     tau_sources[t_r] = "derived"
 
         tau_values.sort()
+        batch_time_min = 0.0
+        if batch_record is not None:
+            try:
+                batch_time_min = float((batch_record.reaction_time_h or 0.0) * 60.0)
+            except AttributeError:
+                batch_time_min = 0.0
+        max_tau_min = None
+        if (
+            (getattr(cfg, "FLOW_TRANSLATION_POLICY", "intensify") or "intensify").lower() == "intensify"
+            and batch_time_min > 0
+        ):
+            max_tau_min = batch_time_min * float(getattr(cfg, "FLOW_MAX_TAU_TO_BATCH_RATIO", 1.0) or 1.0)
+            tau_values = [t for t in tau_values if t <= max_tau_min]
+            if not tau_values and max_tau_min >= 5.0:
+                tau_values = [round(max_tau_min, 1)]
+                tau_sources[tau_values[0]] = "batch_ceiling"
 
         # ── 3. Detect photochem ───────────────────────────────────────────
         is_photochem = False
@@ -303,6 +321,9 @@ class DesignSpaceSearch:
                     Q_mL_min = V_R_from_L / tau_min  # mL/min
 
                     if Q_mL_min < Q_MIN_ML_MIN:
+                        continue
+
+                    if max_tau_min is not None and tau_min > max_tau_min:
                         continue
 
                     # V_R from τ and Q

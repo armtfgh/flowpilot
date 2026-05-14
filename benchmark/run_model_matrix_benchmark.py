@@ -22,6 +22,9 @@ from flora_translate.engine import llm_agents
 
 PROTOCOL = """Phenylacetylene (1a, 0.5 mmol, 1.0 equiv) and ethyl nitroacetate (2, 1.0 mmol, 2.0 equiv) were added directly to TBAB/EG (1:5) DES (1 mL) in an oven-dried 30 mL vial equipped with a magnetic stirring bar; no additional solvent, catalyst, base, or additive was used. The reaction mixture was stirred at 120 °C in an oil bath for 15 min, at which point full conversion (99%) to ethyl 5-phenylisoxazole-3-carboxylate (3a) was achieved via 1,3-dipolar cycloaddition of the in-situ-generated nitrile oxide intermediate with phenylacetylene. After the reaction, the mixture was quenched with water, extracted with dichloromethane, dried over MgSO₄, and the solvent removed under reduced pressure; the isolated NMR yield was 83% (quantified against 1,3,5-trimethoxybenzene as internal standard)."""
 
+GEMMA_MODEL = "google/gemma-4-31B-it"
+GEMMA_BASE_URL = "http://10.13.24.45:8000/v1"
+
 
 UPSTREAM_BUNDLES = {
     "claude": {
@@ -33,6 +36,7 @@ UPSTREAM_BUNDLES = {
         "MODEL_CONVERSATION_AGENT": "claude-sonnet-4-20250514",
         "MODEL_EMBEDDING_SUMMARY": "claude-sonnet-4-20250514",
         "MODEL_TOPOLOGY_POLISHER": "claude-haiku-4-5-20251001",
+        "LIGHTWEIGHT_UPSTREAM_MODE": "never",
     },
     "gpt4o": {
         "MODEL_INPUT_PARSER": "gpt-4o",
@@ -43,6 +47,7 @@ UPSTREAM_BUNDLES = {
         "MODEL_CONVERSATION_AGENT": "gpt-4o",
         "MODEL_EMBEDDING_SUMMARY": "gpt-4o",
         "MODEL_TOPOLOGY_POLISHER": "gpt-4o",
+        "LIGHTWEIGHT_UPSTREAM_MODE": "never",
     },
     "gpt4omini": {
         "MODEL_INPUT_PARSER": "gpt-4o-mini",
@@ -53,6 +58,18 @@ UPSTREAM_BUNDLES = {
         "MODEL_CONVERSATION_AGENT": "gpt-4o-mini",
         "MODEL_EMBEDDING_SUMMARY": "gpt-4o-mini",
         "MODEL_TOPOLOGY_POLISHER": "gpt-4o-mini",
+        "LIGHTWEIGHT_UPSTREAM_MODE": "always",
+    },
+    "gemma": {
+        "MODEL_INPUT_PARSER": GEMMA_MODEL,
+        "MODEL_CHEMISTRY_AGENT": GEMMA_MODEL,
+        "MODEL_TRANSLATION": GEMMA_MODEL,
+        "MODEL_OUTPUT_FORMATTER": GEMMA_MODEL,
+        "MODEL_REVISION_AGENT": GEMMA_MODEL,
+        "MODEL_CONVERSATION_AGENT": GEMMA_MODEL,
+        "MODEL_EMBEDDING_SUMMARY": GEMMA_MODEL,
+        "MODEL_TOPOLOGY_POLISHER": GEMMA_MODEL,
+        "LIGHTWEIGHT_UPSTREAM_MODE": "always",
     },
 }
 
@@ -60,6 +77,7 @@ COUNCIL_BUNDLES = {
     "claude": {"provider": "anthropic", "model": "claude-sonnet-4-20250514"},
     "gpt4o": {"provider": "openai", "model": "gpt-4o"},
     "gpt4omini": {"provider": "openai", "model": "gpt-4o-mini"},
+    "gemma": {"provider": "ollama", "model": GEMMA_MODEL},
 }
 
 
@@ -95,14 +113,37 @@ def _case() -> BenchmarkCase:
 @contextmanager
 def upstream_bundle(name: str):
     overrides = UPSTREAM_BUNDLES[name]
-    original = {key: getattr(cfg, key) for key in overrides}
+    model_keys = [
+        "MODEL_INPUT_PARSER",
+        "MODEL_CHEMISTRY_AGENT",
+        "MODEL_TRANSLATION",
+        "MODEL_OUTPUT_FORMATTER",
+        "MODEL_REVISION_AGENT",
+        "MODEL_CONVERSATION_AGENT",
+        "MODEL_EMBEDDING_SUMMARY",
+        "MODEL_TOPOLOGY_POLISHER",
+    ]
+    original = {key: getattr(cfg, key) for key in model_keys}
+    original["LIGHTWEIGHT_UPSTREAM_MODE"] = cfg.LIGHTWEIGHT_UPSTREAM_MODE
+    original["OLLAMA_BASE_URL_cfg"] = cfg.OLLAMA_BASE_URL
+    original["OLLAMA_BASE_URL_llm"] = llm_agents.OLLAMA_BASE_URL
+    original["ollama_client"] = llm_agents._OLLAMA_CLIENT
     try:
-        for key, value in overrides.items():
-            setattr(cfg, key, value)
+        for key in model_keys:
+            setattr(cfg, key, overrides[key])
+        cfg.LIGHTWEIGHT_UPSTREAM_MODE = overrides["LIGHTWEIGHT_UPSTREAM_MODE"]
+        if name == "gemma":
+            cfg.OLLAMA_BASE_URL = GEMMA_BASE_URL
+            llm_agents.OLLAMA_BASE_URL = GEMMA_BASE_URL
+            llm_agents._OLLAMA_CLIENT = None
         yield overrides
     finally:
-        for key, value in original.items():
-            setattr(cfg, key, value)
+        for key in model_keys:
+            setattr(cfg, key, original[key])
+        cfg.LIGHTWEIGHT_UPSTREAM_MODE = original["LIGHTWEIGHT_UPSTREAM_MODE"]
+        cfg.OLLAMA_BASE_URL = original["OLLAMA_BASE_URL_cfg"]
+        llm_agents.OLLAMA_BASE_URL = original["OLLAMA_BASE_URL_llm"]
+        llm_agents._OLLAMA_CLIENT = original["ollama_client"]
 
 
 @contextmanager
@@ -113,10 +154,13 @@ def council_bundle(name: str):
         "cfg_engine_model_anthropic": cfg.ENGINE_MODEL_ANTHROPIC,
         "cfg_engine_model_openai": cfg.ENGINE_MODEL_OPENAI,
         "cfg_engine_model_ollama": cfg.ENGINE_MODEL_OLLAMA,
+        "cfg_ollama_base_url": cfg.OLLAMA_BASE_URL,
         "llm_engine_provider": llm_agents.ENGINE_PROVIDER,
         "llm_engine_model_anthropic": llm_agents.ENGINE_MODEL_ANTHROPIC,
         "llm_engine_model_openai": llm_agents.ENGINE_MODEL_OPENAI,
         "llm_engine_model_ollama": llm_agents.ENGINE_MODEL_OLLAMA,
+        "llm_ollama_base_url": llm_agents.OLLAMA_BASE_URL,
+        "ollama_client": llm_agents._OLLAMA_CLIENT,
     }
     try:
         cfg.ENGINE_PROVIDER = bundle["provider"]
@@ -130,16 +174,22 @@ def council_bundle(name: str):
         else:
             cfg.ENGINE_MODEL_OLLAMA = bundle["model"]
             llm_agents.ENGINE_MODEL_OLLAMA = bundle["model"]
+            cfg.OLLAMA_BASE_URL = GEMMA_BASE_URL
+            llm_agents.OLLAMA_BASE_URL = GEMMA_BASE_URL
+            llm_agents._OLLAMA_CLIENT = None
         yield bundle
     finally:
         cfg.ENGINE_PROVIDER = original["cfg_engine_provider"]
         cfg.ENGINE_MODEL_ANTHROPIC = original["cfg_engine_model_anthropic"]
         cfg.ENGINE_MODEL_OPENAI = original["cfg_engine_model_openai"]
         cfg.ENGINE_MODEL_OLLAMA = original["cfg_engine_model_ollama"]
+        cfg.OLLAMA_BASE_URL = original["cfg_ollama_base_url"]
         llm_agents.ENGINE_PROVIDER = original["llm_engine_provider"]
         llm_agents.ENGINE_MODEL_ANTHROPIC = original["llm_engine_model_anthropic"]
         llm_agents.ENGINE_MODEL_OPENAI = original["llm_engine_model_openai"]
         llm_agents.ENGINE_MODEL_OLLAMA = original["llm_engine_model_ollama"]
+        llm_agents.OLLAMA_BASE_URL = original["llm_ollama_base_url"]
+        llm_agents._OLLAMA_CLIENT = original["ollama_client"]
 
 
 def main() -> None:
@@ -165,6 +215,8 @@ def main() -> None:
         "council_bundles": COUNCIL_BUNDLES,
         "selected_upstream_bundles": args.upstream_bundles,
         "selected_council_bundles": args.council_bundles,
+        "gemma_base_url": GEMMA_BASE_URL,
+        "gemma_model": GEMMA_MODEL,
     }
     with (experiment_dir / "benchmark_config.json").open("w", encoding="utf-8") as handle:
         json.dump(config, handle, indent=2, ensure_ascii=False)
@@ -188,6 +240,7 @@ def main() -> None:
                     "protocol": case.protocol,
                     "upstream_bundle": upstream_name,
                     "upstream_models": upstream_models,
+                    "gemma_base_url": GEMMA_BASE_URL if upstream_name == "gemma" else None,
                 },
             )
             try:
@@ -241,6 +294,7 @@ def main() -> None:
                             "council_provider": council_cfg["provider"],
                             "upstream_models": upstream_models,
                             "council_model": council_cfg["model"],
+                            "gemma_base_url": GEMMA_BASE_URL if (upstream_name == "gemma" or council_name == "gemma") else None,
                         },
                     )
                     try:
@@ -252,6 +306,8 @@ def main() -> None:
                             allow_warning_refinement=args.allow_warning_refinement,
                             temperature=args.temperature,
                             seed=args.seed,
+                            benchmark_strict_scoring=True,
+                            benchmark_scoring_batch_size=3,
                             benchmark_claude_compact_mode=benchmark_claude_compact_mode,
                             benchmark_strong_revision_mode=args.strong_revision_mode,
                             benchmark_branching_revision_mode=args.branching_revision_mode,

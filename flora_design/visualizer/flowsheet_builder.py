@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 import shutil
 from collections import defaultdict
 from html import escape
@@ -47,6 +48,8 @@ ASSETS = {
     "vial":         ICONS_DIR / "vial.png",
     "mixer2":       ICONS_DIR / "mixer2.png",
     "mixer3":       ICONS_DIR / "mixer3.png",
+    "degasser":     ICONS_DIR / "degasser.png",
+    "mfc":          ICONS_DIR / "mfc.png",
 }
 
 # ── Graph-level style ─────────────────────────────────────────────────────────
@@ -99,19 +102,92 @@ def _trunc(s: str, n: int = 35) -> str:
 
 # ── Gas stream detection ──────────────────────────────────────────────────────
 
-_GAS_KEYWORDS = {
+_GAS_IDENTITIES = {
     "n2", "n₂", "nitrogen", "o2", "o₂", "oxygen", "co2", "co₂",
-    "h2", "h₂", "hydrogen", "ar", "argon", "helium", "air", "gas", "mfc",
+    "h2", "h₂", "hydrogen", "ar", "argon", "he", "helium", "air",
+    "compressed air", "co", "carbon monoxide", "cl2", "chlorine",
+    "nh3", "ammonia", "so2", "sulfur dioxide", "n2o", "nitrous oxide",
 }
+_GAS_PHASE_WORDS = {"gas", "gaseous", "vapor", "vapour", "mfc"}
+_LIQUID_PHASE_WORDS = {
+    "liquid", "solution", "solvent", "dissolved", "degassed", "sparged",
+    "reagent", "substrate",
+}
+
+def _normalized_words(text: str) -> list[str]:
+    return re.sub(r"[^a-z0-9₂]+", " ", str(text).lower()).split()
+
+
+def _has_explicit_gas_identity(text: str) -> bool:
+    normalized = " " + " ".join(_normalized_words(text)) + " "
+    for kw in _GAS_IDENTITIES:
+        key = re.sub(r"[^a-z0-9₂]+", " ", kw.lower()).strip()
+        if key and f" {key} " in normalized:
+            return True
+    return False
+
+
+def _is_gas_phase_value(value) -> bool:
+    words = set(_normalized_words(value))
+    return bool(words & _GAS_PHASE_WORDS) and not bool(words & _LIQUID_PHASE_WORDS)
+
+
+def _is_pure_gas_text(text: str) -> bool:
+    words = set(_normalized_words(text))
+    if not _has_explicit_gas_identity(text):
+        return False
+    if words & _LIQUID_PHASE_WORDS:
+        return False
+    return True
+
+
+def _is_gas_contents(contents) -> bool:
+    if isinstance(contents, str):
+        contents = [contents]
+    items = [str(c).strip() for c in (contents or []) if str(c).strip()]
+    return bool(items) and all(_is_pure_gas_text(item) for item in items)
+
 
 def _is_gas_pump(op) -> bool:
     """Return True if this pump carries a gas stream (use MFC node instead)."""
     p   = op.parameters or {}
-    txt = " ".join([
-        str(op.label or ""),
-        " ".join(str(c) for c in (p.get("contents") or [])),
-    ]).lower()
-    return any(kw in txt for kw in _GAS_KEYWORDS)
+    phase = p.get("phase") or p.get("state") or p.get("stream_type")
+    if phase and _is_gas_phase_value(phase):
+        return True
+    if phase and set(_normalized_words(phase)) & _LIQUID_PHASE_WORDS:
+        return False
+
+    if p.get("solvent"):
+        return False
+
+    contents = p.get("contents") or p.get("components") or p.get("reagents") or []
+    if _is_gas_contents(contents):
+        return True
+
+    role = p.get("role") or p.get("pump_role") or ""
+    if _is_pure_gas_text(role):
+        return True
+
+    return not contents and _is_pure_gas_text(op.label or "")
+
+
+def _enforce_mfc_for_gas_streams(ops) -> None:
+    """Final GUI safety check: gas feeds must render as MFCs, not pumps."""
+    for op in ops:
+        if op.op_type != "pump" or not _is_gas_pump(op):
+            continue
+
+        op.op_type = "mfc"
+        p = op.parameters or {}
+        p["delivery_hardware"] = "MFC"
+        op.parameters = p
+
+        label = str(op.label or "").strip()
+        if label:
+            label = label.replace("Pump", "MFC", 1)
+            op.label = label if label.lower().startswith("mfc") else f"MFC — {label}"
+        else:
+            op.label = "MFC"
 
 
 # ── Label generators ──────────────────────────────────────────────────────────
@@ -166,6 +242,8 @@ def _mfc_label(op) -> str:
     p      = op.parameters or {}
     stream = p.get("stream", "?")
     contents = p.get("contents") or []
+    if isinstance(contents, str):
+        contents = [contents]
     gas_name = str(contents[0]).split("(")[0].strip() if contents else "Gas"
     fr   = p.get("flow_rate_mL_min")
     rows = [
@@ -191,6 +269,9 @@ def _reactor_label(op) -> str:
     if p.get("residence_time_min") is not None:
         rt = float(p["residence_time_min"])
         parts.append(f"τ={rt:.1f} min" if rt >= 1 else f"τ={rt*60:.0f} s")
+    volume = p.get("volume_mL") if p.get("volume_mL") is not None else p.get("reactor_volume_mL")
+    if volume is not None:
+        parts.append(f"V={float(volume):.1f} mL")
 
     return "  ·  ".join(parts) if parts else ""
 
@@ -349,32 +430,31 @@ def _add_textbox(dot, node_id: str, op):
 
 
 def _add_mfc_node(dot, node_id: str, op):
-    """Mass Flow Controller node for gas streams.
+    """Mass Flow Controller image node for gas streams."""
+    image_w = NODE_ICON_SIZE
+    image_h = NODE_ICON_SIZE
+    half_h = image_h // 2
+    port_h = 2
 
-    Rendered as a red-bordered rounded box with the gas name in red to
-    visually distinguish it from syringe pumps. Exposes a `needle` port
-    (same name as the syringe pump) so the edge router can stay generic.
-    """
     label_html = _mfc_label(op)
     label_rows = "".join(
-        f'<TR><TD ALIGN="CENTER">{part}</TD></TR>'
+        f'<TR><TD ALIGN="CENTER" WIDTH="{image_w}" CELLPADDING="1">{part}</TD></TR>'
         for part in label_html.split("<BR/>")
     )
-    # Outer table has two cells in the header row: the inner MFC box,
-    # plus a tiny right-edge port cell named "needle" so edges attach
-    # at the right side. Keeps the edge-routing code provider-agnostic.
     html = (
-        '<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">'
-        '<TR>'
-        '<TD>'
-        '<TABLE BORDER="2" COLOR="#DC2626" CELLBORDER="0" CELLSPACING="0"'
-        ' CELLPADDING="8" BGCOLOR="#FFF5F5" STYLE="ROUNDED">'
-        f'<TR><TD ALIGN="CENTER"><FONT POINT-SIZE="9" COLOR="#7F1D1D"><B>MFC</B></FONT></TD></TR>'
-        f'{label_rows}'
-        '</TABLE>'
-        '</TD>'
-        '<TD PORT="needle" WIDTH="1" HEIGHT="1"></TD>'
-        '</TR>'
+        '<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="2">'
+        "<TR>"
+        f'<TD ROWSPAN="3" PORT="img" FIXEDSIZE="TRUE" WIDTH="{image_w}" HEIGHT="{image_h}">'
+        f'<IMG SRC="{escape(ASSETS["mfc"].name)}" SCALE="TRUE"/></TD>'
+        f'<TD WIDTH="0" HEIGHT="{half_h - port_h // 2}"></TD>'
+        "</TR>"
+        "<TR>"
+        f'<TD PORT="needle" WIDTH="0" HEIGHT="{port_h}"></TD>'
+        "</TR>"
+        "<TR>"
+        f'<TD WIDTH="0" HEIGHT="{half_h - port_h // 2}"></TD>'
+        "</TR>"
+        f"{label_rows}"
         "</TABLE>>"
     )
     dot.node(node_id, label=html, shape="plain")
@@ -445,6 +525,7 @@ class FlowsheetBuilder:
         import graphviz
 
         ops    = self._clean_ops(topology)
+        _enforce_mfc_for_gas_streams(ops)
         if not ops:
             return "", ""
 
@@ -455,6 +536,7 @@ class FlowsheetBuilder:
             from flora_translate.topology_polisher import polish
             polished = polish(topology, use_llm=True)
             ops = polished.unit_operations
+            _enforce_mfc_for_gas_streams(ops)
             # Use polished streams for adjacency
             topology = polished
         except Exception as e:
@@ -541,6 +623,10 @@ class FlowsheetBuilder:
                 _add_image_node(dot, vid, _reactor_label(op),
                                 ASSETS["microchannel"], NODE_ICON_SIZE, NODE_ICON_SIZE)
 
+            elif op.op_type in ("deoxygenation_unit", "degas", "degasser"):
+                _add_image_node(dot, vid, _textbox_label(op),
+                                ASSETS["degasser"], NODE_ICON_SIZE, NODE_ICON_SIZE)
+
             elif op.op_type == "bpr":
                 _add_image_node(dot, vid, _bpr_label(op), ASSETS["bpr"],
                                 NODE_ICON_SIZE, NODE_ICON_SIZE)
@@ -558,6 +644,7 @@ class FlowsheetBuilder:
             "coil_reactor", "reactor", "heated_coil", "photoreactor",
             "packed_bed", "packed_bed_reactor", "bpr", "collector",
             "microchannel", "microreactor", "chip",
+            "deoxygenation_unit", "degas", "degasser",
             # Mixers are now image-based too
             "mixer", "t_mixer", "y_mixer", "quench_mixer",
         }

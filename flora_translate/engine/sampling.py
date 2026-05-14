@@ -88,6 +88,7 @@ def generate_tau_samples(
     n_samples: int = 5,
     log_spaced: bool = True,
     min_tau_min: float = 2.0,
+    max_tau_min: Optional[float] = None,
 ) -> list[tuple[float, str]]:
     """Generate τ candidate values with provenance labels.
 
@@ -114,8 +115,12 @@ def generate_tau_samples(
     # Deduplicate (keep first label for each value)
     seen: dict[float, str] = {}
     for t, src in out:
+        if max_tau_min is not None and t > max_tau_min:
+            continue
         if t >= min_tau_min and t not in seen:
             seen[t] = src
+    if not seen and max_tau_min is not None and max_tau_min >= min_tau_min:
+        seen[round(max_tau_min, 1)] = "batch_ceiling"
     return sorted(seen.items())
 
 
@@ -147,6 +152,7 @@ def sample_design_space(
     tau_log_spaced: bool = True,
     d_exclude_above_mm: Optional[float] = None,
     L_fractions: Optional[list[float]] = None,
+    max_tau_min: Optional[float] = None,
 ) -> list[tuple[float, float, float, str]]:
     """Full (τ, d, Q, τ_source) enumeration.
 
@@ -162,6 +168,7 @@ def sample_design_space(
         tau_center_min, tau_lit_min,
         low_factor=tau_low_factor, high_factor=tau_high_factor,
         n_samples=n_tau, log_spaced=tau_log_spaced,
+        max_tau_min=max_tau_min,
     )
     d_values = choose_d_set(is_photochem, is_gas_liquid,
                              exclude_above_mm=d_exclude_above_mm)
@@ -291,6 +298,7 @@ def hard_filter(
     is_gas_liquid: bool,
     pump_max_bar: float,
     BPR_bar: float = 0.0,
+    max_tau_min: Optional[float] = None,
 ) -> tuple[bool, list[str], list[str]]:
     """Apply hard bench/safety constraints.
 
@@ -324,6 +332,12 @@ def hard_filter(
     # Flow floor
     if m["Q_mL_min"] < Q_MIN_ML_MIN:
         violations.append(f"Q={m['Q_mL_min']:.4f} mL/min < {Q_MIN_ML_MIN} (syringe pump floor)")
+
+    if max_tau_min is not None and m["tau_min"] > max_tau_min:
+        violations.append(
+            f"tau={m['tau_min']:.1f} min > batch ceiling {max_tau_min:.1f} min "
+            "(translation policy: intensify)"
+        )
 
     # Photochem: Beer-Lambert constraint (bench-physics rule — hard)
     if is_photochem and m["d_mm"] > 1.0:
@@ -384,6 +398,7 @@ def generate_candidates(
     d_exclude_above_mm: Optional[float] = None,
     L_fractions: Optional[list[float]] = None,
     N_target: int = 12,
+    max_tau_min: Optional[float] = None,
 ) -> tuple[list[dict], list[dict]]:
     """Generate → metrics → hard filter. Returns (feasible, infeasible).
 
@@ -402,6 +417,7 @@ def generate_candidates(
         tau_low_factor=tau_low_factor, tau_high_factor=tau_high_factor,
         n_tau=n_tau, tau_log_spaced=tau_log_spaced,
         d_exclude_above_mm=d_exclude_above_mm, L_fractions=L_fractions,
+        max_tau_min=max_tau_min,
     )
 
     feasible: list[dict] = []
@@ -419,7 +435,7 @@ def generate_candidates(
         )
         ok, viol, warns = hard_filter(
             m, is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,
-            pump_max_bar=pump_max_bar, BPR_bar=BPR_bar,
+            pump_max_bar=pump_max_bar, BPR_bar=BPR_bar, max_tau_min=max_tau_min,
         )
         m["feasible"] = ok
         m["violations"] = viol

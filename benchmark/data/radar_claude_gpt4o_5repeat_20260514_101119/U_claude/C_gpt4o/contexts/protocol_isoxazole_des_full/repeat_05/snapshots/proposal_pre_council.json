@@ -1,0 +1,73 @@
+{
+  "residence_time_min": 7.5,
+  "flow_rate_mL_min": 2.68083,
+  "temperature_C": 120.0,
+  "concentration_M": 0.5,
+  "BPR_bar": 5.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.6,
+  "reactor_volume_mL": 20.106,
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "dipolarophile substrate stream",
+      "contents": [
+        "phenylacetylene (1.0 equiv)"
+      ],
+      "solvent": "TBAB/EG (1:5) DES",
+      "concentration_M": 0.5,
+      "flow_rate_mL_min": 0.25,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: phenylacetylene as dipolarophile kept separate from nitrile oxide precursor to ensure rapid mixing at T-mixer before heated zone, minimizing nitrile oxide dimerization"
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "nitrile oxide precursor stream",
+      "contents": [
+        "ethyl nitroacetate (2.0 equiv)"
+      ],
+      "solvent": "TBAB/EG (1:5) DES",
+      "concentration_M": 1.0,
+      "flow_rate_mL_min": 0.25,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: ethyl nitroacetate as nitrile oxide precursor in DES; 2.0 equiv relative to phenylacetylene; concentration set so combined flow gives 0.5 M phenylacetylene"
+    }
+  ],
+  "mixer_type": "T-mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Phenylacetylene and ethyl nitroacetate should be mixed rapidly at a T-mixer immediately before the heated coil. This ensures the nitrile oxide generated thermally encounters the dipolarophile immediately, suppressing competitive nitrile oxide dimerization to furoxan. The DES is viscous (~50 cP at RT) so preheating feed lines to ~60°C may reduce viscosity and improve mixing quality.",
+  "pre_reactor_steps": [
+    "Preheat feed lines to 60°C to reduce DES viscosity from ~50 cP to improve pumping and mixing quality"
+  ],
+  "post_reactor_steps": [
+    "Cool product stream to room temperature",
+    "Collect product for offline workup with water extraction and dichloromethane"
+  ],
+  "chemistry_notes": "This is a thermal 1,3-dipolar cycloaddition where ethyl nitroacetate undergoes dehydration at 120°C to generate ethoxycarbonylformonitrile oxide in situ, which then undergoes [3+2] cycloaddition with phenylacetylene. The reaction is not photochemical - purely thermal activation. Key design considerations: (1) Rapid T-mixer mixing to prevent nitrile oxide dimerization, (2) Precise 120°C temperature control for nitrile oxide generation, (3) DES viscosity management through preheating, (4) BPR required due to water generation and high temperature operation. Calculations show Da=1.97 indicating mixing may limit conversion - static mixer insert recommended.",
+  "stage_parameters": [],
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation estimated 15.0 min (range 1.0-22.5 min) from analogies. Analogy 3 used 20 min for [3+2] cycloaddition but at lower temperature (60°C vs 120°C). Using 15.0 min as it matches calculation and accounts for thermal activation requirement.",
+    "flow_rate_mL_min": "Calculation: total flow rate = reactor_volume / residence_time = 7.5 mL / 15 min = 0.5 mL/min. Split equally between streams A and B (0.25 mL/min each).",
+    "temperature_C": "Same as batch (120°C) - Chemistry Plan specifies this temperature required for nitrile oxide generation via thermal dehydration of ethyl nitroacetate.",
+    "concentration_M": "Same as batch (0.5 M) - Chemistry Plan and all analogies used similar concentrations. Stream B has 1.0 M ethyl nitroacetate to achieve 2.0 equiv after mixing.",
+    "BPR_bar": "Calculation shows BPR required at 5.0 bar due to gas-liquid system (water generation) and high temperature operation (120°C). Analogy 1 used 34 bar, Analogy 2 used 47.6 bar for high temperature reactions.",
+    "reactor_type": "Coil reactor as specified in Chemistry Plan stage 1. Analogies 1 and 2 used coil/tubular reactors for thermal reactions.",
+    "tubing_material": "PFA for high temperature (120°C) compatibility and chemical resistance to DES. Not photochemical so transparency not required.",
+    "tubing_ID_mm": "1.0 mm from calculation (d = 1.00 mm) giving Re = 10.6 (laminar flow) and adequate heat transfer for 120°C operation.",
+    "reactor_volume_mL": "7.5 mL from calculation (V_R = 7.50 mL) based on residence time and flow rate requirements.",
+    "light_setup": "Empty string - Chemistry Plan confirms this is not photochemical, purely thermal activation at 120°C.",
+    "wavelength_nm": "null - no light required for thermal 1,3-dipolar cycloaddition",
+    "deoxygenation_method": "null - Chemistry Plan states not oxygen sensitive, reaction proceeds under air"
+  },
+  "literature_analogies": [
+    "Analogy 1: Photocycloaddition with thermal cascade",
+    "Analogy 2: High temperature energetic compound synthesis",
+    "Analogy 3: [3+2] dipolar cycloaddition in flow"
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

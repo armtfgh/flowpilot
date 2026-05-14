@@ -18,6 +18,7 @@ import logging
 from typing import Optional
 
 import flora_translate.engine.llm_agents as llm_agents
+from flora_translate.engine.flow_value import enrich_scoring_with_flow_values, mandate_dict
 from flora_translate.engine.llm_agents import call_llm, call_llm_with_tools
 from flora_translate.engine.tool_definitions import (
     CHEMISTRY_TOOLS, KINETICS_TOOLS, SAFETY_TOOLS,
@@ -140,7 +141,7 @@ def _is_anthropic_council_mode() -> bool:
 
 
 def _slim_candidate(candidate: dict) -> dict:
-    return {
+    row = {
         "id": candidate.get("id", candidate.get("candidate_id")),
         "tau_min": candidate.get("tau_min"),
         "d_mm": candidate.get("d_mm"),
@@ -161,6 +162,9 @@ def _slim_candidate(candidate: dict) -> dict:
         "hard_gate_flags": candidate.get("hard_gate_flags") or [],
         "warnings": candidate.get("warnings") or [],
     }
+    if candidate.get("flow_sense_report"):
+        row["flow_sense_report"] = candidate.get("flow_sense_report")
+    return row
 
 
 def _gemma_prompt_bundle(domain: str) -> tuple[str, str]:
@@ -180,7 +184,8 @@ Score exactly one candidate using the provided numbers as authoritative.
 Return one JSON object only, no markdown, no extra text.
 Required keys:
 candidate_id, reasoning, kinetics_score, X_estimated, X_adequate,
-tau_proposed_final_min, verdict, proposed_changes, concerns.
+tau_proposed_final_min, tau_reduction_flow_value, achieved_reduction_factor,
+target_reduction_factor, reduction_achievement, verdict, proposed_changes, concerns.
 Use expected_conversion as X_estimated if needed. Own only proposed_changes.tau_min.""",
             "kinetics_score",
         ),
@@ -218,6 +223,7 @@ def _build_gemma_context(
     objectives: str,
     is_photochem: bool,
     pump_max_bar: float,
+    intensification_mandate: Optional[dict] = None,
 ) -> str:
     slim = [_slim_candidate(c) for c in candidates]
     batch_ids = [c["id"] for c in slim]
@@ -227,6 +233,7 @@ def _build_gemma_context(
         f"User objective: {objectives or 'balanced'}\n"
         f"Photochemical reaction: {is_photochem}\n"
         f"Pump max pressure bar: {pump_max_bar}\n"
+        f"Intensification mandate JSON: {json.dumps(mandate_dict(intensification_mandate), ensure_ascii=False)}\n"
         f"Score only candidate ids: {batch_ids}\n\n"
         f"Chemistry brief:\n{brief}\n\n"
         f"Candidate data JSON:\n{json.dumps(slim, ensure_ascii=False)}\n\n"
@@ -288,6 +295,7 @@ def _build_claude_compact_context(
     objectives: str,
     is_photochem: bool,
     pump_max_bar: float,
+    intensification_mandate: Optional[dict] = None,
 ) -> str:
     slim = [_slim_candidate(c) for c in candidates]
     batch_ids = [c["id"] for c in slim]
@@ -297,6 +305,7 @@ def _build_claude_compact_context(
         f"Objective: {objectives or 'balanced'}\n"
         f"Photochemical reaction: {is_photochem}\n"
         f"Pump max pressure bar: {pump_max_bar}\n"
+        f"Intensification mandate JSON: {json.dumps(mandate_dict(intensification_mandate), ensure_ascii=False)}\n"
         f"Candidate ids in this batch: {batch_ids}\n"
         "Treat the provided numbers as authoritative.\n"
         "Prefer REVISE over BLOCK unless a candidate is clearly impossible or already hard-gated.\n\n"
@@ -332,6 +341,7 @@ def _run_scoring_agent_gemma_local(
     objectives: str,
     is_photochem: bool,
     pump_max_bar: float,
+    intensification_mandate: Optional[dict] = None,
 ) -> tuple[str, list[dict], list[dict]]:
     system_prompt, score_key = _gemma_prompt_bundle(domain)
     all_scores: list[dict] = []
@@ -347,6 +357,7 @@ def _run_scoring_agent_gemma_local(
             objectives=objectives,
             is_photochem=is_photochem,
             pump_max_bar=pump_max_bar,
+            intensification_mandate=intensification_mandate,
         )
         raw = call_llm(system_prompt, context, max_tokens=_GEMMA_MAX_TOKENS)
         overall, scores = _parse_score_response(raw)
@@ -392,6 +403,7 @@ def _run_scoring_agent_claude_compact(
     objectives: str,
     is_photochem: bool,
     pump_max_bar: float,
+    intensification_mandate: Optional[dict] = None,
     batch_size: int,
     strict_coverage: bool,
 ) -> tuple[str, list[dict], list[dict]]:
@@ -414,6 +426,7 @@ def _run_scoring_agent_claude_compact(
                 objectives=objectives,
                 is_photochem=is_photochem,
                 pump_max_bar=pump_max_bar,
+                intensification_mandate=intensification_mandate,
             )
             raw = call_llm(system_prompt, context, max_tokens=_CLAUDE_COMPACT_MAX_TOKENS)
             oa, scores = _parse_score_response(raw)
@@ -514,6 +527,7 @@ redox potentials are available.
       "chemistry_score": 0.85,
       "photonics_score": 0.90,
       "combined_score": 0.87,
+      "selectivity_flow_value": 0.70,
       "verdict": "ACCEPT",
       "proposed_changes": {},
       "beer_lambert_A": 0.18,
@@ -600,6 +614,10 @@ show the result. Use `check_redox_feasibility` if redox potential data is availa
       "candidate_id": 1,
       "reasoning": "3–5 sentences specific to this candidate. State τ, τ_kinetics, IF, X, t_steady. Explain the τ/τ_k safety margin and RTD risk explicitly. State τ_mixing_required and whether τ_proposed exceeds it. Explain the final τ decision rule result. Make it self-contained.",
       "kinetics_score": 0.82,
+      "tau_reduction_flow_value": 0.90,
+      "achieved_reduction_factor": 6.2,
+      "target_reduction_factor": 6.0,
+      "reduction_achievement": 1.03,
       "IF_used": 6.0,
       "IF_valid": true,
       "tau_vs_literature": "τ=45 min within [0.5×, 1.5×] τ_lit=50 min — well-anchored",
@@ -688,6 +706,7 @@ Show tool call results in your reasoning.
       "candidate_id": 1,
       "reasoning": "3–5 sentences for THIS candidate. State Re, ΔP, pump_headroom_pct, r_mix, Da_mass, L explicitly. Explain mixing adequacy and whether dual criterion is near or far. State pump type and tubing material. Note any blockage risk. If d change needed, show the d_fix formula. Make it self-contained.",
       "fluidics_score": 0.88,
+      "heat_transfer_flow_value": 0.80,
       "Re": 21.3,
       "flow_regime": "laminar",
       "De": 4.2,
@@ -787,6 +806,7 @@ Call `calculate_bpr_required` to compute BPR need. Show P_vapor, P_min, P_recomm
       "candidate_id": 1,
       "reasoning": "3–5 sentences for THIS candidate. State Da_thermal, BPR_required, BPR_current, material check result, hazard flags, atmosphere requirements. Cite tool results explicitly. Explain why the candidate is safe or what specific conditions must be met. Make it self-contained.",
       "safety_score": 0.92,
+      "safety_delta_flow_value": 0.85,
       "Da_thermal": 0.03,
       "thermal_safe": true,
       "BPR_required_bar": 1.8,
@@ -827,15 +847,23 @@ def _build_scoring_context(
     objectives: str,
     is_photochem: bool,
     pump_max_bar: float,
+    intensification_mandate: Optional[dict] = None,
 ) -> str:
     n = len(candidates)
+    slim = [_slim_candidate(c) for c in candidates]
     return (
         f"## Chemistry brief\n{chemistry_brief}\n\n"
+        f"## Intensification mandate\n{json.dumps(mandate_dict(intensification_mandate), ensure_ascii=False)}\n\n"
         f"## User objectives\n{objectives or 'balanced'}\n\n"
         f"## Photochemical reaction: {is_photochem}\n\n"
         f"## Pump max pressure: {pump_max_bar} bar\n\n"
         f"## Surviving candidate table ({n} candidates — score ALL)\n"
         f"{table_markdown}\n\n"
+        f"## Candidate flow-sense evidence JSON\n{json.dumps(slim, ensure_ascii=False)}\n\n"
+        "Each scoring agent must include its flow-value contribution field in each score entry: "
+        "Dr. Chemistry -> selectivity_flow_value; Dr. Kinetics -> tau_reduction_flow_value plus "
+        "achieved_reduction_factor, target_reduction_factor, reduction_achievement; "
+        "Dr. Fluidics -> heat_transfer_flow_value; Dr. Safety -> safety_delta_flow_value.\n\n"
         "Score every candidate. Provide detailed reasoning per candidate. "
         "Return JSON with 'overall_analysis' and 'scores' array."
     )
@@ -916,6 +944,7 @@ def _run_scoring_agent_batched(
     max_tokens: int,
     batch_size: int,
     strict_coverage: bool,
+    intensification_mandate: Optional[dict] = None,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run one scoring agent over candidate subsets, retrying only missing ids."""
     remaining = list(candidates)
@@ -938,6 +967,7 @@ def _run_scoring_agent_batched(
                 objectives,
                 is_photochem,
                 pump_max_bar,
+                intensification_mandate,
             )
             valid_ids = {int(c.get("id", i + 1)) for i, c in enumerate(batch)}
             oa, cleaned, tc_log = _run_scoring_agent(
@@ -1060,6 +1090,7 @@ def run_chemistry_scoring(
     batch_size: int | None = None,
     strict_coverage: bool = False,
     benchmark_claude_compact_mode: bool = False,
+    intensification_mandate: Optional[dict] = None,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Chemistry. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     if _is_gemma_local_mode():
@@ -1071,6 +1102,7 @@ def run_chemistry_scoring(
             objectives=objectives,
             is_photochem=is_photochem,
             pump_max_bar=pump_max_bar,
+            intensification_mandate=intensification_mandate,
         )
         logger.info("    Dr. Chemistry scored %d/%d candidates", len(scores), len(candidates))
         return oa, scores, tc
@@ -1083,6 +1115,7 @@ def run_chemistry_scoring(
             objectives=objectives,
             is_photochem=is_photochem,
             pump_max_bar=pump_max_bar,
+            intensification_mandate=intensification_mandate,
             batch_size=batch_size or 3,
             strict_coverage=strict_coverage,
         )
@@ -1090,7 +1123,7 @@ def run_chemistry_scoring(
         return oa, scores, tc
     context = _build_scoring_context(
         candidates, table_markdown, chemistry_brief, objectives,
-        is_photochem, pump_max_bar,
+        is_photochem, pump_max_bar, intensification_mandate,
     )
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
     if batch_size and batch_size < len(candidates):
@@ -1106,6 +1139,7 @@ def run_chemistry_scoring(
             max_tokens=max_tokens,
             batch_size=batch_size,
             strict_coverage=strict_coverage,
+            intensification_mandate=intensification_mandate,
         )
     else:
         oa, scores, tc = _run_scoring_agent(
@@ -1134,6 +1168,7 @@ def run_kinetics_scoring(
     batch_size: int | None = None,
     strict_coverage: bool = False,
     benchmark_claude_compact_mode: bool = False,
+    intensification_mandate: Optional[dict] = None,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Kinetics. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     if _is_gemma_local_mode():
@@ -1145,6 +1180,7 @@ def run_kinetics_scoring(
             objectives=objectives,
             is_photochem=is_photochem,
             pump_max_bar=pump_max_bar,
+            intensification_mandate=intensification_mandate,
         )
         logger.info("    Dr. Kinetics scored %d/%d candidates", len(scores), len(candidates))
         return oa, scores, tc
@@ -1157,6 +1193,7 @@ def run_kinetics_scoring(
             objectives=objectives,
             is_photochem=is_photochem,
             pump_max_bar=pump_max_bar,
+            intensification_mandate=intensification_mandate,
             batch_size=batch_size or 3,
             strict_coverage=strict_coverage,
         )
@@ -1164,7 +1201,7 @@ def run_kinetics_scoring(
         return oa, scores, tc
     context = _build_scoring_context(
         candidates, table_markdown, chemistry_brief, objectives,
-        is_photochem, pump_max_bar,
+        is_photochem, pump_max_bar, intensification_mandate,
     )
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
     if batch_size and batch_size < len(candidates):
@@ -1180,6 +1217,7 @@ def run_kinetics_scoring(
             max_tokens=max_tokens,
             batch_size=batch_size,
             strict_coverage=strict_coverage,
+            intensification_mandate=intensification_mandate,
         )
     else:
         oa, scores, tc = _run_scoring_agent(
@@ -1208,6 +1246,7 @@ def run_fluidics_scoring(
     batch_size: int | None = None,
     strict_coverage: bool = False,
     benchmark_claude_compact_mode: bool = False,
+    intensification_mandate: Optional[dict] = None,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Fluidics. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     if _is_gemma_local_mode():
@@ -1219,6 +1258,7 @@ def run_fluidics_scoring(
             objectives=objectives,
             is_photochem=is_photochem,
             pump_max_bar=pump_max_bar,
+            intensification_mandate=intensification_mandate,
         )
         logger.info("    Dr. Fluidics scored %d/%d candidates", len(scores), len(candidates))
         return oa, scores, tc
@@ -1231,6 +1271,7 @@ def run_fluidics_scoring(
             objectives=objectives,
             is_photochem=is_photochem,
             pump_max_bar=pump_max_bar,
+            intensification_mandate=intensification_mandate,
             batch_size=batch_size or 3,
             strict_coverage=strict_coverage,
         )
@@ -1238,7 +1279,7 @@ def run_fluidics_scoring(
         return oa, scores, tc
     context = _build_scoring_context(
         candidates, table_markdown, chemistry_brief, objectives,
-        is_photochem, pump_max_bar,
+        is_photochem, pump_max_bar, intensification_mandate,
     )
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
     if batch_size and batch_size < len(candidates):
@@ -1254,6 +1295,7 @@ def run_fluidics_scoring(
             max_tokens=max_tokens,
             batch_size=batch_size,
             strict_coverage=strict_coverage,
+            intensification_mandate=intensification_mandate,
         )
     else:
         oa, scores, tc = _run_scoring_agent(
@@ -1282,6 +1324,7 @@ def run_safety_scoring(
     batch_size: int | None = None,
     strict_coverage: bool = False,
     benchmark_claude_compact_mode: bool = False,
+    intensification_mandate: Optional[dict] = None,
 ) -> tuple[str, list[dict], list[dict]]:
     """Run Dr. Safety. Returns (overall_analysis, per_candidate_scores, tool_calls)."""
     if _is_gemma_local_mode():
@@ -1293,6 +1336,7 @@ def run_safety_scoring(
             objectives=objectives,
             is_photochem=is_photochem,
             pump_max_bar=pump_max_bar,
+            intensification_mandate=intensification_mandate,
         )
         logger.info("    Dr. Safety scored %d/%d candidates", len(scores), len(candidates))
         return oa, scores, tc
@@ -1305,6 +1349,7 @@ def run_safety_scoring(
             objectives=objectives,
             is_photochem=is_photochem,
             pump_max_bar=pump_max_bar,
+            intensification_mandate=intensification_mandate,
             batch_size=batch_size or 3,
             strict_coverage=strict_coverage,
         )
@@ -1312,7 +1357,7 @@ def run_safety_scoring(
         return oa, scores, tc
     context = _build_scoring_context(
         candidates, table_markdown, chemistry_brief, objectives,
-        is_photochem, pump_max_bar,
+        is_photochem, pump_max_bar, intensification_mandate,
     )
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
     if batch_size and batch_size < len(candidates):
@@ -1328,6 +1373,7 @@ def run_safety_scoring(
             max_tokens=max_tokens,
             batch_size=batch_size,
             strict_coverage=strict_coverage,
+            intensification_mandate=intensification_mandate,
         )
     else:
         oa, scores, tc = _run_scoring_agent(
@@ -1359,6 +1405,7 @@ def run_domain_scoring(
     batch_size: int | None = None,
     strict_coverage: bool = False,
     benchmark_claude_compact_mode: bool = False,
+    intensification_mandate: Optional[dict] = None,
 ) -> dict:
     """Run all four domain scoring agents (Stage 2).
 
@@ -1382,6 +1429,7 @@ def run_domain_scoring(
         is_photochem=is_photochem, pump_max_bar=pump_max_bar,
         batch_size=batch_size, strict_coverage=strict_coverage,
         benchmark_claude_compact_mode=benchmark_claude_compact_mode,
+        intensification_mandate=intensification_mandate,
     )
     kin_oa, kinetics_scores, kin_tc = run_kinetics_scoring(
         candidates=candidates, table_markdown=table_markdown,
@@ -1389,6 +1437,7 @@ def run_domain_scoring(
         is_photochem=is_photochem, pump_max_bar=pump_max_bar,
         batch_size=batch_size, strict_coverage=strict_coverage,
         benchmark_claude_compact_mode=benchmark_claude_compact_mode,
+        intensification_mandate=intensification_mandate,
     )
     flu_oa, fluidics_scores, flu_tc = run_fluidics_scoring(
         candidates=candidates, table_markdown=table_markdown,
@@ -1396,6 +1445,7 @@ def run_domain_scoring(
         is_photochem=is_photochem, pump_max_bar=pump_max_bar,
         batch_size=batch_size, strict_coverage=strict_coverage,
         benchmark_claude_compact_mode=benchmark_claude_compact_mode,
+        intensification_mandate=intensification_mandate,
     )
     saf_oa, safety_scores, saf_tc = run_safety_scoring(
         candidates=candidates, table_markdown=table_markdown,
@@ -1403,6 +1453,7 @@ def run_domain_scoring(
         is_photochem=is_photochem, pump_max_bar=pump_max_bar,
         batch_size=batch_size, strict_coverage=strict_coverage,
         benchmark_claude_compact_mode=benchmark_claude_compact_mode,
+        intensification_mandate=intensification_mandate,
     )
 
     blocked: set[int] = set()
@@ -1411,7 +1462,7 @@ def run_domain_scoring(
             if str(entry.get("verdict", "")).upper() == "BLOCK":
                 blocked.add(entry.get("candidate_id", -1))
 
-    return {
+    result = {
         "chemistry_overall": chem_oa,
         "chemistry_scores": chemistry_scores,
         "kinetics_overall": kin_oa,
@@ -1428,6 +1479,9 @@ def run_domain_scoring(
         },
         "blocked_by_scoring": sorted(blocked),
     }
+    return enrich_scoring_with_flow_values(
+        candidates, result, intensification_mandate=intensification_mandate
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

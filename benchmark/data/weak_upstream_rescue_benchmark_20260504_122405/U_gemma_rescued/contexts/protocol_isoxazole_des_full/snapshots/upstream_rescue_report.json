@@ -1,0 +1,68 @@
+{
+  "upstream_bundle": "gemma",
+  "rescue_mode": "deterministic_thermal_anchor",
+  "raw_context_preserved": true,
+  "rescued_tau_min": 5.0,
+  "rescued_tau_reduction_target": 3.0,
+  "batch_time_min": 15.0,
+  "batch_concentration_M": 0.5,
+  "proposal_after_rescue": {
+    "residence_time_min": 5.0,
+    "flow_rate_mL_min": 4.02124,
+    "temperature_C": 120.0,
+    "concentration_M": 0.5,
+    "BPR_bar": 5.0,
+    "reactor_type": "tubular coil",
+    "tubing_material": "PFA",
+    "tubing_ID_mm": 1.6,
+    "reactor_volume_mL": 20.106,
+    "light_setup": "",
+    "wavelength_nm": null,
+    "deoxygenation_method": null,
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Main reagent and solvent feed",
+        "contents": [
+          "phenylacetylene (0.5 M)",
+          "ethyl nitroacetate (1.0 M)"
+        ],
+        "solvent": "TBAB/EG (1:5) DES",
+        "concentration_M": 0.5,
+        "flow_rate_mL_min": 0.5,
+        "molar_equiv": 1.0,
+        "reasoning": "From Chemistry Plan stream_logic: phenylacetylene and ethyl nitroacetate are co-dissolved in DES for in-situ generation of the nitrile oxide intermediate."
+      }
+    ],
+    "mixer_type": "T-mixer",
+    "mixing_order_reasoning": "From Chemistry Plan: Reagents are added directly to the DES solvent; since they are in a single stream, the mixer serves as the entry point to the heated reactor zone.",
+    "pre_reactor_steps": [],
+    "post_reactor_steps": [
+      "Quench with water to stop reaction and facilitate extraction from the viscous DES solvent (Chemistry Plan)"
+    ],
+    "chemistry_notes": "The reaction is a 1,3-dipolar cycloaddition utilizing a Deep Eutectic Solvent (DES). The high viscosity of TBAB/EG requires careful flow control. The design uses a single stream as per the Chemistry Plan's stream_logic. The residence time is set to 60 min based on engineering calculations to ensure full conversion of the in-situ generated nitrile oxide. The BPR is critical to prevent degassing and maintain the liquid phase at 120°C.\n[RESCUED_UPSTREAM] Council input uses deterministic rescued kinetics for weak-upstream benchmark.",
+    "stage_parameters": [],
+    "reasoning_per_field": {
+      "residence_time_min": "Analogy 3 (dipolar cycloaddition) used 20 min at 60°C; Analogy 1 (cyclization) used 179 min. Calculation Step 2 suggests 60 min for this specific DES system at 120°C to ensure conversion.",
+      "flow_rate_mL_min": "Calculation Step 4: Total flow rate of 0.5 mL/min maintains the required residence time for a 30 mL reactor.",
+      "temperature_C": "Directly from Batch Protocol (120°C) and Chemistry Plan; necessary for nitrile oxide generation.",
+      "concentration_M": "Directly from Batch Protocol (0.5 M) and Calculation Step 1.",
+      "BPR_bar": "Calculation Step 8: BPR required (5.0 bar) to prevent degassing and maintain phase stability at 120°C.",
+      "reactor_type": "Tubular coil used in Analogy 1 and 2 for high-temperature thermal reactions.",
+      "tubing_material": "PFA selected for thermal stability at 120°C and chemical compatibility with DES (Analogy 2 used steel, but PFA is sufficient for 120°C).",
+      "tubing_ID_mm": "Calculation Step 3: 1.0 mm ID ensures plug flow (Pe = 691) and manages pressure drop (0.13 bar).",
+      "reactor_volume_mL": "Calculation Step 3: 30 mL volume provides the necessary residence time at the specified flow rate.",
+      "mixing_regime": "Calculation Step 6: Da = 0.492 indicates the reaction is kinetically controlled, meaning mixing is not the rate-limiting step."
+    },
+    "literature_analogies": [
+      "Analogy 1: High-temp cyclization (154°C)",
+      "Analogy 2: High-temp thermal cascade (200°C)",
+      "Analogy 3: [3+2] dipolar cycloaddition (60°C)"
+    ],
+    "engine_validated": false,
+    "safety_flags": [],
+    "confidence": "HIGH"
+  },
+  "design_space_count": 27,
+  "note": "This benchmark should be compared against raw weak-upstream runs. It tests whether a weak upstream can be made council-evaluable after deterministic rescue."
+}

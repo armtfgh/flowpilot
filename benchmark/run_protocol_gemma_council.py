@@ -15,7 +15,6 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from benchmark.recorder import BenchmarkRecorder, _safe
-from flora_translate.chemistry_agent import ChemistryReasoningAgent
 from flora_translate.config import LAB_INVENTORY_PATH
 from flora_translate.design_calculator import DesignCalculator
 from flora_translate.engine.council_v4 import CouncilV4
@@ -30,7 +29,7 @@ from flora_translate.engine.llm_agents import (
     set_llm_observer,
     set_llm_runtime_overrides,
 )
-from flora_translate.input_parser import InputParser
+from flora_translate.lightweight_upstream import analyze_batch_chemistry, parse_batch_input
 from flora_translate.output_formatter import OutputFormatter
 from flora_translate.prompt_builder import TranslationPromptBuilder
 from flora_translate.schemas import LabInventory
@@ -115,7 +114,7 @@ def main() -> int:
 
     try:
         recorder.start_stage("input_parse", {"protocol_chars": len(PROTOCOL)})
-        batch_record = InputParser().parse(PROTOCOL)
+        batch_record = parse_batch_input(PROTOCOL)
         recorder.save_snapshot("batch_record", batch_record)
         recorder.end_stage(
             "input_parse",
@@ -123,7 +122,7 @@ def main() -> int:
         )
 
         recorder.start_stage("chemistry_analysis")
-        chemistry_plan = ChemistryReasoningAgent().analyze(batch_record)
+        chemistry_plan = analyze_batch_chemistry(batch_record)
         recorder.save_snapshot("chemistry_plan", chemistry_plan)
         recorder.end_stage(
             "chemistry_analysis",
@@ -131,6 +130,7 @@ def main() -> int:
                 "reaction_class": getattr(chemistry_plan, "reaction_class", None),
                 "mechanism_type": getattr(chemistry_plan, "mechanism_type", None),
                 "stream_count": len(getattr(chemistry_plan, "stream_logic", []) or []),
+                "upstream_mode": getattr(chemistry_plan, "_upstream_mode", "full"),
             },
         )
 

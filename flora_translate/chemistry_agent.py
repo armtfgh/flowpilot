@@ -19,6 +19,7 @@ import time
 import flora_translate.config as cfg
 from flora_translate.config import PROMPTS_DIR
 from flora_translate.engine.llm_agents import call_model_text
+from flora_translate.intensification import ensure_intensification_mandate
 from flora_translate.schemas import BatchRecord, ChemistryPlan
 
 logger = logging.getLogger("flora.chemistry_agent")
@@ -95,6 +96,7 @@ feeds, temperature, reactor type, and inter-stage actions.
 For EACH stage, specify:
 - What feeds IN to this stage (new pump streams)
 - What comes FROM the previous stage (the outlet stream)
+- The batch reaction time for THIS stage as batch_time_h, if stated
 - The reactor type for this stage (coil, packed_bed, chip, CSTR)
 - Temperature, solvent, atmosphere for THIS stage
 - What happens BETWEEN this stage and the next (quench, solvent switch,
@@ -137,6 +139,7 @@ Return JSON:
       "temperature_C": null,
       "requires_light": false,
       "wavelength_nm": null,
+      "batch_time_h": null,
       "feed_streams": [
         {{"stream_label": "A", "reagents": ["ArBr (1.0 equiv)"], "reasoning": "substrate feed"}}
       ],
@@ -179,6 +182,12 @@ Return JSON:
   "similar_reaction_classes": [],
   "recommended_wavelength_nm": null,
   "wavelength_reasoning": "",
+  "intensification_mandate": {{
+    "tau_reduction_target": 2.0,
+    "minimum_flow_advantage": "productivity",
+    "required_mixing_regime": "laminar_acceptable",
+    "flow_justification_basis": "Flow should provide a concrete productivity, safety, heat-transfer, selectivity, or hazardous-intermediate advantage over batch."
+  }},
   "confidence_notes": ""
 }}
 
@@ -310,6 +319,7 @@ class ChemistryReasoningAgent:
         data = _parse_json_from_tagged(raw_text)
         data = _normalize_plan_data(data)
         plan = ChemistryPlan(**data)
+        plan = ensure_intensification_mandate(batch_record, plan)
         plan._reasoning = reasoning  # attach for downstream use (not in schema)
 
         logger.info(f"    Reaction: {plan.reaction_name} ({plan.mechanism_type})")

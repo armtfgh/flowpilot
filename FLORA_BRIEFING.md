@@ -1,661 +1,1140 @@
 # FLORA — Flow Literature Oriented Retrieval Agent
 
-## Technical Briefing — current state
+## Technical Briefing
 
-**Version:** 4.2 | April 2026
-**Status:** Active Development
-**Council:** v4 (stage-gated scoring, active) with a pre-selection expert
-refinement loop. v3 (advocacy) kept in tree for reference but no longer invoked.
+**Version:** 5.1  
+**Updated:** April 2026 (last code sync: 2026-04-30)  
+**Status:** Active development and benchmarking  
+**Primary active path:** `flora_translate` batch-to-flow pipeline with ENGINE Council v4  
 
-**Recent work (April 2026):**
-- ENGINE Council upgraded from one-pass scoring to a **score → audit →
-  bounded expert refinement → deterministic recompute → rescore** loop.
-  Domain agents can now propose limited candidate edits before Chief
-  selection; the revised candidate matrix is rescored and re-audited.
-- Candidate tables now expose `BPR`, tubing material, and concentration so
-  the second scoring pass sees the actual revised state instead of the
-  original center-point assumptions.
-- Multi-step pipeline rebuilt around a single-source-of-truth flow-rate
-  contract — `proposal.streams` is authoritative, never recomputed. Stream
-  role classification (reactor feed vs quench) now drives topology layout.
-- Chief renormalisation rescales reactor-feed pumps to `Σ = Q_winner` and
-  updates each stream's derivation text so UI numbers agree with arithmetic.
-- Single-step builder's legacy quench block rewritten: no duplicate pumps,
-  real Q conservation at the quench mixer, actual quench rate (not ×2).
-- τ display precision fixed (`:.1f` instead of `:.0f`) — the diagram no
-  longer shows 2.7 min as "3 min".
-- Council-selected per-stage τ propagated into `stage_parameters`, honoured
-  by the multi-step topology builder.
-
-> This briefing reflects the *current* design of the system. Use `git log`
-> for prior architectures.
+This document describes the current project state. It intentionally removes older
+descriptions of obsolete council behavior and replaces them with the current
+intensification-first pipeline, weak-model upstream modes, benchmark tooling, and
+known failure modes observed in the model studies.
 
 ---
 
-## 1. What FLORA is
+## 1. Project Purpose
 
-FLORA is an AI-powered platform that automates the translation of batch
-chemistry protocols into validated continuous-flow process designs. It
-combines:
+FLORA translates a batch chemistry protocol into a continuous-flow process
+proposal. The system combines LLM-based chemistry interpretation with
+deterministic engineering calculations, literature retrieval, candidate
+generation, multi-agent downstream review, process-diagram generation, and
+benchmark analysis.
 
-1. **Literature-grounded RAG** over a curated corpus of flow chemistry papers
-   (ChromaDB, ~1500 records).
-2. **Deterministic first-principles physics** — a 9-step design calculator
-   (`flora_translate/design_calculator.py`) that is authoritative for Re,
-   ΔP, Da, residence time, pressure drop, Beer-Lambert absorption, and BPR
-   sizing. No LLM re-derives these.
-3. **ENGINE Council v4** — a stage-gated multi-agent scoring and refinement
-   system (Designer, Dr. Chemistry, Dr. Kinetics, Dr. Fluidics, Dr. Safety,
-   Skeptic, Chief) that selects a winning design from the deterministically
-   generated candidate shortlist after a bounded expert revision loop. See
-   Section 4.
-4. **Handbook-grounded fundamentals** — 2537 rules extracted from 6 flow
-   chemistry textbooks, injected into agent prompts by domain.
-5. **Multi-provider LLM backends** — Anthropic, OpenAI, or local Ollama
-   (`ENGINE_PROVIDER` in `flora_translate/config.py`).
+The project is currently focused on one central question:
 
-### What FLORA produces
+**Can an LLM-assisted flow-chemistry agent produce a scientifically meaningful
+flow translation that is not merely feasible, but actually improved versus the
+batch protocol?**
 
-Given a batch protocol (e.g., *"Ir(ppy)₃ photocatalyzed decarboxylative
-radical addition in DMF, 0.1 M, 450 nm LED, N₂, 24 h, 72 %"*), FLORA returns:
-
-- A validated **`FlowProposal`** with residence time, flow rate, tubing ID,
-  BPR, temperature, wavelength, and fully-specified stream assignments.
-- A **process flow diagram** (SVG/PNG) with syringe-pump icons for liquid
-  streams and **MFC icons for gas streams** (O₂, H₂, CO₂, N₂, Ar, air).
-- A **full deliberation log** — Designer candidate matrix, domain-scored
-  evaluations, Skeptic's arithmetic audit, pre-selection candidate
-  refinement, DFMEA, and Chief's weighted selection with reasoning.
-- A **before/after proposal comparison table** showing what the council
-  changed versus the initial calculator proposal.
-- A **design envelope** — ±30 % feasible operating window feeding the
-  Bayesian optimizer.
-- **Literature references** supporting the analogy choices.
-- A **confidence score** (HIGH / MEDIUM / LOW) from analogy quality.
+That question now drives the pipeline design. A proposed flow process must show
+process value: shorter residence time, reduced hazardous holdup, improved heat
+or mass transfer, improved selectivity, higher productivity, or a defensible
+screening plan when the evidence is uncertain.
 
 ---
 
-## 2. System architecture
+## 2. High-Level Pipeline
 
-```
-┌────────────────────────────────────────────────────────────────────┐
-│                    STREAMLIT DASHBOARD                              │
-│  Batch-to-Flow  │  Process Design  │  Condition Optimization (BO)   │
-└────┬───────────────┬──────────────────────────┬───────────────────┘
-     │               │                          │
-     ▼               ▼                          ▼
-┌────────────────────────────────────────────────────────────────────┐
-│                     SHARED BACKEND                                  │
-│                                                                     │
-│  ┌──────────────────┐  ┌──────────────┐  ┌─────────────────────┐  │
-│  │  9-Step Design   │  │   ENGINE     │  │  ChromaDB           │  │
-│  │  Calculator      │  │  Council v4  │  │  Vector Store       │  │
-│  │  (deterministic) │◄►│  (6 agents)  │◄►│  (RAG + analogies)  │  │
-│  └──────────────────┘  └──────┬───────┘  └─────────────────────┘  │
-│                                │                                    │
-│                     ┌──────────┴───────────┐                       │
-│                     │   2537 handbook      │                       │
-│                     │   rules (injected)   │                       │
-│                     └──────────────────────┘                       │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐  │
-│  │  Lab Inventory  │  LLM Providers (Anthropic/OpenAI/Ollama)  │  │
-│  └─────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────┘
+Current FLORA-Translate execution is orchestrated in `flora_translate/main.py`.
+
+```text
+Batch protocol text or JSON
+        |
+        v
+Input parsing
+        |
+        v
+Chemistry planning
+        |
+        v
+Literature retrieval and analogy selection
+        |
+        v
+9-step deterministic design calculator
+        |
+        v
+Design-space grid search
+        |
+        v
+Translation LLM creates initial FlowProposal
+        |
+        v
+ENGINE Council v4
+        |
+        v
+Final FlowProposal + calculations + council log
+        |
+        v
+Process topology and diagram
+        |
+        v
+Output formatter and Streamlit UI
 ```
 
----
+The most important architectural rule is:
 
-## 3. Modules
+**LLMs interpret chemistry and make judgments. Deterministic code computes the
+engineering numbers.**
 
-### 3.1 FLORA-Translate — batch → flow
-
-Given an existing batch protocol, produce a flow design.
-
-Pipeline:
-1. **Input Parser** — free text or structured JSON → `BatchRecord` (LLM).
-2. **Chemistry Reasoning Agent** — mechanism + stream logic +
-   sensitivities → `ChemistryPlan` (LLM + handbook rules).
-3. **Plan-aware retrieval** — ChromaDB search for similar flow papers
-   (k=20, reranked to k=3 analogies).
-4. **9-step Design Calculator** — deterministic; computes τ_center, k, Re,
-   ΔP, Da, Beer-Lambert, BPR, τ_analogy_min, τ_class_min. Authoritative.
-5. **ENGINE Council v4** — stage-gated scoring deliberation
-   (see Section 4). Produces a winning design.
-6. **Process topology + diagram builder** — converts the council-validated
-   `FlowProposal` into a `ProcessTopology` and renders an SVG/PNG.
-7. **Output formatter** — human-readable explanation + Streamlit result tabs.
-
-### 3.2 FLORA-Design — goal → flow (no batch protocol)
-
-Given a free-text chemistry goal (no existing batch data), produce a flow
-process from scratch. Uses the same shared backend (Calculator + Council v4)
-after a feature-extraction + topology selection phase that picks unit
-operations (pumps, mixers, reactors, BPR, degasser, quench, MFCs, …).
-
-### 3.3 FLORA-Fundamentals — handbook knowledge base
-
-Extracts engineering rules from handbook PDFs in a two-pass pipeline
-(Haiku relevance scan → Sonnet detailed extraction). Typical skip rate
-60–70 %. Rules are stored in `flora_fundamentals/data/rules.json` and
-auto-injected into the Chemistry Agent and every Council specialist's
-prompt, filtered by domain (kinetics, fluidics, safety, photochemistry,
-materials, scale-up).
-
-### 3.4 Condition Optimization — Bayesian optimizer
-
-Self-contained Gaussian-Process surrogate (Matern kernel) + Expected
-Improvement acquisition over a 5000-point candidate grid. No LLM
-dependency. Consumes FLORA's ±30 % design envelope as bounds.
-
-### 3.5 Protocol Diagnostics — standalone ENGINE
-
-Validates any flow protocol against engineering constraints without
-running the full translation pipeline. Reuses the Skeptic's code-layer
-safety rules.
-
-### 3.6 Knowledge pipeline — literature mining
-
-Corpus construction: DOI → PDF → chunk → embed → ChromaDB. Two
-collections: `flora_records` (single-paper records) and `flora_pairs`
-(batch↔flow pairs for direct analogy retrieval).
+The council may select or reject candidates, but it should not invent
+unrecomputed values for residence time, flow rate, pressure drop, Reynolds
+number, reactor volume, productivity, BPR requirement, or mass-transfer metrics.
 
 ---
 
-## 4. ENGINE Council v4 — stage-gated scoring
+## 3. Core Data Models
 
-> **Core principle:** LLMs do judgment, tools do arithmetic, hard rules do
-> safety. No agent invents numbers; no agent overrides physics.
+The main Pydantic models live in `flora_translate/schemas.py`.
 
-### 4.1 Why v4 replaced v3
+| Model | Role |
+|---|---|
+| `BatchRecord` | Structured representation of the input batch protocol. |
+| `ChemistryPlan` | Upstream chemistry interpretation: mechanism, stream logic, sensitivities, quench, retrieval keywords, and intensification mandate. |
+| `IntensificationMandate` | Explicit statement of why flow should improve the batch reaction. |
+| `FlowProposal` | Proposed flow process: tau, Q, T, concentration, BPR, tubing, reactor volume, streams, notes, status flags. |
+| `StreamAssignment` | Pump/stream-level contents, concentration, molar equivalent, flow rate, and reasoning. |
+| `DesignCandidate` | Final packaged result: proposal, chemistry plan, council messages, safety report, deliberation log, explanation. |
+| `ProcessTopology` | Ordered unit-operation graph used for the process diagram. |
+| `DeliberationLog` | Backward-compatible log object used by UI/reporting. |
 
-The v3 advocacy model had four specialists each pick a single candidate
-and argue for it. This produced lively deliberation but three structural
-problems:
+Important status fields on `FlowProposal`:
 
-1. **Collapse to unanimity** — specialists often gravitated to the same
-   obvious pick, wasting deliberation.
-2. **No comparability across candidates** — each specialist only evaluated
-   their favourite; candidates outside the picks had no domain-specific
-   assessment attached.
-3. **Hidden trade-offs** — with per-specialist picks, the Chief had to
-   reason from fragments rather than a complete scored matrix.
+| Field | Meaning |
+|---|---|
+| `engine_validated` | `true` only when the council selected a defensible final design under the current deterministic constraints. |
+| `confidence` | `HIGH`, `MEDIUM`, or `LOW`; local or repaired paths often stay `LOW`. |
+| `safety_flags` | Includes fallback and screen-required messages such as `SCREEN_REQUIRED`. |
 
-v4 keeps the domain separation but replaces advocacy with **scoring every
-surviving candidate on every domain** (0–1), then uses a deterministic
-weighted formula as the tiebreak input. The Chief still resolves using
-user objectives and natural-language reasoning, but the underlying numbers
-are auditable.
+---
 
-### 4.2 Division of responsibility
+## 4. Upstream: Parsing and Chemistry Planning
 
-| Responsibility | Owner | Why |
+The upstream stage has two modes.
+
+### 4.1 Full Upstream Path
+
+Used for stronger cloud models unless overridden.
+
+```text
+InputParser
+        |
+        v
+ChemistryReasoningAgent
+        |
+        v
+ChemistryPlan
+```
+
+Files:
+
+| File | Role |
+|---|---|
+| `flora_translate/input_parser.py` | Free-text protocol to `BatchRecord`. |
+| `flora_translate/chemistry_agent.py` | Full chemistry planning prompt for strong models. |
+| `flora_translate/intensification.py` | Code-owned fallback for the intensification mandate. |
+
+The chemistry planning agent identifies:
+
+- Reaction class and mechanism.
+- Key intermediates and sensitivities.
+- Stream logic and quench logic.
+- Retrieval keywords and similar reaction classes.
+- `intensification_mandate`.
+
+### 4.2 Lightweight Upstream Path
+
+Implemented in `flora_translate/lightweight_upstream.py`.
+
+This path exists because weak/local models struggled with the full
+`ChemistryPlan` schema. It is controlled by:
+
+```python
+LIGHTWEIGHT_UPSTREAM_MODE = "auto" | "always" | "v2" | "fair_v2" | "never"
+```
+
+Current behavior:
+
+| Mode | Behavior |
+|---|---|
+| `auto` | Use lightweight path for models matching weak/local markers such as `mini`, `gemma`, `llama`, `mistral`, `qwen`, `local`. |
+| `always` | Force lightweight path. |
+| `v2` / `fair_v2` | Use evidence-backed lightweight parsing and compact chemistry planning without overwriting the kinetic/design anchor. |
+| `never` | Force full upstream path. |
+
+The important distinction from earlier rescue experiments:
+
+**Lightweight v2 is intended to be fair. It does not secretly replace the design
+answer with a strong-model kinetic anchor. It uses compact JSON and
+deterministic evidence extraction to reduce parsing failures.**
+
+### 4.3 Evidence-Backed Parsing
+
+`EvidenceBackedInputParser` performs deterministic protocol-text checks after
+LLM parsing. This was added after local/weak models missed important arithmetic
+such as:
+
+```text
+0.5 mmol in 1 mL  =>  0.5 M
+```
+
+This matters because concentration errors scale all downstream flow-rate,
+volume, and productivity calculations.
+
+---
+
+## 5. Intensification Mandate
+
+The intensification mandate is now a first-class object:
+
+```python
+IntensificationMandate(
+    tau_reduction_target: float,
+    minimum_flow_advantage: str,
+    required_mixing_regime: str,
+    flow_justification_basis: str,
+)
+```
+
+It is generated by the chemistry agent when possible and guaranteed by
+`ensure_intensification_mandate()`.
+
+Default deterministic logic:
+
+| Reaction feature | Typical mandate |
+|---|---|
+| Photochemistry, hazardous intermediate, or exotherm | About `6x` tau reduction target. |
+| Moderate thermal chemistry | About `3x`. |
+| Default / weakly classified chemistry | About `2.5x`. |
+
+The mandate is propagated downstream to:
+
+- Designer.
+- Dr. Chemistry.
+- Dr. Kinetics.
+- Dr. Fluidics.
+- Dr. Safety.
+- Skeptic.
+- Chief.
+
+The current benchmark philosophy is intensification-first:
+
+```python
+FLOW_TRANSLATION_POLICY = "intensify"
+FLOW_MAX_TAU_TO_BATCH_RATIO = 1.0
+BATCH_PROXIMITY_THRESHOLD = 0.85
+```
+
+So a flow design that simply matches or exceeds batch residence time is not
+treated as a successful flow translation.
+
+---
+
+## 6. Retrieval and Analogy Selection
+
+Retrieval is plan-aware.
+
+```text
+ChemistryPlan + BatchRecord
+        |
+        v
+VectorRetriever
+        |
+        v
+AnalogySelector
+        |
+        v
+Top flow analogies
+```
+
+Files:
+
+| File | Role |
+|---|---|
+| `flora_translate/vector_store.py` | ChromaDB-backed vector storage. |
+| `flora_translate/retriever.py` | Retrieves records using batch and chemistry-plan context. |
+| `flora_translate/analogy_selector.py` | Selects final analogy set from retrieved records. |
+
+Collections:
+
+| Collection | Purpose |
+|---|---|
+| `flora_records` | Single-paper records. |
+| `flora_pairs` | Batch-flow paired records when available. |
+
+Current known issue:
+
+Some extracted analogy intensification factors were directionally wrong or
+ambiguous. The design calculator now records both raw and corrected IFs and
+floors sub-unity IFs to `1.0` so a bad literature record cannot force a
+de-intensified flow design.
+
+---
+
+## 7. 9-Step Deterministic Design Calculator
+
+The design calculator is in `flora_translate/design_calculator.py`.
+
+It is the authoritative source for initial engineering calculations.
+
+Main outputs:
+
+| Step | Output |
+|---|---|
+| 1 | Batch conditions: temperature, concentration, time, conversion. |
+| 2 | Kinetics and residence time: batch-derived k, class IF, analogy IF, tau range. |
+| 3 | Reactor sizing: volume, ID, length, flow rate, Peclet estimate. |
+| 4 | Fluid dynamics: velocity, Reynolds number, regime. |
+| 5 | Pressure drop: Hagen-Poiseuille estimate and pump margin. |
+| 6 | Mass transfer: mixing time and Damkohler-style mass-transfer flag. |
+| 7 | Heat transfer: heat generation/removal, surface-to-volume ratio. |
+| 8 | BPR requirement: vapor/gas-liquid logic and minimum BPR. |
+| 9 | Process metrics: STY, productivity, startup waste, intensification factor. |
+
+Recent important behavior:
+
+- Raw analogy IFs are retained as `raw_analogy_IFs`.
+- Sub-unity analogy IFs are floored to `1.0`.
+- `IF_floor_applied` is recorded.
+- If analogy IF and class IF strongly disagree, Council v4 marks the kinetic
+  anchor as uncertain rather than silently trusting it.
+
+Example from the isoxazole benchmark after the IF-floor fix:
+
+```text
+raw_analogy_IFs = [0.089, 0.25, 24.0]
+corrected analogy_IFs = [1.0, 1.0, 24.0]
+IF_analogy = 1.0
+IF_class = 10.0
+tau_analogy = 15.0 min
+tau_class = 1.5 min
+status = kinetic anchor uncertain
+```
+
+---
+
+## 8. Design-Space Search and Initial Proposal
+
+After the calculator, FLORA runs a deterministic design-space search before
+the council.
+
+Files:
+
+| File | Role |
+|---|---|
+| `flora_translate/engine/design_space.py` | Grid search over flow design candidates. |
+| `flora_translate/engine/sampling.py` | Candidate sampling, metric computation, hard filtering, Pareto tagging. |
+| `flora_translate/translation_llm.py` | LLM converts chemistry plan and calculator center into a structured `FlowProposal`. |
+| `flora_translate/prompt_builder.py` | Builds the translation prompt. |
+
+The design-space candidate can override the Translation LLM's geometry before
+the council:
+
+```python
+proposal.residence_time_min = top_candidate.tau_min
+proposal.flow_rate_mL_min = top_candidate.Q_mL_min
+proposal.tubing_ID_mm = top_candidate.d_mm
+proposal.reactor_volume_mL = top_candidate.V_R_mL
+```
+
+The Translation LLM is still useful for stream assignment, notes, and process
+structure, but deterministic candidates drive the core engineering geometry.
+
+---
+
+## 9. ENGINE Council v4
+
+ENGINE Council v4 is the active downstream multi-agent system.
+
+Files:
+
+| File | Role |
+|---|---|
+| `flora_translate/engine/council_v4/designer.py` | Problem framing and candidate generation/filtering. |
+| `flora_translate/engine/council_v4/scoring.py` | Four domain scoring agents. |
+| `flora_translate/engine/council_v4/skeptic.py` | Arithmetic, flow-sense, and weak-pool audit. |
+| `flora_translate/engine/council_v4/chief.py` | Orchestrator, selection, refinement, fallback, final patching. |
+| `flora_translate/engine/flow_value.py` | Deterministic flow-value and PVS calculations. |
+
+### 9.1 Council Agents
+
+| Agent | Responsibility |
+|---|---|
+| Designer | Generate candidate pool from deterministic sampling, apply flow-value self-filter, provide pool metadata. |
+| Dr. Chemistry | Judge chemistry compatibility, selectivity, stream logic, concentration-related concerns. |
+| Dr. Kinetics | Judge tau, conversion, kinetic plausibility, tau-reduction value. |
+| Dr. Fluidics | Judge Re, pressure drop, mixing, tube ID, heat-transfer proxy. |
+| Dr. Safety | Judge BPR, materials, thermal/hazard risk, operating safety. |
+| Skeptic | Audit arithmetic, scope violations, process value, weak-pool conditions, disqualification recommendations. |
+| Chief | Select winner using weighted score, PVS, geometry, objective, and audit results. |
+
+### 9.2 Stage Flow
+
+```text
+Stage 0: Problem framing and intensification feasibility precheck
+        |
+        v
+Stage 1: Designer candidate pool
+        |
+        v
+Stage 2: Domain scoring by four Dr-agents
+        |
+        v
+Stage 3: Skeptic audit
+        |
+        v
+Stage 3.5: Bounded candidate refinement, recompute, rescore, reaudit
+        |
+        v
+Stage 4: Chief selection
+        |
+        v
+Stage 5: Apply winner to FlowProposal
+        |
+        v
+Stage 6: DFMEA and validation recommendations
+```
+
+### 9.3 Stage 0: Feasibility Precheck
+
+The Chief performs an intensification feasibility precheck before normal
+candidate generation.
+
+If the current kinetic anchor requires a tau longer than the intensification
+ceiling:
+
+```text
+tau_ceiling = batch_time / tau_reduction_target
+```
+
+the council takes one of two paths:
+
+| Condition | Behavior |
+|---|---|
+| Kinetic anchor is constraining and credible | Hard fallback to `screen_required`; Designer is skipped. |
+| Kinetic anchor is uncertain | Proceed to Designer, but final output must remain `engine_validated=false` and `SCREEN_REQUIRED`. |
+
+Uncertain anchors are detected when, for example:
+
+- Sub-unity analogy IFs were floored.
+- Analogy IF is batch-equivalent while class IF predicts strong intensification.
+- Raw and corrected IF lists show major disagreement.
+
+### 9.4 Stage 1: Designer Candidate Pool
+
+Designer uses deterministic sampling and computes:
+
+- Tau.
+- Tube ID.
+- Flow rate.
+- Reactor volume.
+- Length.
+- Reynolds number.
+- Pressure drop.
+- Mixing ratio.
+- `Da_mass`.
+- Estimated conversion.
+- Productivity.
+- Flow-sense report.
+
+The Designer also applies a self-challenge filter:
+
+| Filter | Purpose |
+|---|---|
+| Batch proximity | Drop candidates too close to batch residence time. |
+| Zero flow advantage | Drop candidates with no process-value signal. |
+| Batch equivalence | Drop designs that do not need continuous flow. |
+
+Pool metadata includes:
+
+```python
+pool_metadata = {
+    "candidates_generated": int,
+    "candidates_dropped": int,
+    "drop_reasons": list[str],
+    "pool_quality": "NORMAL" | "DEGRADED" | "INFEASIBLE",
+    "regeneration_triggered": bool,
+}
+```
+
+### 9.5 Stage 2: Domain Scoring
+
+Every surviving candidate is scored by each domain agent.
+
+Each domain returns:
+
+- Numeric domain score.
+- Verdict.
+- Reasoning.
+- Concerns.
+- Bounded proposed changes.
+- Flow-value contribution.
+
+Domain-owned edits:
+
+| Domain | May edit |
+|---|---|
+| Chemistry | Concentration. |
+| Kinetics | Residence time. |
+| Fluidics | Tubing ID. |
+| Safety | BPR and tubing material. |
+
+The four flow-value sub-scores are:
+
+| Sub-score | Source |
+|---|---|
+| `selectivity_flow_value` | Dr. Chemistry. |
+| `tau_reduction_flow_value` | Dr. Kinetics. |
+| `heat_transfer_flow_value` | Dr. Fluidics. |
+| `safety_delta_flow_value` | Dr. Safety. |
+
+`flora_translate/engine/flow_value.py` currently overwrites or fills these
+with deterministic code-owned defaults to reduce weak-model overstatement.
+
+**Claude compact scoring mode** (added April 2026):
+
+When `ENGINE_PROVIDER = "anthropic"` and the council model starts with `claude`,
+scoring uses a compact prompt bundle (`_claude_compact_prompt_bundle`) that:
+
+- Avoids tool calls entirely.
+- Uses `max_tokens = 1400` per domain call.
+- Returns JSON only with shorter reasoning strings.
+- One-liner prompt per domain with strict field ownership.
+
+This path was introduced to reduce benchmark cost and latency for Anthropic-backend council
+runs. It is selected automatically by `_is_anthropic_council_mode()`.
+
+### 9.6 Process Value Score
+
+The Process Value Score, or PVS, is computed as:
+
+```text
+PVS =
+  0.20 * selectivity_flow_value
++ 0.35 * tau_reduction_flow_value
++ 0.20 * heat_transfer_flow_value
++ 0.25 * safety_delta_flow_value
+```
+
+The Chief's final score uses:
+
+```text
+final_score =
+  0.45 * domain_score_component
++ 0.40 * PVS
++ 0.15 * geometry_score
+```
+
+This makes "better than batch" nearly as important as the average domain
+adequacy score.
+
+### 9.7 Stage 3: Skeptic
+
+The Skeptic audits:
+
+- Unit consistency.
+- `V = tau * Q`.
+- Tube length formula.
+- Recalculation consistency after proposed edits.
+- BPR floor logic.
+- Agent scope violations.
+- Flow-sense errors.
+- Batch-proximate candidates.
+- Weak candidate pools.
+
+Skeptic verdicts:
+
+| Verdict | Meaning |
+|---|---|
+| `PASS` | Continue to Chief. |
+| `EDIT` | Continue after bounded corrections. |
+| `BLOCK` | Hard stop. |
+| `WEAK_POOL` | Reject the whole candidate pool and send regeneration instructions to Designer. |
+
+`MAX_WEAK_POOL_CYCLES = 2`.
+
+### 9.8 Stage 3.5: Bounded Refinement
+
+If domain agents propose bounded edits, the council:
+
+1. Merges allowed edits into revision variants via `_candidate_revision_variants()`.
+2. Generates descendant candidates when branching revision mode is active.
+3. Recomputes all metrics deterministically via `_materialize_revised_candidate()`.
+4. Reapplies hard gates.
+5. Rescores the revised pool.
+6. Reaudits before Chief selection.
+
+**Revision variant types** (added April 2026):
+
+`_candidate_revision_variants()` generates up to two kinds of variant per candidate:
+
+| Variant type | Mode | Description |
 |---|---|---|
-| Numerical computation (τ, d, Q, Re, ΔP, X, productivity) | Deterministic tools | Reproducible, no hallucination surface |
-| Hard gates (L≤25 m, V_R≤50 mL, X_min=0.50, Re<2300, BPR floor for gas-liquid) | Designer + Skeptic code layers | Not debatable — they're physics |
-| Domain scoring (chemistry/kinetics/fluidics/safety per candidate) | Dr-agents with tools | Where specialists add value |
-| Bounded candidate edits before selection | Dr-agents + deterministic merge/recompute | Lets experts refine candidates without letting prompts bypass physics |
-| Arithmetic audit (units, V_R=τQ, L formula, recalc chains) | Skeptic LLM + code | Cross-checks every claim from every agent |
-| Final selection | Chief (weighted formula + LLM reasoning) | Closes the loop against user objectives |
+| Merged | Always | All domain patches combined into one variant. |
+| Domain-focused | `strong_revision_mode` only | One variant per domain, ranked by priority (kinetics → fluidics → safety → chemistry). |
 
-### 4.3 Pipeline — stage by stage
+Domain priority is controlled by `_DOMAIN_PRIORITY`.
 
-```
-┌───────────────────────────────────────────────────────────────┐
-│  Upstream: BatchRecord, ChemistryPlan, analogies, inventory,  │
-│  FlowProposal → 9-step Design Calculator                      │
-│     (τ_center, τ_lit, k, IF, pump_max, C_reactor, ṅ_limiting) │
-└───────────────────────────┬───────────────────────────────────┘
-                            ▼
- ┌───────────────────────────────────────────────────────────┐
- │  STAGE 0 — DESIGNER (framing)                              │
- │  LLM chooses sampling strategy (τ range, d set, L fraction│
- │  preferences, log vs linear spacing, number of samples).   │
- └───────────────────────────┬───────────────────────────────┘
-                             ▼
- ┌───────────────────────────────────────────────────────────┐
- │  STAGE 1 — CANDIDATE MATRIX (deterministic)                │
- │  sampling.generate_candidates(...) →                       │
- │    • sample_design_space (τ × d × L_fraction triplets)     │
- │    • compute_metrics (Re, ΔP, L, V_R, r_mix, Da_mass, X,   │
- │                       STY, productivity, absorbance)       │
- │    • hard_filter (bench-physics rejects)                   │
- │    • Pareto front on {prod↑, L↓, r_mix↓}                   │
- │    • Diversity-preserving reduction → ~12 candidates       │
- │    • v4 hard gates: L≤25 m, V_R≤50 mL, X≥0.50              │
- └───────────────────────────┬───────────────────────────────┘
-                             ▼
- ┌───────────────────────────────────────────────────────────┐
- │  STAGE 2 — SCORING (four domains in parallel)              │
- │  Every surviving candidate scored 0–1 on every domain:     │
- │                                                             │
- │  Dr. Chemistry  — mechanism fit, photon economy,           │
- │                   Beer-Lambert (ε default 20 for Ir),      │
- │                   solvent/reagent compatibility            │
- │  Dr. Kinetics   — τ vs τ_kinetics margin, enhancement      │
- │                   factor plausibility, conversion estimate │
- │  Dr. Fluidics   — Re, ΔP headroom, r_mix, dual-criterion   │
- │                   mixing check, d-change recommendations    │
- │  Dr. Safety     — BPR adequacy, Da_thermal, material       │
- │                   compatibility, hazard flags, DFMEA prep  │
- │                                                             │
- │  Each agent outputs:                                        │
- │    • overall commentary                                     │
- │    • per-candidate {score, reasoning, concerns, verdict}    │
- │    • optional bounded `proposed_changes` owned by that      │
- │      domain only (chemistry: C; kinetics: τ; fluidics: d;  │
- │      safety: BPR/material)                                  │
- │    • tool calls (for audit trail)                           │
- └───────────────────────────┬───────────────────────────────┘
-                             ▼
- ┌───────────────────────────────────────────────────────────┐
- │  STAGE 3 — SKEPTIC (arithmetic audit)                      │
- │  Full auditor with tools:                                   │
- │    • unit checks (Beer-Lambert, ε, ℓ, C consistency)       │
- │    • formula checks (V_R = τ·Q, L = 4V/(πd²), Re = ρvd/μ)  │
- │    • recalculation chains — "if d changed to X, Re becomes │
- │      Y, ΔP becomes Z"; flags any inconsistent knock-on    │
- │    • scope violations — flags when an agent made claims    │
- │      outside its domain                                     │
- │    • mixing-direction sanity checks                         │
- │    • disqualify recommendations for candidates with        │
- │      CRITICAL errors                                        │
- │  Output: audit summary, per-agent issues, disqualify list. │
- └───────────────────────────┬───────────────────────────────┘
-                             ▼
- ┌───────────────────────────────────────────────────────────┐
- │  STAGE 3.5 — PRE-SELECTION EXPERT REFINEMENT               │
- │  • Merge bounded domain edits on a per-candidate basis.    │
- │  • Ignore proposals from domains whose first-pass output   │
- │    failed the Skeptic audit at HIGH/CRITICAL severity.     │
- │  • Recompute every revised candidate with deterministic    │
- │    physics (`compute_metrics`, hard filters, hard gates).  │
- │  • Rescore the revised candidate matrix across all four    │
- │    domains and re-run the Skeptic audit.                   │
- │  • Chief sees the rescored matrix, not the stale one-pass  │
- │    scores.                                                 │
- └───────────────────────────┬───────────────────────────────┘
-                             ▼
- ┌───────────────────────────────────────────────────────────┐
- │  STAGE 4 — CHIEF (weighted selection)                      │
- │  1. Compute combined score per candidate:                  │
- │       combined = 0.25·chemistry + 0.20·kinetics            │
- │                + 0.20·fluidics + 0.20·safety               │
- │                + 0.15·geometry + objective_modifier        │
- │  2. Disqualify candidates per Skeptic + hard gates.        │
- │  3. LLM selects winner with tools (compute_design_envelope)│
- │     using the full weighted score table + chemistry brief  │
- │     + Skeptic summary + user objectives.                   │
- │  4. Tie-break: safety → envelope width → τ vs τ_lit.       │
- │  5. If all survivors within 10%: return TOP-3 envelope.    │
- │  6. If flow not justified: return "batch is better".       │
- │  7. Chief derives per-pump flowrates from ṅ_limiting + eq  │
- │     and feed concentrations; Chief output carries both     │
- │     winner params and `pump_flowrates[]`.                  │
- │  8. DFMEA on the winner (failure modes, SPOFs, validation  │
- │     experiments).                                          │
- └───────────────────────────┬───────────────────────────────┘
-                             ▼
- ┌───────────────────────────────────────────────────────────┐
- │  STAGE 5 — APPLY & RE-VALIDATE                             │
- │  • Patch FlowProposal with winner (τ, d, Q, V_R) + Chief   │
- │    overrides (BPR, material, deox method, BPR_bar).        │
- │  • Apply Chief's pump_flowrates to proposal.streams.       │
- │  • Renormalise REACTOR-FEED streams (excluding quench)     │
- │    so Σ = Q_winner; update each stream's derivation text.  │
- │  • Propagate winner τ into stage_parameters[stage 1] so    │
- │    the multi-step topology builder honours it.             │
- │  • Re-run 9-step calculator on the patched proposal.       │
- │  • Build DeliberationLog (scoring matrix, DFMEA, audit).   │
- └───────────────────────────────────────────────────────────┘
+`strong_revision_mode` is activated when the Skeptic identifies severe issues and
+enables branching exploration across domain-specific revisions.
+
+The benchmark mode can limit revision expansion:
+
+```python
+benchmark_max_descendants_per_candidate
+benchmark_max_total_revised_candidates
 ```
 
-### 4.4 Objective elicitation
+This prevents runaway refinement loops.
 
-Chief accepts a user objective string and applies a modifier to domain
-weights:
+### 9.9 Stage 4: Chief
 
-| Objective | Weight shift |
+The Chief receives:
+
+- Candidate table.
+- Domain scores.
+- PVS rows.
+- Skeptic audit.
+- Pool metadata.
+- Intensification mandate.
+- Chemistry brief.
+- User objective.
+
+It must produce a concrete selection justification. If it cannot identify a
+real flow advantage, it adds:
+
+```text
+selection_flag = "REQUIRES_HUMAN_REVIEW"
+```
+
+### 9.10 Screen-Required Output
+
+When no fully validated design is defensible, the council does not pretend
+success. It returns:
+
+```python
+engine_validated = False
+confidence = "LOW"
+safety_flags += ["SCREEN_REQUIRED: ..."]
+```
+
+The screen-required payload can include screen candidates with tau, ID, length,
+flow rate, temperature, BPR, and acceptance criteria.
+
+Current caveat:
+
+Some fallback paths still preserve the pre-council proposal as the final
+proposal while storing useful screen candidates in the safety report. This is a
+known consistency issue to clean up.
+
+---
+
+## 10. Known Council Issue From Gemma-Gemma Deep Dive
+
+The Gemma-Gemma benchmark exposed an important failure mode in local-model
+council scoring.
+
+Gemma sometimes returns contradictory score rows such as:
+
+```json
+{
+  "verdict": "FAIL",
+  "kinetics_score": 1.0,
+  "reasoning": "Tau reduction target met, but conversion is critically low."
+}
+```
+
+This is logically inconsistent. The text says failure, but the numeric score
+allows the candidate to rank highly.
+
+Observed consequence:
+
+- Candidate tau around `2.0 min` satisfied the intensification target.
+- Predicted conversion was only about `12-15%`.
+- Mixing was poor.
+- Domain agents wrote failure reasoning.
+- Numeric scores were still high.
+- The Chief selected the candidate, but final status was correctly downgraded
+  to `engine_validated=false`, `confidence=LOW`, `SCREEN_REQUIRED`.
+
+Required fix:
+
+- Add deterministic verdict-score consistency checks.
+- Treat `FAIL`, `REJECT`, and similar local-model verdicts as disqualifying or
+  force score downgrades.
+- Let Skeptic flag score/verdict contradictions as high severity.
+- Prefer screen-matrix output over a single selected "design" when all
+  candidates have low predicted conversion.
+
+Until this is fixed, Gemma council outputs should be interpreted as screening
+hypotheses, not validated designs.
+
+---
+
+## 11. Deterministic Tools
+
+Tool schemas and dispatch live in `flora_translate/engine/tool_definitions.py`.
+Numerical implementations live in `flora_translate/engine/tools.py`,
+`flora_translate/engine/sampling.py`, and `flora_translate/design_calculator.py`.
+
+| Tool / Function | Purpose |
 |---|---|
-| `de-risk first-run` | safety +0.10, chemistry +0.05, throughput −0.15 |
-| `yield-oriented` | kinetics +0.05, chemistry +0.05, throughput −0.10 |
-| `throughput-oriented` | fluidics +0.05, geometry +0.05, safety −0.10 |
-| `balanced` (default) | no shift |
+| `calculate_reynolds` | Reynolds number and flow regime. |
+| `calculate_pressure_drop` | Hagen-Poiseuille pressure drop. |
+| `calculate_mixing_ratio` | Mixing time relative to residence time. |
+| `calculate_bpr_required` | BPR requirement and gas-liquid handling. |
+| `beer_lambert` | Photochemical absorbance. |
+| `check_material_compatibility` | Tubing/material suitability. |
+| `estimate_residence_time` | Kinetic tau estimate. |
+| `compute_design_envelope` | Feasible operating envelope. |
+| `sample_design_space` | Candidate grid generation. |
+| `compute_metrics` | Candidate metrics. |
+| `hard_filter` | Bench-physics filter. |
+| `generate_candidates` | End-to-end candidate sampling and filtering. |
 
-### 4.5 What the council *never* does
-
-- Invent numeric values for τ, d, Q, Re, ΔP, productivity, Beer-Lambert A.
-  These come from `compute_metrics` and deterministic tools.
-- Skip deterministic recomputation. Candidate refinement re-invokes
-  `compute_metrics` / hard filters / hard gates, and the final applied
-  winner still re-runs `DesignCalculator`.
-- Override hard safety rules. The Skeptic's code layer is final.
-- Score with arbitrary weighted sums that can't be defended. The weights
-  are fixed (25/20/20/20/15) and the objective modifier is documented.
+Anthropic and OpenAI council calls can use structured tools. Ollama/local
+models use prompt-only compact scoring paths.
 
 ---
 
-## 5. Deterministic tools
+## 12. Process Topology and Diagram
 
-### 5.1 Physics tools — `engine/tools.py` + `engine/sampling.py`
+Topology generation lives in `flora_translate/main.py`.
 
-Every number FLORA shows comes from one of these functions.
+Diagram rendering lives in:
 
-| Tool | Purpose |
+```text
+flora_design/visualizer/flowsheet_builder.py
+```
+
+Current process-topology rules:
+
+- Liquid feed streams become pump nodes.
+- Gas streams become MFC nodes.
+- Reactor feeds go to the main mixer.
+- Quench/workup streams are injected after the reactor.
+- A stream cannot be both reactor feed and quench.
+- For multi-step processes, each stage gets its own reactor zone.
+- Stage 1 tau selected by the Chief is propagated into `stage_parameters`.
+
+Flow-rate source of truth:
+
+```text
+proposal.streams[*].flow_rate_mL_min
+```
+
+The topology builder should not recompute pump rates if the Chief has already
+renormalized them.
+
+Q conservation:
+
+```text
+Q_reactor_inlet = sum(reactor feed streams)
+Q_outlet_after_quench = Q_reactor_inlet + sum(quench streams)
+```
+
+---
+
+## 13. Streamlit UI
+
+Main pages:
+
+| Page | Purpose |
 |---|---|
-| `beer_lambert(C, ε, ℓ)` | A = ε·C·(d/10); inner-filter risk classification |
-| `calculate_reynolds(Q, d, solvent, T)` | Re + flow regime |
-| `calculate_pressure_drop(Q, d, L, solvent)` | Hagen-Poiseuille ΔP |
-| `calculate_mixing_ratio(d, τ)` | t_mix / τ |
-| `calculate_bpr_required(T, solvent, ΔP, is_gl)` | BPR sizing + 7 bar floor for gas-liquid |
-| `check_material_compatibility(mat, solv, T)` | FEP/PFA/PTFE/SS/PEEK rules |
-| `check_redox_feasibility(E*, E_ox)` | SET thermodynamic check |
-| `estimate_residence_time(k, target_X)` | Independent τ_kinetics |
-| `compute_design_envelope(center, ...)` | ±30 % feasible window for BO |
-| `sampling.sample_design_space(...)` | Deterministic (τ, d, Q, L_frac) triplets |
-| `sampling.compute_metrics(...)` | Full metric set for one candidate |
-| `sampling.hard_filter(...)` | Bench-physics reject rules |
-| `sampling.generate_candidates(...)` | End-to-end sample → metric → filter → Pareto → diversity-reduce |
+| `pages/translate.py` | Batch-to-flow translation UI. |
+| `pages/flora_design_unified.py` | Unified design UI. |
+| `pages/diagnose.py` | Protocol diagnostics. |
+| `pages/optimize.py` | Optimization. |
+| `pages/fundamentals.py` | Handbook knowledge. |
+| `pages/corpus.py` | Corpus browsing. |
+| `pages/prism.py` | Literature extraction/mining. |
+| `pages/scout.py` | Search/scouting. |
 
-### 5.2 Tool-use infrastructure — `engine/tool_definitions.py`
+Typical output tabs include:
 
-Anthropic-format schemas for all tools, `execute_tool()` dispatcher,
-named tool sets per agent, and `to_openai_tools()` converter.
-`call_llm_with_tools()` in `llm_agents.py` handles the multi-turn
-tool-use loop for both Anthropic and OpenAI providers. Ollama falls
-back gracefully to prompt-only mode.
+- Summary.
+- Engineering design.
+- Process diagram.
+- Chemistry plan and recipe.
+- Stream assignments.
+- Council deliberation.
+- Council report.
+- Raw JSON.
 
 ---
 
-## 6. Multi-step & quench workflow — single source of truth
+## 14. LLM Provider Abstraction
 
-A recurring historical bug: the same flow rate appearing as three
-different numbers in three different tabs. The v4.2 pipeline enforces
-**one source of truth**: `proposal.streams[label].flow_rate_mL_min`,
-written by the Chief and never recomputed downstream.
+Provider/model selection lives in `flora_translate/config.py`.
 
-### 6.1 Stream classification (at topology-build time)
+Current model fields:
 
-Every entry in `proposal.streams` is classified exactly once:
-
-- **reactor_feed** — its `pump_role` contains none of
-  {`quench`, `neutraliz`, `workup`, `post-reactor`} and its contents
-  don't match `chemistry_plan.quench_reagent`.
-- **quench_stream** — matches any of the above keywords.
-- **gas** — its role matches `_GAS_PURE_ROLES` (N₂, O₂, H₂, CO₂, Ar, air,
-  MFC, etc.) — always gets an MFC icon, never a syringe pump.
-
-Classification lives in `_is_quench_stream()` and `_stream_is_gas()` in
-`flora_translate/main.py`. Both functions are role-based, not
-content-string-matching, to avoid false positives ("N₂-degassed reagent"
-is not a gas stream).
-
-### 6.2 Q conservation contract
-
-For a single-step process with quench:
-
-```
-Q_reactor_inlet = Σ Q_i    for i in reactor_feeds
-Q_outlet        = Q_reactor_inlet + Σ Q_j    for j in quench_streams
+```python
+MODEL_INPUT_PARSER
+MODEL_CHEMISTRY_AGENT
+MODEL_TRANSLATION
+MODEL_OUTPUT_FORMATTER
+MODEL_REVISION_AGENT
+MODEL_CONVERSATION_AGENT
+MODEL_EMBEDDING_SUMMARY
+MODEL_TOPOLOGY_POLISHER
 ```
 
-The main reactor T-mixer connects reactor_feed pumps ONLY. Quench streams
-are injected at a separate post-reactor Quench T-mixer. Pumps cannot
-appear twice in the topology.
+Council provider:
 
-For multi-step processes:
-
+```python
+ENGINE_PROVIDER = "anthropic" | "openai" | "ollama"
+ENGINE_MODEL_ANTHROPIC
+ENGINE_MODEL_OPENAI
+ENGINE_MODEL_OLLAMA
+OLLAMA_BASE_URL
 ```
-Q_inlet_stage_i = Q_outlet_stage_{i-1} + Σ Q_new_feeds_stage_i
-V_R_stage_i     = τ_i × Q_inlet_stage_i
+
+**Current default** (as of April 2026): `ENGINE_PROVIDER = "openai"`. The config was
+temporarily set to `"openai"` during model matrix benchmarking. Change back to
+`"anthropic"` for Claude-council runs.
+
+**New provider-agnostic helpers** (added April 2026):
+
+| Function | Purpose |
+|---|---|
+| `infer_provider_for_model(model, provider)` | Auto-detects provider from model name prefix (`claude` → anthropic, `gpt-/o1/o3/o4` → openai, else ollama). |
+| `call_model_messages(model, system, messages, max_tokens, provider)` | Provider-agnostic text generation for upstream modules. Returns `TextGenerationResult`. |
+| `TextGenerationResult` | Dataclass: `text`, `provider`, `model`, `usage`, `stop_reason`, `finish_reason`. |
+
+These allow upstream modules (`input_parser`, `chemistry_agent`, etc.) to call any provider
+without hard-coding Anthropic/OpenAI client logic at the call site.
+
+Current benchmark providers:
+
+| Label | Meaning |
+|---|---|
+| `claude` | Claude Sonnet/Opus configuration depending on component. |
+| `gpt4o` | OpenAI GPT-4o. |
+| `gpt4omini` | OpenAI GPT-4o-mini. |
+| `gemma` | Local/vLLM/Ollama Gemma 31B-style endpoint, depending on benchmark script. |
+| `gpt4omini_rescued` | Weak upstream with rescue/lightweight procedure. |
+| `gemma_rescued` | Gemma upstream with rescue/lightweight procedure. |
+
+Important distinction:
+
+**Raw weak upstream** and **rescued/lightweight upstream** are not equivalent
+benchmark conditions. They must be labeled separately.
+
+---
+
+## 15. Benchmark Infrastructure
+
+Benchmark code lives in `benchmark/`.
+
+| File | Purpose |
+|---|---|
+| `benchmark/cases.py` | Shared benchmark protocols. |
+| `benchmark/pipeline.py` | Common benchmark execution helpers. |
+| `benchmark/recorder.py` | Stage events, snapshots, manifests, LLM usage logs. |
+| `benchmark/run_candidate_budget_benchmark.py` | Candidate-budget benchmark. |
+| `benchmark/run_protocol_budget_benchmark.py` | Protocol-level budget benchmark. |
+| `benchmark/run_model_matrix_benchmark.py` | 3×3 upstream × council model matrix benchmark. |
+| `benchmark/run_protocol_openai_council.py` | Protocol runs with OpenAI council. |
+| `benchmark/run_local_model_benchmark.py` | Local Gemma/Claude benchmark. |
+| `benchmark/run_upstream_mode_comparison.py` | Comparison across lightweight/full/rescued upstream modes. |
+| `benchmark/run_rescued_weak_upstream_benchmark.py` | Weak-upstream rescue benchmark. |
+| `benchmark/run_lightweight_v2_smoke.py` | Lightweight v2 smoke test. |
+| `benchmark/run_protocol_gemma_council.py` | Protocol runs with Gemma council. |
+| `benchmark/make_benchmark_visualizations.py` | Model benchmark figures and CSVs. |
+| `benchmark/make_local_model_visualizations.py` | Local model benchmark figures. |
+| `benchmark/export_local_council_logs.py` | Full council logs and reasoning export. |
+| `ablation_summary.py` | Exports no-council / 1-candidate / 12-candidate ablation comparison. |
+
+Benchmark outputs are stored under:
+
+```text
+benchmark/data/
 ```
 
-A feed-stream label that is declared in multiple stages is only created
-as a pump at the LAST stage that declares it (`_label_last_stage` filter
-in `_build_multistep_topology`). This prevents the chemistry LLM's
-occasional mis-placement of a quench stream in Stage 1's feed_streams
-from producing a duplicate pump node.
+Typical benchmark output structure:
 
-### 6.3 Chief renormalisation
-
-The Chief derives `Q_i = ṅ_limiting × eq_i / C_feed_i` for each reactor
-feed. That derivation is batch-throughput arithmetic and can differ from
-the engineering candidate's Q (which comes from τ × d geometry). To
-reconcile:
-
-1. The Chief writes derived Q_i into `proposal.streams[i].flow_rate_mL_min`.
-2. `_apply_winner` computes `Σ Q_i over reactor_feeds`.
-3. If `Σ ≠ Q_winner` (>2% drift), every reactor_feed Q_i is scaled by
-   `Q_winner / Σ`. Quench stream rates are left untouched.
-4. Each scaled stream's `reasoning` text is appended with the scaling
-   note so the UI derivation formula stays consistent with the displayed
-   rate. Example:
-
-   ```
-   ṅ_lim=0.333 mmol/min × eq=1.0 / C_feed=0.667 M = 0.500 mL/min
-    → scaled ×2.618 to 1.3090 mL/min so Σ reactor-feed pumps
-      = Q_reactor_inlet = 2.6180 mL/min
-   ```
-
-### 6.4 τ propagation for multi-step
-
-Chief sets `stage_parameters[stage_number=1]["residence_time_min"] =
-winner.tau_min` so `_build_multistep_topology` honours it for Stage 1
-instead of recomputing from batch time / IF. Later stages still compute
-independently (each has its own kinetics). τ display in the diagram uses
-`:.1f` precision to avoid silently rounding 2.7 → 3.
+```text
+benchmark/data/<benchmark_name>/
+    matrix_manifest.csv or budget_manifest.csv
+    benchmark_config.json
+    U_<upstream>/contexts/<case>/
+        prepared_context.json
+        snapshots/
+        llm_events.jsonl
+        stage_events.jsonl
+    U_<upstream>/C_<council>/runs/<case>/budget_<n>/repeat_01/
+        result.json
+        run_summary.json
+        metadata.json
+        snapshots/
+        llm_events.jsonl
+        stage_events.jsonl
+```
 
 ---
 
-## 7. Chemistry reasoning — the three-layer architecture
+## 16. Current Benchmark Findings
 
-Distinct LLM roles with clear separation:
+### 16.1 Budget Benchmark
 
-- **Layer 1 — Chemistry Agent (`chemistry_agent.py`):** mechanism, species,
-  stream logic, sensitivities, quench requirement. No hardware decisions.
-  Injects handbook rules filtered by mechanism / solvent / photocatalyst.
-  - **L-L separator guard:** `post_stage_action = "liquid-liquid extraction"`
-    is only emitted when TWO IMMISCIBLE LIQUID PHASES genuinely exist AND
-    the batch protocol explicitly mentions aqueous work-up. Gas atmosphere
-    changes (deoxygenation, gas injection) never produce a separator node.
-- **Layer 2 — Translation Agent (`translation_llm.py`):** FlowProposal
-  generation from ChemistryPlan + retrieved analogies + Calculator
-  center-point.
-- **Layer 3 — ENGINE Council v4:** Designer / four Dr-agents / Skeptic /
-  Chief (see Section 4).
+The original candidate-budget benchmark used Claude upstream and GPT-4o council.
+It generated useful raw data, but trend interpretation was weak because
+increasing candidate budget did not create a simple monotonic improvement.
 
-This layering keeps each LLM's system prompt short and narrow, which
-matters most for local models (gemma4) where context length and
-reasoning consistency are limiting.
+Recent Gemma-Gemma budget benchmark:
 
----
+```text
+benchmark/data/gemma_gemma_budget_benchmark_20260507_205316
+```
 
-## 8. Retrieval — hard metadata filters
+Budgets tested:
 
-ChromaDB semantic search is pre-filtered by hard metadata (reaction class,
-photocatalyst class, solvent family, phase regime) before the 20-top
-similarity reranking. Prevents cross-class leakage (e.g., thermal
-Suzuki couplings retrieved for a photoredox query).
+```text
+1, 6, 12, 24
+```
 
-Two collections:
-- `flora_records` — single-paper records (batch OR flow)
-- `flora_pairs` — batch↔flow pairs for direct analogy retrieval
+All budgets converged to the same screening point:
 
----
+```text
+tau = 2.0 min
+Q = 4.197 mL/min
+ID = 0.75 mm
+V = 8.394 mL
+engine_validated = false
+confidence = LOW
+SCREEN_REQUIRED
+```
 
-## 9. Process flow diagram
+Interpretation:
 
-Rendered via Graphviz in `flora_design/visualizer/flowsheet_builder.py`
-with real equipment icons:
+- Increasing budget increased runtime and tokens.
+- It did not improve Gemma-Gemma design quality under current guardrails.
+- The result is a screening hypothesis, not a validated design.
 
-- **Syringe pump** icon for liquid reagent streams (`op_type = "pump"`)
-- **MFC (Mass Flow Controller)** red-bordered box for gas streams
-  (`op_type = "mfc"`). The `op_type` field is set explicitly at topology
-  build time in `main.py` using role-based gas detection
-  (`_stream_is_gas()`).
-- **Coil reactor** / **photoreactor** / **microchannel** / **BPR** /
-  **vial** / **mixer (T / cross)** / **quench coil** / **L-L separator**
-  icons as appropriate.
-- Labels show τ (`:.1f` precision), temperature, wavelength,
-  concentrations, flow rates.
-- Each unit operation shows a **"Why:"** rationale from the ChemistryPlan
-  in the UI; non-standard operations without rationale get a ⚠ warning.
+### 16.2 Model Matrix Benchmark
 
----
+The model study compares upstream model choice and council model choice.
 
-## 10. Streamlit UI — result tabs
+Important observation:
 
-`pages/translate.py` and `pages/flora_design_unified.py` expose:
+- Strong upstreams such as Claude and GPT-4o usually produce meaningful
+  candidate pools.
+- Raw GPT-4o-mini upstream frequently falls back to screen-required output.
+- Raw Gemma upstream is highly sensitive to JSON/kinetic-anchor problems.
+- Rescued/lightweight weak upstreams can produce evaluated final results, but
+  these must be labeled as rescued conditions.
 
-- **Summary tab:** key metrics grid (τ, Q, V_R, Re, ΔP, …),
-  council winner reasoning, open risks. Reads directly from council
-  output — no LLM in the render path.
-- **Engineering Design tab:** before/after comparison table
-  (pre-council vs post-council proposal) with ★ markers on changed
-  fields. Per-reactor breakdown when multi-step or quench exists.
-- **Process Diagram tab:** SVG/PNG with per-operation "Why" rationale.
-- **Chemistry Plan & Recipe tab:** mechanism, stream logic, sensitivities,
-  handbook rules injected for this reaction.
-- **Stream Assignments tab:** per-pump details. Shows **two** Q metrics
-  when quench exists:
-  - `Q_reactor_inlet` — Σ reactor-feed pumps (matches `proposal.flow_rate_mL_min`)
-  - `Q_outlet (after quench)` — reactor outlet + quench pumps
-  Each pump expander shows the Chief's derivation plus the scaling note
-  when renormalisation happened.
-- **Council Deliberation tab:**
-  - Input Design expander — the FlowProposal seen by the council.
-  - Designer candidate shortlist with full metric table.
-  - Per-domain score tables (chemistry/kinetics/fluidics/safety) with
-    0–1 bars and reasoning.
-  - Skeptic audit — per-agent issues, disqualify list, summary.
-  - Chief weighted matrix + winner reasoning + DFMEA.
-- **Council Report tab:** human-readable export of the full deliberation.
-- **Raw JSON tab:** the complete `FlowProposal` + `DeliberationLog` for
-  debugging.
+### 16.3 GPT-4o-mini Upstream
+
+Raw `gpt4omini` upstream did not produce validated final designs in the latest
+full matrix. It returned the same fallback-like output across downstream models:
+
+```text
+tau = 7.5 min
+Q = 2.68083 mL/min
+ID = 1.6 mm
+engine_validated = false
+SCREEN_REQUIRED: intensification infeasible with current kinetic anchor
+```
+
+Rescued `gpt4omini_rescued` upstream produced evaluated final results, but it is
+a different experimental condition and should not be mixed with raw upstream.
+
+### 16.4 Gemma-Gemma
+
+Gemma-Gemma currently demonstrates the strongest local-model stress test.
+
+Observed issues:
+
+- Local model JSON and schema adherence are fragile.
+- Kinetic-anchor uncertainty is common.
+- Domain text can identify failure while numeric score remains high.
+- Final outputs must be treated as screen-required unless deterministic
+  guardrails are strengthened.
 
 ---
 
-## 11. LLM provider abstraction
+## 17. Scientific Interpretation Policy
 
-`ENGINE_PROVIDER` in `flora_translate/config.py` switches backends:
+FLORA outputs should be interpreted according to status.
 
-- `"anthropic"` → Claude Sonnet / Opus (default)
-- `"openai"` → GPT-4o or GPT-4o-mini
-- `"ollama"` → local model (currently `gemma4-flora`) at
-  `OLLAMA_BASE_URL`
+| Status | Interpretation |
+|---|---|
+| `engine_validated=true` | The system selected a defensible flow design within its deterministic model and current assumptions. |
+| `engine_validated=false` + `SCREEN_REQUIRED` | The output is a proposed experimental screen or hypothesis, not a final design. |
+| `confidence=LOW` | Literature/kinetic/model support is weak; lab validation is required. |
+| `REQUIRES_HUMAN_REVIEW` | Chief could not articulate a concrete flow advantage or major uncertainty remains. |
 
-Local models require:
-- `think=False` API flag + `/no_think` user prefix to suppress Gemma
-  thinking mode (otherwise all tokens spent on internal reasoning,
-  content field empty).
-- 3× max_tokens budget for complex specialist prompts.
-- JSON output reminder appended at the end of the user message.
-- Custom Modelfile with `num_ctx 8192` (the API-level `num_ctx` override
-  is ignored by Ollama; must be baked into the model).
+A successful FLORA design is not just one that runs in a tube. It should answer:
 
----
-
-## 12. Technology stack
-
-- **LLM orchestration:** Anthropic Python SDK, OpenAI SDK (for GPT + Ollama)
-- **Vector DB:** ChromaDB
-- **UI:** Streamlit
-- **Diagramming:** Graphviz
-- **Numerics:** scikit-learn (GP surrogate), scipy, numpy
-- **Chemistry:** RDKit (optional, for SMILES parsing)
-- **PDF extraction:** pymupdf, pdfplumber
+- Is flow actually better than batch?
+- What is the concrete flow advantage?
+- Is residence time meaningfully shorter?
+- Is the flow rate practical?
+- Is mixing/dispersion acceptable?
+- Is reactor volume/length practical?
+- Is safety improved rather than merely unchanged?
+- Is the result validated by evidence, or only a screen hypothesis?
 
 ---
 
-## 13. How to run
+## 18. Current Limitations
+
+| Limitation | Current status |
+|---|---|
+| Kinetic uncertainty | Tau estimates rely on batch-derived kinetics and retrieved analogy IFs; uncertain anchors trigger screen-required behavior. |
+| Analogy quality | Extracted IFs can be wrong or directionally ambiguous; sub-unity values are now floored but still mark uncertainty. |
+| Weak-model upstream | Raw GPT-4o-mini and Gemma upstream are not reliably validated without lightweight/rescue scaffolding. |
+| Local-model council scoring | Gemma can return contradictory verdicts and numeric scores. |
+| Fallback consistency | Some screen-required paths preserve the pre-council proposal while screen candidates live in the safety report. |
+| True experimental validation | No closed-loop lab feedback yet; `engine_validated` means validated by the engine model, not by physical experiment. |
+
+---
+
+## 19. Near-Term Engineering Priorities
+
+1. Add deterministic verdict-score consistency checks.
+2. Treat local-model `FAIL` / `REJECT` verdicts as score downgrades or
+   disqualification unless explicitly mapped otherwise.
+3. Make fallback behavior consistent: promote best screen candidate only as
+   `SCREEN_ONLY_NOT_ENGINE_VALIDATED`, or keep final proposal unchanged but make
+   screen matrix the primary output.
+4. Give downstream council controlled authority to override upstream kinetic
+   judgments when upstream evidence is inconsistent.
+5. Require override provenance: bad analogy, IF direction ambiguity,
+   batch-equivalent tau, contradiction with intensification mandate, or
+   unphysical operating point.
+6. Keep overridden results low-confidence unless supported by literature or
+   experiment.
+7. Improve weak/local model JSON robustness with stricter schemas, retries, and
+   deterministic post-processing.
+8. Add trend/statistical analysis for budget studies beyond raw visualizations.
+
+---
+
+## 20. Repository Map
+
+```text
+flora_translate/
+    config.py                         Provider/model selection and policy constants
+    schemas.py                        Pydantic models
+    main.py                           Main translate pipeline and topology builders
+    input_parser.py                   Full input parser
+    lightweight_upstream.py           Local/weak-model parser and chemistry path
+    chemistry_agent.py                Full chemistry planning agent
+    intensification.py                Code-owned intensification mandate helpers
+    retriever.py                      Plan-aware retrieval
+    analogy_selector.py               Top analogy selection
+    vector_store.py                   ChromaDB access
+    design_calculator.py              9-step deterministic calculator
+    translation_llm.py                Initial FlowProposal generation
+    output_formatter.py               Human-readable output
+    revision_agent.py                 Targeted proposal revision path
+    batch_normalization.py            Evidence-backed batch normalization
+    engine/
+        llm_agents.py                 Provider abstraction, LLM calls, call_model_messages()
+        tool_definitions.py           Tool schemas and dispatcher
+        tools.py                      Deterministic engineering tools
+        sampling.py                   Candidate metrics and filtering
+        design_space.py               Deterministic design-space search
+        flow_value.py                 Flow-sense and PVS calculations
+        council_v4/
+            designer.py               Candidate pool generation and filtering
+            scoring.py                Domain scoring; Claude compact mode
+            skeptic.py                Audit and WEAK_POOL logic
+            chief.py                  Orchestration, strong_revision_mode, selection, fallback
+        council_v3/                   Legacy, not active in current pipeline
+
+flora_design/
+    visualizer/flowsheet_builder.py   Graphviz process diagram renderer
+
+flora_fundamentals/
+    data/rules.json                   2537 handbook-derived rules
+    knowledge_store.py                Rule access
+    handbook_reader.py                Handbook ingestion helpers
+
+benchmark/
+    cases.py                              Shared protocols
+    pipeline.py                           Benchmark execution helpers
+    recorder.py                           Logs, snapshots, manifests
+    run_model_matrix_benchmark.py         3×3 upstream × council model matrix
+    run_protocol_openai_council.py        Protocol runs with OpenAI council
+    run_protocol_gemma_council.py         Protocol runs with Gemma council
+    run_upstream_mode_comparison.py       Upstream mode comparison
+    run_rescued_weak_upstream_benchmark.py
+    run_local_model_benchmark.py
+    run_candidate_budget_benchmark.py
+    run_protocol_budget_benchmark.py
+    run_lightweight_v2_smoke.py
+    make_benchmark_visualizations.py
+    make_local_model_visualizations.py
+    export_local_council_logs.py
+ablation_summary.py                       No-council/1-cand/12-cand ablation export
+
+pages/
+    translate.py                      Batch-to-flow UI
+    flora_design_unified.py           Unified design UI
+    diagnose.py                       Diagnostics UI
+    optimize.py                       Bayesian optimization UI
+    fundamentals.py                   Handbook rules UI
+    corpus.py                         Corpus UI
+    prism.py                          Literature mining UI
+    scout.py                          Search/scouting UI
+```
+
+---
+
+## 21. How To Run
 
 ```bash
-# 1. Install
 pip install -r requirements.txt
-
-# 2. Set API keys (pick one provider)
-export ANTHROPIC_API_KEY=...      # or
-export OPENAI_API_KEY=...         # or
-# Ollama: ensure `ollama serve` is running on OLLAMA_BASE_URL
-
-# 3. Select provider in flora_translate/config.py
-ENGINE_PROVIDER = "anthropic"     # or "openai" or "ollama"
-
-# 4. Launch dashboard
 streamlit run app.py
 ```
 
----
+Provider selection is controlled in `flora_translate/config.py` and environment
+variables:
 
-## 14. Limitations & roadmap
+```bash
+export ANTHROPIC_API_KEY=...
+export OPENAI_API_KEY=...
+```
 
-**Current limitations:**
+For local Gemma-style runs, configure:
 
-- **Point estimates, not distributions.** The calculator treats k, ε, ΔH
-  as known. Real values are uncertain (± 2–3× for ε at LED wavelength,
-  ± 30–50 % for k estimated from batch). Future: Monte Carlo propagation
-  of parameter uncertainty through the metric computation.
-- **Open-loop design.** No feedback from lab runs. Future: closed-loop
-  calibration where experimental yield/pressure/issues update priors on
-  k, ε, mixing constants for the reaction class.
-- **Multi-stage kinetics coupling.** Each stage computes τ from its own
-  batch time + IF factor; the council's selected τ is propagated only
-  to Stage 1. For multi-stage chemistries where stage-2 kinetics matter
-  (not just quench/workup), Stage 2+ τ is still computed from batch data.
-- **Fixed objective ontology.** Chief accepts four predefined objective
-  strings. Future: fine-grained user priority elicitation (Phase 0).
+```python
+ENGINE_PROVIDER = "ollama"
+ENGINE_MODEL_OLLAMA = "gemma4-flora"
+OLLAMA_BASE_URL = "http://<host>:<port>/v1"
+```
 
-**In progress / near-term:**
-
-- Information-gain-based experimental plan output ("run this τ first
-  because it reduces k uncertainty the most").
-- Feedback-log-driven calibration of handbook rules and class IF bounds.
+For vLLM OpenAI-compatible local endpoints, benchmark scripts can override base
+URL and model name directly.
 
 ---
 
-## 15. Repository map
+## 22. Bottom Line
 
-```
-flora_translate/
-├── config.py                    ENGINE_PROVIDER + per-component models
-├── design_calculator.py         9-step deterministic calculator
-├── input_parser.py              Free text → BatchRecord
-├── chemistry_agent.py           Layer 1: mechanism / stream logic / quench
-├── translation_llm.py           Layer 2: FlowProposal generation
-├── revision_agent.py            Targeted patch to existing design
-├── schemas.py                   All Pydantic models (incl. DeliberationLog)
-├── main.py                      Translate pipeline orchestration +
-│                                topology builders (_build_singlestep_topology,
-│                                _build_multistep_topology, _is_quench_stream)
-└── engine/
-    ├── llm_agents.py            call_llm() + call_llm_with_tools()
-    ├── tool_definitions.py      Anthropic/OpenAI tool schemas + execute_tool()
-    ├── tools.py                 Deterministic domain tools
-    ├── sampling.py              Design-space sampling + Pareto
-    ├── design_space.py          Design envelope utilities
-    ├── council_v3/              LEGACY — advocacy model (not invoked)
-    └── council_v4/              ACTIVE — stage-gated scoring model
-        ├── __init__.py          Exposes CouncilV4
-        ├── designer.py          Stage 0 framing + Stage 1 candidate matrix
-        ├── scoring.py           Stage 2: four Dr-agents scoring 0–1
-        ├── skeptic.py           Stage 3: arithmetic audit + disqualify
-        └── chief.py             Stage 4: weighted selection + DFMEA +
-                                 _apply_winner (Q renormalisation +
-                                 stage_parameters τ propagation)
+The current FLORA pipeline is no longer only a feasibility checker. It is being
+converted into an intensification-aware flow-design system.
 
-flora_design/
-└── visualizer/
-    └── flowsheet_builder.py     Graphviz flowsheet; MFC via op_type field;
-                                 τ displayed with :.1f precision
+The current strongest parts are:
 
-flora_fundamentals/
-├── extractor.py                 Two-pass handbook rule extraction
-└── data/rules.json              2537 extracted rules
+- Deterministic calculator.
+- Explicit intensification mandate.
+- Candidate-space enumeration.
+- Council v4 stage logs and benchmark artifacts.
+- Strong-model model matrix results.
+- Visualization and CSV export tooling.
 
-pages/
-├── flora_design_unified.py      Main Streamlit page (8 tabs)
-├── translate.py                 Translate result tabs
-│                                (_render_streams shows Q_reactor_inlet
-│                                 and Q_outlet separately when quench exists)
-└── diagnose.py                  Protocol diagnostics standalone
-```
+The current weakest parts are:
+
+- Weak/local model upstream reliability.
+- Local-model council score/verdict consistency.
+- Kinetic-anchor uncertainty.
+- Consistent handling of screen-required outputs.
+
+These weaknesses are now explicit in the pipeline instead of hidden: uncertain
+designs should become low-confidence screen hypotheses, not falsely validated
+flow processes.

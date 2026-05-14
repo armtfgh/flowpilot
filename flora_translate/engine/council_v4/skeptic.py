@@ -20,6 +20,10 @@ import logging
 import math
 from typing import Any, Optional
 
+import flora_translate.config as cfg
+from flora_translate.config import FLOW_MAX_TAU_TO_BATCH_RATIO, FLOW_TRANSLATION_POLICY
+from flora_translate.engine.flow_value import compute_pvs_for_candidates, mandate_dict
+
 logger = logging.getLogger("flora.engine.council_v4.skeptic")
 
 PI = math.pi
@@ -331,6 +335,174 @@ def _build_disqualify_recommendations(errors: list[dict]) -> list[dict]:
     ]
 
 
+def _check_flow_translation_sanity(
+    candidates: list[dict],
+    *,
+    batch_time_min: Optional[float],
+    batch_concentration_M: Optional[float],
+    solvent_name: Optional[str],
+    translation_policy: str,
+    max_tau_to_batch_ratio: float,
+) -> list[dict]:
+    """Check intensification and basic flow-practicality issues."""
+    errors: list[dict] = []
+    solvent_lower = (solvent_name or "").lower()
+    viscous_media = any(token in solvent_lower for token in ("des", "tbab", "glycol", "eg"))
+    intensify_mode = (translation_policy or "").lower() == "intensify"
+
+    for c in candidates:
+        cid = c.get("id", "?")
+        tau_min = float(c.get("tau_min", 0.0) or 0.0)
+        Q_mL_min = float(c.get("Q_mL_min", 0.0) or 0.0)
+        L_m = float(c.get("L_m", 0.0) or 0.0)
+        candidate_conc = c.get("concentration_M")
+        try:
+            candidate_conc = float(candidate_conc) if candidate_conc is not None else None
+        except (TypeError, ValueError):
+            candidate_conc = None
+
+        if intensify_mode and batch_time_min and batch_time_min > 0:
+            tau_ceiling = batch_time_min * max_tau_to_batch_ratio
+            if tau_min > tau_ceiling:
+                errors.append({
+                    "agent": "SKEPTIC",
+                    "candidate_id": cid,
+                    "error_type": "DEINTENSIFIED_FLOW",
+                    "description": (
+                        f"Candidate {cid}: tau={tau_min:.1f} min exceeds batch time ceiling "
+                        f"{tau_ceiling:.1f} min under intensification policy."
+                    ),
+                    "severity": "HIGH",
+                })
+
+        if (
+            batch_concentration_M is not None
+            and batch_concentration_M > 0
+            and candidate_conc is not None
+            and candidate_conc < 0.5 * batch_concentration_M
+        ):
+            errors.append({
+                "agent": "SKEPTIC",
+                "candidate_id": cid,
+                "error_type": "SUSPICIOUS_DILUTION",
+                "description": (
+                    f"Candidate {cid}: reactor concentration {candidate_conc:.3g} M is <50% of "
+                    f"batch concentration {batch_concentration_M:.3g} M without explicit justification."
+                ),
+                "severity": "HIGH",
+            })
+
+        if viscous_media and Q_mL_min < 0.1 and L_m > 10.0:
+            errors.append({
+                "agent": "SKEPTIC",
+                "candidate_id": cid,
+                "error_type": "ULTRA_LOW_FLOW_VISCOUS_MEDIA",
+                "description": (
+                    f"Candidate {cid}: Q={Q_mL_min:.4f} mL/min through L={L_m:.1f} m in viscous "
+                    f"medium '{solvent_name}' is likely impractical (dispersion / clogging risk)."
+                ),
+                "severity": "HIGH",
+            })
+
+        hard_gate_flags = [str(flag) for flag in (c.get("hard_gate_flags") or [])]
+        if any("X=" in flag and "X_minimum" in flag for flag in hard_gate_flags):
+            errors.append({
+                "agent": "SKEPTIC",
+                "candidate_id": cid,
+                "error_type": "INSUFFICIENT_CONVERSION_HARD_GATE",
+                "description": (
+                    f"Candidate {cid}: Designer hard-gate flagged insufficient conversion "
+                    f"({'; '.join(hard_gate_flags[:2])}). This cannot be rescued by "
+                    "batch-like tau inflation under the intensification policy."
+                ),
+                "severity": "HIGH",
+            })
+
+    return errors
+
+
+def _build_weak_pool_report(
+    *,
+    candidates: list[dict],
+    pvs_by_id: dict[int, float],
+    batch_time_min: Optional[float],
+    intensification_mandate: dict,
+    pool_metadata: dict,
+) -> Optional[dict]:
+    if not candidates:
+        return None
+
+    pool_size = len(candidates)
+    best_pvs = max(pvs_by_id.values(), default=0.0)
+    triggered: list[str] = []
+    failures: list[str] = []
+
+    if best_pvs < cfg.PVS_THRESHOLD:
+        triggered.append("A")
+        failures.append(
+            f"Best PVS in pool is {best_pvs:.2f}, below target {cfg.PVS_THRESHOLD:.2f}."
+        )
+
+    batch_proximate_fraction = 0.0
+    if batch_time_min and batch_time_min > 0:
+        near_batch = [
+            c for c in candidates
+            if float(c.get("tau_min", 0.0) or 0.0) >= batch_time_min * cfg.BATCH_PROXIMITY_THRESHOLD
+        ]
+        batch_proximate_fraction = len(near_batch) / pool_size
+        if batch_proximate_fraction >= 0.5:
+            triggered.append("B")
+            failures.append(
+                f"{len(near_batch)}/{pool_size} candidates have tau >= "
+                f"{cfg.BATCH_PROXIMITY_THRESHOLD:.0%} of batch time."
+            )
+
+    if (
+        str(pool_metadata.get("pool_quality", "")).upper() == "DEGRADED"
+        and best_pvs < cfg.PVS_THRESHOLD * 1.2
+    ):
+        triggered.append("C")
+        failures.append("Designer marked pool_quality=DEGRADED and PVS remains weak.")
+
+    advantage = str(intensification_mandate.get("minimum_flow_advantage") or "productivity")
+    advantage_scores = []
+    for c in candidates:
+        report = c.get("flow_sense_report") or {}
+        advantage_scores.append(float(report.get("primary_advantage_proxy_score") or 0.0))
+    if advantage_scores and max(advantage_scores) <= 0.5:
+        triggered.append("D")
+        failures.append(
+            f"No candidate strongly exploits declared primary flow advantage '{advantage}'."
+        )
+
+    if not triggered:
+        return None
+
+    target = max(float(intensification_mandate.get("tau_reduction_target") or 2.0), 1.0)
+    tau_ceiling = (batch_time_min / target) if batch_time_min and batch_time_min > 0 else None
+    tau_floor = (
+        batch_time_min / (target * 3.0)
+        if batch_time_min and batch_time_min > 0 else None
+    )
+    return {
+        "verdict": "WEAK_POOL",
+        "triggered_by": sorted(set(triggered)),
+        "best_pvs_in_pool": round(best_pvs, 4),
+        "target_pvs": cfg.PVS_THRESHOLD,
+        "batch_proximate_fraction": round(batch_proximate_fraction, 3),
+        "specific_failures": failures,
+        "regeneration_instructions": {
+            "tau_ceiling": round(tau_ceiling, 3) if tau_ceiling else None,
+            "tau_floor": round(tau_floor, 3) if tau_floor else None,
+            "required_advantage": advantage,
+            "note": (
+                "Regenerate with sub-batch tau values, avoid batch-boundary hugging, "
+                "preserve practical flow rate, and explicitly exploit the primary flow advantage."
+            ),
+        },
+    }
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Public entry point
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -345,6 +517,14 @@ def run_skeptic_audit(
     is_gas_liquid: bool,
     concentration_M: float,
     pump_max_bar: float,
+    batch_time_min: Optional[float] = None,
+    batch_concentration_M: Optional[float] = None,
+    solvent_name: Optional[str] = None,
+    translation_policy: str = FLOW_TRANSLATION_POLICY,
+    max_tau_to_batch_ratio: float = FLOW_MAX_TAU_TO_BATCH_RATIO,
+    intensification_mandate: Optional[dict] = None,
+    pool_metadata: Optional[dict] = None,
+    process_value_scores: Optional[list[dict]] = None,
 ) -> dict:
     """Run the Stage 3 Skeptic audit.
 
@@ -371,8 +551,45 @@ def run_skeptic_audit(
         chemistry_scores, kinetics_scores, safety_scores
     )
     bpr_errors = _check_bpr_gas_liquid(safety_scores, is_gas_liquid)
+    flow_sense_errors = _check_flow_translation_sanity(
+        candidates,
+        batch_time_min=batch_time_min,
+        batch_concentration_M=batch_concentration_M,
+        solvent_name=solvent_name,
+        translation_policy=translation_policy,
+        max_tau_to_batch_ratio=max_tau_to_batch_ratio,
+    )
 
-    all_errors = calc_errors + mixing_errors + threshold_errors + scope_violations + bpr_errors
+    all_errors = (
+        calc_errors + mixing_errors + threshold_errors + scope_violations + bpr_errors + flow_sense_errors
+    )
+
+    mandate = mandate_dict(intensification_mandate)
+    pvs_rows = process_value_scores or compute_pvs_for_candidates(
+        candidates,
+        {
+            "chemistry_scores": chemistry_scores,
+            "kinetics_scores": kinetics_scores,
+            "fluidics_scores": fluidics_scores,
+            "safety_scores": safety_scores,
+        },
+    )
+    pvs_by_id = {int(row.get("candidate_id", 0)): float(row.get("PVS", 0.0) or 0.0) for row in pvs_rows}
+    weak_pool_report = _build_weak_pool_report(
+        candidates=candidates,
+        pvs_by_id=pvs_by_id,
+        batch_time_min=batch_time_min,
+        intensification_mandate=mandate,
+        pool_metadata=pool_metadata or {},
+    )
+    if weak_pool_report:
+        all_errors.append({
+            "agent": "SKEPTIC",
+            "candidate_id": None,
+            "error_type": "WEAK_POOL",
+            "description": "; ".join(weak_pool_report.get("specific_failures", []))[:500],
+            "severity": "HIGH",
+        })
 
     critical_count = sum(1 for e in all_errors if e.get("severity") == "CRITICAL")
     high_count = sum(1 for e in all_errors if e.get("severity") == "HIGH")
@@ -384,6 +601,8 @@ def run_skeptic_audit(
     council_may_proceed = (critical_count == 0)
 
     # Build summary
+    verdict = "WEAK_POOL" if weak_pool_report else ("BLOCK" if critical_count else ("EDIT" if high_count else "PASS"))
+
     if not all_errors:
         summary = (
             f"AUDIT PASSED — all {len(candidates)} candidates passed arithmetic and "
@@ -398,6 +617,8 @@ def run_skeptic_audit(
         )
         if not council_may_proceed:
             summary += "CRITICAL errors found — council MUST correct before proceeding."
+        elif weak_pool_report:
+            summary += "WEAK_POOL — candidate pool lacks sufficient process-intensification value."
         else:
             summary += "No CRITICAL errors — council may proceed with caution."
 
@@ -415,6 +636,10 @@ def run_skeptic_audit(
         "threshold_errors": threshold_errors,
         "scope_violations": scope_violations,
         "bpr_errors": bpr_errors,
+        "flow_sense_errors": flow_sense_errors,
+        "process_value_scores": pvs_rows,
+        "weak_pool_report": weak_pool_report,
+        "verdict": verdict,
         "all_errors": all_errors,
         "disqualify_recommendations": disqualify_recs,
         "disqualify_ids": sorted(disqualify_ids),

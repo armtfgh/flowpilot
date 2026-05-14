@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from benchmark.cases import BenchmarkCase
 from benchmark.recorder import BenchmarkRecorder, _safe
 from flora_translate.analogy_selector import AnalogySelector
-from flora_translate.chemistry_agent import ChemistryReasoningAgent
 from flora_translate.config import LAB_INVENTORY_PATH, RECORDS_DIR
 from flora_translate.design_calculator import DesignCalculator
 from flora_translate.engine.council_v4 import CouncilV4
@@ -23,7 +23,7 @@ from flora_translate.engine.llm_agents import (
     set_llm_observer,
     set_llm_runtime_overrides,
 )
-from flora_translate.input_parser import InputParser
+from flora_translate.lightweight_upstream import analyze_batch_chemistry, parse_batch_input
 from flora_translate.output_formatter import OutputFormatter
 from flora_translate.prompt_builder import TranslationPromptBuilder
 from flora_translate.retriever import VectorRetriever
@@ -100,7 +100,7 @@ def prepare_case_context(
             return context
 
         recorder.start_stage("prepare_input_parse", {"case_id": case.case_id})
-        batch_record = InputParser().parse(case.protocol)
+        batch_record = parse_batch_input(case.protocol)
         recorder.save_snapshot("batch_record", batch_record)
         recorder.end_stage(
             "prepare_input_parse",
@@ -108,7 +108,7 @@ def prepare_case_context(
         )
 
         recorder.start_stage("prepare_chemistry_analysis")
-        chemistry_plan = ChemistryReasoningAgent().analyze(batch_record)
+        chemistry_plan = analyze_batch_chemistry(batch_record)
         recorder.save_snapshot("chemistry_plan", chemistry_plan)
         recorder.end_stage(
             "prepare_chemistry_analysis",
@@ -116,16 +116,32 @@ def prepare_case_context(
                 "reaction_class": getattr(chemistry_plan, "reaction_class", None),
                 "mechanism_type": getattr(chemistry_plan, "mechanism_type", None),
                 "stream_count": len(getattr(chemistry_plan, "stream_logic", []) or []),
+                "upstream_mode": getattr(chemistry_plan, "_upstream_mode", "full"),
             },
         )
 
         recorder.start_stage("prepare_retrieval")
-        store = VectorStore()
-        retriever = VectorRetriever(store=store)
-        raw_analogies = retriever.retrieve(batch_record, top_k=3, chemistry_plan=chemistry_plan)
-        analogies = AnalogySelector(records_dir=RECORDS_DIR).select(raw_analogies)
+        if os.getenv("OPENAI_API_KEY"):
+            store = VectorStore()
+            retriever = VectorRetriever(store=store)
+            raw_analogies = retriever.retrieve(batch_record, top_k=3, chemistry_plan=chemistry_plan)
+            analogies = AnalogySelector(records_dir=RECORDS_DIR).select(raw_analogies)
+            retrieval_status = "completed"
+            retrieval_note = f"selected {len(analogies)} analogies"
+        else:
+            analogies = []
+            retrieval_status = "skipped"
+            retrieval_note = "OPENAI_API_KEY missing in current shell; proceeding with analogies=[]"
         recorder.save_snapshot("analogies", analogies)
-        recorder.end_stage("prepare_retrieval", {"analogy_count": len(analogies)})
+        recorder.end_stage(
+            "prepare_retrieval",
+            {
+                "status": retrieval_status,
+                "analogy_count": len(analogies),
+                "note": retrieval_note,
+            },
+            status=retrieval_status,
+        )
 
         recorder.start_stage("prepare_design_calculator")
         calculations = DesignCalculator().run(

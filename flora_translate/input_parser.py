@@ -5,6 +5,7 @@ import logging
 import time
 
 import flora_translate.config as cfg
+from flora_translate.batch_normalization import enrich_batch_record_dict
 from flora_translate.engine.llm_agents import call_model_text
 from flora_translate.schemas import BatchRecord
 
@@ -49,13 +50,15 @@ class InputParser:
     def parse(self, batch_input: str | dict) -> BatchRecord:
         # If already a dict or JSON string representing a dict, try direct parse
         if isinstance(batch_input, dict):
-            return BatchRecord(**batch_input)
+            normalized = enrich_batch_record_dict(batch_input, batch_input.get("raw_text"))
+            return BatchRecord(**normalized)
 
         # Try parsing as JSON first
         try:
             data = json.loads(batch_input)
             if isinstance(data, dict):
-                return BatchRecord(**data)
+                normalized = enrich_batch_record_dict(data, data.get("raw_text") or batch_input)
+                return BatchRecord(**normalized)
         except (json.JSONDecodeError, ValueError):
             pass
 
@@ -82,4 +85,5 @@ class InputParser:
             raw = raw.strip()
         data = json.loads(raw)
         data["raw_text"] = text
-        return BatchRecord(**data)
+        normalized = enrich_batch_record_dict(data, text)
+        return BatchRecord(**normalized)

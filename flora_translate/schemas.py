@@ -180,6 +180,14 @@ class StreamLogic(BaseModel):
     concentration_M: Optional[float] = None  # concentration of this stream (for Q calculation)
 
 
+class IntensificationMandate(BaseModel):
+    """Why this batch reaction should be translated to flow."""
+    tau_reduction_target: float = 2.0
+    minimum_flow_advantage: str = "productivity"
+    required_mixing_regime: str = "laminar_acceptable"
+    flow_justification_basis: str = ""
+
+
 class ProcessStage(BaseModel):
     """One stage of a multi-step flow process.
 
@@ -194,6 +202,7 @@ class ProcessStage(BaseModel):
     temperature_C: Optional[float] = None
     requires_light: bool = False
     wavelength_nm: Optional[float] = None
+    batch_time_h: Optional[float] = None       # batch duration for this stage, if stated
 
     # What feeds into this stage
     feed_streams: list[StreamLogic] = Field(default_factory=list)
@@ -272,6 +281,9 @@ class ChemistryPlan(BaseModel):
 
     # Confidence
     confidence_notes: str = ""
+
+    # Explicit process-intensification target for downstream design.
+    intensification_mandate: IntensificationMandate = Field(default_factory=IntensificationMandate)
 
 
 # ---------------------------------------------------------------------------

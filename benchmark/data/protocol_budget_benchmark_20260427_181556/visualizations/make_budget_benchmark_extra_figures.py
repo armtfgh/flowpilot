@@ -299,25 +299,165 @@ def revision_activity(rows: list[dict]) -> None:
         ("stage4_disqualify_count", "disqualified"),
     ]
     out_rows = []
-    fig, ax = plt.subplots(figsize=(9.6, 5.2), constrained_layout=True)
+    fig, (ax, ax_flow) = plt.subplots(
+        1,
+        2,
+        figsize=(12.8, 5.2),
+        constrained_layout=True,
+        gridspec_kw={"width_ratios": [4.4, 1.8]},
+    )
     x = np.arange(len(BUDGETS))
     width = 0.18
     for idx, (key, label) in enumerate(metrics):
         means = []
+        stds = []
         for budget in BUDGETS:
             subset = [r for r in rows if r["budget"] == budget]
-            mean = sum(r[key] for r in subset) / len(subset)
+            values = [float(r[key]) for r in subset]
+            mean = float(np.mean(values))
+            std = float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
             means.append(mean)
-            out_rows.append({"budget": budget, "metric": key, "label": label, "mean": mean})
-        ax.bar(x + (idx - 1.5) * width, means, width, label=label)
+            stds.append(std)
+            out_rows.append({
+                "budget": budget,
+                "metric": key,
+                "label": label,
+                "mean": mean,
+                "std": std,
+                "n": len(values),
+            })
+        ax.bar(
+            x + (idx - 1.5) * width,
+            means,
+            width,
+            yerr=stds,
+            capsize=3,
+            label=label,
+        )
     ax.set_xticks(x)
     ax.set_xticklabels([str(b) for b in BUDGETS])
     ax.set_xlabel("Budget")
     ax.set_ylabel("Mean count")
     ax.set_title("Revision Activity by Budget")
     ax.legend()
-    write_csv(OUTDIR / "budget_revision_activity.csv", ["budget", "metric", "label", "mean"], out_rows)
+
+    ax_flow.axis("off")
+    ax_flow.set_title("Why Counts Scale", fontsize=11, pad=10)
+    boxes = [
+        ("Budget = N\noriginal candidates", 0.88, "#eaf3f8"),
+        ("Changed\ncandidates ≈ N", 0.67, "#fff1df"),
+        ("Up to 3\nrevised descendants\neach", 0.46, "#f6e7f0"),
+        ("Revised pool\n≈ originals + descendants", 0.25, "#e8f5e9"),
+        ("Scoring gates\nremove ~half", 0.06, "#fdecea"),
+    ]
+    for text, y, color in boxes:
+        ax_flow.text(
+            0.5,
+            y,
+            text,
+            ha="center",
+            va="center",
+            fontsize=9,
+            bbox={
+                "boxstyle": "round,pad=0.45",
+                "facecolor": color,
+                "edgecolor": "#555555",
+                "linewidth": 0.8,
+            },
+        )
+    for y0, y1 in [(0.81, 0.74), (0.60, 0.53), (0.39, 0.32), (0.18, 0.13)]:
+        ax_flow.annotate(
+            "",
+            xy=(0.5, y1),
+            xytext=(0.5, y0),
+            arrowprops={"arrowstyle": "->", "linewidth": 1.2, "color": "#444444"},
+        )
+    ax_flow.text(
+        0.5,
+        -0.08,
+        "The bars are activity counts,\nnot independent design classes.",
+        ha="center",
+        va="top",
+        fontsize=8.5,
+        color="#444444",
+    )
+
+    write_csv(OUTDIR / "budget_revision_activity.csv", ["budget", "metric", "label", "mean", "std", "n"], out_rows)
     save_fig(fig, "budget_revision_activity")
+
+
+def revision_activity_three_bar(rows: list[dict]) -> None:
+    metrics = [
+        (
+            "revision_changed_count",
+            "Changed originals",
+            lambda r: float(r["revision_changed_count"]),
+        ),
+        (
+            "revision_total_activity",
+            "Total revision activity\n(changed + descendants)",
+            lambda r: float(r["revision_changed_count"]) + float(r["revision_descendant_total"]),
+        ),
+        (
+            "stage4_disqualify_count",
+            "Disqualified",
+            lambda r: float(r["stage4_disqualify_count"]),
+        ),
+    ]
+    out_rows = []
+    fig, ax = plt.subplots(figsize=(9.6, 5.2), constrained_layout=True)
+    x = np.arange(len(BUDGETS))
+    width = 0.24
+    palette = ["#355070", "#e56b6f", "#6d597a"]
+    for idx, (key, label, getter) in enumerate(metrics):
+        means = []
+        stds = []
+        for budget in BUDGETS:
+            subset = [r for r in rows if r["budget"] == budget]
+            values = [getter(r) for r in subset]
+            mean = float(np.mean(values))
+            std = float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
+            means.append(mean)
+            stds.append(std)
+            out_rows.append({
+                "budget": budget,
+                "metric": key,
+                "label": label.replace("\n", " "),
+                "mean": mean,
+                "std": std,
+                "n": len(values),
+            })
+        ax.bar(
+            x + (idx - 1) * width,
+            means,
+            width,
+            yerr=stds,
+            capsize=3,
+            color=palette[idx],
+            label=label,
+        )
+    ax.set_xticks(x)
+    ax.set_xticklabels([str(b) for b in BUDGETS])
+    ax.set_xlabel("Budget")
+    ax.set_ylabel("Mean count across repeats")
+    ax.set_title("Simplified Revision Activity by Budget")
+    ax.legend()
+    ax.text(
+        0.01,
+        -0.18,
+        "Total revision activity is a derived count: changed original candidates + generated revised descendants.",
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        fontsize=8.5,
+        color="#444444",
+    )
+    write_csv(
+        OUTDIR / "budget_revision_activity_three_bar.csv",
+        ["budget", "metric", "label", "mean", "std", "n"],
+        out_rows,
+    )
+    save_fig(fig, "budget_revision_activity_three_bar")
 
 
 def stage_flow(rows: list[dict]) -> None:
@@ -407,6 +547,7 @@ def main() -> None:
     boxplots(rows)
     pathology_plot(rows)
     revision_activity(rows)
+    revision_activity_three_bar(rows)
     stage_flow(rows)
     design_family_plot(rows)
     manifest = {

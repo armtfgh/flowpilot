@@ -19,12 +19,19 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import time
 from collections import defaultdict
 from typing import Optional
 
-from flora_translate.config import ENGINE_PROVIDER
+import flora_translate.config as cfg
+from flora_translate.config import (
+    ENGINE_PROVIDER,
+    FLOW_MAX_TAU_TO_BATCH_RATIO,
+    FLOW_TRANSLATION_POLICY,
+)
 from flora_translate.design_calculator import DesignCalculator, DesignCalculations
+from flora_translate.engine.flow_value import attach_flow_sense_reports, pvs_for_candidate
 from flora_translate.engine.llm_agents import call_llm, call_llm_with_tools
 from flora_translate.engine.tool_definitions import CHIEF_TOOLS, execute_tool
 from flora_translate.engine.council_v4.designer import (
@@ -87,6 +94,9 @@ def compute_weighted_scores(
     scoring: dict,
     objectives: str,
     disqualify_ids: set[int],
+    batch_time_min: Optional[float] = None,
+    translation_policy: str = FLOW_TRANSLATION_POLICY,
+    max_tau_to_batch_ratio: float = FLOW_MAX_TAU_TO_BATCH_RATIO,
 ) -> list[dict]:
     """Compute combined weighted scores for all surviving candidates.
 
@@ -111,17 +121,40 @@ def compute_weighted_scores(
                   "safety": saf, "geometry": geo}
         scores[boost_domain] = min(1.0, scores[boost_domain] * boost_factor)
 
-        combined = (
+        legacy_combined = (
             _WEIGHTS["chemistry"] * scores["chemistry"] +
             _WEIGHTS["kinetics"]  * scores["kinetics"]  +
             _WEIGHTS["fluidics"]  * scores["fluidics"]  +
             _WEIGHTS["safety"]    * scores["safety"]    +
             _WEIGHTS["geometry"]  * scores["geometry"]
         )
+        domain_mean = (
+            scores["chemistry"] + scores["kinetics"] + scores["fluidics"] + scores["safety"]
+        ) / 4.0
+        pvs = pvs_for_candidate(scoring, cid)
+        if pvs <= 0:
+            pvs = float((c.get("flow_sense_report") or {}).get("process_value_score") or 0.0)
+        combined = (
+            cfg.CHIEF_SCORE_WEIGHT_DOMAIN * legacy_combined
+            + cfg.CHIEF_SCORE_WEIGHT_PVS * pvs
+            + cfg.CHIEF_SCORE_WEIGHT_GEOMETRY * scores["geometry"]
+        )
+        intensification_penalty_applied = False
+        if (
+            (translation_policy or "").lower() == "intensify"
+            and batch_time_min is not None
+            and batch_time_min > 0
+            and float(c.get("tau_min", 0.0) or 0.0) > batch_time_min * max_tau_to_batch_ratio
+        ):
+            combined *= 0.5
+            intensification_penalty_applied = True
 
         results.append({
             "candidate_id": cid,
             "combined": round(combined, 4),
+            "legacy_domain_combined": round(legacy_combined, 4),
+            "domain_mean": round(domain_mean, 4),
+            "PVS": round(pvs, 4),
             "chemistry": round(scores["chemistry"], 4),
             "kinetics":  round(scores["kinetics"], 4),
             "fluidics":  round(scores["fluidics"], 4),
@@ -129,6 +162,7 @@ def compute_weighted_scores(
             "geometry":  round(scores["geometry"], 4),
             "objective_boosted": boost_domain,
             "disqualified": disq,
+            "intensification_penalty_applied": intensification_penalty_applied,
         })
 
     # Sort: disqualified last, then by combined score descending
@@ -241,8 +275,9 @@ from audited, scored, surviving candidates — and you explain your reasoning fu
 
 ## Your selection logic
 1. Disqualified candidates (hard gates + Skeptic CRITICAL errors) are off the table.
-2. You receive pre-computed weighted scores (chemistry 25%, kinetics 20%,
-   fluidics 20%, safety 20%, geometry 15%, objective-boosted).
+2. You receive pre-computed weighted scores. The final combined score now includes
+   domain adequacy, Process Value Score (PVS), and geometry. PVS asks whether the
+   candidate is actually better than batch, not merely feasible.
 3. Walk through the top 3 candidates explicitly: what each scored, where they
    differ, and which domain drove the difference.
 4. If top two are within 5% combined: tiebreak by (a) safety score, (b) design
@@ -279,6 +314,8 @@ Write 5–8 sentences that:
 {
   "selected_candidate_id": 3,
   "runner_up_ids": [5, 1],
+  "selection_justification": "Selected because heat transfer and productivity are improved over batch, achieving 6.2x residence-time reduction at acceptable pressure-drop and safety risk.",
+  "selection_flag": "OK",
   "selection_rationale": "5-8 sentences.",
   "weighted_scores": {},
   "resolved_tradeoffs": [
@@ -382,12 +419,13 @@ def _run_chief_llm(
     surviving = [r for r in weighted_scores if not r["disqualified"]]
 
     score_table = (
-        "| id | combined | chemistry | kinetics | fluidics | safety | geometry |\n"
-        "|---|---|---|---|---|---|---|\n"
+        "| id | combined | PVS | domain | chemistry | kinetics | fluidics | safety | geometry |\n"
+        "|---|---|---|---|---|---|---|---|---|\n"
     )
     for r in surviving:
         score_table += (
             f"| {r['candidate_id']} | {r['combined']:.3f} | "
+            f"{r.get('PVS', 0.0):.3f} | {r.get('legacy_domain_combined', 0.0):.3f} | "
             f"{r['chemistry']:.3f} | {r['kinetics']:.3f} | "
             f"{r['fluidics']:.3f} | {r['safety']:.3f} | {r['geometry']:.3f} |\n"
         )
@@ -418,7 +456,7 @@ def _run_chief_llm(
         )
         + molar_flow_block
         + expert_block
-        + "\n\nSelect the winner and derive pump flowrates. Output JSON only."
+        + "\n\nSelect the winner and derive pump flowrates. Include a concrete selection_justification naming the flow advantage over batch. Output JSON only."
     )
 
     try:
@@ -485,6 +523,278 @@ def _deterministic_resolve(weighted_scores: list[dict]) -> tuple[Optional[int], 
         f"Deterministic selection: id={best['candidate_id']} "
         f"(combined={best['combined']:.3f}, safety={best['safety']:.3f})"
     )
+
+
+def _ensure_selection_justification(
+    chief_data: dict,
+    *,
+    winner_id: Optional[int],
+    winner: Optional[dict],
+    weighted_scores: list[dict],
+    intensification_mandate: dict,
+) -> None:
+    if winner_id is None or not winner:
+        return
+    text = str(chief_data.get("selection_justification") or "").strip()
+    weak = not text or text.lower() in {
+        "selected because it scored highest overall.",
+        "selected because it is the best candidate.",
+    }
+    w_score = next((r for r in weighted_scores if r.get("candidate_id") == winner_id), {})
+    batch_time = float(winner.get("batch_time_min") or 0.0)
+    tau = float(winner.get("tau_min") or 0.0)
+    reduction = batch_time / tau if batch_time > 0 and tau > 0 else float(w_score.get("PVS", 0.0))
+    advantage = str(intensification_mandate.get("minimum_flow_advantage") or "process value")
+    if weak:
+        text = (
+            f"Selected because it best balances {advantage} over batch, achieving "
+            f"{reduction:.1f}x residence-time reduction with PVS={float(w_score.get('PVS', 0.0)):.2f}, "
+            f"while keeping pressure, geometry, and safety risks acceptable."
+        )
+        chief_data["selection_justification"] = text
+    if "advantage" not in text.lower() and "over batch" not in text.lower():
+        chief_data["selection_flag"] = "REQUIRES_HUMAN_REVIEW"
+        chief_data["selection_justification"] = (
+            text
+            + " Warning: no concrete flow advantage identified. This design may not justify flow over batch."
+        )
+    else:
+        chief_data.setdefault("selection_flag", "OK")
+
+
+def _refresh_selection_justification_from_winner(
+    chief_data: dict,
+    *,
+    winner_id: int,
+    winner: dict,
+    weighted_scores: list[dict],
+    intensification_mandate: dict,
+) -> None:
+    batch_time = _positive_float(winner.get("batch_time_min"))
+    tau = _positive_float(winner.get("tau_min"))
+    reduction = batch_time / tau if batch_time > 0 and tau > 0 else 0.0
+    advantage = str(intensification_mandate.get("minimum_flow_advantage") or "process value")
+    w_score = next((r for r in weighted_scores if r.get("candidate_id") == winner_id), {})
+    pvs = _positive_float(w_score.get("PVS"))
+    chief_data["selection_justification"] = (
+        f"Selected because it provides {advantage} over batch with "
+        f"{reduction:.1f}x residence-time reduction "
+        f"(tau={tau:.2f} min vs batch={batch_time:.2f} min), "
+        f"d={_positive_float(winner.get('d_mm')):.2f} mm, "
+        f"Q={_positive_float(winner.get('Q_mL_min')):.3f} mL/min, "
+        f"L={_positive_float(winner.get('L_m')):.2f} m, "
+        f"delta_P={_positive_float(winner.get('delta_P_bar')):.3f} bar, "
+        f"and PVS={pvs:.2f}."
+    )
+    chief_data["selection_flag"] = "OK" if reduction >= 1.0 else "REQUIRES_HUMAN_REVIEW"
+
+
+def _intensification_feasibility_precheck(
+    *,
+    batch_time_min: float,
+    tau_kinetics_min: float,
+    intensification_mandate: dict,
+    translation_policy: str,
+    calc: Optional[DesignCalculations] = None,
+) -> Optional[dict]:
+    if (translation_policy or "").lower() != "intensify":
+        return None
+    if batch_time_min <= 0 or tau_kinetics_min <= 0:
+        return None
+    target = max(float(intensification_mandate.get("tau_reduction_target") or 2.0), 1.0)
+    tau_ceiling = batch_time_min / target
+    if tau_kinetics_min <= tau_ceiling:
+        return None
+    kinetic_uncertain = False
+    uncertainty_reasons: list[str] = []
+    step2_values: dict = {}
+    if calc is not None:
+        for step in getattr(calc, "steps", []) or []:
+            if getattr(step, "step", None) == 2:
+                step2_values = dict(getattr(step, "values", {}) or {})
+                break
+        raw_ifs = step2_values.get("raw_analogy_IFs") or []
+        corrected_ifs = step2_values.get("analogy_IFs") or []
+        if step2_values.get("IF_floor_applied") or any(_positive_float(v) < 1.0 for v in raw_ifs):
+            kinetic_uncertain = True
+            uncertainty_reasons.append("sub-unity analogy IF values were floored to 1.0")
+        if (
+            _positive_float(step2_values.get("IF_analogy")) <= 1.0
+            and _positive_float(step2_values.get("IF_class")) >= 3.0
+        ):
+            kinetic_uncertain = True
+            uncertainty_reasons.append("analogy IF is batch-equivalent while class IF predicts intensification")
+        if raw_ifs or corrected_ifs:
+            uncertainty_reasons.append(
+                f"raw_analogy_IFs={raw_ifs}; corrected_analogy_IFs={corrected_ifs}"
+            )
+    status = (
+        "KINETIC_ANCHOR_UNCERTAIN_SCREEN_REQUIRED"
+        if kinetic_uncertain
+        else "INFEASIBLE_WITH_CURRENT_KINETIC_ANCHOR"
+    )
+    diagnosis_prefix = (
+        "Current kinetic anchor is uncertain, not a hard infeasibility: "
+        if kinetic_uncertain
+        else ""
+    )
+    return {
+        "status": status,
+        "hard_block": not kinetic_uncertain,
+        "kinetic_anchor_quality": "UNCERTAIN" if kinetic_uncertain else "CONSTRAINING",
+        "uncertainty_reasons": uncertainty_reasons,
+        "batch_time_min": round(batch_time_min, 3),
+        "tau_kinetics_min": round(tau_kinetics_min, 3),
+        "tau_reduction_target": round(target, 3),
+        "tau_intensification_ceiling_min": round(tau_ceiling, 3),
+        "required_to_ceiling_ratio": round(tau_kinetics_min / tau_ceiling, 3) if tau_ceiling > 0 else None,
+        "minimum_flow_advantage": intensification_mandate.get("minimum_flow_advantage", "productivity"),
+        "diagnosis": (
+            f"{diagnosis_prefix}current kinetics require tau={tau_kinetics_min:.1f} min, but the "
+            f"intensification mandate limits tau to <= {tau_ceiling:.1f} min "
+            f"({target:.1f}x faster than {batch_time_min:.1f} min batch)."
+        ),
+        "recommended_next_steps": [
+            (
+                "Generate intensified screen candidates, but do not mark the selected point as engine-validated without experimental support."
+                if kinetic_uncertain
+                else "Do not select a normal flow candidate from this kinetic anchor."
+            ),
+            "Run a small flow screen to measure conversion at sub-batch tau values.",
+            "Test intensification levers: higher temperature, lower viscosity/dilution strategy, smaller ID or enhanced mixing, and staged/recycle operation if chemically justified.",
+            "Revisit analogy/kinetic anchor if it came from weak local-model reasoning rather than measured flow precedent.",
+        ],
+    }
+
+
+def _positive_float(value, default: float = 0.0) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _tube_volume_mL(length_m: float, d_mm: float) -> float:
+    area_mm2 = math.pi * (d_mm / 2.0) ** 2
+    # 1 mL = 1000 mm3 and 1 m = 1000 mm, so mL = area_mm2 * length_m.
+    return max(area_mm2 * length_m, 0.0)
+
+
+def _build_screen_required_payload(
+    *,
+    current: FlowProposal,
+    calc: DesignCalculations,
+    batch_time_min: float,
+    intensification_mandate: dict,
+    solvent: str,
+    reason: str,
+    feasibility_diagnostic: Optional[dict] = None,
+) -> dict:
+    """Build a small experimental screen when no validated flow design is defensible.
+
+    These are not final designs. They are bounded experiments to measure whether
+    the reaction can actually be intensified at sub-batch residence times.
+    """
+    target = max(_positive_float(intensification_mandate.get("tau_reduction_target"), 2.0), 1.0)
+    if feasibility_diagnostic:
+        tau_ceiling = _positive_float(feasibility_diagnostic.get("tau_intensification_ceiling_min"))
+    else:
+        tau_ceiling = batch_time_min / target if batch_time_min > 0 else 0.0
+    if tau_ceiling <= 0:
+        tau_ceiling = max(_positive_float(current.residence_time_min, 5.0) * 0.5, 1.0)
+    if batch_time_min > 0:
+        tau_ceiling = min(tau_ceiling, max(batch_time_min * cfg.BATCH_PROXIMITY_THRESHOLD * 0.95, 0.5))
+    tau_floor = max(0.5, tau_ceiling / 3.0)
+    tau_mid = (tau_floor + tau_ceiling) / 2.0
+
+    base_temp = _positive_float(current.temperature_C, 25.0)
+    concentration = _positive_float(current.concentration_M) or _positive_float(calc.concentration_M, 0.1)
+    bpr = _positive_float(current.BPR_bar)
+    tubing_material = current.tubing_material or "FEP"
+    primary_advantage = str(intensification_mandate.get("minimum_flow_advantage") or "productivity")
+
+    templates = [
+        ("S1", "target-ceiling small-ID baseline", tau_ceiling, 0.75, 10.0, base_temp),
+        ("S2", "mid-tau small-ID intensified", tau_mid, 0.75, 10.0, base_temp + 10.0),
+        ("S3", "short-tau high surface-area challenge", tau_floor, 0.50, 8.0, base_temp + 20.0),
+        ("S4", "target-ceiling mid-ID practical comparator", tau_ceiling, 1.00, 10.0, base_temp + 10.0),
+        ("S5", "large-ID dispersion/control comparator", tau_ceiling, 1.60, 8.0, base_temp),
+    ]
+
+    candidates: list[dict] = []
+    for idx, (label, purpose, tau, d_mm, length, temp) in enumerate(templates, start=1):
+        tau = max(float(tau), 0.1)
+        volume = _tube_volume_mL(length, d_mm)
+        q = volume / tau
+        candidates.append({
+            "id": idx,
+            "screen_id": label,
+            "purpose": purpose,
+            "tau_min": round(tau, 3),
+            "batch_time_min": round(batch_time_min, 3) if batch_time_min > 0 else None,
+            "target_reduction_factor": round(target, 3),
+            "Q_mL_min": round(q, 4),
+            "V_R_mL": round(volume, 3),
+            "d_mm": round(d_mm, 3),
+            "L_m": round(length, 3),
+            "temperature_C": round(temp, 1),
+            "concentration_M": round(concentration, 4),
+            "BPR_bar": round(bpr, 2),
+            "tubing_material": tubing_material,
+            "primary_flow_advantage": primary_advantage,
+            "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+            "rationale": (
+                f"Screen point for testing {primary_advantage} at tau below batch; "
+                "advance only if measured conversion/yield supports this residence time."
+            ),
+        })
+
+    attach_flow_sense_reports(
+        candidates,
+        batch_time_min=batch_time_min,
+        batch_concentration_M=getattr(calc, "concentration_M", None),
+        solvent_name=solvent,
+        intensification_mandate=intensification_mandate,
+    )
+
+    return {
+        "screen_required": True,
+        "screen_reason": reason,
+        "screen_candidates": candidates,
+        "screen_acceptance_criteria": [
+            "Measure conversion, isolated/assay yield, impurity profile, pressure drop, and visual clogging for every screen point.",
+            "Do not promote a point to final design unless tau_flow is below the batch-proximity threshold and measured conversion/yield meets the project target.",
+            "If all screen points underperform, report the reaction as not currently flow-intensifiable under the available kinetic anchor and require manual chemistry review.",
+        ],
+        "feasibility_diagnostic": feasibility_diagnostic or {},
+    }
+
+
+def _downgrade_uncertain_kinetic_hard_gates(candidates: list[dict]) -> None:
+    """Keep repaired-kinetic flags visible without disqualifying screen candidates."""
+    uncertain_patterns = (
+        "X=",
+        "X_minimum",
+        "insufficient conversion",
+        "dual-criterion mixing fail",
+        "Da_mass",
+    )
+    for candidate in candidates or []:
+        flags = [str(flag) for flag in (candidate.get("hard_gate_flags") or [])]
+        uncertain_flags = [
+            flag for flag in flags
+            if any(pattern in flag for pattern in uncertain_patterns)
+        ]
+        remaining = [flag for flag in flags if flag not in uncertain_flags]
+        if uncertain_flags:
+            existing = [str(flag) for flag in (candidate.get("screen_uncertain_flags") or [])]
+            candidate["screen_uncertain_flags"] = existing + uncertain_flags
+            candidate["hard_gate_flags"] = remaining
+            candidate["hard_gate_status"] = (
+                "PASS_WITH_SCREEN_WARNINGS" if not remaining else "FLAGGED: " + "; ".join(remaining)
+            )
+            candidate["kinetic_anchor_uncertain"] = True
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -638,6 +948,23 @@ def _derive_domain_patch(
             rationale["concentration_M"] = (
                 f"Dr. Chemistry {verdict}: concentration reduced from {current_c:.2f} M "
                 f"to 0.20 M to ease photon attenuation."
+            )
+
+    if domain == "kinetics" and "tau_min" in patch:
+        try:
+            proposed_tau = float(patch["tau_min"])
+        except (TypeError, ValueError):
+            proposed_tau = 0.0
+        report = candidate.get("flow_sense_report") or {}
+        batch_time = float(candidate.get("batch_time_min") or report.get("batch_time_min") or 0.0)
+        target = float(report.get("target_reduction_factor") or 1.0)
+        ceiling = batch_time / target if batch_time > 0 and target > 1.0 else batch_time
+        if ceiling > 0 and proposed_tau > ceiling:
+            patch.pop("tau_min", None)
+            rationale["tau_min_rejected"] = (
+                f"Dr. Kinetics proposed tau={proposed_tau:.2f} min, but the "
+                f"intensification ceiling is {ceiling:.2f} min. Candidate should "
+                "be penalized/disqualified rather than de-intensified."
             )
 
     return patch, rationale
@@ -1215,6 +1542,34 @@ def _score_bar(score: float, width: int = 10) -> str:
     return "█" * filled + "░" * (width - filled) + f" {score:.2f}"
 
 
+def _stringify_issue(value) -> str:
+    """Render LLM/tool issue payloads as safe one-line strings."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        preferred = [
+            "description", "concern", "issue", "reason", "message",
+            "error_type", "field", "value",
+        ]
+        parts = [str(value[k]) for k in preferred if value.get(k) is not None]
+        if parts:
+            return " — ".join(parts)
+        return "; ".join(f"{k}={v}" for k, v in value.items())
+    if isinstance(value, (list, tuple, set)):
+        return "; ".join(_stringify_issue(v) for v in value if v is not None)
+    return str(value)
+
+
+def _issue_list(values, fallback: str) -> list[str]:
+    if not values:
+        return [fallback]
+    if isinstance(values, (str, dict)):
+        values = [values]
+    return [text for text in (_stringify_issue(v) for v in values) if text] or [fallback]
+
+
 def _build_chemistry_cot(scoring: dict) -> str:
     overall = scoring.get("chemistry_overall", "")
     scores = scoring.get("chemistry_scores", [])
@@ -1234,8 +1589,8 @@ def _build_chemistry_cot(scoring: dict) -> str:
         eps = e.get("epsilon_used")
         wl = e.get("wavelength_match")
         mat = e.get("material_transparent")
-        blocking = e.get("blocking_issues") or []
-        concerns = e.get("concerns") or []
+        blocking = _issue_list(e.get("blocking_issues"), "")
+        concerns = _issue_list(e.get("concerns"), "")
 
         lines.append(f"#### {icon} Candidate {cid} — {verdict}")
         lines.append(
@@ -1255,9 +1610,9 @@ def _build_chemistry_cot(scoring: dict) -> str:
             details.append(f"- Material transparent: {'✓' if mat else '✗ (BLOCK)'}")
         if details:
             lines.append("\n".join(details) + "\n")
-        if blocking:
+        if any(blocking):
             lines.append("**⛔ Blocking issues:**\n" + "\n".join(f"- {b}" for b in blocking) + "\n")
-        if concerns:
+        if any(concerns):
             lines.append("**⚠️ Concerns:**\n" + "\n".join(f"- {c}" for c in concerns) + "\n")
         lines.append("---\n")
     return "\n".join(lines)
@@ -1283,7 +1638,7 @@ def _build_kinetics_cot(scoring: dict) -> str:
         tau_final = e.get("tau_proposed_final_min")
         t_steady = e.get("t_steady_min")
         prod = e.get("productivity_mg_h")
-        concerns = e.get("concerns") or []
+        concerns = _issue_list(e.get("concerns"), "")
 
         lines.append(f"#### {icon} Candidate {cid} — {verdict}")
         lines.append(f"**Kinetics score:** {_score_bar(kin_s)}\n")
@@ -1307,7 +1662,7 @@ def _build_kinetics_cot(scoring: dict) -> str:
             details.append(f"- Productivity = {prod:.1f} mg/h")
         if details:
             lines.append("\n".join(details) + "\n")
-        if concerns:
+        if any(concerns):
             lines.append("**⚠️ Concerns:**\n" + "\n".join(f"- {c}" for c in concerns) + "\n")
         lines.append("---\n")
     return "\n".join(lines)
@@ -1338,7 +1693,7 @@ def _build_fluidics_cot(scoring: dict) -> str:
         pump = e.get("pump_type", "")
         mat = e.get("tubing_material", "")
         dv_impact = e.get("dead_volume_impact", "")
-        concerns = e.get("concerns") or []
+        concerns = _issue_list(e.get("concerns"), "")
 
         lines.append(f"#### {icon} Candidate {cid} — {verdict}")
         lines.append(f"**Fluidics score:** {_score_bar(flu_s)}\n")
@@ -1365,7 +1720,7 @@ def _build_fluidics_cot(scoring: dict) -> str:
             details.append(f"- Dead volume: {dv_impact}")
         if details:
             lines.append("\n".join(details) + "\n")
-        if concerns:
+        if any(concerns):
             lines.append("**⚠️ Concerns:**\n" + "\n".join(f"- {c}" for c in concerns) + "\n")
         lines.append("---\n")
     return "\n".join(lines)
@@ -1706,7 +2061,8 @@ def _to_deliberations_v4(
             f"Blocked: {len(chem_blocked)} | Accepted: {n_chem - len(chem_blocked)}",
         ],
         concerns=[
-            f"**Candidate {e['candidate_id']} BLOCKED:** {', '.join(e.get('blocking_issues') or ['unspecified'])}"
+            f"**Candidate {e['candidate_id']} BLOCKED:** "
+            f"{', '.join(_issue_list(e.get('blocking_issues'), 'unspecified'))}"
             for e in chem_blocked
         ],
         status="ACCEPT" if not chem_blocked else "WARNING",
@@ -1727,7 +2083,8 @@ def _to_deliberations_v4(
             f"Blocked: {len(kin_blocked)} | Accepted: {n_kin - len(kin_blocked)}",
         ],
         concerns=[
-            f"**Candidate {e['candidate_id']} BLOCKED:** {', '.join(e.get('concerns') or ['X below minimum'])}"
+            f"**Candidate {e['candidate_id']} BLOCKED:** "
+            f"{', '.join(_issue_list(e.get('concerns'), 'X below minimum'))}"
             for e in kin_blocked
         ],
         status="ACCEPT" if not kin_blocked else "WARNING",
@@ -1748,7 +2105,8 @@ def _to_deliberations_v4(
             f"Blocked: {len(flu_blocked)} | Accepted: {n_flu - len(flu_blocked)}",
         ],
         concerns=[
-            f"**Candidate {e['candidate_id']} BLOCKED:** {', '.join(e.get('concerns') or ['Re or geometry limit'])}"
+            f"**Candidate {e['candidate_id']} BLOCKED:** "
+            f"{', '.join(_issue_list(e.get('concerns'), 'Re or geometry limit'))}"
             for e in flu_blocked
         ],
         status="ACCEPT" if not flu_blocked else "WARNING",
@@ -1769,7 +2127,8 @@ def _to_deliberations_v4(
             f"Blocked: {len(saf_blocked)} | Accepted/Conditional: {n_saf - len(saf_blocked)}",
         ],
         concerns=[
-            f"**Candidate {e['candidate_id']} BLOCKED:** {', '.join(e.get('blocking_issues') or ['safety gate failed'])}"
+            f"**Candidate {e['candidate_id']} BLOCKED:** "
+            f"{', '.join(_issue_list(e.get('blocking_issues'), 'safety gate failed'))}"
             for e in saf_blocked
         ],
         status="ACCEPT" if not saf_blocked else "WARNING",
@@ -1842,6 +2201,7 @@ def _to_deliberations_v4(
             chain_of_thought=_build_chief_cot(chief_data, weighted_scores, winner_id, dfmea),
             findings=[
                 f"**Winner: Candidate {winner_id}** | Combined score: {w_entry.get('combined', '?'):.3f}",
+                f"PVS: {w_entry.get('PVS', 0.0):.3f} | Selection flag: {chief_data.get('selection_flag', 'OK')}",
                 f"Runner-ups: {chief_data.get('runner_up_ids', [])}",
                 f"Objective boosted: {w_entry.get('objective_boosted', 'none')}",
             ],
@@ -1889,11 +2249,11 @@ def _build_summary_v4(
             lines.append(f"- id {row.get('candidate_id')}: {rendered}")
 
     lines.append("\n### Weighted Scores (all surviving candidates)")
-    lines.append("| id | combined | chemistry | kinetics | fluidics | safety | geometry | disq |")
-    lines.append("|---|---|---|---|---|---|---|---|")
+    lines.append("| id | combined | PVS | chemistry | kinetics | fluidics | safety | geometry | disq |")
+    lines.append("|---|---|---|---|---|---|---|---|---|")
     for r in weighted_scores:
         lines.append(
-            f"| {r['candidate_id']} | {r['combined']:.3f} | "
+            f"| {r['candidate_id']} | {r['combined']:.3f} | {r.get('PVS', 0.0):.3f} | "
             f"{r['chemistry']:.3f} | {r['kinetics']:.3f} | {r['fluidics']:.3f} | "
             f"{r['safety']:.3f} | {r['geometry']:.3f} | "
             f"{'✗' if r['disqualified'] else ''} |"
@@ -1919,6 +2279,7 @@ def _build_summary_v4(
             f"prod={w.get('productivity_mg_h', 0):.1f} mg/h"
         )
         lines.append(f"- **Rationale**: {chief_data.get('selection_rationale', '')}")
+        lines.append(f"- **Flow-value justification**: {chief_data.get('selection_justification', '')}")
 
         if chief_data.get("remaining_uncertainties"):
             lines.append("- **Remaining uncertainties**:")
@@ -2055,12 +2416,34 @@ class CouncilV4:
         tau_center = calc.residence_time_min or current.residence_time_min or 30.0
         tau_lit = getattr(calc, "tau_analogy_min", None) or getattr(calc, "tau_class_min", None)
         tau_kinetics = getattr(calc, "tau_kinetics_min", None) or tau_center
+        batch_time_min = (
+            (getattr(batch_record, "reaction_time_h", None) or 0.0) * 60.0
+            or (getattr(calc, "batch_time_s", 0.0) or 0.0) / 60.0
+        )
+        translation_policy = FLOW_TRANSLATION_POLICY
         IF_used = calc.intensification_factor or 6.0
         assumed_MW = getattr(batch_record, "product_MW", None) or 250.0
         pump_max = calc.pump_max_bar or 20.0
         ext_coeff = _extract_extinction_coeff(batch_record, chemistry_plan)
         chem_brief = _build_chemistry_brief(batch_record, chemistry_plan, current)
         reaction_class = (chemistry_plan.reaction_class if chemistry_plan else "unknown") or "unknown"
+        intensification_mandate = (
+            chemistry_plan.intensification_mandate.model_dump()
+            if chemistry_plan and getattr(chemistry_plan, "intensification_mandate", None)
+            else {}
+        )
+        if intensification_mandate:
+            chem_brief += (
+                "\nintensification_mandate: "
+                + json.dumps(intensification_mandate, ensure_ascii=False)
+            )
+        feasibility_diagnostic = _intensification_feasibility_precheck(
+            batch_time_min=batch_time_min,
+            tau_kinetics_min=tau_kinetics,
+            intensification_mandate=intensification_mandate,
+            translation_policy=translation_policy,
+            calc=calc,
+        )
 
         # ═══════════════════════════════════════════════════════════════════
         #  STAGE 0 — Problem Framing
@@ -2091,10 +2474,91 @@ class CouncilV4:
                 "special_flags": problem_statement.get("special_flags", []),
             },
         )
+        if (
+            feasibility_diagnostic is not None
+            and fixed_candidates is None
+            and feasibility_diagnostic.get("hard_block", True)
+        ):
+            logger.warning(
+                "Council v4: intensification infeasible before Designer sampling — %s",
+                feasibility_diagnostic["diagnosis"],
+            )
+            screen_payload = _build_screen_required_payload(
+                current=current,
+                calc=calc,
+                batch_time_min=batch_time_min,
+                intensification_mandate=intensification_mandate,
+                solvent=solvent,
+                reason="intensification infeasible with current kinetic anchor",
+                feasibility_diagnostic=feasibility_diagnostic,
+            )
+            if benchmark_recorder is not None:
+                _bench_snapshot(
+                    benchmark_recorder,
+                    "stage0_intensification_feasibility",
+                    feasibility_diagnostic,
+                )
+                _bench_snapshot(
+                    benchmark_recorder,
+                    "stage0_intensification_screen",
+                    screen_payload,
+                )
+            designer_result = {
+                "survivors": [],
+                "disqualified": [],
+                "table_markdown": "",
+                "strategy_reasoning": "Designer skipped: intensification infeasible with current kinetic anchor.",
+                "design_envelope_preliminary": {},
+                "problem_statement": problem_statement,
+                "pool_metadata": {"pool_quality": "INFEASIBLE", "candidates_generated": 0},
+                "feasibility_diagnostic": feasibility_diagnostic,
+                "screen_required_report": screen_payload,
+            }
+            return self._fallback(
+                current, chemistry_plan, calc, log, designer_result,
+                reason="screen required: intensification infeasible with current kinetic anchor",
+            )
+        if (
+            feasibility_diagnostic is not None
+            and not feasibility_diagnostic.get("hard_block", True)
+        ):
+            logger.warning(
+                "Council v4: kinetic anchor uncertain — proceeding to Designer with screen-required final status: %s",
+                feasibility_diagnostic["diagnosis"],
+            )
+            problem_statement.setdefault("ambiguities", [])
+            problem_statement["ambiguities"].append(feasibility_diagnostic["diagnosis"])
+            problem_statement["kinetic_anchor_quality"] = feasibility_diagnostic.get("kinetic_anchor_quality")
+            problem_statement["screen_required"] = True
+            if benchmark_recorder is not None:
+                _bench_snapshot(
+                    benchmark_recorder,
+                    "stage0_kinetic_anchor_uncertain",
+                    feasibility_diagnostic,
+                )
 
         # ═══════════════════════════════════════════════════════════════════
         #  STAGE 1 — Designer: Candidate Matrix  (or bypass with fixed_candidates)
         # ═══════════════════════════════════════════════════════════════════
+        uncertain_kinetics_screen = (
+            feasibility_diagnostic is not None
+            and feasibility_diagnostic.get("status") == "KINETIC_ANCHOR_UNCERTAIN_SCREEN_REQUIRED"
+        )
+        uncertain_redesign_instructions = None
+        if uncertain_kinetics_screen:
+            tau_ceiling = _positive_float(feasibility_diagnostic.get("tau_intensification_ceiling_min"))
+            target = _positive_float(feasibility_diagnostic.get("tau_reduction_target"), 2.0)
+            uncertain_redesign_instructions = {
+                "tau_ceiling": tau_ceiling,
+                "tau_floor": max(0.5, tau_ceiling / 3.0) if tau_ceiling > 0 else 0.5,
+                "required_advantage": feasibility_diagnostic.get("minimum_flow_advantage", "productivity"),
+                "note": (
+                    "Kinetic anchor is uncertain because analogy IF values were repaired/floored. "
+                    "Generate intensified screen candidates under the mandate ceiling; do not treat "
+                    "calculated conversion from the repaired tau anchor as a hard gate."
+                ),
+                "target_reduction_factor": target,
+            }
         _bench_stage_start(
             benchmark_recorder,
             "council_stage_1_designer",
@@ -2106,6 +2570,13 @@ class CouncilV4:
                 len(fixed_candidates),
             )
             survivors = fixed_candidates
+            attach_flow_sense_reports(
+                survivors,
+                batch_time_min=batch_time_min,
+                batch_concentration_M=getattr(calc, "concentration_M", None),
+                solvent_name=solvent,
+                intensification_mandate=intensification_mandate,
+            )
             table_markdown = format_candidate_table(survivors, max_rows=len(survivors))
             designer_result = {
                 "survivors":                  survivors,
@@ -2114,6 +2585,7 @@ class CouncilV4:
                 "strategy_reasoning":         f"Stage 1 bypassed — {len(survivors)} fixed candidate(s) provided",
                 "design_envelope_preliminary":{},
                 "problem_statement":          problem_statement,
+                "pool_metadata":              {"pool_quality": "FIXED", "candidates_generated": len(survivors)},
             }
         else:
             logger.info("  Council v4 — Stage 1: Designer candidate matrix")
@@ -2130,19 +2602,33 @@ class CouncilV4:
                 assumed_MW=assumed_MW, IF_used=IF_used,
                 pump_max_bar=pump_max,
                 BPR_bar=current.BPR_bar or 0.0,
+                batch_time_min=batch_time_min,
+                translation_policy=translation_policy,
                 extinction_coeff_M_cm=ext_coeff,
                 tubing_material=current.tubing_material or "FEP",
+                X_minimum=0.0 if uncertain_kinetics_screen else 0.50,
                 N_target=candidate_budget,
                 problem_statement=problem_statement,
+                intensification_mandate=intensification_mandate,
+                redesign_instructions=uncertain_redesign_instructions,
             )
+            if (
+                feasibility_diagnostic is not None
+                and not feasibility_diagnostic.get("hard_block", True)
+            ):
+                designer_result["feasibility_diagnostic"] = feasibility_diagnostic
 
         survivors = designer_result["survivors"]
+        if uncertain_kinetics_screen:
+            _downgrade_uncertain_kinetic_hard_gates(survivors)
+            _downgrade_uncertain_kinetic_hard_gates(designer_result.get("disqualified", []))
         _bench_snapshot(
             benchmark_recorder,
             "stage1_designer_result",
             {
                 "strategy_reasoning": designer_result.get("strategy_reasoning"),
                 "problem_statement": designer_result.get("problem_statement"),
+                "pool_metadata": designer_result.get("pool_metadata", {}),
                 "survivors": survivors,
                 "disqualified": designer_result.get("disqualified", []),
             },
@@ -2157,8 +2643,56 @@ class CouncilV4:
             status="completed" if survivors else "empty",
         )
         if not survivors:
-            logger.warning("Council v4: no survivors after hard-gate filter — falling back")
-            return self._fallback(current, chemistry_plan, calc, log, designer_result)
+            logger.warning("Council v4: no survivors after hard-gate filter — requiring experimental screen")
+            screen_payload = _build_screen_required_payload(
+                current=current,
+                calc=calc,
+                batch_time_min=batch_time_min,
+                intensification_mandate=intensification_mandate,
+                solvent=solvent,
+                reason="no usable candidates after filtering",
+                feasibility_diagnostic=designer_result.get("feasibility_diagnostic"),
+            )
+            designer_result["screen_required_report"] = screen_payload
+            _bench_snapshot(benchmark_recorder, "stage1_screen_required", screen_payload)
+            return self._fallback(
+                current, chemistry_plan, calc, log, designer_result,
+                reason="screen required: no usable candidates after filtering",
+            )
+        if survivors and all(
+            any("X=" in str(flag) and "X_minimum" in str(flag) for flag in (c.get("hard_gate_flags") or []))
+            for c in survivors
+        ):
+            logger.warning(
+                "Council v4: all %d Designer candidates fail the insufficient-conversion hard gate — "
+                "skipping domain scoring and falling back for manual review.",
+                len(survivors),
+            )
+            if benchmark_recorder is not None:
+                _bench_snapshot(
+                    benchmark_recorder,
+                    "stage1_pool_rejected_pre_scoring",
+                    {
+                        "reason": "all candidates fail insufficient-conversion hard gate",
+                        "survivor_count": len(survivors),
+                        "candidate_ids": [c.get("id") for c in survivors],
+                    },
+                )
+            screen_payload = _build_screen_required_payload(
+                current=current,
+                calc=calc,
+                batch_time_min=batch_time_min,
+                intensification_mandate=intensification_mandate,
+                solvent=solvent,
+                reason="all candidates fail insufficient-conversion hard gate",
+                feasibility_diagnostic=designer_result.get("feasibility_diagnostic"),
+            )
+            designer_result["screen_required_report"] = screen_payload
+            _bench_snapshot(benchmark_recorder, "stage1_screen_required", screen_payload)
+            return self._fallback(
+                current, chemistry_plan, calc, log, designer_result,
+                reason="screen required: all candidates fail insufficient-conversion hard gate",
+            )
 
         table_markdown = designer_result["table_markdown"]
 
@@ -2180,6 +2714,7 @@ class CouncilV4:
             batch_size=scoring_batch_size,
             strict_coverage=benchmark_strict_scoring,
             benchmark_claude_compact_mode=benchmark_claude_compact_mode,
+            intensification_mandate=intensification_mandate,
         )
         _bench_snapshot(benchmark_recorder, "stage2_initial_scoring", initial_scoring)
         _bench_stage_end(
@@ -2205,7 +2740,111 @@ class CouncilV4:
             is_gas_liquid=is_gas_liquid,
             concentration_M=current.concentration_M,
             pump_max_bar=pump_max,
+            batch_time_min=batch_time_min,
+            batch_concentration_M=getattr(calc, "concentration_M", None),
+            solvent_name=solvent,
+            translation_policy=translation_policy,
+            max_tau_to_batch_ratio=FLOW_MAX_TAU_TO_BATCH_RATIO,
+            intensification_mandate=intensification_mandate,
+            pool_metadata=designer_result.get("pool_metadata", {}),
+            process_value_scores=initial_scoring.get("process_value_scores", []),
         )
+
+        weak_pool_cycles = 0
+        weak_pool_history: list[dict] = []
+        while (
+            initial_audit.get("verdict") == "WEAK_POOL"
+            and fixed_candidates is None
+            and weak_pool_cycles < cfg.MAX_WEAK_POOL_CYCLES
+        ):
+            weak_pool_cycles += 1
+            report = initial_audit.get("weak_pool_report") or {}
+            weak_pool_history.append(report)
+            logger.warning(
+                "  Council v4 — Skeptic WEAK_POOL cycle %d/%d: %s",
+                weak_pool_cycles,
+                cfg.MAX_WEAK_POOL_CYCLES,
+                "; ".join(report.get("specific_failures", []))[:180],
+            )
+            designer_result = run_designer_v4(
+                reaction_class=reaction_class,
+                is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,
+                is_O2_sensitive=is_O2_sensitive,
+                tau_center_min=tau_center, tau_lit_min=tau_lit,
+                tau_kinetics_min=tau_kinetics,
+                d_center_mm=current.tubing_ID_mm or 1.0,
+                Q_center_mL_min=current.flow_rate_mL_min or 1.0,
+                solvent=solvent, temperature_C=current.temperature_C,
+                concentration_M=current.concentration_M,
+                assumed_MW=assumed_MW, IF_used=IF_used,
+                pump_max_bar=pump_max,
+                BPR_bar=current.BPR_bar or 0.0,
+                batch_time_min=batch_time_min,
+                translation_policy=translation_policy,
+                extinction_coeff_M_cm=ext_coeff,
+                tubing_material=current.tubing_material or "FEP",
+                N_target=candidate_budget,
+                problem_statement=problem_statement,
+                intensification_mandate=intensification_mandate,
+                redesign_instructions=report.get("regeneration_instructions") or {},
+            )
+            survivors = designer_result["survivors"]
+            table_markdown = designer_result["table_markdown"]
+            if not survivors:
+                break
+            initial_scoring = run_domain_scoring(
+                candidates=survivors,
+                table_markdown=table_markdown,
+                chemistry_brief=chem_brief,
+                objectives=objectives,
+                is_photochem=is_photochem,
+                pump_max_bar=pump_max,
+                batch_size=scoring_batch_size,
+                strict_coverage=benchmark_strict_scoring,
+                benchmark_claude_compact_mode=benchmark_claude_compact_mode,
+                intensification_mandate=intensification_mandate,
+            )
+            initial_audit = run_skeptic_audit(
+                candidates=survivors,
+                chemistry_scores=initial_scoring["chemistry_scores"],
+                kinetics_scores=initial_scoring["kinetics_scores"],
+                fluidics_scores=initial_scoring["fluidics_scores"],
+                safety_scores=initial_scoring["safety_scores"],
+                is_gas_liquid=is_gas_liquid,
+                concentration_M=current.concentration_M,
+                pump_max_bar=pump_max,
+                batch_time_min=batch_time_min,
+                batch_concentration_M=getattr(calc, "concentration_M", None),
+                solvent_name=solvent,
+                translation_policy=translation_policy,
+                max_tau_to_batch_ratio=FLOW_MAX_TAU_TO_BATCH_RATIO,
+                intensification_mandate=intensification_mandate,
+                pool_metadata=designer_result.get("pool_metadata", {}),
+                process_value_scores=initial_scoring.get("process_value_scores", []),
+            )
+        if initial_audit.get("verdict") == "WEAK_POOL" and weak_pool_cycles >= cfg.MAX_WEAK_POOL_CYCLES:
+            initial_audit["council_may_proceed"] = False
+            initial_audit["audit_summary"] += (
+                " Maximum WEAK_POOL cycles reached; manual review required."
+            )
+            block_reason = (
+                "Pipeline unable to generate adequate flow design after maximum "
+                "WEAK_POOL redesign cycles; manual review required."
+            )
+            initial_audit.setdefault("all_errors", []).append({
+                "agent": "SKEPTIC",
+                "candidate_id": None,
+                "error_type": "WEAK_POOL_MAX_CYCLES",
+                "description": block_reason,
+                "severity": "CRITICAL",
+            })
+            initial_audit["disqualify_ids"] = sorted({int(c.get("id", 0)) for c in survivors})
+            initial_audit["disqualify_recommendations"] = [
+                {"candidate_id": int(c.get("id", 0)), "reason": block_reason}
+                for c in survivors
+            ]
+        if weak_pool_history:
+            initial_audit["weak_pool_history"] = weak_pool_history
 
         # If CRITICAL errors found, log and continue (v4 selects best available)
         if not initial_audit["council_may_proceed"]:
@@ -2255,6 +2894,15 @@ class CouncilV4:
             max_total_revised_candidates=benchmark_max_total_revised_candidates,
         )
         _bench_snapshot(benchmark_recorder, "stage3_5_refinement_summary", refinement_summary)
+        attach_flow_sense_reports(
+            revised_survivors,
+            batch_time_min=batch_time_min,
+            batch_concentration_M=getattr(calc, "concentration_M", None),
+            solvent_name=solvent,
+            intensification_mandate=intensification_mandate,
+        )
+        if uncertain_kinetics_screen:
+            _downgrade_uncertain_kinetic_hard_gates(revised_survivors)
 
         refinement_applied = bool(refinement_summary.get("had_changes"))
         if refinement_applied:
@@ -2275,6 +2923,7 @@ class CouncilV4:
                 batch_size=scoring_batch_size,
                 strict_coverage=benchmark_strict_scoring,
                 benchmark_claude_compact_mode=benchmark_claude_compact_mode,
+                intensification_mandate=intensification_mandate,
             )
             final_audit = run_skeptic_audit(
                 candidates=revised_survivors,
@@ -2285,6 +2934,14 @@ class CouncilV4:
                 is_gas_liquid=is_gas_liquid,
                 concentration_M=current.concentration_M,
                 pump_max_bar=pump_max,
+                batch_time_min=batch_time_min,
+                batch_concentration_M=getattr(calc, "concentration_M", None),
+                solvent_name=solvent,
+                translation_policy=translation_policy,
+                max_tau_to_batch_ratio=FLOW_MAX_TAU_TO_BATCH_RATIO,
+                intensification_mandate=intensification_mandate,
+                pool_metadata=designer_result.get("pool_metadata", {}),
+                process_value_scores=final_scoring.get("process_value_scores", []),
             )
             survivors_for_selection = revised_survivors
             table_for_selection = revised_table_markdown
@@ -2315,6 +2972,39 @@ class CouncilV4:
             set(final_scoring.get("blocked_by_scoring", []))
             | set(final_audit.get("disqualify_ids", []))
         )
+        valid_candidate_ids = {
+            cid for cid in (int(c.get("id") or 0) for c in survivors_for_selection)
+            if cid and cid not in disqualify_ids
+        }
+        if survivors_for_selection and not valid_candidate_ids:
+            logger.warning(
+                "Council v4: all %d candidates were disqualified before Chief selection — "
+                "requiring experimental screen",
+                len(survivors_for_selection),
+            )
+            screen_payload = _build_screen_required_payload(
+                current=current,
+                calc=calc,
+                batch_time_min=batch_time_min,
+                intensification_mandate=intensification_mandate,
+                solvent=solvent,
+                reason="all candidates disqualified before Chief selection",
+                feasibility_diagnostic=designer_result.get("feasibility_diagnostic"),
+            )
+            designer_result["screen_required_report"] = screen_payload
+            _bench_snapshot(
+                benchmark_recorder,
+                "stage4_screen_required_all_candidates_disqualified",
+                {
+                    **screen_payload,
+                    "disqualify_ids": sorted(disqualify_ids),
+                    "candidate_ids": [c.get("id") for c in survivors_for_selection],
+                },
+            )
+            return self._fallback(
+                current, chemistry_plan, calc, log, designer_result,
+                reason="screen required: all candidates disqualified before Chief selection",
+            )
 
         # ═══════════════════════════════════════════════════════════════════
         #  CHIEF ENGINEER — Weighted Selection (with optional ask-back)
@@ -2326,6 +3016,9 @@ class CouncilV4:
             scoring=final_scoring,
             objectives=objectives,
             disqualify_ids=disqualify_ids,
+            batch_time_min=batch_time_min,
+            translation_policy=translation_policy,
+            max_tau_to_batch_ratio=FLOW_MAX_TAU_TO_BATCH_RATIO,
         )
 
         # Pass ṅ_limiting from calculator so chief can derive per-pump Q
@@ -2394,9 +3087,30 @@ class CouncilV4:
             chief_data.setdefault("selection_rationale", fallback_reason)
 
         if winner_id is None:
-            return self._fallback(current, chemistry_plan, calc, log, designer_result)
+            screen_payload = _build_screen_required_payload(
+                current=current,
+                calc=calc,
+                batch_time_min=batch_time_min,
+                intensification_mandate=intensification_mandate,
+                solvent=solvent,
+                reason="Chief could not select a valid candidate",
+                feasibility_diagnostic=designer_result.get("feasibility_diagnostic"),
+            )
+            designer_result["screen_required_report"] = screen_payload
+            _bench_snapshot(benchmark_recorder, "stage4_screen_required_no_winner", screen_payload)
+            return self._fallback(
+                current, chemistry_plan, calc, log, designer_result,
+                reason="screen required: Chief could not select a valid candidate",
+            )
 
         winner = next(c for c in survivors_for_selection if c.get("id") == winner_id)
+        _ensure_selection_justification(
+            chief_data,
+            winner_id=winner_id,
+            winner=winner,
+            weighted_scores=weighted_scores,
+            intensification_mandate=intensification_mandate,
+        )
         _bench_snapshot(
             benchmark_recorder,
             "stage4_chief_selection",
@@ -2434,10 +3148,31 @@ class CouncilV4:
             extinction_coeff_M_cm = ext_coeff,
         )
         if revision_result is not None:
+            winner_before_revision = winner
             winner = revision_result
+            for key in ("batch_time_min", "temperature_C", "concentration_M"):
+                if winner.get(key) is None and winner_before_revision.get(key) is not None:
+                    winner[key] = winner_before_revision[key]
+            if uncertain_kinetics_screen:
+                tau_ceiling = _positive_float(
+                    (feasibility_diagnostic or {}).get("tau_intensification_ceiling_min")
+                )
+                if tau_ceiling > 0 and _positive_float(winner.get("tau_min")) > tau_ceiling:
+                    winner["screen_repair_note"] = (
+                        f"Revision tau {_positive_float(winner.get('tau_min')):.3g} min exceeded "
+                        f"uncertain-kinetics screen ceiling {tau_ceiling:.3g} min; clamped to ceiling."
+                    )
+                    winner["tau_min"] = tau_ceiling
             logger.info(
                 "  Stage 3.5 applied revisions to winner id=%d: τ→%.1f min, d→%.2f mm, BPR→%.2f bar",
                 winner_id, winner.get("tau_min", 0), winner.get("d_mm", 0), winner.get("BPR_bar", 0),
+            )
+            _refresh_selection_justification_from_winner(
+                chief_data,
+                winner_id=winner_id,
+                winner=winner,
+                weighted_scores=weighted_scores,
+                intensification_mandate=intensification_mandate,
             )
         _bench_snapshot(benchmark_recorder, "stage5_revision_result", revision_result)
         _bench_stage_end(
@@ -2484,10 +3219,12 @@ class CouncilV4:
 
         # Revision Stage 3.5: also apply BPR and material from revised winner
         # (these are not in chief final_consensus, but were set by revision agent)
+        # Revision values are deterministic engineering patches and must win over
+        # Chief LLM final_consensus when they conflict.
         if revision_result is not None:
-            if "BPR_bar" not in extra_changes and revision_result.get("BPR_bar") is not None:
+            if revision_result.get("BPR_bar") is not None:
                 extra_changes["BPR_bar"] = str(revision_result["BPR_bar"])
-            if "tubing_material" not in extra_changes and revision_result.get("tubing_material"):
+            if revision_result.get("tubing_material"):
                 extra_changes["tubing_material"] = revision_result["tubing_material"]
 
         current, changes = _apply_winner(
@@ -2549,13 +3286,17 @@ class CouncilV4:
         log.total_rounds = len(all_round_delibs)
         log.consensus_reached = final_audit["council_may_proceed"]
 
+        summary_candidates = [
+            winner if c.get("id") == winner_id else c
+            for c in survivors_for_selection
+        ]
         log.summary = _build_summary_v4(
             designer_result=designer_result,
             scoring=final_scoring,
             audit=final_audit,
             weighted_scores=weighted_scores,
             winner_id=winner_id,
-            candidates=survivors_for_selection,
+            candidates=summary_candidates,
             chief_data=chief_data,
             dfmea=dfmea,
             objectives=objectives,
@@ -2573,8 +3314,18 @@ class CouncilV4:
             for d in rnd
         ]
 
-        current.engine_validated = True
-        current.confidence = "HIGH" if winner.get("pareto_front") else "MEDIUM"
+        uncertain_kinetics = bool(uncertain_kinetics_screen) or (
+            (designer_result.get("feasibility_diagnostic") or {}).get("status")
+            == "KINETIC_ANCHOR_UNCERTAIN_SCREEN_REQUIRED"
+        )
+        current.engine_validated = not uncertain_kinetics
+        current.confidence = "LOW" if uncertain_kinetics else ("HIGH" if winner.get("pareto_front") else "MEDIUM")
+        if uncertain_kinetics:
+            current.safety_flags.append("SCREEN_REQUIRED: kinetic anchor uncertain; selected point is a screening hypothesis")
+            current.chemistry_notes = (
+                (current.chemistry_notes or "").rstrip()
+                + "\nSelected point is not engine-validated because the kinetic anchor was repaired/floored; run the screen experimentally before treating it as a final design."
+            ).strip()
 
         return DesignCandidate(
             proposal=current,
@@ -2587,6 +3338,8 @@ class CouncilV4:
                                  if e.get("severity") == "CRITICAL"]),
                 "dfmea_modes": len(dfmea.get("failure_modes", [])) if dfmea else 0,
                 "validation_experiments": dfmea.get("validation_experiments", []) if dfmea else [],
+                "screen_required": uncertain_kinetics,
+                "feasibility_diagnostic": designer_result.get("feasibility_diagnostic") or {},
             },
             unit_operations=[],
             pid_description="",
@@ -2600,21 +3353,45 @@ class CouncilV4:
         calc: DesignCalculations,
         log: DeliberationLog,
         designer_result: dict,
+        reason: str = "no usable candidates after filtering",
     ) -> tuple[DesignCandidate, DesignCalculations]:
         n_surv = len(designer_result.get("survivors", []))
         n_disq = len(designer_result.get("disqualified", []))
+        diagnostic = designer_result.get("feasibility_diagnostic") or {}
+        screen_report = designer_result.get("screen_required_report") or {}
+        screen_required = bool(screen_report.get("screen_required"))
         log.summary = (
-            f"Council v4 fallback: no usable candidates after filtering. "
+            f"Council v4 fallback: {reason}. "
             f"Designer: {n_surv} survivors, {n_disq} hard-gate disqualified. "
             "Keeping calculator center-point."
         )
+        if diagnostic:
+            log.summary += " " + str(diagnostic.get("diagnosis", ""))
+        if screen_required:
+            log.summary += " Experimental screen required before final design selection."
         current.engine_validated = False
+        current.safety_flags.append(f"ENGINE_FALLBACK: {reason}")
+        if screen_required:
+            current.safety_flags.append(f"SCREEN_REQUIRED: {screen_report.get('screen_reason') or reason}")
+            current.chemistry_notes = (
+                (current.chemistry_notes or "").rstrip()
+                + "\nNo engine-validated final design was selected. Run the attached screen matrix first."
+            ).strip()
         return DesignCandidate(
             proposal=current,
             chemistry_plan=chemistry_plan,
             council_messages=[],
             council_rounds=0,
-            safety_report={},
+            safety_report={
+                "fallback_reason": reason,
+                "feasibility_diagnostic": diagnostic,
+                "screen_required": screen_required,
+                "screen_reason": screen_report.get("screen_reason") if screen_required else None,
+                "screen_candidates": screen_report.get("screen_candidates", []) if screen_required else [],
+                "screen_acceptance_criteria": (
+                    screen_report.get("screen_acceptance_criteria", []) if screen_required else []
+                ),
+            },
             unit_operations=[],
             pid_description="",
             deliberation_log=log,
