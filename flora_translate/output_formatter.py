@@ -103,6 +103,21 @@ class OutputFormatter:
             + (f"- Wavelength: {p.wavelength_nm} nm\n" if p.wavelength_nm else "")
             + (f"- BPR: {p.BPR_bar} bar\n" if p.BPR_bar else "")
         )
+        if p.multiphase_metrics:
+            key_numbers += (
+                "- Multiphase: "
+                f"gas={p.multiphase_metrics.get('gas_species')}, "
+                f"MFC={p.multiphase_metrics.get('gas_flow_sccm')} sccm, "
+                f"gas holdup={p.multiphase_metrics.get('gas_holdup')}, "
+                f"O2 transfer sufficiency={p.multiphase_metrics.get('o2_transfer_sufficiency')}x\n"
+            )
+        if p.heat_transfer_metrics:
+            key_numbers += (
+                "- Heat transfer: "
+                f"UA={p.heat_transfer_metrics.get('UA_W_K')} W/K, "
+                f"Da_th={p.heat_transfer_metrics.get('thermal_damkohler')}, "
+                f"score={p.heat_transfer_metrics.get('heat_transfer_score')}\n"
+            )
         system_with_numbers = EXPLANATION_SYSTEM + key_numbers
         try:
             started = time.perf_counter()

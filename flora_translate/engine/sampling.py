@@ -59,6 +59,12 @@ STANDARD_D_LIQUID = [0.75, 1.00, 1.60, 2.00]       # mm — general purpose
 
 # BPR floor for gas-liquid (O₂, H₂, CO₂) — protocol rule
 BPR_MIN_GAS_LIQUID_BAR = 5.0
+GAS_LIQUID_ROUTINE_MAX_BPR_BAR = 10.0
+GAS_LIQUID_BPR_MARGIN_BAR = 1.5
+GAS_LIQUID_MIN_ID_MM = 0.50
+GAS_LIQUID_MAX_DELTA_P_BAR = 50.0
+GAS_LIQUID_MAX_BPR_BAR = GAS_LIQUID_ROUTINE_MAX_BPR_BAR
+GAS_LIQUID_DESIGN_LIQUID_HOLDUP_FRACTION = 0.18
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -130,7 +136,12 @@ def choose_d_set(
     exclude_above_mm: Optional[float] = None,
 ) -> list[float]:
     """Commercial tubing IDs appropriate for the chemistry."""
-    if is_photochem:
+    if is_photochem and is_gas_liquid:
+        # Gas-liquid photochemistry needs enough bore for slug/segmented flow.
+        # 0.50 mm often looks attractive optically but becomes impractical after
+        # gas holdup expands the physical reactor length.
+        base = [0.75, 1.00, 1.60]
+    elif is_photochem:
         base = STANDARD_D_PHOTOCHEM
     elif is_gas_liquid:
         base = STANDARD_D_GAS_LIQUID
@@ -180,6 +191,10 @@ def sample_design_space(
             for L_frac in L_fractions:
                 L_target_m = L_frac * L_MAX_BENCH_M
                 V_R_target_mL = (PI * d_m ** 2 / 4.0) * L_target_m * 1e6
+                if is_gas_liquid:
+                    # V_R_target is total tube volume. Only the liquid holdup
+                    # contributes to liquid residence time.
+                    V_R_target_mL *= GAS_LIQUID_DESIGN_LIQUID_HOLDUP_FRACTION
                 Q_mL_min = V_R_target_mL / tau_min
                 if Q_mL_min < Q_MIN_ML_MIN:
                     continue
@@ -205,21 +220,48 @@ def compute_metrics(
     is_photochem: bool,
     extinction_coeff_M_cm: Optional[float] = None,
     tau_source: str = "",
+    is_gas_liquid: bool = False,
+    BPR_bar: float = 0.0,
 ) -> dict:
     """Compute the full metric set for a single (τ, d, Q) candidate."""
     d_m = d_mm * 1e-3
 
-    # Geometry: V_R = τ · Q ; L = 4 V_R / (π d²)
-    V_R_mL = tau_min * Q_mL_min
+    # Geometry: V_liquid = τ · Q_liquid. For gas-liquid reactors, physical tube
+    # volume must include gas holdup; otherwise the council scores a shorter,
+    # lower-pressure reactor than the GUI finally displays.
+    V_liquid_mL = tau_min * Q_mL_min
+    gas_flow_actual_mL_min = 0.0
+    gas_holdup = 0.0
+    gas_liquid_ratio = 0.0
+    two_phase_multiplier = 1.0
+    required_bpr_bar = max(float(BPR_bar or 0.0), BPR_MIN_GAS_LIQUID_BAR) if is_gas_liquid else 0.0
+    if is_gas_liquid and Q_mL_min > 0:
+        P_abs_bar = max(float(BPR_bar or 0.0) + 1.01325, 6.0)
+        n_substrate_mmol_min = Q_mL_min * max(concentration_M, 1e-9)
+        # Conservative air/O2 basis: 3 equiv O2 from air. This intentionally
+        # prevents gas-liquid candidates from passing on liquid-only geometry.
+        n_air_mmol_min = (n_substrate_mmol_min * 3.0) / 0.21
+        gas_sccm = n_air_mmol_min * 22.414
+        gas_flow_actual_mL_min = gas_sccm * (298.15 / 273.15) * (1.01325 / P_abs_bar)
+        gas_liquid_ratio = gas_flow_actual_mL_min / max(Q_mL_min, 1e-9)
+        gas_holdup = max(
+            0.02,
+            min(0.85, gas_flow_actual_mL_min / max(gas_flow_actual_mL_min + Q_mL_min, 1e-9)),
+        )
+        two_phase_multiplier = min(12.0, 1.0 + 12.0 * gas_holdup + 25.0 * gas_holdup * gas_holdup)
+
+    V_R_mL = V_liquid_mL / max(1.0 - gas_holdup, 1e-9)
     V_R_m3 = V_R_mL * 1e-6
     L_m = 4.0 * V_R_m3 / (PI * d_m ** 2) if d_m > 0 else 0.0
 
     # Fluidics
     re = calculate_reynolds(Q_mL_min, d_mm, solvent, temperature_C)
     dP = calculate_pressure_drop(Q_mL_min, d_mm, L_m, solvent)
-    dP_bar = dP["delta_P_bar"]
+    dP_bar = dP["delta_P_bar"] * two_phase_multiplier
     dP_headroom_pct = max(0.0, 100.0 * (1.0 - dP_bar / (DELTA_P_SAFETY_FACTOR * pump_max_bar))) \
         if pump_max_bar > 0 else 0.0
+    if is_gas_liquid:
+        required_bpr_bar = max(BPR_MIN_GAS_LIQUID_BAR, dP_bar + GAS_LIQUID_BPR_MARGIN_BAR)
 
     # Mixing / mass transfer
     t_mix_s = d_m ** 2 / (4.0 * D_MOLECULAR)
@@ -264,6 +306,7 @@ def compute_metrics(
         "tau_source": tau_source,
         # geometry
         "V_R_mL": round(V_R_mL, 4),
+        "liquid_holdup_volume_mL": round(V_liquid_mL, 4),
         "L_m": round(L_m, 3),
         # fluidics
         "Re": re["Re"],
@@ -271,6 +314,11 @@ def compute_metrics(
         "velocity_m_s": re["velocity_m_s"],
         "delta_P_bar": round(dP_bar, 5),
         "delta_P_headroom_pct": round(dP_headroom_pct, 1),
+        "gas_holdup": round(gas_holdup, 4),
+        "gas_flow_actual_mL_min": round(gas_flow_actual_mL_min, 4),
+        "gas_liquid_ratio": round(gas_liquid_ratio, 4),
+        "two_phase_multiplier": round(two_phase_multiplier, 4),
+        "required_bpr_bar": round(required_bpr_bar, 2),
         # mixing
         "t_mix_s": round(t_mix_s, 3),
         "r_mix": round(r_mix, 5),
@@ -328,6 +376,11 @@ def hard_filter(
             f"ΔP={m['delta_P_bar']:.3f} bar ≥ {DELTA_P_SAFETY_FACTOR:.0%} of pump_max "
             f"({pump_max_bar} bar)"
         )
+    if is_gas_liquid and m["delta_P_bar"] > GAS_LIQUID_MAX_DELTA_P_BAR:
+        violations.append(
+            f"gas-liquid ΔP={m['delta_P_bar']:.2f} bar > {GAS_LIQUID_MAX_DELTA_P_BAR:.0f} bar "
+            "(gas-service practical ceiling)"
+        )
 
     # Flow floor
     if m["Q_mL_min"] < Q_MIN_ML_MIN:
@@ -357,6 +410,22 @@ def hard_filter(
         warnings.append(
             f"BPR={BPR_bar} bar < {BPR_MIN_GAS_LIQUID_BAR} bar (gas-liquid hard rule — "
             f"Safety will enforce)"
+        )
+    if is_gas_liquid and BPR_bar > GAS_LIQUID_MAX_BPR_BAR:
+        violations.append(
+            f"BPR={BPR_bar:.1f} bar > {GAS_LIQUID_MAX_BPR_BAR:.0f} bar "
+            "(gas-service practical ceiling)"
+        )
+    if is_gas_liquid and (m.get("required_bpr_bar") or 0.0) > GAS_LIQUID_ROUTINE_MAX_BPR_BAR:
+        violations.append(
+            f"required BPR={m['required_bpr_bar']:.1f} bar > "
+            f"{GAS_LIQUID_ROUTINE_MAX_BPR_BAR:.0f} bar routine gas-liquid ceiling; "
+            "increase ID/reduce gas load/reduce liquid throughput"
+        )
+    if is_gas_liquid and m["d_mm"] < GAS_LIQUID_MIN_ID_MM:
+        violations.append(
+            f"d={m['d_mm']:.2f} mm < {GAS_LIQUID_MIN_ID_MM:.2f} mm "
+            "(gas-liquid slug-flow practical floor)"
         )
 
     # Mixing co-failure (Da AND r_mix)
@@ -432,6 +501,8 @@ def generate_candidates(
             pump_max_bar=pump_max_bar, is_photochem=is_photochem,
             extinction_coeff_M_cm=extinction_coeff_M_cm,
             tau_source=tau_source,
+            is_gas_liquid=is_gas_liquid,
+            BPR_bar=BPR_bar,
         )
         ok, viol, warns = hard_filter(
             m, is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,

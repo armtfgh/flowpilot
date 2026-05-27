@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import math
 import logging
+import re
 from dataclasses import dataclass, field
 
 from flora_translate.config import (
@@ -110,6 +111,13 @@ ESTIMATED_EA = {
 }
 
 R_GAS = 8.314  # J/(mol·K) — universal gas constant
+R_GAS_L_BAR = 0.08314  # L·bar/(mol·K)
+T_STP_K = 273.15
+P_STP_BAR = 1.01325
+GAS_LIQUID_MIN_BPR_BAR = 5.0
+GAS_LIQUID_ROUTINE_MAX_BPR_BAR = 10.0
+GAS_LIQUID_BPR_MARGIN_BAR = 1.5
+GAS_LIQUID_MAX_ROUTINE_DELTA_P_BAR = GAS_LIQUID_ROUTINE_MAX_BPR_BAR - GAS_LIQUID_BPR_MARGIN_BAR
 
 # ── Antoine coefficients: log10(P_mmHg) = A − B/(C + T_°C) ────────────────
 ANTOINE = {
@@ -195,6 +203,30 @@ class DesignCalculations:
     pump_max_bar: float = 0.0
     pump_adequate: bool = True
 
+    # Multiphase / gas-liquid extension
+    is_gas_liquid: bool = False
+    gas_species: str = ""
+    gas_oxygen_fraction: float = 0.0
+    liquid_flow_rate_mL_min: float = 0.0
+    gas_flow_sccm: float = 0.0
+    gas_sccm_uncapped: float = 0.0
+    gas_flow_actual_mL_min: float = 0.0
+    gas_actual_uncapped_mL_min: float = 0.0
+    gas_flow_capped_by_holdup: bool = False
+    gas_pressure_abs_bar: float = 1.01325
+    gas_liquid_ratio: float = 0.0
+    gas_holdup: float = 0.0
+    liquid_holdup_volume_mL: float = 0.0
+    two_phase_multiplier: float = 1.0
+    two_phase_pressure_drop_bar: float = 0.0
+    o2_supply_mmol_min: float = 0.0
+    o2_required_mmol_min: float = 0.0
+    o2_equiv_supplied: float = 0.0
+    dissolved_o2_mM: float = 0.0
+    kLa_s: float = 0.0
+    o2_transfer_capacity_mmol_min: float = 0.0
+    o2_transfer_sufficiency: float = 0.0
+
     # Step 6 — mass transfer
     mixing_time_s: float = 0.0
     damkohler_mass: float = 0.0
@@ -206,6 +238,9 @@ class DesignCalculations:
     thermal_damkohler: float | None = None
     thermal_safe: bool = True
     surface_to_volume: float = 0.0
+    heat_transfer_area_m2: float = 0.0
+    UA_W_K: float = 0.0
+    heat_transfer_score: float = 0.0
 
     # Step 8 — BPR
     bpr_required: bool = False
@@ -323,6 +358,21 @@ class DesignCalculations:
             )
         if self.bpr_required:
             lines.append(f"**BPR:** {self.bpr_pressure_bar:.1f} bar (required)")
+        if self.is_gas_liquid:
+            lines.append(
+                "**Gas-liquid:** "
+                f"{self.gas_species or 'gas'} MFC = {self.gas_flow_sccm:.2f} sccm "
+                f"({self.gas_flow_actual_mL_min:.3f} mL/min at reactor), "
+                f"ε_g = {self.gas_holdup:.2f}, "
+                f"V_total = {self.reactor_volume_mL:.2f} mL, "
+                f"O₂ transfer sufficiency = {self.o2_transfer_sufficiency:.2f}×"
+            )
+        if self.UA_W_K:
+            lines.append(
+                f"**Heat transfer:** UA = {self.UA_W_K:.4f} W/K, "
+                f"A_wall = {self.heat_transfer_area_m2:.5f} m², "
+                f"heat-transfer score = {self.heat_transfer_score:.2f}"
+            )
         if not self.consistent:
             lines.append("\n⚠ CONSISTENCY ISSUES:")
             for n in self.consistency_notes:
@@ -453,6 +503,7 @@ class DesignCalculator:
 
         solvent = getattr(batch_record, "solvent", None)
         is_gas_liquid = self._is_gas_liquid(batch_record, chemistry_plan, proposal)
+        calc.is_gas_liquid = is_gas_liquid
 
         # Flow temperature may differ from batch temperature
         T_flow_C = None
@@ -473,7 +524,11 @@ class DesignCalculator:
             self._step2_override(calc, tau_override, batch_record, chemistry_plan, analogies)
         else:
             self._step2(calc, batch_record, chemistry_plan, analogies, T_flow_C)
-        self._steps345(calc, Q_init, d_init, solvent, inventory, is_photochem)
+        self._steps345(
+            calc, Q_init, d_init, solvent, inventory, is_photochem,
+            is_gas_liquid=is_gas_liquid, proposal=proposal,
+            batch_record=batch_record, chemistry_plan=chemistry_plan,
+        )
         self._step6(calc)
         self._step7(calc, batch_record, chemistry_plan, solvent)
         self._step8(calc, solvent, is_gas_liquid)
@@ -487,6 +542,82 @@ class DesignCalculator:
                     calc.material_warnings.append(f"{mat} + {sol_key}: {concern}")
 
         return calc
+
+    @staticmethod
+    def annotate_proposal_with_calculations(proposal, calc: DesignCalculations):
+        """Attach deterministic gas/heat metadata to the final proposal.
+
+        This keeps topology/GUI rendering synchronized with the calculator
+        without asking the LLM to invent gas MFC values.
+        """
+        if proposal is None:
+            return proposal
+        # Deterministic post-council corrections must be reflected in the
+        # proposal itself; otherwise the GUI can show a council geometry while
+        # calculations/topology use a different physical reactor.
+        if calc.flow_rate_mL_min > 0:
+            proposal.flow_rate_mL_min = round(calc.flow_rate_mL_min, 5)
+        if calc.tubing_ID_mm > 0:
+            proposal.tubing_ID_mm = round(calc.tubing_ID_mm, 3)
+        if calc.reactor_volume_mL > 0:
+            proposal.reactor_volume_mL = round(calc.reactor_volume_mL, 4)
+        if calc.bpr_required and calc.bpr_pressure_bar > 0:
+            proposal.BPR_bar = round(calc.bpr_pressure_bar, 1)
+        if getattr(calc, "is_gas_liquid", False):
+            proposal.multiphase_metrics = {
+                "gas_species": calc.gas_species,
+                "gas_oxygen_fraction": calc.gas_oxygen_fraction,
+                "liquid_flow_rate_mL_min": calc.liquid_flow_rate_mL_min,
+                "gas_flow_sccm": calc.gas_flow_sccm,
+                "gas_sccm_uncapped": getattr(calc, "gas_sccm_uncapped", 0.0),
+                "gas_flow_actual_mL_min": calc.gas_flow_actual_mL_min,
+                "gas_actual_uncapped_mL_min": getattr(calc, "gas_actual_uncapped_mL_min", 0.0),
+                "gas_flow_capped_by_holdup": getattr(calc, "gas_flow_capped_by_holdup", False),
+                "gas_pressure_abs_bar": calc.gas_pressure_abs_bar,
+                "gas_liquid_ratio": calc.gas_liquid_ratio,
+                "gas_holdup": calc.gas_holdup,
+                "liquid_holdup_volume_mL": calc.liquid_holdup_volume_mL,
+                "total_reactor_volume_mL": calc.reactor_volume_mL,
+                "two_phase_multiplier": calc.two_phase_multiplier,
+                "two_phase_pressure_drop_bar": calc.two_phase_pressure_drop_bar,
+                "o2_supply_mmol_min": calc.o2_supply_mmol_min,
+                "o2_required_mmol_min": calc.o2_required_mmol_min,
+                "o2_equiv_supplied": calc.o2_equiv_supplied,
+                "dissolved_o2_mM": calc.dissolved_o2_mM,
+                "kLa_s": calc.kLa_s,
+                "o2_transfer_capacity_mmol_min": calc.o2_transfer_capacity_mmol_min,
+                "o2_transfer_sufficiency": calc.o2_transfer_sufficiency,
+            }
+            gas_assigned = False
+            for stream in proposal.streams or []:
+                if DesignCalculator._stream_assignment_is_gas(stream):
+                    stream.phase = "gas"
+                    stream.gas_flow_sccm = round(calc.gas_flow_sccm, 3)
+                    stream.gas_flow_actual_mL_min = round(calc.gas_flow_actual_mL_min, 4)
+                    stream.flow_rate_mL_min = round(calc.gas_flow_actual_mL_min, 4)
+                    gas_assigned = True
+            if not gas_assigned and proposal.streams is not None:
+                from flora_translate.schemas import StreamAssignment
+                proposal.streams.append(StreamAssignment(
+                    stream_label="G",
+                    pump_role=f"{calc.gas_species or 'gas'} feed",
+                    contents=[calc.gas_species or "gas"],
+                    phase="gas",
+                    gas_flow_sccm=round(calc.gas_flow_sccm, 3),
+                    gas_flow_actual_mL_min=round(calc.gas_flow_actual_mL_min, 4),
+                    flow_rate_mL_min=round(calc.gas_flow_actual_mL_min, 4),
+                    reasoning="Deterministic gas-liquid calculator added MFC feed for gas-phase reagent.",
+                ))
+        proposal.heat_transfer_metrics = {
+            "surface_to_volume_m_inv": calc.surface_to_volume,
+            "heat_transfer_area_m2": calc.heat_transfer_area_m2,
+            "UA_W_K": calc.UA_W_K,
+            "heat_generation_W": calc.heat_generation_W,
+            "heat_removal_W": calc.heat_removal_W,
+            "thermal_damkohler": calc.thermal_damkohler,
+            "heat_transfer_score": calc.heat_transfer_score,
+        }
+        return proposal
 
     # ─── Helpers ────────────────────────────────────────────────────────
 
@@ -512,12 +643,39 @@ class DesignCalculator:
         # NOTE: "co" excluded — too short, matches "coupling", "collection", etc.
         _REAGENT_GAS = {"o2", "o₂", "oxygen", "h2", "h₂", "hydrogen",
                         "co2", "co₂", "syngas", "ethylene", "acetylene",
-                        "carbon monoxide", "carbonylation"}
+                        "carbon monoxide", "carbonylation", "ozone", "o3", "o₃",
+                        "chlorine", "cl2", "cl₂", "ammonia", "nh3", "nh₃",
+                        "hydrogen chloride", "hcl gas", "sulfur dioxide", "so2", "so₂"}
         # Phase keywords
         _PHASE_KW = {"gas-liquid", "gas_liquid", "segmented", "slug flow",
                      "mfc", "bubbl", "sparging gas", "gas reagent"}
         # Inert gases — do NOT trigger gas-liquid when used as atmosphere
         _INERT = {"n2", "n₂", "nitrogen", "ar", "argon", "helium"}
+
+        def _has_reagent_gas_context(text: str) -> bool:
+            text = text.lower()
+            negative = (
+                "o2-sensitive", "o₂-sensitive", "oxygen-sensitive",
+                "oxygen free", "oxygen-free", "o2-free", "o₂-free",
+                "deoxygen", "exclude oxygen", "strictly o2 free",
+            )
+            if any(term in text for term in negative):
+                stripped = text
+                for term in negative:
+                    stripped = stripped.replace(term, "")
+            else:
+                stripped = text
+            contextual = (
+                "molecular oxygen", "oxygen introduced", "o2 introduced", "o₂ introduced",
+                "from air", "air introduced", "open to air", "under air",
+                "air feed", "oxygen feed", "o2 feed", "o₂ feed",
+                "gas feed", "gas injection", "sparge", "sparging", "bubble",
+                "bubbling", "segmented", "slug flow", "gas-liquid", "gas_liquid",
+                "under h2", "under h₂", "hydrogenation", "carbon monoxide",
+                "syngas", "co2 feed", "co₂ feed", "ozone feed", "chlorine feed",
+                "ammonia feed", "hcl gas feed", "so2 feed", "so₂ feed",
+            )
+            return any(term in stripped for term in contextual)
 
         # Check atmosphere field: only reagent gases count
         atm = str(getattr(batch_record, "atmosphere", "") or "").lower().strip()
@@ -547,11 +705,189 @@ class DesignCalculator:
                     texts.append(str(c))
 
         combined = " ".join(texts).lower()
-        if any(kw in combined for kw in _REAGENT_GAS):
+        if _has_reagent_gas_context(combined):
             return True
         if any(kw in combined for kw in _PHASE_KW):
             return True
         return False
+
+    @staticmethod
+    def _stream_assignment_is_gas(stream) -> bool:
+        phase = str(getattr(stream, "phase", "") or getattr(stream, "state", "") or "").lower()
+        if phase in {"gas", "gaseous", "vapor", "vapour"}:
+            return True
+        if phase in {"liquid", "solution"}:
+            return False
+        solvent = str(getattr(stream, "solvent", "") or "")
+        if solvent:
+            solvent_l = solvent.lower()
+            no_real_solvent = solvent_l.strip() in {"none", "no solvent", "n/a", "na", "null", "gas"}
+            if not no_real_solvent and "gas" not in solvent_l and "vapor" not in solvent_l and "vapour" not in solvent_l:
+                return False
+        texts = [
+            str(getattr(stream, "pump_role", "") or ""),
+            " ".join(str(c) for c in (getattr(stream, "contents", None) or [])),
+        ]
+        text = " ".join(texts).lower()
+        if any(w in text for w in ("quench", "neutralization", "neutralisation", "workup")):
+            return False
+        gas_words = (
+            "air", "oxygen", "o2", "o₂", "hydrogen", "h2", "h₂", "co2", "co₂",
+            "carbon monoxide", "syngas", "ethylene", "acetylene", "gas feed",
+            "gas injection", "mfc", "ozone", "o3", "o₃", "chlorine", "cl2", "cl₂",
+            "ammonia", "nh3", "nh₃", "hydrogen chloride", "hcl gas",
+            "sulfur dioxide", "so2", "so₂",
+        )
+        liquid_words = ("solution", "solvent", "in mecn", "in ethanol", "in etoh", "aqueous")
+        return any(w in text for w in gas_words) and not any(w in text for w in liquid_words)
+
+    @staticmethod
+    def _detect_gas_species(batch_record, chemistry_plan, proposal) -> tuple[str, float]:
+        texts: list[str] = []
+        if batch_record:
+            texts.append(str(getattr(batch_record, "reaction_description", "") or ""))
+            texts.append(str(getattr(batch_record, "atmosphere", "") or ""))
+        if chemistry_plan:
+            texts.append(str(getattr(chemistry_plan, "mechanism_type", "") or ""))
+            for stage in chemistry_plan.stages or []:
+                texts.append(str(stage.atmosphere or ""))
+                texts.append(str(stage.reaction_type or ""))
+                for feed in stage.feed_streams or []:
+                    texts.append(str(getattr(feed, "pump_role", "") or ""))
+                    texts.append(str(getattr(feed, "reasoning", "") or ""))
+                    texts.append(str(getattr(feed, "phase", "") or ""))
+                    texts.extend(str(r) for r in feed.reagents or [])
+            for reagent in chemistry_plan.reagents or []:
+                texts.append(str(reagent.name or ""))
+                texts.append(str(reagent.role or ""))
+        if proposal:
+            for stream in proposal.streams or []:
+                texts.append(str(stream.pump_role or ""))
+                texts.extend(str(c) for c in stream.contents or [])
+        text = " ".join(texts).lower()
+
+        def has_any(*patterns: str) -> bool:
+            return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
+
+        # Prioritize explicit reagent gases over incidental sensitivity text
+        # such as "oxygen-sensitive". Put O2 after the specific gases.
+        if has_any(r"\bair\b"):
+            return "air", 0.21
+        if has_any(r"\bozone\b", r"(?<![A-Za-z0-9])o3(?![A-Za-z0-9])", r"o₃"):
+            return "O3", 0.0
+        if has_any(r"\bsyngas\b"):
+            return "syngas", 0.0
+        if has_any(r"(?<![A-Za-z0-9])co2(?![A-Za-z0-9])", r"co₂", r"\bcarbon dioxide\b"):
+            return "CO2", 0.0
+        if has_any(r"\bcarbon monoxide\b"):
+            return "CO", 0.0
+        if has_any(r"\bhydrogen\b", r"(?<![A-Za-z0-9])h2(?![A-Za-z0-9])", r"h₂"):
+            return "H2", 0.0
+        if has_any(r"\bchlorine\b", r"(?<![A-Za-z0-9])cl2(?![A-Za-z0-9])", r"cl₂"):
+            return "Cl2", 0.0
+        if has_any(r"\bammonia\b", r"(?<![A-Za-z0-9])nh3(?![A-Za-z0-9])", r"nh₃"):
+            return "NH3", 0.0
+        if has_any(r"\bhydrogen chloride\b", r"\bhcl gas\b"):
+            return "HCl", 0.0
+        if has_any(r"\bsulfur dioxide\b", r"(?<![A-Za-z0-9])so2(?![A-Za-z0-9])", r"so₂"):
+            return "SO2", 0.0
+        o2_negative = (
+            "o2-sensitive", "o₂-sensitive", "oxygen-sensitive",
+            "oxygen/moisture-sensitive", "oxygen free", "oxygen-free",
+            "o2-free", "o₂-free",
+        )
+        o2_text = text
+        for term in o2_negative:
+            o2_text = o2_text.replace(term, "")
+        if any(k in o2_text for k in ("oxygen", "o2", "o₂")):
+            return "O2", 1.0
+        return "gas", 0.0
+
+    def _estimate_gas_context(
+        self, calc, Q_liquid_mL_min: float, proposal, is_gas_liquid: bool,
+        batch_record=None, chemistry_plan=None,
+    ) -> dict:
+        if not is_gas_liquid or Q_liquid_mL_min <= 0:
+            return {}
+        species, y_o2 = self._detect_gas_species(batch_record, chemistry_plan, proposal)
+        P_gauge_bar = 0.0
+        try:
+            P_gauge_bar = float(getattr(proposal, "BPR_bar", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            P_gauge_bar = 0.0
+        P_abs_bar = max(P_gauge_bar + P_STP_BAR, 6.0 if is_gas_liquid else P_STP_BAR)
+        T_K = calc.temperature_K or 298.15
+
+        explicit_sccm = None
+        if proposal:
+            for stream in proposal.streams or []:
+                if not self._stream_assignment_is_gas(stream):
+                    continue
+                for attr in ("gas_flow_sccm", "flow_rate_sccm"):
+                    value = getattr(stream, attr, None)
+                    if value:
+                        explicit_sccm = float(value)
+                        break
+                if explicit_sccm:
+                    break
+
+        n_substrate_mmol_min = Q_liquid_mL_min * max(calc.concentration_M or 0.1, 1e-9)
+        o2_equiv_required = 1.0 if y_o2 > 0 else 0.0
+        o2_required = n_substrate_mmol_min * o2_equiv_required
+        supply_factor = 3.0
+        if explicit_sccm is not None:
+            gas_sccm = explicit_sccm
+        elif y_o2 > 0:
+            n_gas_mmol_min = o2_required * supply_factor / max(y_o2, 1e-9)
+            gas_sccm = (n_gas_mmol_min / 1000.0) * R_GAS_L_BAR * T_STP_K / P_STP_BAR * 1000.0
+        else:
+            # Non-O2 reagent gas default: one gas mol per substrate mol with 3x excess.
+            n_gas_mmol_min = n_substrate_mmol_min * 3.0
+            gas_sccm = (n_gas_mmol_min / 1000.0) * R_GAS_L_BAR * T_STP_K / P_STP_BAR * 1000.0
+
+        gas_actual = gas_sccm * (T_K / T_STP_K) * (P_STP_BAR / P_abs_bar)
+        gas_sccm_uncapped = gas_sccm
+        gas_actual_uncapped = gas_actual
+        glr = gas_actual / max(Q_liquid_mL_min, 1e-9)
+        # Holdup must be consistent with the displayed actual gas flow. With a
+        # no-slip approximation, V_total = tau * (Q_liquid + Q_gas_actual).
+        # The upper bound only prevents singular volumes for pathological gas
+        # excess; it does not silently alter the MFC setpoint.
+        eps = max(0.02, min(0.85, gas_actual / max(gas_actual + Q_liquid_mL_min, 1e-9)))
+        multiplier = min(12.0, 1.0 + 12.0 * eps + 25.0 * eps * eps)
+
+        o2_supply = 0.0
+        if y_o2 > 0:
+            n_gas_mol_min = gas_sccm / 1000.0 * P_STP_BAR / (R_GAS_L_BAR * T_STP_K)
+            o2_supply = n_gas_mol_min * 1000.0 * y_o2
+        p_o2_abs = P_abs_bar * y_o2
+        dissolved_o2_mM = 1.3 * (p_o2_abs / 0.21) if y_o2 > 0 else 0.0
+        kLa_s = 0.02 + 0.35 * eps if y_o2 > 0 else 0.0
+        liquid_holdup_L = calc.residence_time_min * Q_liquid_mL_min / 1000.0
+        transfer_capacity = kLa_s * dissolved_o2_mM * liquid_holdup_L * 60.0
+        transfer_suff = transfer_capacity / max(o2_required, 1e-12) if o2_required > 0 else 0.0
+        o2_equiv_supplied = o2_supply / max(n_substrate_mmol_min, 1e-12) if n_substrate_mmol_min > 0 else 0.0
+
+        return {
+            "species": species,
+            "y_o2": y_o2,
+            "P_abs_bar": P_abs_bar,
+            "gas_sccm": gas_sccm,
+            "gas_sccm_uncapped": gas_sccm_uncapped,
+            "gas_actual_mL_min": gas_actual,
+            "gas_actual_uncapped_mL_min": gas_actual_uncapped,
+            "gas_flow_capped_by_holdup": False,
+            "gas_liquid_ratio": glr,
+            "gas_holdup": eps,
+            "two_phase_multiplier": multiplier,
+            "o2_supply_mmol_min": o2_supply,
+            "o2_required_mmol_min": o2_required,
+            "o2_equiv_supplied": o2_equiv_supplied,
+            "dissolved_o2_mM": dissolved_o2_mM,
+            "kLa_s": kLa_s,
+            "o2_transfer_capacity_mmol_min": transfer_capacity,
+            "o2_transfer_sufficiency": transfer_suff,
+        }
 
     # ═══════════════════════════════════════════════════════════════════
     #  Step 1 — Parse batch conditions
@@ -992,8 +1328,12 @@ class DesignCalculator:
     #  (coupled: changing d affects L, Re, and ΔP — iterate until OK)
     # ═══════════════════════════════════════════════════════════════════
 
-    def _steps345(self, calc, Q_mL_min, d_mm, solvent, inventory, is_photochem):
+    def _steps345(
+        self, calc, Q_mL_min, d_mm, solvent, inventory, is_photochem,
+        is_gas_liquid=False, proposal=None, batch_record=None, chemistry_plan=None,
+    ):
         tau_s = calc.residence_time_s or 600.0
+        tau_min = tau_s / 60.0
 
         # Solvent properties
         mu_cP = _lookup(solvent, SOLVENT_VISCOSITY_cP) or 1.0
@@ -1014,16 +1354,26 @@ class DesignCalculator:
         adj_4: list[str] = []   # Re adjustments
         adj_5: list[str] = []   # ΔP adjustments
 
+        gas_ctx = self._estimate_gas_context(
+            calc, Q_mL_min, proposal, is_gas_liquid,
+            batch_record=batch_record, chemistry_plan=chemistry_plan,
+        )
+
         for _iter in range(5):
             Q_m3s = Q_mL_min * 1e-6 / 60.0
+            Q_gas_actual_m3s = (gas_ctx.get("gas_actual_mL_min", 0.0) or 0.0) * 1e-6 / 60.0
             d_m = d_mm * 1e-3
             A = PI * (d_m / 2) ** 2
-            V_m3 = tau_s * Q_m3s
+            V_liquid_m3 = tau_s * Q_m3s
+            gas_holdup = gas_ctx.get("gas_holdup", 0.0) or 0.0
+            V_m3 = V_liquid_m3 / max(1.0 - gas_holdup, 1e-9)
             V_mL = V_m3 * 1e6
             L = (4.0 * V_m3 / (PI * d_m ** 2)) if d_m > 0 else 0.0
-            v = Q_m3s / A if A > 0 else 0.0
-            Re = (rho * v * d_m / mu) if mu > 0 else 0.0
-            dP_Pa = (128.0 * mu * L * Q_m3s / (PI * d_m ** 4)) if d_m > 0 else float("inf")
+            v = (Q_m3s + Q_gas_actual_m3s) / A if A > 0 else 0.0
+            v_liquid = Q_m3s / A if A > 0 else 0.0
+            Re = (rho * v_liquid * d_m / mu) if mu > 0 else 0.0
+            dP_liquid_Pa = (128.0 * mu * L * Q_m3s / (PI * d_m ** 4)) if d_m > 0 else float("inf")
+            dP_Pa = dP_liquid_Pa * (gas_ctx.get("two_phase_multiplier", 1.0) or 1.0)
             dP_bar = dP_Pa * 1e-5
 
             need_redo = False
@@ -1037,6 +1387,28 @@ class DesignCalculator:
                 adj_4.append(
                     f"Re = {Re:.0f} > 2100 → increased d from "
                     f"{d_mm:.2f} to {d_new_mm:.2f} mm"
+                )
+                d_mm = d_new_mm
+                need_redo = True
+
+            # Gas-liquid designs must remain inside routine BPR hardware, not
+            # merely below the pump's absolute pressure rating.
+            elif is_gas_liquid and dP_bar > GAS_LIQUID_MAX_ROUTINE_DELTA_P_BAR:
+                ratio = (dP_bar / max(GAS_LIQUID_MAX_ROUTINE_DELTA_P_BAR * 0.75, 1e-9)) ** 0.25
+                d_new_mm = max(math.ceil(d_mm * ratio * 10) / 10, d_mm + 0.1)
+                if is_photochem:
+                    d_new_mm = min(d_new_mm, 1.0)
+                if d_new_mm <= d_mm + 1e-9:
+                    adj_5.append(
+                        f"Gas-liquid ΔP = {dP_bar:.2f} bar would require "
+                        f"BPR > {GAS_LIQUID_ROUTINE_MAX_BPR_BAR:.0f} bar; "
+                        "ID already at photochemical upper bound"
+                    )
+                    break
+                adj_5.append(
+                    f"Gas-liquid ΔP = {dP_bar:.2f} bar would require "
+                    f"BPR > {GAS_LIQUID_ROUTINE_MAX_BPR_BAR:.0f} bar → increased d "
+                    f"from {d_mm:.2f} to {d_new_mm:.2f} mm"
                 )
                 d_mm = d_new_mm
                 need_redo = True
@@ -1060,6 +1432,7 @@ class DesignCalculator:
         # Store final values
         calc.flow_rate_mL_min = Q_mL_min
         calc.flow_rate_m3_s = Q_m3s
+        calc.liquid_flow_rate_mL_min = Q_mL_min
         calc.tubing_ID_mm = d_mm
         calc.tubing_ID_m = d_m
         calc.reactor_volume_mL = round(V_mL, 4)
@@ -1073,6 +1446,28 @@ class DesignCalculator:
             else "turbulent"
         )
         calc.pressure_drop_bar = round(dP_bar, 6)
+        if gas_ctx:
+            calc.is_gas_liquid = True
+            calc.gas_species = gas_ctx.get("species", "")
+            calc.gas_oxygen_fraction = round(gas_ctx.get("y_o2", 0.0), 4)
+            calc.gas_flow_sccm = round(gas_ctx.get("gas_sccm", 0.0), 4)
+            calc.gas_sccm_uncapped = round(gas_ctx.get("gas_sccm_uncapped", 0.0), 4)
+            calc.gas_flow_actual_mL_min = round(gas_ctx.get("gas_actual_mL_min", 0.0), 4)
+            calc.gas_actual_uncapped_mL_min = round(gas_ctx.get("gas_actual_uncapped_mL_min", 0.0), 4)
+            calc.gas_flow_capped_by_holdup = bool(gas_ctx.get("gas_flow_capped_by_holdup", False))
+            calc.gas_pressure_abs_bar = round(gas_ctx.get("P_abs_bar", 1.01325), 4)
+            calc.gas_liquid_ratio = round(gas_ctx.get("gas_liquid_ratio", 0.0), 4)
+            calc.gas_holdup = round(gas_ctx.get("gas_holdup", 0.0), 4)
+            calc.liquid_holdup_volume_mL = round(V_liquid_m3 * 1e6, 4)
+            calc.two_phase_multiplier = round(gas_ctx.get("two_phase_multiplier", 1.0), 4)
+            calc.two_phase_pressure_drop_bar = round(dP_bar, 6)
+            calc.o2_supply_mmol_min = round(gas_ctx.get("o2_supply_mmol_min", 0.0), 6)
+            calc.o2_required_mmol_min = round(gas_ctx.get("o2_required_mmol_min", 0.0), 6)
+            calc.o2_equiv_supplied = round(gas_ctx.get("o2_equiv_supplied", 0.0), 4)
+            calc.dissolved_o2_mM = round(gas_ctx.get("dissolved_o2_mM", 0.0), 4)
+            calc.kLa_s = round(gas_ctx.get("kLa_s", 0.0), 5)
+            calc.o2_transfer_capacity_mmol_min = round(gas_ctx.get("o2_transfer_capacity_mmol_min", 0.0), 6)
+            calc.o2_transfer_sufficiency = round(gas_ctx.get("o2_transfer_sufficiency", 0.0), 4)
         calc.pump_adequate = dP_bar <= pump_max
 
         # Péclet number: Pe = 192·τ·D_mol / d²
@@ -1091,15 +1486,30 @@ class DesignCalculator:
                 f"Reactor behaves closer to CSTR than PFR. "
                 f"Reduce d (smaller d → higher Pe) or accept lower conversion efficiency."
             )
-        eqs_3 = [
-            (rf"V_R = \tau \times Q = {tau_s:.1f}"
-             rf" \times {Q_m3s:.3e}"
-             rf" = {V_m3:.3e}\;\mathrm{{m^3}}"
-             rf" = {V_mL:.2f}\;\mathrm{{mL}}"),
-            (rf"L = \frac{{4\,V_R}}{{\pi\,d^2}}"
-             rf" = \frac{{4 \times {V_m3:.3e}}}"
-             rf"{{\pi \times ({d_m:.4f})^2}}"
-             rf" = {L:.2f}\;\mathrm{{m}}"),
+        if gas_ctx:
+            eqs_3 = [
+                (rf"V_{{L}} = \tau_L \times Q_L = {tau_min:.2f}"
+                 rf" \times {Q_mL_min:.4f} = {V_liquid_m3 * 1e6:.2f}\;\mathrm{{mL}}"),
+                (rf"\varepsilon_g = \frac{{Q_g}}{{Q_g+Q_L}}"
+                 rf" = {calc.gas_holdup:.3f}"),
+                (rf"V_R = \frac{{V_L}}{{1-\varepsilon_g}}"
+                 rf" = \frac{{{V_liquid_m3 * 1e6:.2f}}}{{1-{calc.gas_holdup:.3f}}}"
+                 rf" = {V_mL:.2f}\;\mathrm{{mL}}"),
+                (rf"L = \frac{{4\,V_R}}{{\pi\,d^2}}"
+                 rf" = {L:.2f}\;\mathrm{{m}}"),
+            ]
+        else:
+            eqs_3 = [
+                (rf"V_R = \tau \times Q = {tau_s:.1f}"
+                 rf" \times {Q_m3s:.3e}"
+                 rf" = {V_m3:.3e}\;\mathrm{{m^3}}"
+                 rf" = {V_mL:.2f}\;\mathrm{{mL}}"),
+                (rf"L = \frac{{4\,V_R}}{{\pi\,d^2}}"
+                 rf" = \frac{{4 \times {V_m3:.3e}}}"
+                 rf"{{\pi \times ({d_m:.4f})^2}}"
+                 rf" = {L:.2f}\;\mathrm{{m}}"),
+            ]
+        eqs_3 += [
             (rf"Pe = \frac{{192\,\tau\,D_{{\mathrm{{mol}}}}}}{{d^2}}"
              rf" = \frac{{192 \times {tau_s:.1f} \times {D_MOLECULAR:.0e}}}"
              rf"{{{d_m:.4f}^2}}"
@@ -1114,7 +1524,8 @@ class DesignCalculator:
                 f"L = {L:.2f} m, Pe = {Pe_val:.0f} "
                 f"({'✓ plug flow' if calc.Pe_adequate else '⚠ axial dispersion'})"
             ),
-            values={"V_R_mL": V_mL, "d_mm": d_mm, "L_m": L,
+            values={"V_R_mL": V_mL, "liquid_holdup_mL": V_liquid_m3 * 1e6,
+                    "gas_holdup": calc.gas_holdup, "d_mm": d_mm, "L_m": L,
                     "Q_mL_min": Q_mL_min, "v_m_s": v,
                     "Pe": Pe_val, "Pe_adequate": calc.Pe_adequate},
             equations=eqs_3,
@@ -1150,8 +1561,14 @@ class DesignCalculator:
              rf" = \frac{{128 \times {mu:.4e}"
              rf" \times {L:.2f} \times {Q_m3s:.3e}}}"
              rf"{{\pi \times ({d_m:.4f})^4}}"
+             rf" \times \phi^2_{{2p}}"
              rf" = {dP_bar:.4f}\;\mathrm{{bar}}"),
         ]
+        if gas_ctx:
+            eqs_5.append(
+                rf"\phi^2_{{2p}} = 1 + 12\varepsilon_g + 25\varepsilon_g^2"
+                rf" = {calc.two_phase_multiplier:.2f}"
+            )
         w5: list[str] = []
         if dP_bar > pump_max:
             w5.append(f"ΔP ({dP_bar:.2f} bar) EXCEEDS pump max ({pump_max:.0f} bar)")
@@ -1223,6 +1640,17 @@ class DesignCalculator:
                 f"Da = {Da:.2f} > 1: mixing may limit conversion. "
                 "Consider static mixer insert."
             )
+        if calc.is_gas_liquid and calc.gas_oxygen_fraction > 0:
+            if calc.o2_equiv_supplied < 1.0:
+                warnings.append(
+                    f"O2 gas feed supplies only {calc.o2_equiv_supplied:.2f} equiv "
+                    "relative to substrate; increase MFC setpoint."
+                )
+            if calc.o2_transfer_sufficiency < 1.0:
+                warnings.append(
+                    f"Estimated O2 transfer sufficiency = {calc.o2_transfer_sufficiency:.2f}× "
+                    "reaction demand; increase gas pressure, gas/liquid interface, or residence time."
+                )
 
         if Da < 1:
             interp = "Kinetically controlled — mixing is not limiting"
@@ -1231,16 +1659,51 @@ class DesignCalculator:
         else:
             interp = "Mass-transfer limited — mixing is the bottleneck"
 
+        values = {"t_mix_s": t_mix, "Da_mass": Da, "D_m2_s": D,
+                  "interpretation": interp}
+        equations_out = list(equations)
+        assumptions = [
+            f"D = {D:.0e} m²/s (typical for small organic molecules in liquid)"
+        ]
+        if calc.is_gas_liquid:
+            values.update({
+                "gas_species": calc.gas_species,
+                "gas_flow_sccm": calc.gas_flow_sccm,
+                "gas_flow_actual_mL_min": calc.gas_flow_actual_mL_min,
+                "gas_pressure_abs_bar": calc.gas_pressure_abs_bar,
+                "gas_liquid_ratio": calc.gas_liquid_ratio,
+                "gas_holdup": calc.gas_holdup,
+                "o2_supply_mmol_min": calc.o2_supply_mmol_min,
+                "o2_required_mmol_min": calc.o2_required_mmol_min,
+                "o2_equiv_supplied": calc.o2_equiv_supplied,
+                "dissolved_o2_mM": calc.dissolved_o2_mM,
+                "kLa_s": calc.kLa_s,
+                "o2_transfer_capacity_mmol_min": calc.o2_transfer_capacity_mmol_min,
+                "o2_transfer_sufficiency": calc.o2_transfer_sufficiency,
+            })
+            equations_out.extend([
+                rf"Q_{{g,\mathrm{{actual}}}} = Q_{{g,\mathrm{{STP}}}}"
+                rf"\frac{{T}}{{T_{{STP}}}}\frac{{P_{{STP}}}}{{P}}"
+                rf" = {calc.gas_flow_actual_mL_min:.3f}\;\mathrm{{mL/min}}",
+                rf"C^*_{{O2}} \approx 1.3\;\mathrm{{mM}}\times"
+                rf"\frac{{P_{{O2}}}}{{0.21\;\mathrm{{bar}}}}"
+                rf" = {calc.dissolved_o2_mM:.2f}\;\mathrm{{mM}}",
+                rf"\dot n_{{O2,transfer}} = k_La C^* V_L"
+                rf" = {calc.o2_transfer_capacity_mmol_min:.4f}\;\mathrm{{mmol/min}}",
+            ])
+            assumptions.extend([
+                "Gas holdup estimated from actual reactor gas/liquid volumetric ratio.",
+                "O2 solubility uses a water/ethanol-scale Henry-law approximation; validate experimentally for final scale-up.",
+                "kLa is a conservative capillary slug-flow estimate tied to gas holdup.",
+            ])
+
         self._emit(calc, StepResult(
             step=6, name="Mass Transfer",
             status="WARNING" if warnings else "PASS",
             summary=f"t_mix = {t_mix:.1f} s, Da = {Da:.3f} — {interp}",
-            values={"t_mix_s": t_mix, "Da_mass": Da, "D_m2_s": D,
-                    "interpretation": interp},
-            equations=equations, warnings=warnings,
-            assumptions=[
-                f"D = {D:.0e} m²/s (typical for small organic molecules in liquid)"
-            ],
+            values=values,
+            equations=equations_out, warnings=warnings,
+            assumptions=assumptions,
         ))
 
     # ═══════════════════════════════════════════════════════════════════
@@ -1250,7 +1713,11 @@ class DesignCalculator:
     def _step7(self, calc, br, chem_plan, solvent):
         d = calc.tubing_ID_m
         L = calc.tubing_length_m
-        V_m3 = calc.reactor_volume_m3
+        V_m3 = (
+            calc.liquid_holdup_volume_mL * 1e-6
+            if calc.is_gas_liquid and calc.liquid_holdup_volume_mL > 0
+            else calc.reactor_volume_m3
+        )
         C0_mol_m3 = calc.concentration_M * 1000.0  # mol/L → mol/m³
         k = calc.rate_constant or 0
 
@@ -1275,6 +1742,7 @@ class DesignCalculator:
 
         # Wall surface area
         A_wall = PI * d * L
+        calc.heat_transfer_area_m2 = round(A_wall, 8)
 
         # Overall heat-transfer coefficient
         U = U_VALUES.get("coil", 300)
@@ -1285,6 +1753,7 @@ class DesignCalculator:
         # Heat removal capacity: Q_rem = U × A × ΔT_lm
         Q_rem = U * A_wall * dT_lm
         calc.heat_removal_W = round(Q_rem, 6)
+        calc.UA_W_K = round(U * A_wall, 6)
 
         # Thermal Damköhler: Da_th = Q_gen / Q_rem
         if Q_rem > 0:
@@ -1293,6 +1762,7 @@ class DesignCalculator:
             Da_th = float("inf") if Q_gen > 0 else 0
         calc.thermal_damkohler = round(Da_th, 6)
         calc.thermal_safe = Da_th < 1.0
+        calc.heat_transfer_score = round(max(0.0, min(1.0, Q_rem / max(2.0 * Q_gen, 1e-12))), 4)
 
         equations = [
             (rf"\dot{{Q}}_{{\mathrm{{rxn}}}} = |\Delta H_r| \cdot r \cdot V_R"
@@ -1345,7 +1815,9 @@ class DesignCalculator:
             values={
                 "Q_gen_W": Q_gen, "Q_rem_W": Q_rem, "Da_th": Da_th,
                 "S_V_m_inv": S_V, "U_W_m2K": U,
-                "A_wall_m2": A_wall, "dH_J_mol": dH,
+                "A_wall_m2": A_wall, "UA_W_K": calc.UA_W_K,
+                "heat_transfer_score": calc.heat_transfer_score,
+                "dH_J_mol": dH,
                 "dT_lm_C": dT_lm, "r_mol_m3_s": r,
             },
             equations=equations, warnings=warnings,
@@ -1377,7 +1849,7 @@ class DesignCalculator:
         if is_gas_liquid:
             calc.bpr_required = True
             P_BPR_base = (P_vap + dP_sys + safety) if P_vap is not None else (dP_sys + safety + 1.0)
-            calc.bpr_pressure_bar = round(max(P_BPR_base, 5.0), 1)  # min 5 bar for gas solubility
+            calc.bpr_pressure_bar = round(max(P_BPR_base, GAS_LIQUID_MIN_BPR_BAR), 1)
             if P_vap is not None:
                 calc.vapor_pressure_bar = round(P_vap, 4)
             gas_liquid_reason = (
@@ -1392,8 +1864,8 @@ class DesignCalculator:
             if P_vap is not None:
                 equations.append(
                     rf"P_{{\mathrm{{BPR}}}} \geq \max\left("
-                    rf"P_{{\mathrm{{vap}}}} + \Delta P + 0.5,\; 5\right)"
-                    rf" = \max({P_vap:.2f} + {dP_sys:.3f} + {safety},\; 5)"
+                    rf"P_{{\mathrm{{vap}}}} + \Delta P + 0.5,\; {GAS_LIQUID_MIN_BPR_BAR:.0f}\right)"
+                    rf" = \max({P_vap:.2f} + {dP_sys:.3f} + {safety},\; {GAS_LIQUID_MIN_BPR_BAR:.0f})"
                     rf" = {calc.bpr_pressure_bar:.1f}\;\mathrm{{bar}}"
                 )
         elif P_vap is not None:
@@ -1433,6 +1905,13 @@ class DesignCalculator:
                 f"({reason})"
             )
             status = "PASS"
+            if is_gas_liquid and calc.bpr_pressure_bar > GAS_LIQUID_ROUTINE_MAX_BPR_BAR:
+                warnings.append(
+                    f"BPR {calc.bpr_pressure_bar:.1f} bar exceeds the "
+                    f"{GAS_LIQUID_ROUTINE_MAX_BPR_BAR:.0f} bar routine gas-liquid ceiling; "
+                    "redesign geometry or lower gas/liquid throughput before validation."
+                )
+                status = "FAIL"
         else:
             summary = (
                 f"BPR not required "
@@ -1456,6 +1935,10 @@ class DesignCalculator:
                 "dP_system_bar": dP_sys,
                 "solvent_bp_C": bp_C,
                 "gas_liquid": is_gas_liquid,
+                "gas_species": calc.gas_species,
+                "gas_pressure_abs_bar": calc.gas_pressure_abs_bar,
+                "gas_flow_sccm": calc.gas_flow_sccm,
+                "dissolved_o2_mM": calc.dissolved_o2_mM,
             },
             equations=equations, warnings=warnings, assumptions=assumptions,
         ))
@@ -1599,6 +2082,12 @@ class DesignCalculator:
                 "C_reactor_M": calc.C_reactor_M,
                 "startup_waste_mL": calc.startup_waste_mL,
                 "productivity_closure_ok": calc.productivity_closure_ok,
+                "is_gas_liquid": calc.is_gas_liquid,
+                "liquid_flow_rate_mL_min": calc.liquid_flow_rate_mL_min,
+                "gas_flow_sccm": calc.gas_flow_sccm,
+                "gas_holdup": calc.gas_holdup,
+                "liquid_holdup_volume_mL": calc.liquid_holdup_volume_mL,
+                "total_reactor_volume_mL": calc.reactor_volume_mL,
             },
             equations=equations,
             warnings=warnings,
@@ -1614,7 +2103,11 @@ class DesignCalculator:
 
         # τ = V_R / Q
         if calc.flow_rate_m3_s > 0 and calc.residence_time_s > 0:
-            tau_check = calc.reactor_volume_m3 / calc.flow_rate_m3_s
+            if calc.is_gas_liquid and calc.gas_holdup > 0:
+                liquid_volume_m3 = calc.reactor_volume_m3 * (1.0 - calc.gas_holdup)
+                tau_check = liquid_volume_m3 / calc.flow_rate_m3_s
+            else:
+                tau_check = calc.reactor_volume_m3 / calc.flow_rate_m3_s
             err = abs(tau_check - calc.residence_time_s) / calc.residence_time_s
             if err > 0.01:
                 notes.append(
@@ -1635,10 +2128,12 @@ class DesignCalculator:
 
         # Re = ρvd/μ
         if calc.viscosity_Pa_s > 0 and calc.velocity_m_s > 0:
-            Re_check = (
-                calc.density_kg_m3 * calc.velocity_m_s * calc.tubing_ID_m
-                / calc.viscosity_Pa_s
-            )
+            if calc.is_gas_liquid:
+                area = PI * (calc.tubing_ID_m / 2) ** 2
+                v_for_re = calc.flow_rate_m3_s / area if area > 0 else calc.velocity_m_s
+            else:
+                v_for_re = calc.velocity_m_s
+            Re_check = calc.density_kg_m3 * v_for_re * calc.tubing_ID_m / calc.viscosity_Pa_s
             if calc.reynolds_number > 0:
                 err = abs(Re_check - calc.reynolds_number) / calc.reynolds_number
                 if err > 0.01:

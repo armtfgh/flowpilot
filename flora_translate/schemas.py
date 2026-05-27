@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +178,9 @@ class StreamLogic(BaseModel):
     reasoning: str = ""                  # WHY these go together
     molar_equiv: float = 1.0             # stoichiometric equivalents relative to limiting reagent
     concentration_M: Optional[float] = None  # concentration of this stream (for Q calculation)
+    phase: str = ""                      # "liquid" | "gas" | "solid" | ""
+    gas_flow_sccm: Optional[float] = None
+    gas_flow_actual_mL_min: Optional[float] = None
 
 
 class IntensificationMandate(BaseModel):
@@ -299,8 +302,25 @@ class StreamAssignment(BaseModel):
     solvent: str = ""
     concentration_M: Optional[float] = None
     flow_rate_mL_min: Optional[float] = None
+    phase: str = ""                      # "liquid" | "gas" | ""
+    gas_flow_sccm: Optional[float] = None # MFC set point at STP for gas streams
+    gas_flow_actual_mL_min: Optional[float] = None # gas volume flow at reactor T/P
     molar_equiv: float = 1.0            # stoichiometric equivalents relative to limiting reagent (substrate=1.0)
     reasoning: str = ""                 # why these go together
+
+    @field_validator("stream_label", "pump_role", "solvent", "phase", "reasoning", mode="before")
+    @classmethod
+    def _none_to_empty_string(cls, value):
+        return "" if value is None else value
+
+    @field_validator("contents", mode="before")
+    @classmethod
+    def _none_to_empty_contents(cls, value):
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [value]
+        return value
 
 
 class FlowProposal(BaseModel):
@@ -329,6 +349,10 @@ class FlowProposal(BaseModel):
     # Per-stage parameters (populated by council Chief for multi-step processes)
     # Each dict: {stage_number, tau_fraction, d_mm, Q_inlet_mL_min, V_R_mL}
     stage_parameters: list[dict] = Field(default_factory=list)
+
+    # Deterministic engineering annotations populated after final calculation.
+    multiphase_metrics: dict = Field(default_factory=dict)
+    heat_transfer_metrics: dict = Field(default_factory=dict)
 
     # Reasoning
     reasoning_per_field: dict[str, str] = Field(default_factory=dict)

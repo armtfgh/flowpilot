@@ -170,6 +170,39 @@ def _llm_review(topology) -> list[str]:
         return []
 
 
+def _protected_removal_ids(topology) -> set[str]:
+    """Return operation ids that must not be removed by cleanup passes."""
+    streams = topology.streams
+    op_map = {o.op_id: o for o in topology.unit_operations}
+    protected: set[str] = set()
+
+    def _is_gas_source(op_id: str) -> bool:
+        op = op_map.get(op_id)
+        if not op:
+            return False
+        params = op.parameters or {}
+        return (
+            op.op_type == "mfc"
+            or str(params.get("phase") or "").lower() == "gas"
+            or params.get("gas_flow_sccm") is not None
+            or params.get("gas_flow_actual_mL_min") is not None
+        )
+
+    for op in topology.unit_operations:
+        if op.op_type not in {"mixer", "t_mixer", "y_mixer", "quench_mixer"}:
+            continue
+        inputs = [s.from_op for s in streams if s.to_op == op.op_id]
+        outputs = [s.to_op for s in streams if s.from_op == op.op_id]
+        downstream_gas_reactor = any(
+            (op_map.get(dst) and (op_map[dst].parameters or {}).get("gas_holdup"))
+            for dst in outputs
+        )
+        if any(_is_gas_source(src) for src in inputs) or downstream_gas_reactor:
+            protected.add(op.op_id)
+
+    return protected
+
+
 # ── Apply removals ─────────────────────────────────────────────────────────────
 
 def _apply_removals(topology, remove_ids: set[str]):
@@ -247,6 +280,8 @@ def polish(topology, use_llm: bool = True) -> object:
     """
     # Step 1: fast deterministic check
     remove = _find_passthrough_mixers(topology)
+    protected = _protected_removal_ids(topology)
+    remove -= protected
 
     # Step 2: LLM review (adds ~1-2s, costs ~$0.0001 per call)
     if use_llm:
@@ -260,6 +295,7 @@ def polish(topology, use_llm: bool = True) -> object:
             op_id for op_id in llm_remove
             if op_id in op_map and op_map[op_id].op_type in SAFE_TO_REMOVE
         }
+        llm_remove -= protected
         remove |= llm_remove
 
     if not remove:

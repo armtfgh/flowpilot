@@ -283,6 +283,17 @@ def _render_result(result: dict, key_prefix: str = ""):
                     c2[2].metric("Wavelength", f"{wl} nm" if wl else "N/A")
                     q_inlet = p.get("Q_inlet_mL_min")
                     c2[3].metric("Q_inlet", f"{q_inlet} mL/min" if q_inlet else "?")
+                    if p.get("gas_holdup") or p.get("Q_gas_actual_mL_min"):
+                        c3 = st.columns(4)
+                        c3[0].metric("Q_liquid", f"{p.get('Q_liquid_mL_min', q_inlet)} mL/min")
+                        c3[1].metric("Q_gas actual", f"{p.get('Q_gas_actual_mL_min', '?')} mL/min")
+                        c3[2].metric("Gas holdup", f"{p.get('gas_holdup', '?')}")
+                        c3[3].metric("Liquid holdup", f"{p.get('liquid_holdup_volume_mL', '?')} mL")
+                        st.caption(
+                            "For gas-liquid stages, reactor volume is not τ×(Q_liquid+Q_gas). "
+                            "The product liquid residence time is τ_liq = V_liquid/Q_liquid, "
+                            "and total tube volume is V_total = V_liquid/(1 - gas holdup)."
+                        )
 
         # Before vs After council comparison table
         pre = result.get("pre_council_proposal")
@@ -423,6 +434,18 @@ def _render_summary(result: dict, proposal: dict):
                   if isinstance(dc.get("pressure_drop_bar"), (int, float)) else "?")
         STY = dc.get("space_time_yield_mol_L_h")
         e8.metric("STY", f"{STY:.4f} mol/(L·h)" if STY else "N/A")
+
+        if dc.get("is_gas_liquid") or dc.get("UA_W_K"):
+            g1, g2, g3, g4 = st.columns(4)
+            if dc.get("is_gas_liquid"):
+                g1.metric("Gas feed", dc.get("gas_species") or "gas")
+                g2.metric("MFC", f"{dc.get('gas_flow_sccm', 0):.2f} sccm")
+                g3.metric("Gas holdup", f"{dc.get('gas_holdup', 0):.2f}")
+            else:
+                g1.metric("Gas feed", "N/A")
+                g2.metric("MFC", "N/A")
+                g3.metric("Gas holdup", "N/A")
+            g4.metric("UA", f"{dc.get('UA_W_K', 0):.3f} W/K" if dc.get("UA_W_K") else "N/A")
 
         # Productivity closure check
         closure_ok = dc.get("productivity_closure_ok")

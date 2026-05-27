@@ -266,10 +266,29 @@ def _render_streams(proposal: dict, design_calc: dict | None = None):
             role = (s.get("pump_role") or "").lower()
             return any(kw in role for kw in _QUENCH_KW)
 
+        def _norm_words(value):
+            import re
+            return set(re.sub(r"[^a-z0-9₂]+", " ", str(value).lower()).split())
+
         def _is_gas(s):
-            role = (s.get("pump_role") or "").lower().strip()
-            return role in {"n2", "n₂", "nitrogen", "o2", "o₂", "oxygen", "co2", "co₂",
-                            "h2", "h₂", "hydrogen", "ar", "argon", "helium", "air", "mfc"}
+            phase_words = _norm_words(s.get("phase") or s.get("state") or "")
+            role_words = _norm_words(s.get("pump_role") or "")
+            text_words = set()
+            for item in (s.get("contents") or []):
+                text_words |= _norm_words(item)
+            if role_words & {"quench", "neutralization", "neutralisation", "workup"}:
+                return False
+            if phase_words & {"gas", "gaseous", "vapor", "vapour"}:
+                return True
+            if phase_words & {"liquid", "solution"}:
+                return False
+            gas_words = {
+                "air", "oxygen", "o2", "o₂", "hydrogen", "h2", "h₂", "co2", "co₂",
+                "co", "monoxide", "syngas", "chlorine", "cl2", "cl₂", "ammonia",
+                "nh3", "nh₃", "so2", "so₂", "ozone", "o3", "o₃", "mfc",
+            }
+            liquid_words = {"solution", "solvent", "aqueous", "dissolved", "substrate"}
+            return bool((role_words | text_words) & gas_words) and not bool((role_words | text_words) & liquid_words)
 
         feed_rates = [
             s.get("flow_rate_mL_min") for s in streams
@@ -326,11 +345,18 @@ def _render_streams(proposal: dict, design_calc: dict | None = None):
         solvent = s.get("solvent", "")
         conc = s.get("concentration_M")
         rate = s.get("flow_rate_mL_min")
+        gas_sccm = s.get("gas_flow_sccm")
+        gas_actual = s.get("gas_flow_actual_mL_min")
         reasoning = s.get("reasoning", "")
 
         # Compact header with flowrate badge
-        rate_badge = f" — **{rate} mL/min**" if rate else ""
-        with st.expander(f"Pump {label}: {role}{rate_badge}", expanded=True):
+        if gas_sccm:
+            rate_badge = f" — **{gas_sccm} sccm**"
+            hardware = "MFC"
+        else:
+            rate_badge = f" — **{rate} mL/min**" if rate else ""
+            hardware = "Pump"
+        with st.expander(f"{hardware} {label}: {role}{rate_badge}", expanded=True):
             if contents:
                 cols = st.columns([1, 2])
                 with cols[0]:
@@ -345,6 +371,10 @@ def _render_streams(proposal: dict, design_calc: dict | None = None):
                         detail_rows.append(("Feed conc.", f"{conc} M"))
                     if rate:
                         detail_rows.append(("Flow rate", f"{rate} mL/min"))
+                    if gas_sccm:
+                        detail_rows.append(("Gas setpoint", f"{gas_sccm} sccm"))
+                    if gas_actual:
+                        detail_rows.append(("Gas actual", f"{gas_actual} mL/min at reactor"))
                     for k, v in detail_rows:
                         st.markdown(f"**{k}:** {v}")
             else:

@@ -1592,6 +1592,7 @@ def run_revision_stage(
     scoring: dict,
     chemistry_brief: str,
     is_photochem: bool,
+    is_gas_liquid: bool,
     pump_max_bar: float,
     solvent: str,
     temperature_C: float,
@@ -1749,6 +1750,26 @@ def run_revision_stage(
     revised["revision_rationale"] = revision_data.get("change_rationale", {})
     revised["revision_domains"]   = revision_data.get("domains_that_triggered_revision",
                                                        revision_domains)
+
+    try:
+        from flora_translate.engine.sampling import hard_filter
+        feasible, violations, warnings = hard_filter(
+            revised,
+            is_photochem=is_photochem,
+            is_gas_liquid=is_gas_liquid,
+            pump_max_bar=pump_max_bar,
+            BPR_bar=float(revised.get("BPR_bar", 0.0)),
+        )
+        if not feasible:
+            logger.warning(
+                "  Stage 3.5 rejected unsafe revision for winner id=%d: %s",
+                cid,
+                "; ".join(violations),
+            )
+            return None
+        revised["warnings"] = warnings
+    except Exception as e:
+        logger.warning("hard_filter failed during revision validation: %s", e)
 
     logger.info(
         "  Stage 3.5 applied: id=%d | τ %.1f→%.1f min | d %.2f→%.2f mm | "

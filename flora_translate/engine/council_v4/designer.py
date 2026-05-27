@@ -40,6 +40,9 @@ V4_DP_FRACTION = 0.80        # dP > 0.80 * pump_max → hard disqualify
 V4_A_MAX = 1.5               # Beer-Lambert absorbance hard ceiling
 V4_RMIX_THRESHOLD = 0.20     # r_mix dual-criterion threshold
 V4_DA_THRESHOLD = 1.0        # Da_mass dual-criterion threshold
+V4_GAS_LIQUID_MIN_ID_MM = 0.50
+V4_GAS_LIQUID_MAX_DP_BAR = 50.0
+V4_GAS_LIQUID_MAX_BPR_BAR = 50.0
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -279,6 +282,10 @@ def _apply_v4_hard_gates(
             reasons.append(
                 f"dP={dP:.3f} bar > {V4_DP_FRACTION:.0%} of pump_max={pump_max_bar} bar"
             )
+        if is_gas_liquid and dP > V4_GAS_LIQUID_MAX_DP_BAR:
+            reasons.append(
+                f"gas-liquid dP={dP:.2f} bar > {V4_GAS_LIQUID_MAX_DP_BAR:.0f} bar practical ceiling"
+            )
 
         # Length
         L = _f("L_m")
@@ -305,6 +312,14 @@ def _apply_v4_hard_gates(
         if is_gas_liquid and BPR_bar < 5.0:
             reasons.append(
                 f"gas-liquid system: BPR={BPR_bar} bar < 5.0 bar mandatory floor"
+            )
+        if is_gas_liquid and BPR_bar > V4_GAS_LIQUID_MAX_BPR_BAR:
+            reasons.append(
+                f"gas-liquid system: BPR={BPR_bar} bar > {V4_GAS_LIQUID_MAX_BPR_BAR:.0f} bar practical ceiling"
+            )
+        if is_gas_liquid and _f("d_mm") < V4_GAS_LIQUID_MIN_ID_MM:
+            reasons.append(
+                f"gas-liquid system: d={_f('d_mm'):.2f} mm < {V4_GAS_LIQUID_MIN_ID_MM:.2f} mm practical floor"
             )
 
         # Reactor volume

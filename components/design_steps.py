@@ -40,7 +40,15 @@ def render_design_steps(calc_dict: dict, key_prefix: str = "ds"):
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("τ (residence time)", f"{calc_dict.get('residence_time_min', 0):.1f} min")
     c2.metric("Q (flow rate)", f"{calc_dict.get('flow_rate_mL_min', 0):.3f} mL/min")
-    c3.metric("V_R (reactor vol)", f"{calc_dict.get('reactor_volume_mL', 0):.2f} mL")
+    stage_total = calc_dict.get("stage_corrected_total_reactor_volume_mL")
+    if stage_total and abs(float(stage_total) - float(calc_dict.get("reactor_volume_mL", 0) or 0)) > 1e-6:
+        c3.metric(
+            "V_R calc zone",
+            f"{calc_dict.get('reactor_volume_mL', 0):.2f} mL",
+            help="Single-zone deterministic calculator volume. See topology/per-reactor table for staged total volume.",
+        )
+    else:
+        c3.metric("V_R (reactor vol)", f"{calc_dict.get('reactor_volume_mL', 0):.2f} mL")
     c4.metric("Re", f"{calc_dict.get('reynolds_number', 0):.1f}")
 
     c5, c6, c7, c8 = st.columns(4)
@@ -49,6 +57,42 @@ def render_design_steps(calc_dict: dict, key_prefix: str = "ds"):
     c7.metric("ΔP", f"{calc_dict.get('pressure_drop_bar', 0):.4f} bar")
     bpr = calc_dict.get("bpr_pressure_bar", 0)
     c8.metric("BPR", f"{bpr:.1f} bar" if bpr else "Not required")
+    if calc_dict.get("bpr_reconciliation_note"):
+        st.warning(calc_dict["bpr_reconciliation_note"])
+
+    if calc_dict.get("is_gas_liquid"):
+        st.markdown("#### Gas-Liquid Design")
+        g1, g2, g3, g4 = st.columns(4)
+        g1.metric("Gas", calc_dict.get("gas_species") or "gas")
+        g2.metric("MFC setpoint", f"{calc_dict.get('gas_flow_sccm', 0):.2f} sccm")
+        g3.metric("Gas holdup", f"{calc_dict.get('gas_holdup', 0):.2f}")
+        g4.metric("Two-phase ΔP", f"{calc_dict.get('two_phase_pressure_drop_bar', calc_dict.get('pressure_drop_bar', 0)):.3f} bar")
+        g5, g6, g7, g8 = st.columns(4)
+        g5.metric("Liquid holdup", f"{calc_dict.get('liquid_holdup_volume_mL', 0):.2f} mL")
+        g6.metric("Gas actual", f"{calc_dict.get('gas_flow_actual_mL_min', 0):.3f} mL/min")
+        if stage_total:
+            g7.metric("Topology V_total", f"{stage_total:.2f} mL")
+        else:
+            g7.metric("Topology V_total", "N/A")
+        g8.metric("GLR", f"{calc_dict.get('gas_liquid_ratio', 0):.2f}")
+
+        o2_suff = calc_dict.get("o2_transfer_sufficiency")
+        if o2_suff:
+            st.caption(f"O2 transfer sufficiency: {o2_suff:.2f}x")
+        if calc_dict.get("gas_flow_capped_by_holdup"):
+            st.info(
+                "Air/O2 MFC setpoint was capped to stay consistent with the gas-holdup "
+                "used for two-phase reactor sizing. Liquid residence time is sized as "
+                "τ_liq = V_liquid / Q_liquid, with V_total = V_liquid / (1 - ε_g)."
+            )
+
+    if calc_dict.get("UA_W_K") or calc_dict.get("heat_transfer_area_m2"):
+        st.markdown("#### Heat-Transfer Design")
+        h1, h2, h3, h4 = st.columns(4)
+        h1.metric("Wall area", f"{calc_dict.get('heat_transfer_area_m2', 0):.4f} m²")
+        h2.metric("UA", f"{calc_dict.get('UA_W_K', 0):.3f} W/K")
+        h3.metric("Da_th", f"{calc_dict.get('thermal_damkohler', 0):.4g}")
+        h4.metric("Heat score", f"{calc_dict.get('heat_transfer_score', 0):.2f}")
 
     # Row 3 — flow chemistry specific
     c9, c10, c11, c12 = st.columns(4)

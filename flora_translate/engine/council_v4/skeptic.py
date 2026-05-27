@@ -97,14 +97,40 @@ def _verify_beer_lambert(
 
 
 def _verify_v_r_equals_tau_q(candidates: list[dict]) -> list[dict]:
-    """Verify V_R = tau * Q for all candidates."""
+    """Verify residence-time volume consistency.
+
+    Liquid-only: V_R = tau * Q.
+    Gas-liquid: tau * Q_liquid is the liquid holdup, while total tube volume is
+    larger by 1/(1-epsilon_g). Do not flag total V_R as an error in that case.
+    """
     errors: list[dict] = []
     for c in candidates:
         cid = c.get("id", "?")
         tau = c.get("tau_min", 0.0)
         Q = c.get("Q_mL_min", 0.0)
         V_R = c.get("V_R_mL", 0.0)
+        gas_holdup = float(c.get("gas_holdup") or 0.0)
+        liquid_holdup = c.get("liquid_holdup_volume_mL")
         expected = tau * Q
+        if gas_holdup > 0.0 or liquid_holdup is not None:
+            observed_liquid = (
+                float(liquid_holdup)
+                if liquid_holdup is not None
+                else V_R * max(1.0 - gas_holdup, 0.0)
+            )
+            if abs(observed_liquid - expected) > 0.05 * max(expected, 0.01):
+                errors.append({
+                    "agent": "DESIGNER",
+                    "candidate_id": cid,
+                    "error_type": "LIQUID_HOLDUP_CONSTRAINT_VIOLATED",
+                    "description": (
+                        f"V_liquid={observed_liquid:.3f} mL ≠ tau×Q_liquid="
+                        f"{tau:.2f}×{Q:.4f}={expected:.3f} mL "
+                        f"(gas holdup ε={gas_holdup:.3f}; total V_R={V_R:.3f} mL)"
+                    ),
+                    "severity": "HIGH",
+                })
+            continue
         if abs(V_R - expected) > 0.05 * max(expected, 0.01):
             errors.append({
                 "agent": "DESIGNER",
@@ -338,6 +364,7 @@ def _build_disqualify_recommendations(errors: list[dict]) -> list[dict]:
 def _check_flow_translation_sanity(
     candidates: list[dict],
     *,
+    is_gas_liquid: bool,
     batch_time_min: Optional[float],
     batch_concentration_M: Optional[float],
     solvent_name: Optional[str],
@@ -375,19 +402,25 @@ def _check_flow_translation_sanity(
                     "severity": "HIGH",
                 })
 
+        # Multiphase/staged cascades can have intentionally low apparent
+        # concentration after gas feeds, catalyst/base feeds, separators, or
+        # solvent switches. Keep the dilution guard, but make it a severe-loss
+        # check for gas-liquid systems instead of blocking valid cascades.
+        dilution_floor = 0.05 if is_gas_liquid else 0.45
         if (
             batch_concentration_M is not None
             and batch_concentration_M > 0
             and candidate_conc is not None
-            and candidate_conc < 0.5 * batch_concentration_M
+            and candidate_conc < dilution_floor * batch_concentration_M
         ):
             errors.append({
                 "agent": "SKEPTIC",
                 "candidate_id": cid,
                 "error_type": "SUSPICIOUS_DILUTION",
                 "description": (
-                    f"Candidate {cid}: reactor concentration {candidate_conc:.3g} M is <50% of "
-                    f"batch concentration {batch_concentration_M:.3g} M without explicit justification."
+                    f"Candidate {cid}: reactor concentration {candidate_conc:.3g} M is "
+                    f"<{dilution_floor:.0%} of batch concentration {batch_concentration_M:.3g} M "
+                    "without explicit staged-dilution justification."
                 ),
                 "severity": "HIGH",
             })
@@ -553,6 +586,7 @@ def run_skeptic_audit(
     bpr_errors = _check_bpr_gas_liquid(safety_scores, is_gas_liquid)
     flow_sense_errors = _check_flow_translation_sanity(
         candidates,
+        is_gas_liquid=is_gas_liquid,
         batch_time_min=batch_time_min,
         batch_concentration_M=batch_concentration_M,
         solvent_name=solvent_name,

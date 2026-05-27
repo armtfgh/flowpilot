@@ -246,11 +246,17 @@ def _mfc_label(op) -> str:
         contents = [contents]
     gas_name = str(contents[0]).split("(")[0].strip() if contents else "Gas"
     fr   = p.get("flow_rate_mL_min")
+    sccm = p.get("gas_flow_sccm")
+    actual = p.get("gas_flow_actual_mL_min")
     rows = [
         f'<FONT POINT-SIZE="10" COLOR="#111827"><B>MFC {stream}</B></FONT>',
         f'<FONT POINT-SIZE="8.5" COLOR="#DC2626">{_esc(gas_name)}</FONT>',
     ]
-    if fr is not None:
+    if sccm is not None:
+        rows.append(f'<FONT POINT-SIZE="8" COLOR="#374151">{float(sccm):.2f} sccm</FONT>')
+        if actual is not None:
+            rows.append(f'<FONT POINT-SIZE="7.5" COLOR="#6B7280">{float(actual):.3f} mL/min reactor</FONT>')
+    elif fr is not None:
         rows.append(f'<FONT POINT-SIZE="8" COLOR="#374151">{float(fr):.2f} mL/min</FONT>')
     return "<BR/>".join(rows)
 

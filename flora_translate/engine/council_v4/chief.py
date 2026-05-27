@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import re
 import time
 from collections import defaultdict
 from typing import Optional
@@ -596,6 +597,7 @@ def _intensification_feasibility_precheck(
     intensification_mandate: dict,
     translation_policy: str,
     calc: Optional[DesignCalculations] = None,
+    candidate_tau_min: float | None = None,
 ) -> Optional[dict]:
     if (translation_policy or "").lower() != "intensify":
         return None
@@ -605,6 +607,21 @@ def _intensification_feasibility_precheck(
     tau_ceiling = batch_time_min / target
     if tau_kinetics_min <= tau_ceiling:
         return None
+    required_to_ceiling_ratio = (tau_kinetics_min / tau_ceiling) if tau_ceiling > 0 else float("inf")
+    marginal_boundary_conflict = required_to_ceiling_ratio <= 1.10
+    candidate_tau = _positive_float(candidate_tau_min)
+    candidate_conversion = None
+    candidate_under_ceiling = candidate_tau > 0 and candidate_tau <= tau_ceiling
+    if candidate_tau > 0:
+        try:
+            candidate_conversion = 1.0 - math.exp(-2.303 * candidate_tau / max(tau_kinetics_min, 1e-9))
+        except OverflowError:
+            candidate_conversion = 0.0
+    candidate_worth_council = (
+        candidate_under_ceiling
+        and candidate_conversion is not None
+        and candidate_conversion >= 0.50
+    )
     kinetic_uncertain = False
     uncertainty_reasons: list[str] = []
     step2_values: dict = {}
@@ -628,6 +645,17 @@ def _intensification_feasibility_precheck(
             uncertainty_reasons.append(
                 f"raw_analogy_IFs={raw_ifs}; corrected_analogy_IFs={corrected_ifs}"
             )
+    if marginal_boundary_conflict:
+        kinetic_uncertain = True
+        uncertainty_reasons.append(
+            "tau_kinetics is within 10% of the intensification ceiling; treating as screen-required boundary case"
+        )
+    if candidate_worth_council:
+        kinetic_uncertain = True
+        uncertainty_reasons.append(
+            f"design-space candidate tau={candidate_tau:.1f} min is under the intensification ceiling "
+            f"with projected X≈{candidate_conversion:.2f}; delegating kinetics risk to council"
+        )
     status = (
         "KINETIC_ANCHOR_UNCERTAIN_SCREEN_REQUIRED"
         if kinetic_uncertain
@@ -647,7 +675,9 @@ def _intensification_feasibility_precheck(
         "tau_kinetics_min": round(tau_kinetics_min, 3),
         "tau_reduction_target": round(target, 3),
         "tau_intensification_ceiling_min": round(tau_ceiling, 3),
-        "required_to_ceiling_ratio": round(tau_kinetics_min / tau_ceiling, 3) if tau_ceiling > 0 else None,
+        "required_to_ceiling_ratio": round(required_to_ceiling_ratio, 3) if tau_ceiling > 0 else None,
+        "candidate_tau_min": round(candidate_tau, 3) if candidate_tau > 0 else None,
+        "candidate_projected_conversion": round(candidate_conversion, 3) if candidate_conversion is not None else None,
         "minimum_flow_advantage": intensification_mandate.get("minimum_flow_advantage", "productivity"),
         "diagnosis": (
             f"{diagnosis_prefix}current kinetics require tau={tau_kinetics_min:.1f} min, but the "
@@ -1438,7 +1468,10 @@ def _apply_winner(
                 "n2", "n₂", "nitrogen", "o2", "o₂", "oxygen", "co2", "co₂",
                 "h2", "h₂", "hydrogen", "ar", "argon", "helium", "air",
                 "compressed air", "mfc", "n2 gas", "o2 gas", "gas injection",
-                "gas stream", "gas feed",
+                "gas stream", "gas feed", "co", "carbon monoxide", "syngas",
+                "ozone", "o3", "o₃", "chlorine", "cl2", "cl₂", "ammonia",
+                "nh3", "nh₃", "hcl gas", "hydrogen chloride", "so2", "so₂",
+                "sulfur dioxide", "ethylene", "acetylene",
             }
             _QUENCH_ROLE_KEYWORDS = ("quench", "neutraliz", "workup", "post-reactor")
 
@@ -1446,11 +1479,20 @@ def _apply_winner(
                 rl = (role or "").lower()
                 return any(kw in rl for kw in _QUENCH_ROLE_KEYWORDS)
 
+            def _is_gas_role(role: str) -> bool:
+                rl = (role or "").lower()
+                if any(kw in rl for kw in ("degassed", "deoxygenated")):
+                    return False
+                words = set(re.sub(r"[^a-z0-9₂]+", " ", rl).split())
+                if words & {"gas", "mfc", "gaseous", "vapor", "vapour"}:
+                    return True
+                return any(term in rl for term in _GAS_ROLES_SET if len(term) > 2)
+
             reactor_feed_streams = [
                 s for s in data.get("streams", [])
                 if s.get("flow_rate_mL_min")
                 and (s.get("stream_label") or "").upper() in pf_by_label
-                and (s.get("pump_role") or "").lower() not in _GAS_ROLES_SET
+                and not _is_gas_role(s.get("pump_role") or "")
                 and not _is_quench_role(s.get("pump_role") or "")
             ]
             q_sum = sum(s["flow_rate_mL_min"] for s in reactor_feed_streams)
@@ -1538,8 +1580,19 @@ def _verdict_icon(verdict: str) -> str:
 
 
 def _score_bar(score: float, width: int = 10) -> str:
+    score = max(0.0, min(1.0, _positive_float(score, 0.0)))
     filled = round(score * width)
     return "█" * filled + "░" * (width - filled) + f" {score:.2f}"
+
+
+def _fmt_num(value, fmt: str, default: Optional[float] = None) -> Optional[str]:
+    """Format numeric LLM/tool fields without crashing on text placeholders."""
+    try:
+        if value in (None, ""):
+            return None if default is None else format(default, fmt)
+        return format(float(value), fmt)
+    except (TypeError, ValueError):
+        return None if default is None else format(default, fmt)
 
 
 def _stringify_issue(value) -> str:
@@ -1603,7 +1656,9 @@ def _build_chemistry_cot(scoring: dict) -> str:
             lines.append(f"{reasoning}\n")
         details = []
         if A is not None:
-            details.append(f"- Beer-Lambert A = **{A:.4f}** (ε = {eps} M⁻¹cm⁻¹)")
+            A_fmt = _fmt_num(A, ".4f")
+            if A_fmt is not None:
+                details.append(f"- Beer-Lambert A = **{A_fmt}** (ε = {eps} M⁻¹cm⁻¹)")
         if wl is not None:
             details.append(f"- Wavelength match: {'✓' if wl else '✗'}")
         if mat is not None:
@@ -1646,20 +1701,30 @@ def _build_kinetics_cot(scoring: dict) -> str:
             lines.append(f"{reasoning}\n")
         details = []
         if X is not None:
-            x_ok = "✓" if float(X) >= 0.85 else ("⚠️" if float(X) >= 0.70 else "✗")
-            details.append(f"- Conversion X = **{X:.3f}** {x_ok}")
+            X_f = _positive_float(X, -1.0)
+            if X_f >= 0:
+                x_ok = "✓" if X_f >= 0.85 else ("⚠️" if X_f >= 0.70 else "✗")
+                details.append(f"- Conversion X = **{X_f:.3f}** {x_ok}")
         if IF is not None:
             details.append(f"- Intensification factor IF = **{IF}×**  {'✓' if e.get('IF_valid') else '⚠️'}")
         if tau_vs_lit:
             details.append(f"- τ vs literature: {tau_vs_lit}")
         if tau_mix is not None:
-            details.append(f"- τ_mixing_required = {tau_mix:.1f} min")
+            tau_mix_fmt = _fmt_num(tau_mix, ".1f")
+            if tau_mix_fmt is not None:
+                details.append(f"- τ_mixing_required = {tau_mix_fmt} min")
         if tau_final is not None:
-            details.append(f"- τ_final (decision rule) = **{tau_final:.1f} min**")
+            tau_final_fmt = _fmt_num(tau_final, ".1f")
+            if tau_final_fmt is not None:
+                details.append(f"- τ_final (decision rule) = **{tau_final_fmt} min**")
         if t_steady is not None:
-            details.append(f"- Steady-state wait = {t_steady:.0f} min (3×τ)")
+            t_steady_fmt = _fmt_num(t_steady, ".0f")
+            if t_steady_fmt is not None:
+                details.append(f"- Steady-state wait = {t_steady_fmt} min (3×τ)")
         if prod is not None:
-            details.append(f"- Productivity = {prod:.1f} mg/h")
+            prod_fmt = _fmt_num(prod, ".1f")
+            if prod_fmt is not None:
+                details.append(f"- Productivity = {prod_fmt} mg/h")
         if details:
             lines.append("\n".join(details) + "\n")
         if any(concerns):
@@ -1701,17 +1766,26 @@ def _build_fluidics_cot(scoring: dict) -> str:
             lines.append(f"{reasoning}\n")
         details = []
         if Re is not None:
-            details.append(f"- Re = **{Re:.0f}** ({regime})")
+            Re_fmt = _fmt_num(Re, ".0f")
+            if Re_fmt is not None:
+                details.append(f"- Re = **{Re_fmt}** ({regime})")
         if dP is not None and headroom is not None:
-            hp_icon = "✓" if float(headroom) > 40 else ("⚠️" if float(headroom) > 20 else "✗")
-            details.append(f"- ΔP = {dP:.3f} bar | Pump headroom = **{headroom:.1f}%** {hp_icon}")
+            dP_fmt = _fmt_num(dP, ".3f")
+            headroom_f = _positive_float(headroom, -1.0)
+            if dP_fmt is not None and headroom_f >= 0:
+                hp_icon = "✓" if headroom_f > 40 else ("⚠️" if headroom_f > 20 else "✗")
+                details.append(f"- ΔP = {dP_fmt} bar | Pump headroom = **{headroom_f:.1f}%** {hp_icon}")
         if r_mix is not None:
-            mix_icon = "✓" if float(r_mix) < 0.10 else ("⚠️" if float(r_mix) < 0.20 else "✗")
-            details.append(f"- r_mix = **{r_mix:.3f}** {mix_icon}{' — dual-criterion FAIL ⛔' if dual_fail else ''}")
+            r_mix_f = _positive_float(r_mix, -1.0)
+            if r_mix_f >= 0:
+                mix_icon = "✓" if r_mix_f < 0.10 else ("⚠️" if r_mix_f < 0.20 else "✗")
+                details.append(f"- r_mix = **{r_mix_f:.3f}** {mix_icon}{' — dual-criterion FAIL ⛔' if dual_fail else ''}")
         if d_dir and d_dir != "none":
             details.append(f"- d change needed: **{d_dir}**" + (f" → d_fix = {d_fix} mm" if d_fix else ""))
         if L is not None:
-            details.append(f"- L = {L:.1f} m")
+            L_fmt = _fmt_num(L, ".1f")
+            if L_fmt is not None:
+                details.append(f"- L = {L_fmt} m")
         if pump:
             details.append(f"- Pump: {pump}")
         if mat:
@@ -1757,13 +1831,18 @@ def _build_safety_cot(scoring: dict) -> str:
             lines.append(f"{reasoning}\n")
         details = []
         if Da_th is not None:
-            th_icon = "✓" if float(Da_th) < 0.1 else ("⚠️" if float(Da_th) < 1.0 else "✗")
-            details.append(f"- Da_thermal = **{Da_th:.4f}** {th_icon}")
+            Da_th_f = _positive_float(Da_th, -1.0)
+            if Da_th_f >= 0:
+                th_icon = "✓" if Da_th_f < 0.1 else ("⚠️" if Da_th_f < 1.0 else "✗")
+                details.append(f"- Da_thermal = **{Da_th_f:.4f}** {th_icon}")
         if BPR_req is not None and BPR_cur is not None:
-            bpr_icon = "✓" if BPR_ok else "✗ REVISE"
-            details.append(
-                f"- BPR required = {BPR_req:.2f} bar | current = {BPR_cur:.2f} bar {bpr_icon}"
-            )
+            BPR_req_fmt = _fmt_num(BPR_req, ".2f")
+            BPR_cur_fmt = _fmt_num(BPR_cur, ".2f")
+            if BPR_req_fmt is not None and BPR_cur_fmt is not None:
+                bpr_icon = "✓" if BPR_ok else "✗ REVISE"
+                details.append(
+                    f"- BPR required = {BPR_req_fmt} bar | current = {BPR_cur_fmt} bar {bpr_icon}"
+                )
         if mat_rec:
             details.append(f"- Material: **{mat_rec}**" + (f" — {mat_rat}" if mat_rat else ""))
         if atm_req:
@@ -1876,17 +1955,18 @@ def _build_chief_cot(
         )
 
     # Score comparison table
-    if survivors:
-        lines.append("### Weighted Score Comparison\n")
-        lines.append("| id | combined | chem | kin | fluid | safety | geo | boosted |")
-        lines.append("|---|---|---|---|---|---|---|---|")
-        for r in survivors:
-            winner_marker = " ★" if r["candidate_id"] == winner_id else ""
-            lines.append(
-                f"| **{r['candidate_id']}{winner_marker}** | **{r['combined']:.3f}** | "
-                f"{r['chemistry']:.3f} | {r['kinetics']:.3f} | {r['fluidics']:.3f} | "
-                f"{r['safety']:.3f} | {r['geometry']:.3f} | {r.get('objective_boosted', '')} |"
-            )
+        if survivors:
+            lines.append("### Weighted Score Comparison\n")
+            lines.append("| id | combined | chem | kin | fluid | safety | geo | boosted |")
+            lines.append("|---|---|---|---|---|---|---|---|")
+            for r in survivors:
+                winner_marker = " ★" if r["candidate_id"] == winner_id else ""
+                lines.append(
+                f"| **{r['candidate_id']}{winner_marker}** | **{_positive_float(r.get('combined')):.3f}** | "
+                f"{_positive_float(r.get('chemistry')):.3f} | {_positive_float(r.get('kinetics')):.3f} | "
+                f"{_positive_float(r.get('fluidics')):.3f} | {_positive_float(r.get('safety')):.3f} | "
+                f"{_positive_float(r.get('geometry')):.3f} | {r.get('objective_boosted', '')} |"
+                )
         lines.append("")
 
     # Resolved trade-offs
@@ -2253,9 +2333,11 @@ def _build_summary_v4(
     lines.append("|---|---|---|---|---|---|---|---|---|")
     for r in weighted_scores:
         lines.append(
-            f"| {r['candidate_id']} | {r['combined']:.3f} | {r.get('PVS', 0.0):.3f} | "
-            f"{r['chemistry']:.3f} | {r['kinetics']:.3f} | {r['fluidics']:.3f} | "
-            f"{r['safety']:.3f} | {r['geometry']:.3f} | "
+            f"| {r['candidate_id']} | {_positive_float(r.get('combined')):.3f} | "
+            f"{_positive_float(r.get('PVS')):.3f} | "
+            f"{_positive_float(r.get('chemistry')):.3f} | {_positive_float(r.get('kinetics')):.3f} | "
+            f"{_positive_float(r.get('fluidics')):.3f} | {_positive_float(r.get('safety')):.3f} | "
+            f"{_positive_float(r.get('geometry')):.3f} | "
             f"{'✗' if r['disqualified'] else ''} |"
         )
 
@@ -2274,9 +2356,9 @@ def _build_summary_v4(
             f"L={w.get('L_m')} m"
         )
         lines.append(
-            f"- Re={w.get('Re', 0):.0f}, ΔP={w.get('delta_P_bar', 0):.3f} bar, "
-            f"r_mix={w.get('r_mix', 0):.3f}, X={w.get('expected_conversion', 0):.2f}, "
-            f"prod={w.get('productivity_mg_h', 0):.1f} mg/h"
+            f"- Re={_positive_float(w.get('Re')):.0f}, ΔP={_positive_float(w.get('delta_P_bar')):.3f} bar, "
+            f"r_mix={_positive_float(w.get('r_mix')):.3f}, X={_positive_float(w.get('expected_conversion')):.2f}, "
+            f"prod={_positive_float(w.get('productivity_mg_h')):.1f} mg/h"
         )
         lines.append(f"- **Rationale**: {chief_data.get('selection_rationale', '')}")
         lines.append(f"- **Flow-value justification**: {chief_data.get('selection_justification', '')}")
@@ -2443,6 +2525,7 @@ class CouncilV4:
             intensification_mandate=intensification_mandate,
             translation_policy=translation_policy,
             calc=calc,
+            candidate_tau_min=current.residence_time_min,
         )
 
         # ═══════════════════════════════════════════════════════════════════
@@ -2517,6 +2600,7 @@ class CouncilV4:
             return self._fallback(
                 current, chemistry_plan, calc, log, designer_result,
                 reason="screen required: intensification infeasible with current kinetic anchor",
+                batch_record=batch_record, inventory=inventory, analogies=analogies,
             )
         if (
             feasibility_diagnostic is not None
@@ -2658,6 +2742,7 @@ class CouncilV4:
             return self._fallback(
                 current, chemistry_plan, calc, log, designer_result,
                 reason="screen required: no usable candidates after filtering",
+                batch_record=batch_record, inventory=inventory, analogies=analogies,
             )
         if survivors and all(
             any("X=" in str(flag) and "X_minimum" in str(flag) for flag in (c.get("hard_gate_flags") or []))
@@ -2692,6 +2777,7 @@ class CouncilV4:
             return self._fallback(
                 current, chemistry_plan, calc, log, designer_result,
                 reason="screen required: all candidates fail insufficient-conversion hard gate",
+                batch_record=batch_record, inventory=inventory, analogies=analogies,
             )
 
         table_markdown = designer_result["table_markdown"]
@@ -2702,7 +2788,7 @@ class CouncilV4:
         logger.info("  Council v4 — Stage 2: Domain scoring (%d survivors)", len(survivors))
         _bench_stage_start(benchmark_recorder, "council_stage_2_domain_scoring", {"survivor_count": len(survivors)})
         scoring_batch_size = benchmark_scoring_batch_size
-        if scoring_batch_size is None and benchmark_recorder is not None and candidate_budget > 1:
+        if scoring_batch_size is None and candidate_budget > 1:
             scoring_batch_size = 3 if candidate_budget <= 6 else 4
         initial_scoring = run_domain_scoring(
             candidates=survivors,
@@ -3004,6 +3090,7 @@ class CouncilV4:
             return self._fallback(
                 current, chemistry_plan, calc, log, designer_result,
                 reason="screen required: all candidates disqualified before Chief selection",
+                batch_record=batch_record, inventory=inventory, analogies=analogies,
             )
 
         # ═══════════════════════════════════════════════════════════════════
@@ -3101,6 +3188,7 @@ class CouncilV4:
             return self._fallback(
                 current, chemistry_plan, calc, log, designer_result,
                 reason="screen required: Chief could not select a valid candidate",
+                batch_record=batch_record, inventory=inventory, analogies=analogies,
             )
 
         winner = next(c for c in survivors_for_selection if c.get("id") == winner_id)
@@ -3141,6 +3229,7 @@ class CouncilV4:
             scoring          = final_scoring,
             chemistry_brief  = chem_brief,
             is_photochem     = is_photochem,
+            is_gas_liquid    = is_gas_liquid,
             pump_max_bar     = pump_max,
             solvent          = solvent,
             temperature_C    = current.temperature_C,
@@ -3239,6 +3328,7 @@ class CouncilV4:
             target_tubing_ID_mm=current.tubing_ID_mm or None,
             target_residence_time_min=current.residence_time_min or None,
         )
+        current = DesignCalculator.annotate_proposal_with_calculations(current, calc)
         _bench_stage_end(
             benchmark_recorder,
             "council_stage_7_apply_winner",
@@ -3277,9 +3367,10 @@ class CouncilV4:
             "| id | combined | chemistry | kinetics | fluidics | safety | geometry |\n"
             "|---|---|---|---|---|---|---|\n" +
             "\n".join(
-                f"| {r['candidate_id']} | {r['combined']:.3f} | "
-                f"{r['chemistry']:.3f} | {r['kinetics']:.3f} | "
-                f"{r['fluidics']:.3f} | {r['safety']:.3f} | {r['geometry']:.3f} |"
+                f"| {r['candidate_id']} | {_positive_float(r.get('combined')):.3f} | "
+                f"{_positive_float(r.get('chemistry')):.3f} | {_positive_float(r.get('kinetics')):.3f} | "
+                f"{_positive_float(r.get('fluidics')):.3f} | {_positive_float(r.get('safety')):.3f} | "
+                f"{_positive_float(r.get('geometry')):.3f} |"
                 for r in weighted_scores
             )
         )
@@ -3354,6 +3445,9 @@ class CouncilV4:
         log: DeliberationLog,
         designer_result: dict,
         reason: str = "no usable candidates after filtering",
+        batch_record: Optional[BatchRecord] = None,
+        inventory: Optional[LabInventory] = None,
+        analogies: Optional[list[dict]] = None,
     ) -> tuple[DesignCandidate, DesignCalculations]:
         n_surv = len(designer_result.get("survivors", []))
         n_disq = len(designer_result.get("disqualified", []))
@@ -3377,6 +3471,15 @@ class CouncilV4:
                 (current.chemistry_notes or "").rstrip()
                 + "\nNo engine-validated final design was selected. Run the attached screen matrix first."
             ).strip()
+        if batch_record is not None and inventory is not None:
+            calc = DesignCalculator().run(
+                batch_record, chemistry_plan, current, inventory,
+                analogies=analogies or [],
+                target_flow_rate_mL_min=current.flow_rate_mL_min or None,
+                target_tubing_ID_mm=current.tubing_ID_mm or None,
+                target_residence_time_min=current.residence_time_min or None,
+            )
+        current = DesignCalculator.annotate_proposal_with_calculations(current, calc)
         return DesignCandidate(
             proposal=current,
             chemistry_plan=chemistry_plan,
