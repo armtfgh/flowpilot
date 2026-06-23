@@ -620,7 +620,7 @@ def _intensification_feasibility_precheck(
     candidate_worth_council = (
         candidate_under_ceiling
         and candidate_conversion is not None
-        and candidate_conversion >= 0.50
+        and candidate_conversion >= 0.30
     )
     kinetic_uncertain = False
     uncertainty_reasons: list[str] = []
@@ -666,6 +666,26 @@ def _intensification_feasibility_precheck(
         if kinetic_uncertain
         else ""
     )
+    # Build the diagnosis. When a design-space candidate exists under the
+    # mandate ceiling, the analogy-derived tau_kinetics is no longer the
+    # authoritative kinetic statement — surface the candidate-supported
+    # tau as the operational reference so the council message doesn't
+    # mislead downstream agents (and the user reading logs).
+    if candidate_worth_council:
+        diagnosis = (
+            f"{diagnosis_prefix}analogy kinetic anchor τ={tau_kinetics_min:.1f} min exceeds "
+            f"the intensification ceiling τ≤{tau_ceiling:.1f} min "
+            f"({target:.1f}× faster than {batch_time_min:.1f} min batch), but the upstream "
+            f"design-space search already found a candidate at τ={candidate_tau:.1f} min "
+            f"with projected X≈{candidate_conversion:.2f} — proceed and let the council "
+            f"evaluate it as a screening hypothesis."
+        )
+    else:
+        diagnosis = (
+            f"{diagnosis_prefix}current kinetics require tau={tau_kinetics_min:.1f} min, but the "
+            f"intensification mandate limits tau to <= {tau_ceiling:.1f} min "
+            f"({target:.1f}x faster than {batch_time_min:.1f} min batch)."
+        )
     return {
         "status": status,
         "hard_block": not kinetic_uncertain,
@@ -678,15 +698,15 @@ def _intensification_feasibility_precheck(
         "required_to_ceiling_ratio": round(required_to_ceiling_ratio, 3) if tau_ceiling > 0 else None,
         "candidate_tau_min": round(candidate_tau, 3) if candidate_tau > 0 else None,
         "candidate_projected_conversion": round(candidate_conversion, 3) if candidate_conversion is not None else None,
+        "candidate_under_ceiling": bool(candidate_under_ceiling),
+        "candidate_worth_council": bool(candidate_worth_council),
         "minimum_flow_advantage": intensification_mandate.get("minimum_flow_advantage", "productivity"),
-        "diagnosis": (
-            f"{diagnosis_prefix}current kinetics require tau={tau_kinetics_min:.1f} min, but the "
-            f"intensification mandate limits tau to <= {tau_ceiling:.1f} min "
-            f"({target:.1f}x faster than {batch_time_min:.1f} min batch)."
-        ),
+        "diagnosis": diagnosis,
         "recommended_next_steps": [
             (
-                "Generate intensified screen candidates, but do not mark the selected point as engine-validated without experimental support."
+                "Council proceeds with the design-space candidate; outcome is a SCREEN_REQUIRED hypothesis."
+                if candidate_worth_council
+                else "Generate intensified screen candidates, but do not mark the selected point as engine-validated without experimental support."
                 if kinetic_uncertain
                 else "Do not select a normal flow candidate from this kinetic anchor."
             ),
@@ -874,14 +894,87 @@ def _entry_by_candidate(entries: list[dict], candidate_id: int) -> Optional[dict
     return next((e for e in entries if e.get("candidate_id") == candidate_id), None)
 
 
-def _extract_explicit_patch(entry: dict, domain: str) -> tuple[dict, dict]:
-    patch = {}
-    rationale = {}
+def _extract_explicit_patch(
+    entry: dict,
+    domain: str,
+    *,
+    candidate: Optional[dict] = None,
+    batch_concentration_M: Optional[float] = None,
+) -> tuple[dict, dict]:
+    """Extract field patches the domain agent explicitly emitted.
+
+    Applies Fix #1 (lock C in Refinement Board): concentration_M patches are
+    REJECTED unless they meet at least one of:
+      - the patch increases C (we never block dilution-reverse moves);
+      - the new C is >= 50% of the batch concentration;
+      - the agent flagged an explicit thermal/precipitation/inner-filter reason
+        in `concentration_change_reason` or in `concerns`.
+    This prevents the historical failure mode where Dr. Chemistry would
+    silently drop C from 0.5 M → 0.044 M for every candidate, killing
+    productivity and creating a manufactured low-C regime nobody asked for.
+    """
+    patch: dict = {}
+    rationale: dict = {}
     raw = entry.get("proposed_changes")
     if not isinstance(raw, dict):
         return patch, rationale
+
+    batch_c = float(batch_concentration_M) if batch_concentration_M else None
+    current_c = None
+    if candidate is not None:
+        try:
+            current_c = float(candidate.get("concentration_M", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            current_c = None
+    if current_c is None and batch_c is not None:
+        current_c = batch_c
+
     for field, value in raw.items():
         if _FIELD_OWNER.get(field) != domain:
+            continue
+        if field == "concentration_M":
+            try:
+                new_c = float(value)
+            except (TypeError, ValueError):
+                continue
+            if new_c <= 0:
+                continue
+            # Always allow if it's a no-op or an increase
+            if current_c is not None and new_c >= current_c - 1e-9:
+                patch[field] = new_c
+                rationale[field] = "Explicit C patch (non-reducing)."
+                continue
+            # Reduction: require justification
+            ratio = (new_c / batch_c) if batch_c else 1.0
+            justified = False
+            justify_reasons = []
+            reasons_blob = " ".join(str(x).lower() for x in (entry.get("concerns") or []))
+            change_reason = str(entry.get("concentration_change_reason") or "").lower()
+            if change_reason:
+                justify_reasons.append(change_reason)
+            try:
+                A = float(entry.get("beer_lambert_A") or 0.0)
+            except (TypeError, ValueError):
+                A = 0.0
+            if A > 1.5:
+                justified = True
+                justify_reasons.append(f"inner_filter A={A:.2f}>1.5")
+            if any(k in change_reason or k in reasons_blob for k in (
+                "thermal", "exotherm", "runaway", "heat removal",
+                "precipita", "solubility", "saturation_limit",
+                "inner filter", "beer-lambert", "photon",
+            )):
+                justified = True
+            # Always allow if reduction is <= 50% (modest dilution)
+            if batch_c and ratio >= 0.5:
+                justified = True
+                justify_reasons.append(f"C={new_c:.3f}M is ≥50% of batch C={batch_c:.3f}M")
+            if justified:
+                patch[field] = new_c
+                rationale[field] = (
+                    "Explicit C reduction allowed: " + "; ".join(justify_reasons or ["modest"])
+                )
+            # else: silently dropped — Refinement Board cannot collapse C
             continue
         patch[field] = value
         rationale[field] = "Explicit patch proposed by domain scorer."
@@ -896,9 +989,18 @@ def _derive_domain_patch(
     concentration_M: float,
     allow_warning_refinement: bool = False,
     strong_revision_mode: bool = False,
+    batch_concentration_M: Optional[float] = None,
 ) -> tuple[dict, dict]:
     verdict = str(entry.get("verdict", "ACCEPT")).upper()
-    patch, rationale = _extract_explicit_patch(entry, domain)
+    # concentration_M source-of-truth for the gating check below: prefer the
+    # explicit batch concentration when provided (this is the protocol's
+    # ground truth); fall back to the in-flight reactor concentration only
+    # when no batch C is available.
+    batch_c_for_gate = float(batch_concentration_M) if batch_concentration_M else float(concentration_M)
+    patch, rationale = _extract_explicit_patch(
+        entry, domain,
+        candidate=candidate, batch_concentration_M=batch_c_for_gate,
+    )
     active_verdicts = {"REVISE", "BLOCK"}
     if allow_warning_refinement:
         active_verdicts.add("WARNING")
@@ -968,17 +1070,26 @@ def _derive_domain_patch(
                     )
 
     if domain == "chemistry" and "concentration_M" not in patch:
+        # Auto-derived C-drop: only fires for SEVERE inner-filter (A > 1.5),
+        # not the previous trigger of A > 1.0. The earlier threshold caused
+        # routine C drops to 0.20 M even when the absorbance was modest,
+        # contributing to the over-dilution cascade.
         try:
             A = float(entry.get("beer_lambert_A"))
         except (TypeError, ValueError):
             A = 0.0
         current_c = float(candidate.get("concentration_M", concentration_M) or concentration_M)
-        if A > 1.0 and current_c > 0.20:
-            patch["concentration_M"] = 0.20
-            rationale["concentration_M"] = (
-                f"Dr. Chemistry {verdict}: concentration reduced from {current_c:.2f} M "
-                f"to 0.20 M to ease photon attenuation."
-            )
+        if A > 1.5 and current_c > 0.20:
+            # Don't drop below 50% of batch C unless A is extreme (>3.0)
+            target_c = max(0.20, 0.5 * batch_c_for_gate) if A <= 3.0 else 0.20
+            target_c = min(target_c, current_c)
+            if target_c < current_c - 1e-6:
+                patch["concentration_M"] = round(target_c, 3)
+                rationale["concentration_M"] = (
+                    f"Dr. Chemistry {verdict}: severe inner-filter A={A:.2f}>1.5; "
+                    f"C reduced from {current_c:.2f} → {target_c:.2f} M "
+                    f"(floor = 50% of batch unless A > 3.0)."
+                )
 
     if domain == "kinetics" and "tau_min" in patch:
         try:
@@ -1178,6 +1289,7 @@ def _run_candidate_refinement_loop(
     branching_revision_mode: bool = False,
     max_descendants_per_candidate: int = 2,
     max_total_revised_candidates: Optional[int] = None,
+    batch_concentration_M: Optional[float] = None,
 ) -> tuple[list[dict], dict]:
     blocked_domains = _build_domain_blocklist(audit)
     revised_candidates: list[dict] = []
@@ -1210,6 +1322,7 @@ def _run_candidate_refinement_loop(
                 concentration_M=concentration_M,
                 allow_warning_refinement=allow_warning_refinement,
                 strong_revision_mode=strong_revision_mode,
+                batch_concentration_M=batch_concentration_M,
             )
             if not patch:
                 continue
@@ -2452,6 +2565,7 @@ class CouncilV4:
         fixed_candidates: Optional[list[dict]] = None,
         candidate_budget: int = 12,
         allow_warning_refinement: bool = False,
+        design_space_seed_candidates: Optional[list[dict]] = None,
         benchmark_recorder=None,
         benchmark_strict_scoring: bool = False,
         benchmark_scoring_batch_size: Optional[int] = None,
@@ -2487,7 +2601,49 @@ class CouncilV4:
             (current.wavelength_nm and current.wavelength_nm > 0)
         )
         is_gas_liquid = bool(getattr(calc, "is_gas_liquid", False))
+        # Distinguish "O2 inhibits the reaction" (needs degassing) from
+        # "O2 is a reagent" (needs MFC + BPR + gas-liquid hardware). The
+        # framing LLM has historically conflated these — `O2_sensitive`
+        # was being emitted for aerobic oxidations where O2 is the
+        # oxidant. Read both flags explicitly and pass them downstream.
         is_O2_sensitive = bool(chemistry_plan and chemistry_plan.oxygen_sensitive)
+        is_O2_reagent = bool(chemistry_plan and getattr(chemistry_plan, "o2_is_reagent", False))
+        # Derive o2_is_reagent from stream contents if the chemistry agent
+        # didn't set it explicitly — a gas stream containing O2/air is
+        # definitive evidence.
+        if not is_O2_reagent and chemistry_plan is not None:
+            for stream in getattr(chemistry_plan, "stream_logic", []) or []:
+                phase = (getattr(stream, "phase", "") or "").lower()
+                reagents = [str(r).lower() for r in (getattr(stream, "reagents", []) or [])]
+                if phase == "gas" and any(("o2" in r or "o₂" in r or "air" == r or "oxygen" in r) for r in reagents):
+                    is_O2_reagent = True
+                    break
+        # If O2 is the reagent it cannot simultaneously be an inhibitor.
+        # The reaction may still need controlled O2 dosing, but the
+        # "degassing required" semantic does not apply.
+        if is_O2_reagent and is_O2_sensitive:
+            logger.info(
+                "    O2 flag disambiguation: O2 is REAGENT — clearing inhibits-O2 flag "
+                "(chemistry agent set both, likely conflating semantics)"
+            )
+            is_O2_sensitive = False
+
+        # Fix #5: does this chemistry actually use a photocatalyst? Drives
+        # the Skeptic's ε plausibility threshold (1000 vs 5000).
+        has_photocatalyst = False
+        if chemistry_plan is not None:
+            for reagent in (getattr(chemistry_plan, "reagents", []) or []):
+                role = (getattr(reagent, "role", "") or "").lower()
+                if "photocatalyst" in role or "photo-catalyst" in role or "sensitizer" in role:
+                    has_photocatalyst = True
+                    break
+            # Heuristic backup: look in batch description for explicit "no photocatalyst" mention
+            if not has_photocatalyst and is_photochem:
+                desc = (getattr(batch_record, "reaction_description", "") or "").lower()
+                if any(t in desc for t in ("no photocatalyst", "photocatalyst-free", "without photocatalyst", "catalyst-free")):
+                    has_photocatalyst = False
+                elif any(t in desc for t in ("ir(ppy)", "ru(bpy)", "eosin", "acridinium", "4cz")):
+                    has_photocatalyst = True
 
         solvent = (
             chemistry_plan.stages[0].solvent
@@ -2537,6 +2693,7 @@ class CouncilV4:
             reaction_class=reaction_class,
             is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,
             is_O2_sensitive=is_O2_sensitive,
+            is_O2_reagent=is_O2_reagent,
             tau_center_min=tau_center, tau_lit_min=tau_lit,
             solvent=solvent, temperature_C=current.temperature_C,
             concentration_M=current.concentration_M,
@@ -2557,57 +2714,16 @@ class CouncilV4:
                 "special_flags": problem_statement.get("special_flags", []),
             },
         )
-        if (
-            feasibility_diagnostic is not None
-            and fixed_candidates is None
-            and feasibility_diagnostic.get("hard_block", True)
-        ):
+        # The intensification precheck is diagnostic only — it never blocks
+        # the council. Adjudicating whether a flow design delivers a credible
+        # advantage is the job of Skeptic + Chief + DFMEA, with the full
+        # candidate matrix and scoring in hand. The single-point tau-ratio
+        # test the precheck performs is strictly less informed than that, so
+        # we surface its output as problem-statement context and let the
+        # council make the call.
+        if feasibility_diagnostic is not None:
             logger.warning(
-                "Council v4: intensification infeasible before Designer sampling — %s",
-                feasibility_diagnostic["diagnosis"],
-            )
-            screen_payload = _build_screen_required_payload(
-                current=current,
-                calc=calc,
-                batch_time_min=batch_time_min,
-                intensification_mandate=intensification_mandate,
-                solvent=solvent,
-                reason="intensification infeasible with current kinetic anchor",
-                feasibility_diagnostic=feasibility_diagnostic,
-            )
-            if benchmark_recorder is not None:
-                _bench_snapshot(
-                    benchmark_recorder,
-                    "stage0_intensification_feasibility",
-                    feasibility_diagnostic,
-                )
-                _bench_snapshot(
-                    benchmark_recorder,
-                    "stage0_intensification_screen",
-                    screen_payload,
-                )
-            designer_result = {
-                "survivors": [],
-                "disqualified": [],
-                "table_markdown": "",
-                "strategy_reasoning": "Designer skipped: intensification infeasible with current kinetic anchor.",
-                "design_envelope_preliminary": {},
-                "problem_statement": problem_statement,
-                "pool_metadata": {"pool_quality": "INFEASIBLE", "candidates_generated": 0},
-                "feasibility_diagnostic": feasibility_diagnostic,
-                "screen_required_report": screen_payload,
-            }
-            return self._fallback(
-                current, chemistry_plan, calc, log, designer_result,
-                reason="screen required: intensification infeasible with current kinetic anchor",
-                batch_record=batch_record, inventory=inventory, analogies=analogies,
-            )
-        if (
-            feasibility_diagnostic is not None
-            and not feasibility_diagnostic.get("hard_block", True)
-        ):
-            logger.warning(
-                "Council v4: kinetic anchor uncertain — proceeding to Designer with screen-required final status: %s",
+                "Council v4: intensification feasibility diagnostic — %s",
                 feasibility_diagnostic["diagnosis"],
             )
             problem_statement.setdefault("ambiguities", [])
@@ -2617,17 +2733,17 @@ class CouncilV4:
             if benchmark_recorder is not None:
                 _bench_snapshot(
                     benchmark_recorder,
-                    "stage0_kinetic_anchor_uncertain",
+                    "stage0_intensification_feasibility",
                     feasibility_diagnostic,
                 )
 
         # ═══════════════════════════════════════════════════════════════════
         #  STAGE 1 — Designer: Candidate Matrix  (or bypass with fixed_candidates)
         # ═══════════════════════════════════════════════════════════════════
-        uncertain_kinetics_screen = (
-            feasibility_diagnostic is not None
-            and feasibility_diagnostic.get("status") == "KINETIC_ANCHOR_UNCERTAIN_SCREEN_REQUIRED"
-        )
+        # Any non-None diagnostic now feeds Designer the intensification ceiling
+        # so it samples under it. The status string distinction the previous
+        # version cared about was only relevant when hard_block was a thing.
+        uncertain_kinetics_screen = feasibility_diagnostic is not None
         uncertain_redesign_instructions = None
         if uncertain_kinetics_screen:
             tau_ceiling = _positive_float(feasibility_diagnostic.get("tau_intensification_ceiling_min"))
@@ -2727,23 +2843,95 @@ class CouncilV4:
             status="completed" if survivors else "empty",
         )
         if not survivors:
-            logger.warning("Council v4: no survivors after hard-gate filter — requiring experimental screen")
-            screen_payload = _build_screen_required_payload(
-                current=current,
-                calc=calc,
-                batch_time_min=batch_time_min,
-                intensification_mandate=intensification_mandate,
-                solvent=solvent,
-                reason="no usable candidates after filtering",
-                feasibility_diagnostic=designer_result.get("feasibility_diagnostic"),
-            )
-            designer_result["screen_required_report"] = screen_payload
-            _bench_snapshot(benchmark_recorder, "stage1_screen_required", screen_payload)
-            return self._fallback(
-                current, chemistry_plan, calc, log, designer_result,
-                reason="screen required: no usable candidates after filtering",
-                batch_record=batch_record, inventory=inventory, analogies=analogies,
-            )
+            # FALLBACK: Council Designer's own sampling found 0 feasible
+            # candidates. Before skipping the council entirely (which loses all
+            # domain-agent input), try seeding from the upstream Design Space
+            # grid search. Those candidates already passed the same unified
+            # feasibility checks (post-refactor: design_space.py and
+            # sampling.py share compute_metrics + hard_filter), so they ARE
+            # genuine alternates — they just landed outside the LLM's chosen
+            # sampling envelope.
+            seed_pool: list[dict] = list(design_space_seed_candidates or [])
+            if seed_pool:
+                logger.warning(
+                    "Council v4: Designer sampling returned 0 survivors — seeding from "
+                    "Design Space grid (%d feasible candidates available)",
+                    len(seed_pool),
+                )
+                # Run the same v4 hard-gate logic to attach flags / status.
+                # Seeds already passed sampling.hard_filter, so most should
+                # pass the v4 gates too; any that fail still surface their
+                # flags to agents.
+                attach_flow_sense_reports(
+                    seed_pool,
+                    batch_time_min=batch_time_min,
+                    batch_concentration_M=getattr(calc, "concentration_M", None),
+                    solvent_name=solvent,
+                    intensification_mandate=intensification_mandate,
+                )
+                seed_survivors, seed_flagged = _apply_v4_hard_gates(
+                    seed_pool, pump_max_bar=pump_max,
+                    is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,
+                    BPR_bar=current.BPR_bar or 0.0,
+                    X_minimum=0.0 if uncertain_kinetics_screen else 0.50,
+                    tubing_material=current.tubing_material or "FEP",
+                )
+                if seed_survivors:
+                    survivors = seed_survivors
+                    designer_result["survivors"] = survivors
+                    designer_result["disqualified"] = seed_flagged
+                    designer_result["table_markdown"] = format_candidate_table(
+                        survivors, max_rows=len(survivors)
+                    )
+                    designer_result.setdefault("pool_metadata", {})
+                    designer_result["pool_metadata"]["pool_quality"] = "DESIGN_SPACE_FALLBACK"
+                    designer_result["pool_metadata"]["candidates_generated"] = len(survivors)
+                    designer_result["pool_metadata"]["fallback_source"] = "design_space"
+                    designer_result["strategy_reasoning"] = (
+                        (designer_result.get("strategy_reasoning") or "")
+                        + " | Designer sampling empty → seeded from Design Space grid."
+                    )
+                    logger.info(
+                        "    Design Space fallback: %d survivors seeded into council",
+                        len(survivors),
+                    )
+                    _bench_snapshot(
+                        benchmark_recorder,
+                        "stage1_design_space_fallback",
+                        {
+                            "seed_count": len(seed_pool),
+                            "survivor_count": len(survivors),
+                            "flagged_count": len(seed_flagged),
+                        },
+                    )
+                else:
+                    logger.warning(
+                        "Council v4: Design Space fallback also empty after v4 hard gates — "
+                        "%d flagged: %s",
+                        len(seed_flagged),
+                        "; ".join((f.get("reason") or "")[:80] for f in seed_flagged[:3]),
+                    )
+            if not survivors:
+                logger.warning(
+                    "Council v4: no survivors after hard-gate filter (incl. Design Space fallback) "
+                    "— requiring experimental screen"
+                )
+                screen_payload = _build_screen_required_payload(
+                    current=current,
+                    calc=calc,
+                    batch_time_min=batch_time_min,
+                    intensification_mandate=intensification_mandate,
+                    solvent=solvent,
+                    reason="no usable candidates after filtering",
+                    feasibility_diagnostic=designer_result.get("feasibility_diagnostic"),
+                )
+                designer_result["screen_required_report"] = screen_payload
+                _bench_snapshot(benchmark_recorder, "stage1_screen_required", screen_payload)
+                return self._fallback(
+                    current, chemistry_plan, calc, log, designer_result,
+                    reason="screen required: no usable candidates after filtering",
+                    batch_record=batch_record, inventory=inventory, analogies=analogies,
+                )
         if survivors and all(
             any("X=" in str(flag) and "X_minimum" in str(flag) for flag in (c.get("hard_gate_flags") or []))
             for c in survivors
@@ -2834,6 +3022,7 @@ class CouncilV4:
             intensification_mandate=intensification_mandate,
             pool_metadata=designer_result.get("pool_metadata", {}),
             process_value_scores=initial_scoring.get("process_value_scores", []),
+            has_photocatalyst=has_photocatalyst,
         )
 
         weak_pool_cycles = 0
@@ -2907,6 +3096,7 @@ class CouncilV4:
                 intensification_mandate=intensification_mandate,
                 pool_metadata=designer_result.get("pool_metadata", {}),
                 process_value_scores=initial_scoring.get("process_value_scores", []),
+                has_photocatalyst=has_photocatalyst,
             )
         if initial_audit.get("verdict") == "WEAK_POOL" and weak_pool_cycles >= cfg.MAX_WEAK_POOL_CYCLES:
             initial_audit["council_may_proceed"] = False
@@ -2978,6 +3168,7 @@ class CouncilV4:
             branching_revision_mode=benchmark_branching_revision_mode,
             max_descendants_per_candidate=benchmark_max_descendants_per_candidate,
             max_total_revised_candidates=benchmark_max_total_revised_candidates,
+            batch_concentration_M=getattr(batch_record, "concentration_M", None) or getattr(calc, "concentration_M", None),
         )
         _bench_snapshot(benchmark_recorder, "stage3_5_refinement_summary", refinement_summary)
         attach_flow_sense_reports(
@@ -3028,6 +3219,7 @@ class CouncilV4:
                 intensification_mandate=intensification_mandate,
                 pool_metadata=designer_result.get("pool_metadata", {}),
                 process_value_scores=final_scoring.get("process_value_scores", []),
+                has_photocatalyst=has_photocatalyst,
             )
             survivors_for_selection = revised_survivors
             table_for_selection = revised_table_markdown
@@ -3224,6 +3416,10 @@ class CouncilV4:
         # ═══════════════════════════════════════════════════════════════════
         logger.info("  Council v4 — Stage 3.5: Revision Agent on winner id=%d", winner_id)
         _bench_stage_start(benchmark_recorder, "council_stage_5_revision_agent", {"winner_id": winner_id})
+        # Batch yield as a fraction (e.g., 0.75 for 75% reported yield) —
+        # used to cap the Revision Engineer's τ bump to a realistic X target.
+        _batch_yield_pct = getattr(batch_record, "yield_pct", None) or 0.0
+        _batch_yield_fraction = (float(_batch_yield_pct) / 100.0) if _batch_yield_pct else None
         revision_result = run_revision_stage(
             winner           = winner,
             scoring          = final_scoring,
@@ -3235,6 +3431,8 @@ class CouncilV4:
             temperature_C    = current.temperature_C,
             concentration_M  = current.concentration_M,
             extinction_coeff_M_cm = ext_coeff,
+            batch_yield_fraction = _batch_yield_fraction,
+            batch_time_min   = batch_time_min,
         )
         if revision_result is not None:
             winner_before_revision = winner

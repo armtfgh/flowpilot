@@ -53,11 +53,21 @@ _FRAMING_SYSTEM = """\
 You are the FLORA ENGINE problem framer. Parse and confirm the chemistry context
 into a structured problem statement for the council.
 
+CRITICAL FLAG SEMANTICS — do NOT conflate these two:
+  - "O2_inhibits" : reaction is poisoned/quenched by ambient O2; needs degassing
+                    and inert blanket. Use ONLY if the chemistry is shown to be
+                    inhibited by O2 (e.g. radical chain that termin ates with O2).
+  - "O2_reagent"  : O2 (pure or from air) is a STOICHIOMETRIC reagent. Needs MFC,
+                    BPR, and gas-liquid contacting. Aerobic oxidations belong here.
+  These are mutually exclusive. NEVER emit "O2_sensitive" or "O2_inhibits" for
+  an aerobic oxidation just because O2 appears in the reaction — that's the
+  reagent flag, not the sensitivity flag.
+
 Return JSON only:
 {
-  "reaction_class": "photoredox | thermal | hydrogenation | gas-liquid | other",
-  "special_flags": ["O2_sensitive", "moisture_sensitive", "exothermic", "gas_liquid",
-                    "photochemical", "multi_stage"],
+  "reaction_class": "photoredox | thermal | hydrogenation | gas-liquid | aerobic_oxidation | other",
+  "special_flags": ["O2_inhibits", "O2_reagent", "moisture_sensitive", "exothermic",
+                    "gas_liquid", "photochemical", "multi_stage"],
   "flow_justified": true,
   "flow_justification_note": "brief note if flow is not obviously justified",
   "ambiguities": ["list anything unclear that the council should assume or ask about"]
@@ -76,21 +86,36 @@ def run_problem_framing(
     temperature_C: float,
     concentration_M: float,
     objectives: str,
+    is_O2_reagent: bool = False,
 ) -> dict:
-    """Stage 0: Confirm problem framing. Returns structured problem statement."""
+    """Stage 0: Confirm problem framing. Returns structured problem statement.
+
+    is_O2_sensitive and is_O2_reagent are mutually exclusive — see _FRAMING_SYSTEM.
+    """
     flags = []
     if is_photochem:
         flags.append("photochemical")
     if is_gas_liquid:
         flags.append("gas_liquid")
-    if is_O2_sensitive:
-        flags.append("O2_sensitive")
+    if is_O2_reagent:
+        flags.append("O2_reagent")
+    elif is_O2_sensitive:
+        flags.append("O2_inhibits")
+
+    o2_context = ""
+    if is_O2_reagent:
+        o2_context = (
+            " | O2 USE: REAGENT (stoichiometric; aerobic oxidation) — must NOT emit "
+            "O2_inhibits or O2_sensitive"
+        )
+    elif is_O2_sensitive:
+        o2_context = " | O2 USE: INHIBITS reaction — deoxygenation required"
 
     user_msg = (
         f"reaction_class={reaction_class} | solvent={solvent} | T={temperature_C}°C\n"
         f"C={concentration_M} M | tau_batch_equiv={tau_center_min:.1f} min | "
         f"tau_lit={'%.1f' % tau_lit_min if tau_lit_min else 'unknown'} min\n"
-        f"flags={flags} | objectives={objectives}\n\n"
+        f"flags={flags}{o2_context} | objectives={objectives}\n\n"
         "Confirm and output JSON."
     )
 
@@ -118,6 +143,31 @@ def run_problem_framing(
                 pass
     except Exception as e:
         logger.warning("Stage 0 framing LLM call failed: %s — using defaults", e)
+
+    # Enforce O2 flag mutual exclusivity on the LLM response. The framing LLM
+    # has historically conflated "uses O2" with "sensitive to O2"; if the
+    # caller already determined O2 is a reagent, strip any inhibition flag
+    # the LLM may have added back. Legacy clients still expect "O2_sensitive"
+    # in some places, so also normalize the alias.
+    returned_flags = framing.get("special_flags") or []
+    normalized: list[str] = []
+    for f in returned_flags:
+        fl = str(f)
+        # Normalize legacy alias
+        if fl == "O2_sensitive":
+            fl = "O2_inhibits"
+        normalized.append(fl)
+    if is_O2_reagent:
+        normalized = [f for f in normalized if f not in ("O2_inhibits", "O2_sensitive")]
+        if "O2_reagent" not in normalized:
+            normalized.append("O2_reagent")
+    elif is_O2_sensitive:
+        normalized = [f for f in normalized if f != "O2_reagent"]
+        if "O2_inhibits" not in normalized:
+            normalized.append("O2_inhibits")
+    framing["special_flags"] = sorted(set(normalized))
+    framing["o2_is_reagent"] = bool(is_O2_reagent)
+    framing["o2_inhibits"] = bool(is_O2_sensitive)
 
     return framing
 
@@ -625,10 +675,39 @@ def run_designer_v4(
 
     table = format_candidate_table(survivors, max_rows=N_target)
 
+    # Aggregate sampling-infeasible kill reasons so logs surface WHY 0/N passed.
+    # Previously the log just said "N sampling-infeasible" which was opaque.
+    kill_category_counts: dict[str, int] = {}
+    for c in all_infeasible:
+        for tag in (c.get("primary_kill_categories") or []):
+            kill_category_counts[tag] = kill_category_counts.get(tag, 0) + 1
+    kill_summary = ", ".join(
+        f"{tag}:{n}" for tag, n in sorted(kill_category_counts.items(), key=lambda x: -x[1])
+    ) or "—"
+
     logger.info(
-        "    Designer v4: %d total feasible → %d to council (%d flagged, %d sampling-infeasible)",
+        "    Designer v4: %d total feasible → %d to council (%d flagged, %d sampling-infeasible; "
+        "kill_categories=%s)",
         len(all_feasible), len(survivors), len(flagged), len(all_infeasible),
+        kill_summary,
     )
+
+    # Surface a compact killed-designs view for the council log. Cap at 20
+    # entries to avoid bloating logs while still giving every kill family a
+    # representative sample.
+    killed_designs_view: list[dict] = []
+    for c in all_infeasible[:20]:
+        killed_designs_view.append({
+            "tau_min": c.get("tau_min"),
+            "d_mm": c.get("d_mm"),
+            "Q_mL_min": c.get("Q_mL_min"),
+            "L_m": c.get("L_m"),
+            "Re": c.get("Re"),
+            "delta_P_bar": c.get("delta_P_bar"),
+            "required_bpr_bar": c.get("required_bpr_bar"),
+            "kill_categories": c.get("primary_kill_categories", []),
+            "violations": c.get("violations", []),
+        })
 
     tau_range = [c["tau_min"] for c in survivors] if survivors else [tau_center_min]
     d_range = list(sorted({c["d_mm"] for c in survivors})) if survivors else [d_center_mm]
@@ -640,6 +719,8 @@ def run_designer_v4(
         "strategy_reasoning": strategy_reasoning,
         "survivors": survivors,
         "disqualified": flagged,   # kept for UI backward compat; these are flags, not removals
+        "killed_designs": killed_designs_view,
+        "kill_category_counts": kill_category_counts,
         "all_candidates": all_feasible,
         "table_markdown": table,
         "pool_metadata": pool_metadata,

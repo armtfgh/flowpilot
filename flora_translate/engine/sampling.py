@@ -45,12 +45,13 @@ from flora_translate.engine.tools import (
 PI = math.pi
 
 # Bench constraints — hard physical limits, not weights
-L_MAX_BENCH_M = 20.0
+L_MAX_BENCH_M = 30.0               # Hard cap; soft penalty above 15 m in scoring
 V_MAX_SINGLE_REACTOR_ML = 25.0
 Q_MIN_ML_MIN = 0.05                # syringe pump floor (practical)
 RE_TURBULENT = 2300.0
 D_MOLECULAR = 1.0e-9               # m²/s, small organics in liquid
 DELTA_P_SAFETY_FACTOR = 0.8        # ΔP < 0.8 × pump_max
+DELTA_P_MAX_BAR = 5.0              # Hard cap on single-phase ΔP; soft penalty above 2 bar in scoring
 
 # Commercially available FEP/PFA tubing IDs for lab-scale flow chem
 STANDARD_D_PHOTOCHEM = [0.50, 0.75, 1.00]          # mm — Beer-Lambert limited
@@ -376,6 +377,13 @@ def hard_filter(
             f"ΔP={m['delta_P_bar']:.3f} bar ≥ {DELTA_P_SAFETY_FACTOR:.0%} of pump_max "
             f"({pump_max_bar} bar)"
         )
+    if m["delta_P_bar"] > DELTA_P_MAX_BAR:
+        violations.append(
+            f"ΔP={m['delta_P_bar']:.2f} bar > {DELTA_P_MAX_BAR:.1f} bar "
+            "(bench-practical ceiling; BPR can't regulate two-phase pressure above this)"
+        )
+    elif m["delta_P_bar"] > 2.0:
+        warnings.append(f"ΔP={m['delta_P_bar']:.2f} bar > 2 bar — upper practical range")
     if is_gas_liquid and m["delta_P_bar"] > GAS_LIQUID_MAX_DELTA_P_BAR:
         violations.append(
             f"gas-liquid ΔP={m['delta_P_bar']:.2f} bar > {GAS_LIQUID_MAX_DELTA_P_BAR:.0f} bar "
@@ -392,9 +400,18 @@ def hard_filter(
             "(translation policy: intensify)"
         )
 
-    # Photochem: Beer-Lambert constraint (bench-physics rule — hard)
-    if is_photochem and m["d_mm"] > 1.0:
-        violations.append(f"d={m['d_mm']} mm > 1.0 mm — Beer-Lambert inner-filter risk")
+    # Photochem: Beer-Lambert constraint (bench-physics rule — hard).
+    # Gas-liquid photochemistry needs more bore than dry photoredox because
+    # gas holdup forces the liquid into a smaller cross-section; sub-mm IDs
+    # become infeasible at typical gas flow rates. Allow up to 1.6 mm in
+    # that case — penetration depth at typical photoredox ε is still
+    # adequate for slug-flow geometry.
+    photochem_d_max_mm = 1.6 if is_gas_liquid else 1.0
+    if is_photochem and m["d_mm"] > photochem_d_max_mm:
+        violations.append(
+            f"d={m['d_mm']} mm > {photochem_d_max_mm} mm "
+            f"— Beer-Lambert inner-filter risk (gas_liquid={is_gas_liquid})"
+        )
     # Inner-filter HIGH is a chemistry-level concern (can be mitigated by dilution
     # or ε at LED wavelength). The Photonics advocate + Skeptic evaluate it.
     # Keep as a warning, not a hard filter.
@@ -511,6 +528,34 @@ def generate_candidates(
         m["feasible"] = ok
         m["violations"] = viol
         m["warnings"] = warns
+        # Categorize the primary kill reason for diagnostics. Helps the
+        # "Council v4: 0 total feasible → 4 sampling-infeasible" log line
+        # surface what actually killed each candidate (ΔP, BPR, L, Re, X).
+        if not ok and viol:
+            tags: list[str] = []
+            for v in viol:
+                vl = v.lower()
+                if "δp" in v or "deltap" in vl or vl.startswith("dp=") or "δp=" in vl or "delta_p" in vl:
+                    tags.append("ΔP")
+                elif "bpr" in vl:
+                    tags.append("BPR")
+                elif "l=" in vl and " m " in vl:
+                    tags.append("L")
+                elif "re=" in vl or "turbulent" in vl:
+                    tags.append("Re")
+                elif "x=" in vl or "x_minimum" in vl:
+                    tags.append("X")
+                elif "beer-lambert" in vl or "inner-filter" in vl:
+                    tags.append("d_photochem")
+                elif "tau=" in vl or "batch ceiling" in vl:
+                    tags.append("τ_ceiling")
+                elif "q=" in vl:
+                    tags.append("Q_floor")
+                elif "v_r" in vl:
+                    tags.append("V_R")
+                else:
+                    tags.append("other")
+            m["primary_kill_categories"] = sorted(set(tags))
         (feasible if ok else infeasible).append(m)
 
     # Non-dominated ordering on (productivity↑, L↓, r_mix↓)

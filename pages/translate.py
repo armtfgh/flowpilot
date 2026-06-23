@@ -215,13 +215,57 @@ def _render_chemistry_plan(plan: dict):
 
     # Sensitivities
     st.markdown("#### Sensitivities")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("O2 sensitive", "Yes" if plan.get("oxygen_sensitive") else "No")
-    c2.metric("Moisture sensitive", "Yes" if plan.get("moisture_sensitive") else "No")
-    c3.metric("Temp sensitive", "Yes" if plan.get("temperature_sensitive") else "No")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("O2 sensitive", "Yes" if plan.get("oxygen_sensitive") else "No",
+              help="Reaction is INHIBITED by ambient O2 — requires degassing")
+    c2.metric("O2 is reagent", "Yes" if plan.get("o2_is_reagent") else "No",
+              help="O2 is consumed stoichiometrically — needs MFC + BPR + gas-liquid")
+    c3.metric("Moisture sensitive", "Yes" if plan.get("moisture_sensitive") else "No")
+    c4.metric("Temp sensitive", "Yes" if plan.get("temperature_sensitive") else "No")
 
     if plan.get("deoxygenation_required"):
         st.warning(f"Deoxygenation required: {plan.get('deoxygenation_reasoning', '')}")
+
+    # Batch limitations + intensification strategy ──────────────────────
+    limitations = plan.get("batch_limitations") or []
+    mandate = plan.get("intensification_mandate") or {}
+    if limitations or mandate:
+        st.markdown("#### Intensification Strategy")
+        # Top-line metrics
+        m_target = (mandate.get("tau_reduction_target") if isinstance(mandate, dict) else 0) or 0
+        m_advantage = (mandate.get("minimum_flow_advantage") if isinstance(mandate, dict) else "") or "—"
+        m_regime = (mandate.get("required_mixing_regime") if isinstance(mandate, dict) else "") or "—"
+        i1, i2, i3 = st.columns(3)
+        i1.metric("Target IF (τ reduction)", f"{float(m_target):.1f}×" if m_target else "—",
+                  help="Required minimum batch-to-flow τ reduction. Drives the council's intensification ceiling.")
+        i2.metric("Primary flow advantage", str(m_advantage).replace("_", " "))
+        i3.metric("Mixing regime", str(m_regime).replace("_", " "))
+
+        if limitations:
+            st.markdown("**Batch limitations identified** (drive the target IF — flow removes these):")
+            # Render as chips with the empirical IF ceiling next to each
+            _LIM_LABELS = {
+                "mass_transfer_gas_liquid": ("Gas–liquid mass transfer", 20),
+                "photon_penetration":       ("Photon penetration",       15),
+                "heat_removal":             ("Heat removal",             10),
+                "stirring_diffusion":       ("Stirring / diffusion",     12),
+                "thermodynamic_equilibrium": ("Equilibrium (NOT removable)", 1.5),
+                "kinetic":                  ("Intrinsic kinetics",       3),
+            }
+            chip_cols = st.columns(min(len(limitations), 4))
+            for idx, lim in enumerate(limitations):
+                label, if_ceiling = _LIM_LABELS.get(lim, (lim, None))
+                chip_cols[idx % len(chip_cols)].markdown(
+                    f"- **{label}**" + (f" — up to **{if_ceiling}×** in flow" if if_ceiling else "")
+                )
+        reasoning = plan.get("batch_limitations_reasoning") or ""
+        if reasoning:
+            st.caption(f"How limitations were detected: {reasoning}")
+
+        basis = mandate.get("flow_justification_basis") if isinstance(mandate, dict) else None
+        if basis:
+            with st.expander("Why this target IF was chosen"):
+                st.write(basis)
 
     # Stream logic
     slogic = plan.get("stream_logic", [])

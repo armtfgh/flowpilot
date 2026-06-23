@@ -60,6 +60,41 @@ def render_design_steps(calc_dict: dict, key_prefix: str = "ds"):
     if calc_dict.get("bpr_reconciliation_note"):
         st.warning(calc_dict["bpr_reconciliation_note"])
 
+    # ── Intensification anchors (where does IF come from?) ─────────────
+    # Surface the three independent IF anchors so users can see how the
+    # selected intensification factor was justified: class default vs
+    # literature analogy (quality-weighted) vs limitation-driven.
+    if_used = calc_dict.get("intensification_factor")
+    if_class = calc_dict.get("if_class")
+    if_analogy = calc_dict.get("if_analogy")
+    n_analogy = calc_dict.get("n_analogy_datapoints")
+    if any(v is not None for v in (if_used, if_class, if_analogy)):
+        st.markdown("#### Intensification Factor — anchor breakdown")
+        a1, a2, a3, a4 = st.columns(4)
+        a1.metric(
+            "IF used (τ reduction)",
+            f"{float(if_used):.1f}×" if if_used else "—",
+            help="The intensification factor the council uses to compute the τ ceiling.",
+        )
+        a2.metric(
+            "IF class default",
+            f"{float(if_class):.1f}×" if if_class else "—",
+            help="Empirical class-level expectation (photoredox 6×, thermal 10×, etc.).",
+        )
+        a3.metric(
+            "IF analogy (weighted)",
+            f"{float(if_analogy):.1f}×" if if_analogy else "—",
+            help=f"Similarity-score-weighted geometric mean from {n_analogy or 0} literature analogies.",
+        )
+        # IF_limitation: read from the chemistry plan's mandate if present.
+        # The calculator stores it indirectly via tau_reduction_target;
+        # since design_steps gets the calc dict only, we'll show "see Chemistry tab" here.
+        a4.markdown(
+            "**IF limitation-driven**  \n"
+            "Set by batch bottlenecks — see *Intensification Strategy* in the Chemistry tab.",
+            help="Mass transfer / photon penetration / heat removal — each implies a different empirical ceiling. The calculator picks the MAX of all justified anchors.",
+        )
+
     if calc_dict.get("is_gas_liquid"):
         st.markdown("#### Gas-Liquid Design")
         g1, g2, g3, g4 = st.columns(4)

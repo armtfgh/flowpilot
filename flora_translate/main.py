@@ -1101,7 +1101,12 @@ def translate(
 
     # 3c. Design space grid search — enumerate feasible (τ, d, Q) candidates
     logger.info("Step 3c: Design space grid search")
-    from flora_translate.engine.design_space import DesignSpaceSearch, candidates_to_dicts, get_council_starting_point
+    from flora_translate.engine.design_space import (
+        DesignSpaceSearch,
+        candidates_to_dicts,
+        get_council_starting_point,
+        feasible_candidates_as_council_seeds,
+    )
     design_candidates = DesignSpaceSearch().run(
         batch_record=batch_record,
         chemistry_plan=chemistry_plan,
@@ -1140,9 +1145,23 @@ def translate(
     logger.info("Step 5: Multi-agent deliberation council (ENGINE)")
     inventory = LabInventory.from_json(inventory_path)
     pre_council_proposal = proposal.model_dump()  # snapshot before council modifies it
+    # Pre-package Design Space feasible candidates as council seeds. If the
+    # Council Designer's LLM-guided sampling finds 0 feasible points, the
+    # council falls back to these — preventing silent council-skip when the
+    # sampling envelope happens to miss the design-space sweet spot.
+    _ds_seeds = feasible_candidates_as_council_seeds(
+        design_candidates,
+        BPR_bar=proposal.BPR_bar or 0.0,
+        tubing_material=proposal.tubing_material or "FEP",
+        concentration_M=proposal.concentration_M or 0.1,
+        temperature_C=proposal.temperature_C or 25.0,
+        batch_time_min=(batch_record.reaction_time_h or 0.0) * 60.0 if batch_record else None,
+        n_max=6,
+    )
     design_candidate, calculations = CouncilV4().run(
         proposal, batch_record, analogies, inventory,
-        chemistry_plan=chemistry_plan, calculations=calculations
+        chemistry_plan=chemistry_plan, calculations=calculations,
+        design_space_seed_candidates=_ds_seeds,
     )
 
     # 6. Format output

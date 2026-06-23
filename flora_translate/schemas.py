@@ -257,7 +257,8 @@ class ChemistryPlan(BaseModel):
     energy_transfer_or_redox: str | None = ""
 
     # Sensitivity and constraints (overall)
-    oxygen_sensitive: bool = False
+    oxygen_sensitive: bool = False        # reaction is INHIBITED by O2 → needs degassing/inert blanket
+    o2_is_reagent: bool = False           # O2 (or air) is a REAGENT → needs MFC + BPR + gas-liquid handling
     moisture_sensitive: bool = False
     temperature_sensitive: bool = False
     light_sensitive_reagents: list[str] = Field(default_factory=list)
@@ -277,6 +278,17 @@ class ChemistryPlan(BaseModel):
     # Retrieval hints
     retrieval_keywords: list[str] = Field(default_factory=list)
     similar_reaction_classes: list[str] = Field(default_factory=list)
+
+    # Batch rate-limiting bottlenecks that flow CAN remove. Controlled vocabulary:
+    #   "mass_transfer_gas_liquid"  — kLa-limited (gas dissolution / contact)
+    #   "photon_penetration"        — Beer-Lambert / path-length-limited
+    #   "heat_removal"              — exotherm; thermal runaway risk
+    #   "stirring_diffusion"        — bulk mixing or molecular diffusion in liquid
+    #   "thermodynamic_equilibrium" — fundamentally equilibrium-limited (cannot intensify)
+    #   "kinetic"                   — intrinsic rate at given T
+    # Drives intensification target — populated from chemistry plan reasoning.
+    batch_limitations: list[str] = Field(default_factory=list)
+    batch_limitations_reasoning: str = ""
 
     # Wavelength recommendation
     recommended_wavelength_nm: Optional[float] = None

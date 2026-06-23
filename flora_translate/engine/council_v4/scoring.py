@@ -181,6 +181,8 @@ Use very short reasoning. Own only proposed_changes.concentration_M.""",
         "kinetics": (
             """You are Dr. Kinetics for FLORA Gemma mode.
 Score exactly one candidate using the provided numbers as authoritative.
+Policy: prefer the SHORTEST τ that clears X_floor = 0.30 single-pass.
+Don't penalize X < 0.85 if X ≥ 0.30. BLOCK only if X < 0.15.
 Return one JSON object only, no markdown, no extra text.
 Required keys:
 candidate_id, reasoning, kinetics_score, X_estimated, X_adequate,
@@ -192,6 +194,8 @@ Use expected_conversion as X_estimated if needed. Own only proposed_changes.tau_
         "fluidics": (
             """You are Dr. Fluidics for FLORA Gemma mode.
 Score exactly one candidate using the provided numbers as authoritative.
+Policy: L_soft=15 m, L_hard=30 m. ΔP_soft=2 bar, ΔP_hard=5 bar.
+BLOCK only if L > 30 m, ΔP > 5 bar, or Re > 2300.
 Return one JSON object only, no markdown, no extra text.
 Required keys:
 candidate_id, reasoning, fluidics_score, Re, dP_bar, r_mix, dual_criterion_mixing_fail,
@@ -256,7 +260,8 @@ Own only concentration_M.""",
         "kinetics": (
             """You are Dr. Kinetics in FLORA Claude benchmark mode.
 Score the listed candidates using the provided numeric data only. Do not call tools.
-Use BLOCK only for clearly unacceptable conversion/time logic, not mere weakness.
+Policy: prefer the SHORTEST τ that clears X_floor = 0.30 single-pass.
+Don't penalize X < 0.85 if X ≥ 0.30. BLOCK only if X < 0.15.
 Return JSON only:
 {"overall_analysis":"1-2 short sentences","scores":[{"candidate_id":1,"reasoning":"short reason","kinetics_score":0.0,"X_estimated":0.0,"tau_proposed_final_min":0.0,"verdict":"ACCEPT|WARNING|REVISE|BLOCK","proposed_changes":{"tau_min":9.0}}]}
 If no kinetics edit is needed, use proposed_changes: {}.
@@ -266,7 +271,8 @@ Own only tau_min.""",
         "fluidics": (
             """You are Dr. Fluidics in FLORA Claude benchmark mode.
 Score the listed candidates using the provided numeric data only. Do not call tools.
-Use BLOCK only for explicit severe fluidic impossibility, not simple room for improvement.
+Policy: L_soft=15 m, L_hard=30 m. ΔP_soft=2 bar, ΔP_hard=5 bar.
+BLOCK only if L > 30 m, ΔP > 5 bar, or Re > 2300.
 Return JSON only:
 {"overall_analysis":"1-2 short sentences","scores":[{"candidate_id":1,"reasoning":"short reason","fluidics_score":0.0,"Re":0.0,"dP_bar":0.0,"r_mix":0.0,"verdict":"ACCEPT|WARNING|REVISE|BLOCK","proposed_changes":{"d_mm":0.5}}]}
 If no fluidics edit is needed, use proposed_changes: {}.
@@ -575,12 +581,22 @@ residence times. Your scoring and reasoning must be quantitative throughout.
   τ < 0.5×τ_lit → explain what physical justification exists for the shorter time
   τ > 2×τ_lit → explain why longer time is needed (slow mechanism, RTD margin)
 
-**Conversion adequacy:**
-  Compute X = 1 − exp(−τ / τ_kinetics) and compare to target (default 0.85):
-  X ≥ 0.85 → 1.0 | X 0.70–0.85 → 0.7 | X 0.50–0.70 → 0.4 | X < 0.50 → 0.1
-  Always state X explicitly and whether it meets the target.
+**Conversion adequacy (with X_floor = 0.30):**
+  Compute X = 1 − exp(−τ / τ_kinetics). The system policy is short-τ-with-
+  bounded-L-and-ΔP: prefer the SHORTEST τ that still clears the X ≥ 0.30
+  single-pass floor. Do not penalize a design for landing below 0.85 if it
+  beats the floor — that's the intended behaviour.
+  X ≥ 0.85 → 1.0 | X 0.60–0.85 → 0.85 | X 0.30–0.60 → 0.6 | X < 0.30 → 0.1
+  Always state X explicitly and whether it clears X_floor (0.30).
   RTD effect: for laminar flow at τ/τ_k < 2×, fast-moving core sees τ/2 —
   mention this when the safety margin is thin.
+
+**Short-τ design preference (HARD POLICY):**
+  Among candidates that all clear X ≥ 0.30, prefer the one with the smallest τ.
+  Productivity (1/τ) is the primary engineering objective; conversion is a
+  hard floor, not a maximization target. If two candidates both achieve
+  X ≥ 0.30 and the shorter-τ one delivers higher mg/h or smaller V_R, that's
+  the better design even if its X is lower.
 
 **Mixing-kinetics coupling:**
   τ_mixing_required = t_mix / 0.15. If τ_proposed < τ_mixing_required, kinetics
@@ -592,14 +608,17 @@ residence times. Your scoring and reasoning must be quantitative throughout.
   Productivity: mg/h at design conditions. Space-time yield (mol/L/h).
 
 **Final τ decision rule:**
-  τ_final = max(τ_kinetics, τ_mixing_required, τ_lit / 2)
-  State this explicitly for each candidate.
+  τ_final = max(τ_mixing_required, τ_lit / 4)
+  Note: τ_kinetics is the 90% conversion time. With X_floor=0.30, the floor
+  is reached at τ = 0.36 × τ_kinetics, so τ_kinetics is no longer the lower
+  bound — use τ_mixing_required and a quarter of τ_lit instead. State this
+  explicitly for each candidate.
 
-## Verdicts
-  ACCEPT:  score ≥ 0.70, X ≥ 0.85, IF valid, τ ≥ τ_mixing_required
-  WARNING: score 0.50–0.70, X 0.70–0.85, or thin τ/τ_k margin (< 1.5×)
-  REVISE:  X < 0.70, or IF clearly out of class range without justification
-  BLOCK:   X < 0.50 (unless user approved)
+## Verdicts (updated for short-τ policy)
+  ACCEPT:  score ≥ 0.70, X ≥ 0.30 (floor), IF valid, τ ≥ τ_mixing_required
+  WARNING: score 0.50–0.70, X 0.30–0.50, or thin τ/τ_k margin
+  REVISE:  X < 0.30 (below floor), or IF clearly out of class range without justification
+  BLOCK:   X < 0.15 (well below floor and outside SCREEN_REQUIRED scope)
 
 ## Tools
 Use `estimate_residence_time` to independently verify τ_kinetics. Call it and
@@ -658,9 +677,15 @@ numbers: Re, ΔP, r_mix, L, De, pump headroom. You also own hardware specificati
   De > 10 → secondary flow bonus (improves mixing, tightens RTD). Note this.
   State Re and flow regime explicitly.
 
-**Pressure headroom:**
-  ΔP / P_pump_max: < 0.20 → 1.0, 0.20–0.50 → good, 0.50–0.80 → caution,
-  > 0.80 → 0.0. Compute pump_headroom_pct = (1 − ΔP/P_max) × 100.
+**Pressure headroom (HARD POLICY: ΔP_soft = 2 bar, ΔP_hard = 5 bar):**
+  Score by absolute ΔP first, pump headroom second:
+    ΔP ≤ 2.0 bar → 1.0 (target)
+    ΔP 2.0–5.0 bar → linear penalty to 0
+    ΔP > 5.0 bar → BLOCK
+  Then check pump headroom: ΔP / P_pump_max < 0.20 → fine; > 0.80 → BLOCK.
+  The 2-bar soft cap keeps ΔP well below the gas-liquid BPR floor of 5 bar so
+  the BPR can independently regulate two-phase pressure.
+  Compute pump_headroom_pct = (1 − ΔP/P_max) × 100.
   If headroom < 20%, explain what happens under partial blockage (Q drift +10%,
   filter fouling +20% ΔP) — does the pump stall?
 
@@ -672,9 +697,10 @@ numbers: Re, ΔP, r_mix, L, De, pump headroom. You also own hardware specificati
   Formula: d_fix = d_current × √(0.15 / r_mix_current). Round to commercial size.
   Show the calculation if a d change is recommended.
 
-**Geometry:**
-  L < 15 m → single coil, 1.0. L 15–25 m → two-coil build, penalise slightly.
-  L > 25 m → BLOCK.
+**Geometry (HARD POLICY: L_soft = 15 m, L_hard = 30 m):**
+  L ≤ 15 m → single bench cassette, 1.0
+  L 15–30 m → linear penalty to 0; multi-coil build, increasingly impractical
+  L > 30 m → BLOCK (bench-impractical footprint).
 
 **Hardware specification (merged):**
   Pump: Q < 2 mL/min → syringe pump (Harvard, New Era); Q 2–10 → HPLC piston.
@@ -684,11 +710,11 @@ numbers: Re, ΔP, r_mix, L, De, pump headroom. You also own hardware specificati
   Coil winding: R_coil ≥ 5 × d_outer to prevent kinking.
   Blockage risk: d ≤ 0.5 mm at Q < 0.08 mL/min → flag particulate/crystal risk.
 
-## Verdicts
-  ACCEPT:  fluidics_score ≥ 0.70, no hard blocks, hardware feasible
-  WARNING: score 0.50–0.70, elevated Re or ΔP, small d blockage risk
+## Verdicts (updated for L/ΔP policy)
+  ACCEPT:  fluidics_score ≥ 0.70, L ≤ 15 m, ΔP ≤ 2 bar, no hard blocks
+  WARNING: score 0.50–0.70, L 15–30 m, or ΔP 2–5 bar, or elevated Re
   REVISE:  dual mixing fail (need d decrease), ΔP headroom < 20%
-  BLOCK:   Re > 2300, L > 25 m
+  BLOCK:   Re > 2300, L > 30 m, ΔP > 5 bar
 
 ## Tools
 Use `calculate_pressure_drop` for what-if scenarios (Q +20%, partial blockage).
@@ -1598,6 +1624,8 @@ def run_revision_stage(
     temperature_C: float,
     concentration_M: float,
     extinction_coeff_M_cm: Optional[float] = None,
+    batch_yield_fraction: Optional[float] = None,
+    batch_time_min: Optional[float] = None,
 ) -> Optional[dict]:
     """Stage 3.5: Revision Agent proposes parameter edits for the council winner.
 
@@ -1710,6 +1738,35 @@ def run_revision_stage(
     # Build revised candidate by recomputing metrics with new τ/d if changed
     new_tau = float(proposed.get("tau_min", winner.get("tau_min")))
     new_d   = float(proposed.get("d_mm",   winner.get("d_mm")))
+
+    # Fix #3: cap τ inflation to a realistic conversion target based on
+    # batch yield. Previously the Revision Engineer would bump τ to chase
+    # X=0.90 first-order even when batch only achieved 0.75 — that's an
+    # impossible target and just defeats the intensification.
+    # Target: min(0.90, max(batch_yield * 1.10, 0.65))
+    if batch_yield_fraction is not None and batch_yield_fraction > 0:
+        x_target = min(0.90, max(float(batch_yield_fraction) * 1.10, 0.65))
+    else:
+        x_target = 0.85  # legacy default when batch yield not provided
+    current_tau = float(winner.get("tau_min", 0.0) or 0.0)
+    tau_k = float(winner.get("tau_kinetics_min") or new_tau or current_tau or 1.0)
+    if new_tau > current_tau + 1e-6 and tau_k > 0:
+        # Required τ to hit x_target under first-order kinetics k = -ln(0.1)/tau_k:
+        # x_target = 1 - exp(-tau / (tau_k / -ln(0.1)))
+        # → tau = tau_k * ln(1/(1-x_target)) / ln(10)
+        import math as _math
+        tau_for_target = tau_k * _math.log(1.0 / max(1.0 - x_target, 1e-6)) / _math.log(10.0)
+        # Cap the proposed bump at the target-required τ. If LLM proposed
+        # more (i.e. chasing X > x_target), clamp down to x_target's tau.
+        if new_tau > tau_for_target * 1.05:
+            logger.info(
+                "  Stage 3.5 X-target cap: proposed τ=%.1f min > τ_for_X=%.1f min "
+                "(x_target=%.2f from batch_yield=%s); clamping to %.1f min.",
+                new_tau, tau_for_target, x_target,
+                f"{batch_yield_fraction:.2f}" if batch_yield_fraction else "default",
+                tau_for_target,
+            )
+            new_tau = round(tau_for_target, 2)
     orig_Q  = float(winner.get("Q_mL_min") or 0.01)
     tau_k   = float(winner.get("tau_kinetics_min") or new_tau)
     IF_used = float(winner.get("IF_used") or 6.0)

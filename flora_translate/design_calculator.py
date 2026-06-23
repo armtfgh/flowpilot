@@ -114,6 +114,58 @@ R_GAS = 8.314  # J/(mol·K) — universal gas constant
 R_GAS_L_BAR = 0.08314  # L·bar/(mol·K)
 T_STP_K = 273.15
 P_STP_BAR = 1.01325
+
+
+def _extract_gas_equiv(chemistry_plan, default: float = 1.0) -> float:
+    """Return the molar equivalents of the gas reagent relative to substrate.
+
+    Priority order:
+      1. ChemistryPlan.stream_logic[gas].molar_equiv (if > 0 and not default 1.0)
+      2. Regex extraction from the gas stream's reasoning/reagent text:
+         e.g. "O2 gas (2.0 equiv)" → 2.0
+      3. The supplied default (typically 1.0 for "stoichiometric").
+    """
+    import re
+
+    if chemistry_plan is None:
+        return default
+    streams = getattr(chemistry_plan, "stream_logic", None) or []
+
+    def _is_gas_stream(s) -> bool:
+        phase = (getattr(s, "phase", "") or "").lower()
+        if phase == "gas":
+            return True
+        joined = " ".join(getattr(s, "reagents", []) or []).lower()
+        # Token-based detection — bare "o2" at boundaries should match
+        for marker in ("o2", "o₂", "oxygen", "h2", "hydrogen", "co2", "cl2", "so2", "o3"):
+            if re.search(rf"(^|[\s\(\[]){re.escape(marker)}([\s\)\]\.,]|$)", joined):
+                return True
+        return False
+
+    gas_streams = [s for s in streams if _is_gas_stream(s)]
+    if not gas_streams:
+        return default
+
+    g = gas_streams[0]
+    # 1) explicit molar_equiv field, only if set to something other than the schema default
+    me = getattr(g, "molar_equiv", None)
+    if me is not None and me > 0 and abs(me - 1.0) > 1e-9:
+        return float(me)
+
+    # 2) regex fallback over reagents + reasoning text
+    text = " ".join(getattr(g, "reagents", []) or []) + " " + (getattr(g, "reasoning", "") or "")
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(?:mol\s*)?equiv", text, re.IGNORECASE)
+    if m:
+        try:
+            v = float(m.group(1))
+            if v > 0:
+                return v
+        except ValueError:
+            pass
+
+    # 3) schema default
+    return float(me) if (me is not None and me > 0) else default
+
 GAS_LIQUID_MIN_BPR_BAR = 5.0
 GAS_LIQUID_ROUTINE_MAX_BPR_BAR = 10.0
 GAS_LIQUID_BPR_MARGIN_BAR = 1.5
@@ -177,6 +229,7 @@ class DesignCalculations:
     intensification_factor: float = 1.0
     tau_analogy_min: float | None = None    # τ from analogy-derived IF
     tau_class_min: float | None = None      # τ from class-level IF
+    tau_kinetics_min: float | None = None   # τ for 90% conversion at intensified rate
     if_analogy: float | None = None         # IF from analogies
     if_class: float | None = None           # IF from class table
     n_analogy_datapoints: int = 0           # how many analogies had batch+flow data
@@ -832,9 +885,24 @@ class DesignCalculator:
                     break
 
         n_substrate_mmol_min = Q_liquid_mL_min * max(calc.concentration_M or 0.1, 1e-9)
-        o2_equiv_required = 1.0 if y_o2 > 0 else 0.0
+        # Honour the protocol-stated equivalents (via ChemistryPlan.stream_logic
+        # molar_equiv, with a regex fallback through the stream reasoning text).
+        # The previous behaviour hardcoded 1.0 × 3.0 supply and silently delivered
+        # 3 equiv regardless of what the batch protocol specified — that's the
+        # bug being fixed here.
+        protocol_o2_equiv = _extract_gas_equiv(chemistry_plan, default=1.0) if y_o2 > 0 else 0.0
+        o2_equiv_required = protocol_o2_equiv
         o2_required = n_substrate_mmol_min * o2_equiv_required
-        supply_factor = 3.0
+        # Supply factor is now a flow-specific safety margin on top of the
+        # protocol equiv, not a hidden 3× scaling of an assumed 1× stoichiometry.
+        # Default 1.0 means "deliver exactly what the protocol specifies".
+        supply_factor = 1.0
+        logger.info(
+            "Gas-supply policy: protocol_equiv=%.2f × supply_factor=%.2f → "
+            "delivered_equiv=%.2f (substrate=%.4f mmol/min)",
+            protocol_o2_equiv, supply_factor, protocol_o2_equiv * supply_factor,
+            n_substrate_mmol_min,
+        )
         if explicit_sccm is not None:
             gas_sccm = explicit_sccm
         elif y_o2 > 0:
@@ -999,6 +1067,45 @@ class DesignCalculator:
         return factors
 
     @staticmethod
+    def _extract_analogy_IFs_with_scores(analogies: list[dict] | None) -> list[tuple[float, float]]:
+        """Extract (IF, similarity_score) pairs aligned with each analogy.
+
+        Used by the quality-weighted geometric mean (Fix B). The similarity
+        score comes from the retriever's `score` field (in [0,1]); low-score
+        analogies get near-zero weight so a single wrong-class match cannot
+        drag down a strong-quality anchor.
+        """
+        if not analogies:
+            return []
+        pairs: list[tuple[float, float]] = []
+        for a in analogies:
+            score = float(a.get("score", 0.0) or 0.0)
+            full = a.get("full_record") or {}
+            if isinstance(full, list):
+                full = full[0] if full else {}
+            tl = full.get("translation_logic") or {}
+            if isinstance(tl, list):
+                tl = tl[0] if tl else {}
+            trf = tl.get("time_reduction_factor")
+            f_value: float = 0.0
+            if trf and float(trf) > 0:
+                f_value = float(trf)
+            else:
+                bb = full.get("batch_baseline") or {}
+                fo = full.get("flow_optimized") or {}
+                if isinstance(bb, list):
+                    bb = bb[0] if bb else {}
+                if isinstance(fo, list):
+                    fo = fo[0] if fo else {}
+                bt = bb.get("reaction_time_min")
+                ft = fo.get("residence_time_min")
+                if bt and ft and float(bt) > 0 and float(ft) > 0:
+                    f_value = float(bt) / float(ft)
+            if f_value > 0:
+                pairs.append((f_value, score))
+        return pairs
+
+    @staticmethod
     def _floor_analogy_IFs(factors: list[float]) -> list[float]:
         """Prevent literature extraction artifacts from de-intensifying flow designs."""
         return [max(1.0, float(f)) for f in factors if f and float(f) > 0]
@@ -1007,6 +1114,51 @@ class DesignCalculator:
     def _extract_analogy_IFs(cls, analogies: list[dict] | None) -> list[float]:
         """Extract analogy IFs and floor sub-unity values to no intensification."""
         return cls._floor_analogy_IFs(cls._extract_raw_analogy_IFs(analogies))
+
+    @staticmethod
+    def _quality_weighted_analogy_IF(
+        pairs: list[tuple[float, float]],
+        score_floor: float = 0.4,
+        score_ceiling: float = 0.9,
+    ) -> tuple[float | None, float]:
+        """Quality-weighted geometric mean of analogy IFs (Fix B).
+
+        Weight for analogy with similarity score s ∈ [0, 1]:
+            w = clamp((s - score_floor) / (score_ceiling - score_floor), 0, 1)
+
+        At s ≤ 0.4 weight is 0 (effectively excluded — wrong reaction class).
+        At s ≥ 0.9 weight is 1.
+        Sub-unity IF values are no longer floored to 1.0; instead they are
+        kept if the analogy is high-quality (because a high-quality literature
+        record saying "flow ran 30 min for a 25 min batch" is real data, not
+        a parsing artifact) and dropped only if the analogy quality is weak.
+
+        Returns (IF_weighted, mean_weight). mean_weight reports the aggregate
+        confidence in the analogy anchor; downstream uses it to decide
+        whether to lean on this anchor or fall back to class default.
+        """
+        if not pairs:
+            return None, 0.0
+        import math as _math
+        weights: list[float] = []
+        log_values: list[float] = []
+        for f_value, score in pairs:
+            if f_value <= 0:
+                continue
+            span = max(score_ceiling - score_floor, 1e-6)
+            w = max(0.0, min(1.0, (score - score_floor) / span))
+            # Sub-unity IFs (de-intensified) only count if analogy is strong.
+            if f_value < 1.0 and w < 0.6:
+                continue
+            if w <= 0:
+                continue
+            weights.append(w)
+            log_values.append(_math.log(max(f_value, 1e-6)))
+        if not weights:
+            return None, 0.0
+        total_w = sum(weights)
+        log_mean = sum(w * lv for w, lv in zip(weights, log_values)) / total_w
+        return _math.exp(log_mean), total_w / max(len(pairs), 1)
 
     def _step2(self, calc: DesignCalculations, br, chem_plan,
                analogies=None, T_flow_C=None):
@@ -1023,36 +1175,66 @@ class DesignCalculator:
         IF_class = INTENSIFICATION.get(chem_type, INTENSIFICATION["default"])
         calc.if_class = IF_class
 
-        # ── Analogy-derived IF ──────────────────────────────────────────
+        # ── Analogy-derived IF (quality-weighted; Fix B) ────────────────
         raw_analogy_factors = self._extract_raw_analogy_IFs(analogies)
         analogy_factors = self._floor_analogy_IFs(raw_analogy_factors)
         n_analogy = len(analogy_factors)
         calc.n_analogy_datapoints = n_analogy
         if any(float(f) < 1.0 for f in raw_analogy_factors):
             warnings.append(
-                "One or more analogy IF values were below 1.0 and were floored to 1.0 "
-                "to prevent extracted literature records from de-intensifying the flow design."
+                "One or more analogy IF values were below 1.0; quality-weighted "
+                "aggregation retains them only when analogy similarity score is high."
             )
 
-        IF_analogy = None
+        pairs_with_scores = self._extract_analogy_IFs_with_scores(analogies)
+        IF_analogy_weighted, analogy_confidence = self._quality_weighted_analogy_IF(pairs_with_scores)
+        # Keep the legacy median for the un-weighted view (still logged for audit)
+        IF_analogy_median = None
         if n_analogy >= 1:
             import statistics
-            IF_analogy = statistics.median(analogy_factors)
+            IF_analogy_median = statistics.median(analogy_factors)
+        # Prefer the quality-weighted value when at least one analogy was
+        # strong enough to register a non-zero weight.
+        if IF_analogy_weighted is not None and analogy_confidence > 0:
+            IF_analogy = IF_analogy_weighted
+        else:
+            IF_analogy = IF_analogy_median
+        if IF_analogy is not None:
             calc.if_analogy = round(IF_analogy, 1)
 
-        # ── Choose primary IF ───────────────────────────────────────────
-        # Prefer analogy IF when we have ≥ 2 data points (more reliable).
-        # With 1 data point, average analogy and class.
-        # With 0, fall back to class.
-        if n_analogy >= 2:
-            IF_primary = IF_analogy
-            method = "analogy"
-        elif n_analogy == 1:
-            IF_primary = (IF_analogy + IF_class) / 2
-            method = "analogy+class"
-        else:
-            IF_primary = IF_class
-            method = "class"
+        # ── Limitation-driven IF (Fix A — read from chemistry plan) ─────
+        # The IntensificationMandate now carries a target derived from the
+        # batch's rate-limiting bottleneck. Use it as a third independent
+        # anchor: a 15-h aerobic photo-ox with mass-transfer + photon
+        # limits CANNOT be merely-2x intensifiable.
+        IF_limitation = 0.0
+        limitations = []
+        if chem_plan is not None:
+            try:
+                mandate = getattr(chem_plan, "intensification_mandate", None)
+                if mandate and mandate.tau_reduction_target:
+                    IF_limitation = float(mandate.tau_reduction_target)
+                limitations = list(getattr(chem_plan, "batch_limitations", []) or [])
+            except (AttributeError, TypeError, ValueError):
+                pass
+
+        # ── Choose primary IF (take MAX of justified anchors) ───────────
+        # Each anchor is a *lower bound* on intensification potential
+        # supported by a different line of reasoning. Use the strongest
+        # justification — under-intensifying a long mass-transfer-limited
+        # batch is a known failure mode of the previous averaging logic.
+        anchors: list[tuple[float, str]] = [(IF_class, "class")]
+        if IF_analogy and IF_analogy > 0 and analogy_confidence > 0.3:
+            anchors.append((IF_analogy, "analogy_weighted"))
+        elif IF_analogy and IF_analogy > 0:
+            # Low-confidence analogies still count as a soft signal — blend
+            # with class default instead of trusting fully.
+            anchors.append(((IF_analogy + IF_class) / 2.0, "analogy_blended"))
+        if IF_limitation > 0:
+            anchors.append((IF_limitation, "limitation_driven"))
+        IF_primary, method = max(anchors, key=lambda pair: pair[0])
+        if limitations:
+            method = f"{method} ({','.join(limitations)})"
 
         calc.intensification_factor = round(IF_primary, 1)
 
@@ -1132,6 +1314,18 @@ class DesignCalculator:
         calc.kinetics_method = method
         calc.residence_time_s = tau_primary_s
         calc.residence_time_min = round(tau_primary_min, 2)
+        # Fix #2: propagate the limitation-driven IF to the kinetic anchor.
+        # Without this, downstream agents read calc.tau_kinetics_min and see
+        # the old batch-derived value (e.g. 150 min for THQ) and try to
+        # "rescue" candidates by inflating tau — defeating the whole point
+        # of the limitation-driven intensification target.
+        # tau_kinetics_min = τ at which first-order conversion reaches 90%
+        # under the intensified rate constant k_flow.
+        if k_flow > 0:
+            tau_kinetics_s = (-math.log(0.10) / k_flow)
+            calc.tau_kinetics_min = round(tau_kinetics_s / 60.0, 2)
+        else:
+            calc.tau_kinetics_min = round(tau_primary_min, 2)
 
         # ── Compute range from all methods ──────────────────────────────
         all_tau = [tau_class_min]
@@ -1396,13 +1590,18 @@ class DesignCalculator:
             elif is_gas_liquid and dP_bar > GAS_LIQUID_MAX_ROUTINE_DELTA_P_BAR:
                 ratio = (dP_bar / max(GAS_LIQUID_MAX_ROUTINE_DELTA_P_BAR * 0.75, 1e-9)) ** 0.25
                 d_new_mm = max(math.ceil(d_mm * ratio * 10) / 10, d_mm + 0.1)
+                # For gas-liquid photochemistry the practical d ceiling is
+                # 1.6 mm — slug-flow geometry tolerates this and Beer-Lambert
+                # penetration is still adequate. Sub-mm IDs become infeasible
+                # at typical gas flow rates because gas holdup forces liquid
+                # into a small effective cross-section.
                 if is_photochem:
-                    d_new_mm = min(d_new_mm, 1.0)
+                    d_new_mm = min(d_new_mm, 1.6)
                 if d_new_mm <= d_mm + 1e-9:
                     adj_5.append(
                         f"Gas-liquid ΔP = {dP_bar:.2f} bar would require "
                         f"BPR > {GAS_LIQUID_ROUTINE_MAX_BPR_BAR:.0f} bar; "
-                        "ID already at photochemical upper bound"
+                        "ID already at gas-liquid photochemical upper bound (1.6 mm)"
                     )
                     break
                 adj_5.append(
@@ -1576,7 +1775,22 @@ class DesignCalculator:
             w5.append(
                 f"ΔP is {100-margin:.0f}% of pump capacity — limited headroom"
             )
-        s5 = ("FAIL" if dP_bar > pump_max
+        # Gas-liquid hardware ceiling: routine BPRs cap around 10 bar, so the
+        # liquid-side ΔP budget is ~8.5 bar before the BPR cannot maintain
+        # the gas-liquid front. Even if the rescue loop couldn't widen ID
+        # any further, surface this as a FAIL so the council sees the
+        # downstream sizing problem.
+        gas_liquid_dp_breach = (
+            getattr(calc, "is_gas_liquid", False)
+            and dP_bar > GAS_LIQUID_MAX_ROUTINE_DELTA_P_BAR
+        )
+        if gas_liquid_dp_breach:
+            w5.append(
+                f"Gas-liquid ΔP = {dP_bar:.2f} bar > {GAS_LIQUID_MAX_ROUTINE_DELTA_P_BAR:.1f} bar "
+                f"(routine BPR ceiling minus {GAS_LIQUID_BPR_MARGIN_BAR:.1f} bar margin) — "
+                f"ID already at gas-liquid photochemical ceiling; council must reduce τ or Q"
+            )
+        s5 = ("FAIL" if (dP_bar > pump_max or gas_liquid_dp_breach)
                else "ADJUSTED" if adj_5
                else "WARNING" if w5
                else "PASS")
@@ -1992,7 +2206,19 @@ class DesignCalculator:
         Y_frac = min(max((Y_pct / 100.0) if Y_pct else X, 0.01), 0.9999)
 
         if n_batch_mmol and n_batch_mmol > 0 and t_batch_h_val and t_batch_h_val > 0:
-            # P_batch = (n_batch × Y) / t_batch  [mmol/h]
+            # Fix #6: ṅ_limiting and C_reactor must reflect the FLOW design
+            # intent, not the batch's mass-throughput rate. The previous
+            # formulation set ṅ_lim = P_batch/(Y·60), which for a 0.2 mmol /
+            # 15 h batch yields ṅ_lim ≈ 0.0002 mmol/min — meaningless for
+            # any flow process. The Chief Engineer downstream then derived
+            # pump rates from that tiny ṅ_lim, producing a fake 0.003 M
+            # reactor concentration after volumetric renormalisation.
+            #
+            # Correct formulation for a single-feed PFR:
+            #   ṅ_limiting_flow = Q_total × C_inlet   [mmol/min when C in M, Q in mL/min]
+            #   C_reactor = C_inlet                    (PFR has no mixing dilution at inlet)
+            #
+            # Batch baseline is still reported (P_batch) as a comparison point.
             P_batch = (n_batch_mmol * Y_frac) / t_batch_h_val
             calc.P_batch_mmol_h = round(P_batch, 3)
             equations.append(
@@ -2003,34 +2229,31 @@ class DesignCalculator:
                 rf" = {P_batch:.2f}\;\mathrm{{mmol/h}}"
             )
 
-            # ṅ_limiting = P_batch / (Y × 60)  [mmol/min]
-            n_lim = P_batch / (Y_frac * 60.0)
-            calc.n_molar_flow_mmol_min = round(n_lim, 4)
-            equations.append(
-                rf"\dot{{n}}_{{\mathrm{{lim}}}} = \frac{{P_{{\mathrm{{batch}}}}}}{{Y \cdot 60}}"
-                rf" = \frac{{{P_batch:.2f}}}{{{Y_frac:.2f} \times 60}}"
-                rf" = {n_lim:.4f}\;\mathrm{{mmol/min}}"
-            )
-
-            # C_reactor = ṅ_limiting / Q_total  [mmol/mL = mol/L = M]
-            if Q > 0:
-                C_rxr = n_lim / Q
-                calc.C_reactor_M = round(C_rxr, 4)
+            # Flow-side molar flow at reactor inlet
+            if Q > 0 and C0 > 0:
+                n_lim = Q * C0  # mL/min × mol/L = mmol/min
+                calc.n_molar_flow_mmol_min = round(n_lim, 4)
                 equations.append(
-                    rf"C_{{\mathrm{{reactor}}}} = \frac{{\dot{{n}}_{{\mathrm{{lim}}}}}}"
-                    rf"{{Q_{{\mathrm{{total}}}}}}"
-                    rf" = \frac{{{n_lim:.4f}}}{{{Q:.4f}}}"
-                    rf" = {C_rxr:.4f}\;\mathrm{{M}}"
+                    rf"\dot{{n}}_{{\mathrm{{lim,flow}}}} = Q_{{\mathrm{{total}}}} \cdot C_0"
+                    rf" = {Q:.4f}\;\mathrm{{mL/min}} \times {C0:.3f}\;\mathrm{{M}}"
+                    rf" = {n_lim:.4f}\;\mathrm{{mmol/min}}"
                 )
-
-            # P_flow = ṅ_limiting × Y × 60  [mmol/h]
-            P_flow = n_lim * Y_frac * 60.0
-            calc.P_flow_mmol_h = round(P_flow, 3)
-            equations.append(
-                rf"P_{{\mathrm{{flow}}}} = \dot{{n}}_{{\mathrm{{lim}}}} \cdot Y \cdot 60"
-                rf" = {n_lim:.4f} \times {Y_frac:.2f} \times 60"
-                rf" = {P_flow:.2f}\;\mathrm{{mmol/h}}"
-            )
+                # In a PFR with a single liquid feed, C at reactor inlet equals
+                # C of that feed. Multi-feed cases are handled by the topology
+                # builder; here we keep the deterministic single-stream view.
+                calc.C_reactor_M = round(C0, 4)
+                equations.append(
+                    rf"C_{{\mathrm{{reactor,inlet}}}} = C_0 = {C0:.4f}\;\mathrm{{M}}"
+                    rf"\quad (\text{{single-feed PFR; no dilution at inlet}})"
+                )
+                # P_flow uses the corrected molar flow.
+                P_flow = n_lim * Y_frac * 60.0
+                calc.P_flow_mmol_h = round(P_flow, 3)
+                equations.append(
+                    rf"P_{{\mathrm{{flow}}}} = \dot{{n}}_{{\mathrm{{lim,flow}}}} \cdot Y \cdot 60"
+                    rf" = {n_lim:.4f} \times {Y_frac:.2f} \times 60"
+                    rf" = {P_flow:.2f}\;\mathrm{{mmol/h}}"
+                )
 
             # Productivity closure check
             calc.productivity_closure_ok = P_flow >= P_batch * 0.95

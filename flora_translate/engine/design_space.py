@@ -1,87 +1,114 @@
 """
 FLORA ENGINE — Design Space Grid Search.
 
-Runs BEFORE the council. Enumerates (τ, d, Q) combinations:
-  τ values : [τ_lit/2, τ_center×0.75, τ_center, τ_center×1.25, τ_center×1.5]
-             plus τ_lit itself if τ_lit > τ_center
-  d values : commercial FEP/PFA sizes filtered by photochem constraint
-  Q per (τ,d): at L fractions [0.3, 0.5, 0.7, 0.9] × L_MAX_BENCH_M
+Runs BEFORE the council. Enumerates (τ, d, Q) combinations and computes metrics
+using the SAME deterministic functions the Designer/Council use downstream
+(`flora_translate.engine.sampling.compute_metrics` and `hard_filter`). This
+guarantees Design Space and Council Designer agree about feasibility for the
+same point — without this unification, design space could pass a candidate
+that the Council's hard-gate then rejects (and silently bypasses the council).
 
-Hard filters (violators get score=0, excluded from table):
-  - L ≤ L_MAX_BENCH_M = 20 m
-  - V_R ≤ V_MAX_SINGLE_REACTOR_ML = 25 mL
-  - Re < 2300
-  - ΔP < 0.8 × pump_max
-  - Q ≥ 0.01 mL/min (syringe pump floor)
-  - For photochem: d ≤ 1.0 mm (Beer-Lambert constraint at typical ε)
+τ values : [τ_lit/2, τ_center×0.75, τ_center, τ_center×1.25, τ_center×1.5]
+           plus τ_lit itself if τ_lit > τ_center
+d values : commercial FEP/PFA sizes from `choose_d_set` (photochem + gas-liquid
+           aware — gas-liquid photochem allows up to 1.6 mm because gas holdup
+           makes sub-mm IDs impractical at the required gas flow).
+Q per (τ,d): at L fractions [0.5, 0.65, 0.8, 0.9] × L_MAX_BENCH_M
+
+Hard filter logic lives in sampling.py::hard_filter — DO NOT inline duplicated
+checks here. If a check belongs at design-space stage, add it there too.
 
 Soft scoring (0–1, weighted sum):
-  productivity_score = Productivity_mg_h / max(Productivity_mg_h) — normalized
-  L_score = 1 − L_m / L_MAX
+  productivity_score = Productivity_mg_h / max(Productivity_mg_h) — normalized.
+                       Zeroed below the X_FLOOR (conversion floor) so very-short-τ
+                       low-conversion candidates can't win on productivity alone.
+  L_score   = full credit ≤15 m, linear penalty to 0 at 30 m (matches sampling L cap)
+  dP_score  = full credit ≤2 bar, linear penalty to 0 at 5 bar (matches sampling ΔP cap)
   mixing_score = 1 − min(r_mix / 0.20, 1.0)
   re_score = 1 − Re / 2300
   conversion_score = expected_conversion (X = 1 − exp(−τ/τ_kinetics))
 
 Weights by reaction class:
-  photoredox: productivity=0.25, L=0.30, mixing=0.25, re=0.05, conversion=0.15
-  thermal:    productivity=0.40, L=0.25, mixing=0.20, re=0.05, conversion=0.10
-  default:    productivity=0.30, L=0.30, mixing=0.20, re=0.05, conversion=0.15
+  photoredox/photocatalysis/photochem: productivity=0.50, L=0.20, mixing=0.10, re=0.05, conversion=0.10, dP=0.05
+  thermal:                              productivity=0.55, L=0.15, mixing=0.15, re=0.05, conversion=0.10
+  default:                              productivity=0.50, L=0.15, mixing=0.20, re=0.05, conversion=0.10
 """
 
 from __future__ import annotations
 import math
 from dataclasses import dataclass, field
+from typing import Optional
 
 import flora_translate.config as cfg
+from flora_translate.engine.sampling import (
+    compute_metrics,
+    hard_filter,
+    choose_d_set,
+    L_MAX_BENCH_M,
+    V_MAX_SINGLE_REACTOR_ML,
+    Q_MIN_ML_MIN,
+)
 
 PI = math.pi
-L_MAX_BENCH_M = 20.0
-V_MAX_SINGLE_REACTOR_ML = 25.0
-# Practical syringe pump floor: 0.05 mL/min avoids runs of >200 min per 10 mL syringe
-Q_MIN_ML_MIN = 0.05
-D_MOLECULAR = 1.0e-9  # m²/s
-STANDARD_D_PHOTOCHEM = [0.50, 0.75, 1.00]          # mm — Beer-Lambert limited
-STANDARD_D_NOPHOTO   = [0.75, 1.00, 1.60]          # mm
 # L fractions: stay in the 10–20 m range — avoids both extremes
 # 0.5 → 10 m (compact, easy to handle), 0.9 → 18 m (near limit, more volume)
-L_FRACTIONS          = [0.50, 0.65, 0.80, 0.90]    # fraction of L_MAX
+L_FRACTIONS = [0.50, 0.65, 0.80, 0.90]
 
-# Score weights: productivity is the primary objective — L is a constraint
-# that's already satisfied by the hard filter. Rewarding shorter L beyond
-# what's needed just selects impractically low Q.
-# L_score uses a soft step: 1.0 for L ≤ 15 m, degrades linearly toward 0
-# only for L ∈ [15, 20] m. This prevents the optimizer from choosing
-# Q = 0.01 mL/min just because it gives L = 4 m.
+# Score weights: short-τ-with-bounded-L-and-ΔP design philosophy.
+# Productivity (1/τ) is the primary objective. L and ΔP get explicit soft
+# penalties; the corresponding hard caps live in sampling.py::hard_filter.
+# The X_FLOOR mechanism (below) prevents the productivity reward from picking
+# very-short-τ candidates with non-credible conversion per pass.
 SCORE_WEIGHTS = {
-    "photoredox":    {"productivity": 0.50, "L": 0.15, "mixing": 0.25, "re": 0.05, "conversion": 0.05},
-    "photocatalysis":{"productivity": 0.50, "L": 0.15, "mixing": 0.25, "re": 0.05, "conversion": 0.05},
-    "photochem":     {"productivity": 0.50, "L": 0.15, "mixing": 0.25, "re": 0.05, "conversion": 0.05},
-    "thermal":       {"productivity": 0.55, "L": 0.15, "mixing": 0.15, "re": 0.05, "conversion": 0.10},
-    "default":       {"productivity": 0.50, "L": 0.15, "mixing": 0.20, "re": 0.05, "conversion": 0.10},
+    "photoredox":     {"productivity": 0.50, "L": 0.20, "mixing": 0.10, "re": 0.05, "conversion": 0.10, "dP": 0.05},
+    "photocatalysis": {"productivity": 0.50, "L": 0.20, "mixing": 0.10, "re": 0.05, "conversion": 0.10, "dP": 0.05},
+    "photochem":      {"productivity": 0.50, "L": 0.20, "mixing": 0.10, "re": 0.05, "conversion": 0.10, "dP": 0.05},
+    "thermal":        {"productivity": 0.55, "L": 0.15, "mixing": 0.15, "re": 0.05, "conversion": 0.10},
+    "default":        {"productivity": 0.50, "L": 0.15, "mixing": 0.20, "re": 0.05, "conversion": 0.10},
 }
+
+# Conversion floor: below this single-pass X, productivity reward is zeroed.
+# This prevents the design space from picking a τ so short the chemistry can't
+# do useful work per pass just because (1/τ) is huge.
+X_FLOOR = 0.30
 
 
 def _l_score(L_m: float) -> float:
-    """Non-linear L score: full marks up to 15 m, then linear penalty to 20 m.
-    L is already guaranteed ≤ L_MAX by the hard filter, so this only matters
-    in the 15–20 m zone where lab assembly becomes more difficult.
+    """L soft penalty: full credit ≤15 m, linear penalty to 0 at 30 m.
+
+    Matches the L_MAX_BENCH_M=30 m hard cap in sampling.py. The 15-m soft
+    knee corresponds to a single bench-cassette coil; 15–30 m needs a
+    multi-coil arrangement and is increasingly impractical.
     """
     if L_m <= 15.0:
         return 1.0
-    return max(0.0, 1.0 - (L_m - 15.0) / 5.0)
+    return max(0.0, 1.0 - (L_m - 15.0) / 15.0)
+
+
+def _dp_score(dP_bar: float) -> float:
+    """ΔP soft penalty: full credit ≤2 bar, linear penalty to 0 at 5 bar.
+
+    Matches the DELTA_P_MAX_BAR=5 bar hard cap in sampling.py. The 2-bar soft
+    knee keeps ΔP well below the gas-liquid BPR floor (5 bar) so the BPR can
+    independently regulate two-phase pressure.
+    """
+    if dP_bar <= 2.0:
+        return 1.0
+    return max(0.0, 1.0 - (dP_bar - 2.0) / 3.0)
 
 
 @dataclass
 class DesignPoint:
     # Inputs
-    tau_min: float          # residence time (min)
-    d_mm: float             # tubing ID (mm)
-    Q_mL_min: float         # flow rate (mL/min)
-    L_fraction: float       # fraction of L_max used (0.3–0.9)
+    tau_min: float
+    d_mm: float
+    Q_mL_min: float
+    L_fraction: float
 
     # Derived geometry
     V_R_mL: float = 0.0
     L_m: float = 0.0
+    liquid_holdup_volume_mL: float = 0.0   # tau*Q for gas-liquid; equals V_R otherwise
 
     # Fluid dynamics
     Re: float = 0.0
@@ -94,13 +121,20 @@ class DesignPoint:
 
     # Kinetics
     expected_conversion: float = 0.0
-    tau_kinetics_min: float = 0.0   # τ that achieves 90% conversion
+    tau_kinetics_min: float = 0.0
     IF_used: float = 1.0
 
     # Process metrics
     STY_mol_L_h: float = 0.0
     productivity_mg_h: float = 0.0
-    assumed_MW: float = 250.0  # g/mol default
+    assumed_MW: float = 250.0
+
+    # Gas-liquid bookkeeping (zero for liquid-only)
+    is_gas_liquid: bool = False
+    gas_holdup: float = 0.0
+    gas_flow_actual_mL_min: float = 0.0
+    two_phase_multiplier: float = 1.0
+    required_bpr_bar: float = 0.0
 
     # Score
     score: float = 0.0
@@ -112,18 +146,66 @@ class DesignPoint:
     warnings: list = field(default_factory=list)
 
     # Metadata
-    tau_source: str = ""  # "center", "center×0.75", "τ_lit/2", etc.
-    is_council_candidate: bool = False   # True for the top candidate passed to council
+    tau_source: str = ""
+    is_council_candidate: bool = False
+
+
+def _metrics_to_point(
+    m: dict,
+    *,
+    tau_source: str,
+    L_fraction: float,
+    is_gas_liquid: bool,
+    feasible: bool,
+    violations: list,
+    warnings: list,
+) -> DesignPoint:
+    """Map a metric dict from sampling.compute_metrics into a DesignPoint."""
+    return DesignPoint(
+        tau_min=float(m["tau_min"]),
+        d_mm=float(m["d_mm"]),
+        Q_mL_min=float(m["Q_mL_min"]),
+        L_fraction=L_fraction,
+        V_R_mL=float(m["V_R_mL"]),
+        L_m=float(m["L_m"]),
+        liquid_holdup_volume_mL=float(m.get("liquid_holdup_volume_mL", m["V_R_mL"])),
+        Re=float(m["Re"]),
+        delta_P_bar=float(m["delta_P_bar"]),
+        t_mix_s=float(m["t_mix_s"]),
+        r_mix=float(m["r_mix"]),
+        Da_mass=float(m["Da_mass"]),
+        expected_conversion=float(m["expected_conversion"]),
+        tau_kinetics_min=float(m["tau_kinetics_min"]),
+        IF_used=float(m["IF_used"]),
+        STY_mol_L_h=float(m["STY_mol_L_h"]),
+        productivity_mg_h=float(m["productivity_mg_h"]),
+        assumed_MW=float(m["assumed_MW"]),
+        is_gas_liquid=is_gas_liquid,
+        gas_holdup=float(m.get("gas_holdup", 0.0) or 0.0),
+        gas_flow_actual_mL_min=float(m.get("gas_flow_actual_mL_min", 0.0) or 0.0),
+        two_phase_multiplier=float(m.get("two_phase_multiplier", 1.0) or 1.0),
+        required_bpr_bar=float(m.get("required_bpr_bar", 0.0) or 0.0),
+        feasible=feasible,
+        violations=list(violations),
+        warnings=list(warnings),
+        tau_source=tau_source,
+    )
 
 
 class DesignSpaceSearch:
-    """Grid search over (τ, d, Q) combinations before the council."""
+    """Grid search over (τ, d, Q) combinations before the council.
+
+    Uses `flora_translate.engine.sampling.compute_metrics` and `hard_filter`
+    as the single source of truth for metrics and feasibility. This ensures
+    Design Space and the Council's Designer cannot disagree about whether
+    a candidate is feasible.
+    """
 
     def run(
         self,
         batch_record,
         chemistry_plan=None,
-        calculations=None,    # DesignCalculations from initial calc run
+        calculations=None,
         inventory=None,
         reaction_class: str = "default",
     ) -> list[DesignPoint]:
@@ -131,27 +213,20 @@ class DesignSpaceSearch:
 
         Returns the full list (feasible + infeasible), sorted by score desc.
         """
-        # ── 1. Get τ_center and τ_lit ─────────────────────────────────────
-        tau_center = 30.0  # fallback
+        # ── τ_center and τ_lit ────────────────────────────────────────────
+        tau_center = 30.0
         if calculations is not None:
             try:
                 tau_center = float(calculations.residence_time_min or 30.0)
             except (TypeError, AttributeError):
                 tau_center = 30.0
 
-        tau_lit = None
+        tau_lit: Optional[float] = None
         if calculations is not None:
-            try:
-                tau_lit = calculations.tau_analogy_min
-            except AttributeError:
-                tau_lit = None
-            if not tau_lit:
-                try:
-                    tau_lit = calculations.tau_class_min
-                except AttributeError:
-                    tau_lit = None
+            tau_lit = getattr(calculations, "tau_analogy_min", None) or \
+                      getattr(calculations, "tau_class_min", None)
 
-        # ── 2. Build τ_values ─────────────────────────────────────────────
+        # ── Build τ_values ────────────────────────────────────────────────
         tau_candidates = [
             tau_center * 0.75,
             tau_center,
@@ -163,32 +238,31 @@ class DesignSpaceSearch:
             if tau_lit > tau_center:
                 tau_candidates.append(tau_lit)
 
-        # Deduplicate, round to 1 decimal, filter minimum 5 min
-        seen = set()
-        tau_values = []
-        tau_sources = {}
+        seen: set[float] = set()
+        tau_values: list[float] = []
+        tau_sources: dict[float, str] = {}
         for t in tau_candidates:
             t_r = round(t, 1)
             if t_r < 5.0:
                 t_r = 5.0
-            if t_r not in seen:
-                seen.add(t_r)
-                tau_values.append(t_r)
-                # Assign source label
-                if abs(t - tau_center) < 0.01:
-                    tau_sources[t_r] = "center"
-                elif abs(t - tau_center * 0.75) < 0.01:
-                    tau_sources[t_r] = "center×0.75"
-                elif abs(t - tau_center * 1.25) < 0.01:
-                    tau_sources[t_r] = "center×1.25"
-                elif abs(t - tau_center * 1.50) < 0.01:
-                    tau_sources[t_r] = "center×1.50"
-                elif tau_lit and abs(t - tau_lit / 2.0) < 0.01:
-                    tau_sources[t_r] = "τ_lit/2"
-                elif tau_lit and abs(t - tau_lit) < 0.01:
-                    tau_sources[t_r] = "τ_lit"
-                else:
-                    tau_sources[t_r] = "derived"
+            if t_r in seen:
+                continue
+            seen.add(t_r)
+            tau_values.append(t_r)
+            if abs(t - tau_center) < 0.01:
+                tau_sources[t_r] = "center"
+            elif abs(t - tau_center * 0.75) < 0.01:
+                tau_sources[t_r] = "center×0.75"
+            elif abs(t - tau_center * 1.25) < 0.01:
+                tau_sources[t_r] = "center×1.25"
+            elif abs(t - tau_center * 1.50) < 0.01:
+                tau_sources[t_r] = "center×1.50"
+            elif tau_lit and abs(t - tau_lit / 2.0) < 0.01:
+                tau_sources[t_r] = "τ_lit/2"
+            elif tau_lit and abs(t - tau_lit) < 0.01:
+                tau_sources[t_r] = "τ_lit"
+            else:
+                tau_sources[t_r] = "derived"
 
         tau_values.sort()
         batch_time_min = 0.0
@@ -197,7 +271,7 @@ class DesignSpaceSearch:
                 batch_time_min = float((batch_record.reaction_time_h or 0.0) * 60.0)
             except AttributeError:
                 batch_time_min = 0.0
-        max_tau_min = None
+        max_tau_min: Optional[float] = None
         if (
             (getattr(cfg, "FLOW_TRANSLATION_POLICY", "intensify") or "intensify").lower() == "intensify"
             and batch_time_min > 0
@@ -208,79 +282,73 @@ class DesignSpaceSearch:
                 tau_values = [round(max_tau_min, 1)]
                 tau_sources[tau_values[0]] = "batch_ceiling"
 
-        # ── 3. Detect photochem ───────────────────────────────────────────
+        # ── Photochem detection ───────────────────────────────────────────
         is_photochem = False
         if chemistry_plan is not None:
-            try:
-                rc = (chemistry_plan.reaction_class or "").lower()
-                if any(x in rc for x in ("photo", "redox", "photocatalysis")):
-                    is_photochem = True
-            except AttributeError:
-                pass
-            try:
-                wl = chemistry_plan.wavelength_nm
-                if wl and wl > 0:
-                    is_photochem = True
-            except AttributeError:
-                pass
+            rc = (getattr(chemistry_plan, "reaction_class", "") or "").lower()
+            if any(x in rc for x in ("photo", "redox", "photocatalysis")):
+                is_photochem = True
+            wl = getattr(chemistry_plan, "recommended_wavelength_nm", None)
+            if wl and wl > 0:
+                is_photochem = True
         if batch_record is not None and not is_photochem:
-            try:
-                wl_br = batch_record.wavelength_nm
-                if wl_br and wl_br > 0:
-                    is_photochem = True
-            except AttributeError:
-                pass
+            wl_br = getattr(batch_record, "wavelength_nm", None)
+            if wl_br and wl_br > 0:
+                is_photochem = True
 
-        # ── 4. Choose d_values ────────────────────────────────────────────
-        d_values = STANDARD_D_PHOTOCHEM if is_photochem else STANDARD_D_NOPHOTO
+        # ── Gas-liquid detection ──────────────────────────────────────────
+        # Critical: design_space MUST be gas-liquid-aware so it shares the
+        # same two-phase ΔP and BPR floor logic as the Council Designer.
+        # Otherwise design_space passes points the Council immediately rejects,
+        # causing the council to be silently skipped via the "no survivors"
+        # fallback path.
+        is_gas_liquid = bool(getattr(calculations, "is_gas_liquid", False))
+        if not is_gas_liquid and chemistry_plan is not None:
+            for stream in getattr(chemistry_plan, "stream_logic", []) or []:
+                phase = (getattr(stream, "phase", "") or "").lower()
+                if phase == "gas":
+                    is_gas_liquid = True
+                    break
+                # Stream contains pure gas reagent (O2, H2, etc.)
+                reagents = [str(r).lower() for r in (getattr(stream, "reagents", []) or [])]
+                if any(g in r for g in ("o2", "o₂", "h2", "h₂", "co2", "co₂", "cl2", "cl₂", "ozone", "o3", "o₃") for r in reagents):
+                    is_gas_liquid = True
+                    break
 
-        # ── 5. Get pump_max from inventory ────────────────────────────────
-        pump_max = 20.0  # default bar
+        # ── d_values (photochem + gas-liquid aware) ───────────────────────
+        # choose_d_set returns [0.5,0.75,1.0] for photochem alone, but
+        # [0.75,1.0,1.6] for photochem+gas-liquid (gas holdup makes 0.5 mm
+        # impractical), and [0.75,1.0,1.6] for gas-liquid alone.
+        d_values = choose_d_set(
+            is_photochem=is_photochem,
+            is_gas_liquid=is_gas_liquid,
+        )
+
+        # ── pump_max from inventory ───────────────────────────────────────
+        pump_max = 20.0
         if inventory is not None:
             try:
-                pump_max = float(inventory.pump_max_bar or 20.0)
-            except AttributeError:
-                pass
+                pumps = getattr(inventory, "pumps", []) or []
+                if pumps:
+                    pump_max = max((float(p.max_pressure_bar or 0.0) for p in pumps), default=20.0)
+                    if pump_max <= 0:
+                        pump_max = 20.0
+                else:
+                    pump_max = float(getattr(inventory, "pump_max_bar", 20.0) or 20.0)
+            except (AttributeError, TypeError, ValueError):
+                pump_max = 20.0
 
-        # ── 6. Get solvent ────────────────────────────────────────────────
-        solvent = "MeCN"  # safe default
+        # ── Solvent ───────────────────────────────────────────────────────
+        solvent = "MeCN"
         if batch_record is not None:
-            try:
-                solvent = batch_record.solvent or solvent
-            except AttributeError:
-                pass
+            solvent = getattr(batch_record, "solvent", None) or solvent
         if chemistry_plan is not None:
-            try:
-                sp = chemistry_plan.solvent
-                if sp:
-                    solvent = sp
-            except AttributeError:
-                pass
+            sp = getattr(chemistry_plan, "stages", None)
+            if sp and sp[0].solvent:
+                solvent = sp[0].solvent
 
-        # ── 7. Get τ_kinetics and rate_constant ───────────────────────────
-        k_flow = None
-        tau_kinetics_min = tau_center  # fallback: τ_center ≈ 90% conversion τ
-        if calculations is not None:
-            try:
-                k_flow = calculations.rate_constant
-            except AttributeError:
-                k_flow = None
-            # τ_kinetics from k: τ = -ln(0.10)/k
-            if k_flow and k_flow > 0:
-                tau_kinetics_s = -math.log(0.10) / k_flow
-                tau_kinetics_min = tau_kinetics_s / 60.0
-
-        # ── 8. Get MW from batch_record ───────────────────────────────────
-        assumed_MW = 250.0
-        if batch_record is not None:
-            try:
-                mw = batch_record.product_MW
-                if mw and mw > 0:
-                    assumed_MW = float(mw)
-            except AttributeError:
-                pass
-
-        # ── 9. Get concentration from calculations ────────────────────────
+        # ── Temperature, concentration, MW ────────────────────────────────
+        temperature_C = float(getattr(batch_record, "temperature_C", None) or 25.0)
         concentration_M = 0.1
         if calculations is not None:
             try:
@@ -288,14 +356,27 @@ class DesignSpaceSearch:
             except AttributeError:
                 pass
         if batch_record is not None:
-            try:
-                c = batch_record.concentration_M
-                if c and c > 0:
-                    concentration_M = float(c)
-            except AttributeError:
-                pass
+            c = getattr(batch_record, "concentration_M", None)
+            if c and c > 0:
+                concentration_M = float(c)
 
-        # ── 10. Get IF ────────────────────────────────────────────────────
+        assumed_MW = 250.0
+        if batch_record is not None:
+            mw = getattr(batch_record, "product_MW", None)
+            if mw and mw > 0:
+                assumed_MW = float(mw)
+
+        # ── τ_kinetics ────────────────────────────────────────────────────
+        tau_kinetics_min = tau_center
+        if calculations is not None:
+            k_flow = getattr(calculations, "rate_constant", None)
+            if k_flow and k_flow > 0:
+                tau_kinetics_min = (-math.log(0.10) / k_flow) / 60.0
+            tau_k_calc = getattr(calculations, "tau_kinetics_min", None)
+            if tau_k_calc and tau_k_calc > 0:
+                tau_kinetics_min = float(tau_k_calc)
+
+        # ── IF ────────────────────────────────────────────────────────────
         IF_used = 1.0
         if calculations is not None:
             try:
@@ -303,10 +384,20 @@ class DesignSpaceSearch:
             except AttributeError:
                 pass
 
-        # ── 11. Import tools ──────────────────────────────────────────────
-        from flora_translate.engine.tools import calculate_reynolds, calculate_pressure_drop
+        # ── BPR (from upstream calculator) ────────────────────────────────
+        BPR_bar = 0.0
+        if calculations is not None:
+            try:
+                BPR_bar = float(getattr(calculations, "bpr_pressure_bar", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                BPR_bar = 0.0
 
-        # ── 12. Enumerate ─────────────────────────────────────────────────
+        # ── Extinction coefficient (for Beer-Lambert if photochem) ────────
+        ext_coeff: Optional[float] = None
+        if calculations is not None:
+            ext_coeff = getattr(calculations, "extinction_coefficient_M_cm", None)
+
+        # ── Enumerate ─────────────────────────────────────────────────────
         candidates: list[DesignPoint] = []
 
         for tau_min in tau_values:
@@ -314,127 +405,79 @@ class DesignSpaceSearch:
             for d_mm in d_values:
                 d_m = d_mm * 1e-3
                 for L_frac in L_FRACTIONS:
-                    # Q from L_fraction
+                    # Derive Q from desired physical tube volume.
+                    # For gas-liquid the metric calc internally inflates
+                    # V_total = V_liquid / (1 - ε_gas), so we treat the
+                    # target volume here as physical-tube and let
+                    # compute_metrics reconcile. For consistency with the
+                    # original behavior, use physical-tube here and let
+                    # the engine compute liquid holdup downstream.
                     L_target_m = L_frac * L_MAX_BENCH_M
-                    # V_R = π/4 * d² * L  → Q = V_R / τ
-                    V_R_from_L = PI * (d_m ** 2) / 4.0 * L_target_m * 1e6  # mL
-                    Q_mL_min = V_R_from_L / tau_min  # mL/min
+                    V_R_target_mL = (PI * d_m ** 2 / 4.0) * L_target_m * 1e6
+                    # Liquid flow rate: Q_liquid × τ = liquid holdup volume.
+                    # For liquid-only this equals V_R. For gas-liquid the
+                    # physical V_R is larger; we size Q_liquid for the
+                    # liquid holdup target so τ_liquid = τ_min.
+                    if is_gas_liquid:
+                        # Liquid holdup ≈ 18% of physical V_R for design (worst-case)
+                        V_liquid_target_mL = V_R_target_mL * 0.18
+                    else:
+                        V_liquid_target_mL = V_R_target_mL
+                    Q_mL_min = V_liquid_target_mL / tau_min
 
                     if Q_mL_min < Q_MIN_ML_MIN:
                         continue
-
                     if max_tau_min is not None and tau_min > max_tau_min:
                         continue
 
-                    # V_R from τ and Q
-                    V_R_mL = tau_min * Q_mL_min  # mL
-                    if V_R_mL > V_MAX_SINGLE_REACTOR_ML:
-                        continue
-
-                    # Actual L
-                    V_R_m3 = V_R_mL * 1e-6
-                    L_m = 4.0 * V_R_m3 / (PI * d_m ** 2)
-
-                    # Reynolds number
-                    re_result = calculate_reynolds(Q_mL_min, d_mm, solvent)
-                    Re = re_result["Re"]
-
-                    # Pressure drop
-                    dP_result = calculate_pressure_drop(Q_mL_min, d_mm, L_m, solvent)
-                    delta_P_bar = dP_result["delta_P_bar"]
-
-                    # Mixing
-                    t_mix_s = d_m ** 2 / (4.0 * D_MOLECULAR)
-                    tau_s = tau_min * 60.0
-                    r_mix = t_mix_s / tau_s if tau_s > 0 else float("inf")
-
-                    # Da_mass
-                    if k_flow and k_flow > 0:
-                        Da_mass = k_flow * (d_m ** 2) / D_MOLECULAR
-                    else:
-                        tau_kinetics_s_est = tau_kinetics_min * 60.0
-                        k_estimated = 2.303 / tau_kinetics_s_est if tau_kinetics_s_est > 0 else 1e-6
-                        Da_mass = k_estimated * (d_m ** 2) / D_MOLECULAR
-
-                    # Expected conversion
-                    tau_k_s = tau_kinetics_min * 60.0
-                    if tau_k_s > 0:
-                        X = 1.0 - math.exp(-tau_s / tau_k_s)
-                    else:
-                        X = 1.0 - math.exp(-tau_s / (tau_s + 1e-6))
-                    X = min(X, 1.0)
-
-                    # Productivity: C [mol/L] × Q [mL/min] × X × MW [g/mol] × 60 [min/h] × 1000 [mg/g] / 1000 [mL/L]
-                    # = C [mol/L] × Q [L/h] × X × MW [g/mol] × 1000 [mg/g]
-                    Q_L_h = Q_mL_min * 60.0 / 1000.0
-                    productivity_mg_h = concentration_M * Q_L_h * X * assumed_MW * 1000.0
-
-                    # STY (mol/L/h): C × X × Q / V_R
-                    STY_mol_L_h = (concentration_M * X * Q_L_h) / (V_R_mL / 1000.0) if V_R_mL > 0 else 0.0
-
-                    # ── Hard filters ──────────────────────────────────────
-                    violations = []
-                    if L_m > L_MAX_BENCH_M:
-                        violations.append(f"L={L_m:.1f}m > {L_MAX_BENCH_M}m max")
-                    if V_R_mL > V_MAX_SINGLE_REACTOR_ML:
-                        violations.append(f"V_R={V_R_mL:.1f}mL > {V_MAX_SINGLE_REACTOR_ML}mL max")
-                    if Re >= 2300:
-                        violations.append(f"Re={Re:.0f} ≥ 2300 (turbulent)")
-                    if delta_P_bar >= 0.8 * pump_max:
-                        violations.append(f"ΔP={delta_P_bar:.3f}bar ≥ 0.8×{pump_max}={0.8*pump_max:.1f}bar")
-                    if Q_mL_min < Q_MIN_ML_MIN:
-                        violations.append(f"Q={Q_mL_min:.4f}mL/min < {Q_MIN_ML_MIN}mL/min floor")
-                    if is_photochem and d_mm > 1.0:
-                        violations.append(f"d={d_mm}mm > 1.0mm (Beer-Lambert photochem constraint)")
-
-                    feasible = len(violations) == 0
-
-                    # ── Warnings (soft) ───────────────────────────────────
-                    point_warnings = []
-                    if r_mix > 0.20:
-                        point_warnings.append(f"Mixing ratio {r_mix:.3f} > 0.20 — consider active mixer")
-                    if Re > 1000:
-                        point_warnings.append(f"Re={Re:.0f} > 1000 — transitional regime")
-                    if delta_P_bar > 0.5 * pump_max:
-                        point_warnings.append(f"ΔP={delta_P_bar:.3f}bar > 50% pump max")
-
-                    pt = DesignPoint(
+                    metrics = compute_metrics(
                         tau_min=tau_min,
                         d_mm=d_mm,
-                        Q_mL_min=round(Q_mL_min, 5),
-                        L_fraction=L_frac,
-                        V_R_mL=round(V_R_mL, 4),
-                        L_m=round(L_m, 3),
-                        Re=round(Re, 2),
-                        delta_P_bar=round(delta_P_bar, 5),
-                        t_mix_s=round(t_mix_s, 3),
-                        r_mix=round(r_mix, 5),
-                        Da_mass=round(Da_mass, 4),
-                        expected_conversion=round(X, 4),
-                        tau_kinetics_min=round(tau_kinetics_min, 2),
-                        IF_used=round(IF_used, 2),
-                        STY_mol_L_h=round(STY_mol_L_h, 4),
-                        productivity_mg_h=round(productivity_mg_h, 4),
+                        Q_mL_min=Q_mL_min,
+                        solvent=solvent,
+                        temperature_C=temperature_C,
+                        concentration_M=concentration_M,
                         assumed_MW=assumed_MW,
-                        feasible=feasible,
-                        violations=violations,
-                        warnings=point_warnings,
+                        IF_used=IF_used,
+                        tau_kinetics_min=tau_kinetics_min,
+                        pump_max_bar=pump_max,
+                        is_photochem=is_photochem,
+                        is_gas_liquid=is_gas_liquid,
+                        BPR_bar=BPR_bar,
+                        extinction_coeff_M_cm=ext_coeff,
                         tau_source=tau_source,
                     )
-                    candidates.append(pt)
 
-        # ── 13. Normalize productivity and score ──────────────────────────
+                    ok, violations, warnings = hard_filter(
+                        metrics,
+                        is_photochem=is_photochem,
+                        is_gas_liquid=is_gas_liquid,
+                        pump_max_bar=pump_max,
+                        BPR_bar=BPR_bar,
+                        max_tau_min=max_tau_min,
+                    )
+
+                    point = _metrics_to_point(
+                        metrics,
+                        tau_source=tau_source,
+                        L_fraction=L_frac,
+                        is_gas_liquid=is_gas_liquid,
+                        feasible=ok,
+                        violations=violations,
+                        warnings=warnings,
+                    )
+                    candidates.append(point)
+
+        # ── Normalize productivity and score ──────────────────────────────
         feasible_candidates = [c for c in candidates if c.feasible]
         max_prod = max((c.productivity_mg_h for c in feasible_candidates), default=1.0)
         if max_prod <= 0:
             max_prod = 1.0
 
-        # Get score weights
         weights = SCORE_WEIGHTS.get(
             (reaction_class or "default").lower(),
-            SCORE_WEIGHTS["default"]
+            SCORE_WEIGHTS["default"],
         )
-        # Try to match substring
         if (reaction_class or "").lower() not in SCORE_WEIGHTS:
             for key in SCORE_WEIGHTS:
                 if key in (reaction_class or "").lower():
@@ -443,9 +486,16 @@ class DesignSpaceSearch:
 
         for c in feasible_candidates:
             prod_score = c.productivity_mg_h / max_prod
-            L_score = _l_score(c.L_m)     # non-linear: full credit ≤15m, penalty 15-20m
+            # Conversion floor: a candidate that does <30% conversion per pass
+            # gets no productivity reward. This is the gate that stops the
+            # productivity-led scoring from chasing τ → 0 at the expense of
+            # ever producing meaningful product.
+            if c.expected_conversion < X_FLOOR:
+                prod_score = 0.0
+            L_score = _l_score(c.L_m)
+            dP_score = _dp_score(c.delta_P_bar)
             mixing_score = 1.0 - min(c.r_mix / 0.20, 1.0)
-            re_score = 1.0 - (c.Re / 2300.0)
+            re_score = max(0.0, 1.0 - (c.Re / 2300.0))
             conv_score = c.expected_conversion
 
             score = (
@@ -454,31 +504,30 @@ class DesignSpaceSearch:
                 + weights["mixing"] * mixing_score
                 + weights["re"] * re_score
                 + weights["conversion"] * conv_score
+                + weights.get("dP", 0.0) * dP_score
             )
             c.score = round(score, 5)
             c.score_breakdown = {
                 "productivity": round(prod_score, 4),
                 "L": round(L_score, 4),
+                "dP": round(dP_score, 4),
                 "mixing": round(mixing_score, 4),
                 "re": round(re_score, 4),
                 "conversion": round(conv_score, 4),
             }
 
-        # ── 14. Sort by score descending ──────────────────────────────────
         feasible_candidates.sort(key=lambda c: c.score, reverse=True)
         infeasible = [c for c in candidates if not c.feasible]
 
-        # Rebuild combined list: feasible first (sorted), then infeasible
         candidates = feasible_candidates + infeasible
 
-        # ── 15. Mark top candidate ────────────────────────────────────────
         if feasible_candidates:
             feasible_candidates[0].is_council_candidate = True
 
         return candidates
 
 
-def get_council_starting_point(candidates: list[DesignPoint]) -> DesignPoint | None:
+def get_council_starting_point(candidates: list[DesignPoint]) -> Optional[DesignPoint]:
     """Return the top feasible candidate to use as the council starting proposal."""
     feasible = [c for c in candidates if c.feasible]
     return feasible[0] if feasible else None
@@ -488,3 +537,70 @@ def candidates_to_dicts(candidates: list[DesignPoint]) -> list[dict]:
     """Convert to JSON-serializable list of dicts for storage in result dict."""
     import dataclasses
     return [dataclasses.asdict(c) for c in candidates]
+
+
+def feasible_candidates_as_council_seeds(
+    candidates: list[DesignPoint],
+    *,
+    BPR_bar: float = 0.0,
+    tubing_material: str = "FEP",
+    concentration_M: float = 0.1,
+    temperature_C: float = 25.0,
+    batch_time_min: Optional[float] = None,
+    translation_policy: str = "intensify",
+    n_max: int = 6,
+) -> list[dict]:
+    """Return top-N feasible Design Space candidates in the dict shape the
+    Council Designer's hard-gate filter expects.
+
+    Used as the fallback survivor pool when the Council's own Designer
+    sampling returns zero feasible candidates. Each seed is annotated with
+    `source="design_space"` so the council log can show where it came from.
+    """
+    feasible = [c for c in candidates if c.feasible][:max(1, n_max)]
+    out: list[dict] = []
+    for idx, c in enumerate(feasible, start=1):
+        d = {
+            "id": idx,
+            "tau_min": round(c.tau_min, 3),
+            "d_mm": round(c.d_mm, 3),
+            "Q_mL_min": round(c.Q_mL_min, 5),
+            "tau_source": c.tau_source or "design_space",
+            "V_R_mL": round(c.V_R_mL, 4),
+            "liquid_holdup_volume_mL": round(c.liquid_holdup_volume_mL, 4),
+            "L_m": round(c.L_m, 3),
+            "Re": round(c.Re, 2),
+            "flow_regime": "laminar" if c.Re < 2300 else "turbulent",
+            "velocity_m_s": 0.0,
+            "delta_P_bar": round(c.delta_P_bar, 5),
+            "delta_P_headroom_pct": 0.0,
+            "gas_holdup": round(c.gas_holdup, 4),
+            "gas_flow_actual_mL_min": round(c.gas_flow_actual_mL_min, 4),
+            "gas_liquid_ratio": 0.0,
+            "two_phase_multiplier": round(c.two_phase_multiplier, 4),
+            "required_bpr_bar": round(c.required_bpr_bar, 2),
+            "t_mix_s": round(c.t_mix_s, 3),
+            "r_mix": round(c.r_mix, 5),
+            "Da_mass": round(c.Da_mass, 4),
+            "expected_conversion": round(c.expected_conversion, 4),
+            "tau_kinetics_min": round(c.tau_kinetics_min, 2),
+            "IF_used": round(c.IF_used, 2),
+            "STY_mol_L_h": round(c.STY_mol_L_h, 4),
+            "productivity_mg_h": round(c.productivity_mg_h, 2),
+            "assumed_MW": c.assumed_MW,
+            "is_photochem": False,  # not authoritative; council recomputes
+            "BPR_bar": round(BPR_bar or 0.0, 2),
+            "tubing_material": tubing_material,
+            "concentration_M": concentration_M,
+            "temperature_C": temperature_C,
+            "batch_time_min": batch_time_min,
+            "translation_policy": translation_policy,
+            "feasible": True,
+            "violations": list(c.violations),
+            "warnings": list(c.warnings),
+            "pareto_front": idx == 1,
+            "source": "design_space_fallback",
+            "design_space_score": round(c.score, 5),
+        }
+        out.append(d)
+    return out

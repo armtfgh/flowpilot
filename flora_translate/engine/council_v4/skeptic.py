@@ -37,26 +37,55 @@ def _verify_beer_lambert(
     chemistry_scores: list[dict],
     candidates: list[dict],
     concentration_M: float,
+    *,
+    has_photocatalyst: bool = True,
 ) -> list[dict]:
-    """Verify Beer-Lambert calculations: d must be in cm, not mm."""
+    """Verify Beer-Lambert calculations: d must be in cm, not mm.
+
+    Fix #4: the absorbance check now reads the PER-CANDIDATE concentration_M
+    (which may differ from batch C after Refinement Board edits), not the
+    upstream global value. Previously this generated false-positive
+    BEER_LAMBERT_DISCREPANCY flags for every candidate whose C had been
+    refined.
+
+    Fix #5: when chemistry_plan reports no photocatalyst (direct
+    photoexcitation of substrate), ε > 1000 is implausible — substrate ε at
+    LED wavelength is typically 20–200 M⁻¹cm⁻¹.
+    """
     errors: list[dict] = []
+    # Threshold depends on whether a photocatalyst is in play. Direct
+    # substrate photoexcitation has ε ≪ 1000; transition-metal photocatalysts
+    # routinely have ε in 500–5000.
+    eps_implausible_threshold = 1000.0 if not has_photocatalyst else 5000.0
+    eps_implausible_reason = (
+        "unusually high — chemistry plan reports no photocatalyst; direct substrate "
+        "photoexcitation has ε ~ 20–200 M⁻¹cm⁻¹"
+        if not has_photocatalyst else
+        "unusually high for a standard transition-metal photocatalyst at LED wavelength"
+    )
     for entry in chemistry_scores:
         cid = entry.get("candidate_id")
         A_claimed = entry.get("beer_lambert_A")
         eps_used = entry.get("epsilon_used")
         if A_claimed is None or eps_used is None:
             continue
-        # Find candidate
         cand = next((c for c in candidates if c.get("id") == cid), None)
         if cand is None:
             continue
-        d_mm = cand.get("d_mm", 1.0)
-        d_cm = d_mm * 0.1  # correct conversion
-        A_expected = eps_used * concentration_M * d_cm
+        d_mm = float(cand.get("d_mm", 1.0) or 1.0)
+        d_cm = d_mm * 0.1
+        # Fix #4: per-candidate C is the authoritative value for this check.
+        # Fall back to the upstream concentration_M only when the candidate
+        # doesn't carry its own (it always should, post-refinement).
+        try:
+            cand_c = float(cand.get("concentration_M", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            cand_c = 0.0
+        c_for_check = cand_c if cand_c > 0 else float(concentration_M)
+        A_expected = float(eps_used) * c_for_check * d_cm
         A_diff = abs(float(A_claimed) - A_expected)
         if A_diff > 0.05 * max(A_expected, 0.01):
-            # More than 5% discrepancy — likely used d in mm instead of cm
-            A_wrong_units = eps_used * concentration_M * d_mm
+            A_wrong_units = float(eps_used) * c_for_check * d_mm
             if abs(float(A_claimed) - A_wrong_units) < 0.05 * max(A_wrong_units, 0.01):
                 errors.append({
                     "agent": "DR. CHEMISTRY",
@@ -76,22 +105,21 @@ def _verify_beer_lambert(
                     "error_type": "BEER_LAMBERT_DISCREPANCY",
                     "description": (
                         f"Claimed A={A_claimed:.4f}, expected {A_expected:.4f} "
-                        f"(ε={eps_used}, C={concentration_M} M, d={d_mm} mm → "
-                        f"{d_cm} cm)"
+                        f"(ε={eps_used}, C={c_for_check} M [per-candidate], "
+                        f"d={d_mm} mm → {d_cm} cm)"
                     ),
                     "severity": "MEDIUM",
                 })
-        # Sanity-check epsilon: standard Ir/Ru photocatalysts have ε < 5000 at LED wavelength
-        if float(eps_used) > 5000:
+        if float(eps_used) > eps_implausible_threshold:
             errors.append({
                 "agent": "DR. CHEMISTRY",
                 "candidate_id": cid,
                 "error_type": "EPSILON_IMPLAUSIBLE",
                 "description": (
-                    f"ε={eps_used} M⁻¹cm⁻¹ > 5000 — unusually high for a standard "
-                    "transition-metal photocatalyst at LED wavelength. Verify source."
+                    f"ε={eps_used} M⁻¹cm⁻¹ > {eps_implausible_threshold:.0f} — {eps_implausible_reason}. "
+                    "Verify source."
                 ),
-                "severity": "HIGH",
+                "severity": "CRITICAL" if not has_photocatalyst else "HIGH",
             })
     return errors
 
@@ -166,6 +194,201 @@ def _verify_length_formula(candidates: list[dict]) -> list[dict]:
                     f" = {L_expected:.2f} m"
                 ),
                 "severity": "HIGH",
+            })
+    return errors
+
+
+def _verify_reynolds(
+    candidates: list[dict],
+    solvent_name: Optional[str],
+    default_temperature_C: float = 25.0,
+) -> list[dict]:
+    """Independently recompute Re from stored Q, d, μ and flag divergence.
+
+    Re = ρ·v·d/μ. The Designer's stored Re must match within 15% of an
+    independent recomputation using the protocol's tools.calculate_reynolds.
+    Catches cases where Re was carried forward without updating after a
+    geometry edit.
+    """
+    if not solvent_name:
+        return []
+    try:
+        from flora_translate.engine.tools import calculate_reynolds
+    except ImportError:
+        return []
+    errors: list[dict] = []
+    for c in candidates:
+        cid = c.get("id", "?")
+        Q = c.get("Q_mL_min", 0.0)
+        d_mm = c.get("d_mm", 1.0)
+        T_C = c.get("temperature_C", default_temperature_C) or default_temperature_C
+        Re_claimed = float(c.get("Re", 0.0) or 0.0)
+        try:
+            recomp = calculate_reynolds(Q, d_mm, solvent_name, T_C)
+            Re_recomp = float(recomp.get("Re", 0.0))
+        except Exception:
+            continue
+        if Re_recomp <= 0:
+            continue
+        rel_diff = abs(Re_claimed - Re_recomp) / max(Re_recomp, 1.0)
+        if rel_diff > 0.15:
+            errors.append({
+                "agent": "DESIGNER",
+                "candidate_id": cid,
+                "error_type": "REYNOLDS_RECOMPUTATION_MISMATCH",
+                "description": (
+                    f"Stored Re={Re_claimed:.0f} differs from independent recomputation "
+                    f"Re_recomp={Re_recomp:.0f} (Δ={rel_diff*100:.1f}%) at "
+                    f"Q={Q:.4f} mL/min, d={d_mm} mm, T={T_C}°C, solvent={solvent_name}"
+                ),
+                "severity": "HIGH" if rel_diff > 0.30 else "MEDIUM",
+            })
+    return errors
+
+
+def _verify_pressure_drop(
+    candidates: list[dict],
+    solvent_name: Optional[str],
+) -> list[dict]:
+    """Independently recompute ΔP via Hagen-Poiseuille and flag >15% divergence.
+
+    For gas-liquid candidates, applies the two-phase multiplier from the
+    candidate's stored gas_holdup. This catches stale ΔP that wasn't
+    refreshed after a geometry edit.
+    """
+    if not solvent_name:
+        return []
+    try:
+        from flora_translate.engine.tools import calculate_pressure_drop
+    except ImportError:
+        return []
+    errors: list[dict] = []
+    for c in candidates:
+        cid = c.get("id", "?")
+        Q = c.get("Q_mL_min", 0.0)
+        d_mm = c.get("d_mm", 1.0)
+        L_m = c.get("L_m", 0.0)
+        dP_claimed = float(c.get("delta_P_bar", 0.0) or 0.0)
+        gas_holdup = float(c.get("gas_holdup", 0.0) or 0.0)
+        try:
+            recomp = calculate_pressure_drop(Q, d_mm, L_m, solvent_name)
+            dP_liquid_recomp = float(recomp.get("delta_P_bar", 0.0))
+        except Exception:
+            continue
+        if dP_liquid_recomp <= 0:
+            continue
+        # Apply two-phase multiplier consistent with sampling.compute_metrics
+        two_phase = 1.0 + 12.0 * gas_holdup + 25.0 * gas_holdup * gas_holdup if gas_holdup > 0 else 1.0
+        two_phase = min(two_phase, 12.0)
+        dP_recomp = dP_liquid_recomp * two_phase
+        rel_diff = abs(dP_claimed - dP_recomp) / max(dP_recomp, 1e-4)
+        if rel_diff > 0.15:
+            errors.append({
+                "agent": "DESIGNER",
+                "candidate_id": cid,
+                "error_type": "PRESSURE_DROP_RECOMPUTATION_MISMATCH",
+                "description": (
+                    f"Stored ΔP={dP_claimed:.3f} bar differs from independent recomputation "
+                    f"ΔP_recomp={dP_recomp:.3f} bar (Δ={rel_diff*100:.1f}%; "
+                    f"two_phase_mult={two_phase:.2f}; Q={Q:.4f} mL/min, "
+                    f"d={d_mm} mm, L={L_m:.2f} m, gas_holdup={gas_holdup:.2f})"
+                ),
+                "severity": "HIGH" if rel_diff > 0.30 else "MEDIUM",
+            })
+    return errors
+
+
+def _verify_bpr_adequacy(
+    candidates: list[dict],
+    solvent_name: Optional[str],
+    is_gas_liquid: bool,
+) -> list[dict]:
+    """Verify BPR adequacy from first principles.
+
+    Two distinct thresholds:
+      - HARD FLOOR: Pvap(T) + ΔP for liquid-only systems, or max(5 bar, Pvap+ΔP)
+                    for gas-liquid systems. Going below this is a physical-safety
+                    violation (boiling in tubing, or gas leg can't be maintained).
+                    -> CRITICAL.
+      - RECOMMENDED: HARD_FLOOR + safety margin (0.5 bar liquid-only / 2.0 bar
+                     gas-liquid). Below this but above floor is a margin warning,
+                     not a safety failure.
+                     -> MEDIUM warning.
+
+    The Skeptic must NOT CRITICAL-fail a candidate at the hard gas-liquid floor
+    (5 bar) just because the recommended setting is 7 bar with margin. That
+    would short-circuit the council and is what triggered the THQ
+    "all candidates disqualified before Chief selection" fallback.
+    """
+    if not solvent_name:
+        return []
+    try:
+        from flora_translate.engine.tools import calculate_bpr_required
+    except ImportError:
+        return []
+    errors: list[dict] = []
+    safety_margin = 2.0 if is_gas_liquid else 0.5
+    for c in candidates:
+        cid = c.get("id", "?")
+        T_C = float(c.get("temperature_C", 25.0) or 25.0)
+        dP = float(c.get("delta_P_bar", 0.0) or 0.0)
+        BPR_current = float(c.get("BPR_bar", 0.0) or 0.0)
+        BPR_required_stored = float(c.get("required_bpr_bar", 0.0) or 0.0)
+        try:
+            recomp = calculate_bpr_required(
+                temperature_C=T_C, solvent=solvent_name,
+                delta_P_system_bar=dP, is_gas_liquid=is_gas_liquid,
+            )
+            # P_min from the tool INCLUDES the safety margin. Subtract it
+            # to get the true hard floor.
+            BPR_recommended = float(recomp.get("P_min_bar", 0.0))
+            BPR_floor = max(0.0, BPR_recommended - safety_margin)
+            # Gas-liquid hard floor is 5 bar (without margin) per protocol.
+            if is_gas_liquid:
+                BPR_floor = max(BPR_floor, 5.0)
+        except Exception:
+            continue
+        # CRITICAL only when below the actual hard floor (boiling risk or
+        # gas-liquid contacting failure)
+        if BPR_current > 0 and BPR_current < BPR_floor - 0.1:
+            errors.append({
+                "agent": "DR. SAFETY",
+                "candidate_id": cid,
+                "error_type": "BPR_BELOW_HARD_FLOOR",
+                "description": (
+                    f"BPR_current={BPR_current:.1f} bar < hard floor={BPR_floor:.1f} bar "
+                    f"(Pvap+ΔP={BPR_floor - (5.0 if is_gas_liquid and BPR_floor == 5.0 else 0.0):.2f} bar, "
+                    f"gas_liquid_floor={5.0 if is_gas_liquid else 'N/A'}). "
+                    f"Boiling/phase-separation risk — council MUST raise BPR or reduce ΔP."
+                ),
+                "severity": "CRITICAL",
+            })
+        # MEDIUM warning when below recommended-with-margin but above floor
+        elif BPR_current > 0 and BPR_current < BPR_recommended - 0.5:
+            errors.append({
+                "agent": "DR. SAFETY",
+                "candidate_id": cid,
+                "error_type": "BPR_BELOW_RECOMMENDED_MARGIN",
+                "description": (
+                    f"BPR_current={BPR_current:.1f} bar is at/above hard floor ({BPR_floor:.1f} bar) "
+                    f"but below recommended {BPR_recommended:.1f} bar "
+                    f"(floor + {safety_margin:.1f} bar safety margin). "
+                    f"Operating without margin reduces robustness to ΔP transients."
+                ),
+                "severity": "MEDIUM",
+            })
+        # Stored required_bpr disagreeing with first-principles
+        if BPR_required_stored > 0 and abs(BPR_required_stored - BPR_recommended) > max(0.15 * BPR_recommended, 1.0):
+            errors.append({
+                "agent": "DESIGNER",
+                "candidate_id": cid,
+                "error_type": "BPR_REQUIRED_RECOMPUTATION_MISMATCH",
+                "description": (
+                    f"Stored required_BPR={BPR_required_stored:.1f} bar differs from "
+                    f"first-principles recommended BPR={BPR_recommended:.1f} bar at T={T_C}°C, "
+                    f"ΔP={dP:.2f} bar"
+                ),
+                "severity": "MEDIUM",
             })
     return errors
 
@@ -558,6 +781,7 @@ def run_skeptic_audit(
     intensification_mandate: Optional[dict] = None,
     pool_metadata: Optional[dict] = None,
     process_value_scores: Optional[list[dict]] = None,
+    has_photocatalyst: bool = True,
 ) -> dict:
     """Run the Stage 3 Skeptic audit.
 
@@ -574,9 +798,15 @@ def run_skeptic_audit(
       }
     """
     calc_errors = (
-        _verify_beer_lambert(chemistry_scores, candidates, concentration_M) +
+        _verify_beer_lambert(
+            chemistry_scores, candidates, concentration_M,
+            has_photocatalyst=has_photocatalyst,
+        ) +
         _verify_v_r_equals_tau_q(candidates) +
-        _verify_length_formula(candidates)
+        _verify_length_formula(candidates) +
+        _verify_reynolds(candidates, solvent_name) +
+        _verify_pressure_drop(candidates, solvent_name) +
+        _verify_bpr_adequacy(candidates, solvent_name, is_gas_liquid)
     )
     mixing_errors = _check_mixing_direction(fluidics_scores)
     threshold_errors = _check_thresholds(fluidics_scores, chemistry_scores, candidates)

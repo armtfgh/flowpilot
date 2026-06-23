@@ -169,8 +169,10 @@ Return JSON:
   "temperature_sensitive": false,
   "light_sensitive_reagents": [],
   "stream_logic": [
-    {{"stream_label": "A", "reagents": [], "reasoning": ""}}
+    {{"stream_label": "A", "reagents": [], "reasoning": "",
+      "molar_equiv": 1.0, "phase": "liquid", "concentration_M": null}}
   ],
+  "_stream_logic_instructions": "For EACH stream entry, fill molar_equiv with the equivalents stated in the protocol relative to the limiting reagent (substrate = 1.0). If the protocol says 'O2, 2.0 equiv' put molar_equiv = 2.0. Fill phase with one of: 'liquid', 'gas', 'solid'. For gas reagents (O2, H2, CO2, etc) ALWAYS extract molar_equiv from the protocol text — do not leave it at the schema default of 1.0 when the protocol specifies otherwise. This field is consumed by the gas-mass-flow calculator and the wrong value causes incorrect MFC setpoints.",
   "mixing_order_reasoning": "",
   "incompatible_pairs": [],
   "deoxygenation_required": false,
@@ -319,8 +321,13 @@ class ChemistryReasoningAgent:
         data = _parse_json_from_tagged(raw_text)
         data = _normalize_plan_data(data)
         plan = ChemistryPlan(**data)
+        # IMPORTANT: attach _reasoning BEFORE the mandate is built, so
+        # intensification.detect_batch_limitations can read the chemistry
+        # agent's rate-limiting-step analysis. Reversing this order causes
+        # the mandate to fall back to class defaults when the limitation
+        # keywords live in the reasoning text rather than the JSON fields.
+        plan._reasoning = reasoning
         plan = ensure_intensification_mandate(batch_record, plan)
-        plan._reasoning = reasoning  # attach for downstream use (not in schema)
 
         logger.info(f"    Reaction: {plan.reaction_name} ({plan.mechanism_type})")
         logger.info(f"    Key intermediate: {plan.key_intermediate}")
