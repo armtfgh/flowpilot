@@ -1,0 +1,4029 @@
+{
+  "proposal": {
+    "residence_time_min": 191.912,
+    "flow_rate_mL_min": 0.00999,
+    "temperature_C": 40.0,
+    "concentration_M": 0.25,
+    "BPR_bar": 3.0,
+    "reactor_type": "FEP coil",
+    "tubing_material": "FEP",
+    "tubing_ID_mm": 1.016,
+    "reactor_volume_mL": 10.0,
+    "light_setup": "Blue LED array (450 nm) wrapped around or positioned beside FEP coil reactor; Analogy 3 used 14 W 450 nm LED with FEP coil \u2014 adopt same configuration. Ensure uniform irradiation of entire coil. Analogy 1 used 425 nm quartz tubing (not applicable here \u2014 FEP preferred for gas-liquid O2 compatibility and cost). Use fan cooling to maintain reactor at 40\u00b0C under LED illumination.",
+    "wavelength_nm": 450.0,
+    "deoxygenation_method": null,
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Liquid substrate feed via HPLC or syringe pump",
+        "contents": [
+          "6-methyl-1,2,3,4-tetrahydroquinoline (1.0 equiv)"
+        ],
+        "solvent": "DMSO",
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.09048,
+        "phase": "",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "molar_equiv": 1.0,
+        "reasoning": "Chemistry Plan stream_logic: substrate dissolved in DMSO at 0.25 M (KHU anchor). Flow rate 0.014 mL/min matches KHU Entry 2 (anchor). Screen toward 0.50 M at same flow for concentration effect. Pump must be chemically resistant to DMSO (PTFE wetted parts).\nFinal synchronization: liquid pump rate set to 0.09048 mL/min so \u03a3 liquid reactor feeds = final Q_liquid 0.09048 mL/min.\n\nClosed-loop update: flow and concentration synchronized to the revised next-run design.\nFinal synchronization: liquid pump rate set to 0.09048 mL/min so \u03a3 liquid reactor feeds = final Q_liquid 0.09048 mL/min."
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "O2 gas feed via mass flow controller (MFC)",
+        "contents": [
+          "O2 gas (~2.0 equiv at inlet/STP)"
+        ],
+        "solvent": "",
+        "concentration_M": null,
+        "flow_rate_mL_min": 0.3926,
+        "phase": "gas",
+        "gas_flow_sccm": 2.0279,
+        "gas_flow_actual_mL_min": 0.3926,
+        "molar_equiv": 1.0,
+        "reasoning": "Chemistry Plan stream_logic: O2 via MFC at ~0.153 mL/min STP (KHU Entry 2). In-channel flow ~0.059 mL/min at 3 bar. Gas/liquid ratio (O2 equiv ~1.95) must be preserved on scaling. Taylor slug flow established at T-junction.\n\nClosed-loop update: gas flow scaled with liquid flow to preserve gas-liquid ratio while targeting the revised in-channel residence time."
+      }
+    ],
+    "mixer_type": "T-junction (PTFE or SS)",
+    "mixing_order_reasoning": "Chemistry Plan: Stream A (liquid substrate in DMSO) and Stream B (O2 gas) meet at T-junction upstream of photoreactor coil to establish Taylor/slug gas-liquid flow. Slug flow periodically refreshes gas-liquid interface for O2 mass transfer. No other reagents present \u2014 two-stream system only.",
+    "pre_reactor_steps": [
+      "No deoxygenation required \u2014 O2 is the required co-substrate (Chemistry Plan: deoxygenation_required = false). Purge lines with DMSO before introducing substrate solution.",
+      "Verify O2 MFC calibration and set inlet flow to 0.153 mL/min STP (~1.95 equiv). Confirm Taylor slug flow visually or by pressure trace before collecting product."
+    ],
+    "post_reactor_steps": [
+      "No quench required \u2014 6-methylquinoline product is stable and no reactive intermediates accumulate post-reactor (Chemistry Plan: quench_required = false).",
+      "BPR set to 3 bar (anchor) or 6 bar (high-concentration screen) to maintain gas compression and prevent uncontrolled degassing.",
+      "Gas-liquid separation downstream of BPR using a simple phase separator or gravity settler. Collect liquid fraction for GC/HPLC analysis and yield determination.",
+      "Discard startup waste (~3 reactor volumes, ~30 mL at anchor conditions) before collecting product fractions."
+    ],
+    "chemistry_notes": "Catalyst-free aerobic photodehydrogenation: substrate or substrate-O2 EDA complex absorbs at 450 nm, undergoes SET to O2 generating superoxide, then sequential H-abstraction yields 6-methylquinoline via dihydroquinoline intermediate. Two photon/oxidation cycles required (Chemistry Plan mechanism steps 1-4). Key design drivers: (1) Residence time is the dominant kinetic variable \u2014 experimental data clearly show 34-38 min in-channel gives only 10-12% product; 137 min gives 52%; estimated 180-200 min or 0.50 M at 137 min needed for ~75%. (2) KHU Entry 2 (40\u00b0C, 0.25 M, 3 bar, t_in-channel=137 min) is the primary anchor \u2014 engineering calculation range 20-281 min supports this. (3) Taylor slug flow in 1.016 mm ID FEP tubing provides high kLa for O2 mass transfer. (4) BPR mandatory for gas-liquid system (Chemistry Plan, calculations). (5) FEP tubing chosen for UV-vis transparency at 450 nm (photochemistry rule). (6) Analogy 3 (FEP coil, 10 mL, 100 min, 450 nm, 0.1 mL/min) is most structurally similar \u2014 same wavelength, similar reactor type, but our reaction is slower (requires 137-200 min vs 100 min) due to multi-step dehydrogenation. (7) Reactor volume 10 mL (matching KHU) gives t_in-channel ~137 min at 0.014 mL/min + 0.059 mL/min in-channel \u2014 verify: 10 mL / 0.073 mL/min = 137 min. Confirmed. Screening recommendation: next step use 10 mL reactor at 0.50 M, 0.014 mL/min substrate, 0.153 mL/min O2 STP, 40\u00b0C, 3 bar (same t_in-channel, doubled concentration). If insufficient, extend to 20 mL reactor at 0.014 mL/min for t_in-channel ~274 min.\nNo engine-validated final design was selected. Run the attached screen matrix first.\n\nEvidence calibration: measured campaign data override unsupported residence-time intensification.\n\nClosed-loop refinement v2: kinetic_underconversion, experiment_calibrated_kinetics.",
+    "stage_parameters": [],
+    "multiphase_metrics": {
+      "gas_species": "O2",
+      "gas_oxygen_fraction": 1.0,
+      "liquid_flow_rate_mL_min": 0.09048,
+      "gas_flow_sccm": 2.0279,
+      "gas_sccm_uncapped": 2.0279,
+      "gas_flow_actual_mL_min": 0.3926,
+      "gas_actual_uncapped_mL_min": 0.3926,
+      "gas_flow_capped_by_holdup": false,
+      "gas_pressure_abs_bar": 6.0,
+      "gas_liquid_ratio": 4.3392,
+      "gas_holdup": 0.8127,
+      "liquid_holdup_volume_mL": 3.393,
+      "total_reactor_volume_mL": 18.116,
+      "two_phase_multiplier": 12.0,
+      "two_phase_pressure_drop_bar": 0.340129,
+      "o2_supply_mmol_min": 0.09048,
+      "o2_required_mmol_min": 0.09048,
+      "o2_equiv_supplied": 2.0,
+      "dissolved_o2_mM": 37.1429,
+      "kLa_s": 0.30445,
+      "o2_transfer_capacity_mmol_min": 2.302091,
+      "o2_transfer_sufficiency": 25.4431
+    },
+    "heat_transfer_metrics": {
+      "surface_to_volume_m_inv": 4000.0,
+      "heat_transfer_area_m2": 0.07246398,
+      "UA_W_K": 21.739193,
+      "heat_generation_W": 0.125432,
+      "heat_removal_W": 217.391928,
+      "thermal_damkohler": 0.000577,
+      "heat_transfer_score": 1.0
+    },
+    "reasoning_per_field": {
+      "residence_time_min": "Evidence-calibrated from measured conversion/product response versus in-channel residence time; the original short residence-time design is treated as an aggressive screen only.",
+      "flow_rate_mL_min": "Total in-channel flow = 0.014 (liquid) + 0.059 (O2 in-channel at 3 bar) = 0.073 mL/min. Liquid substrate flow 0.014 mL/min from KHU Entry 2 (experimental anchor). O2 STP flow 0.153 mL/min \u2192 in-channel at 3 bar absolute (4 bar total including atmospheric): 0.153/4 \u2248 0.038 mL/min (ideal gas), but KHU reports 0.059 mL/min in-channel \u2014 use experimental value directly. Gas/liquid ratio preserved from anchor.",
+      "temperature_C": "40\u00b0C from KHU Entry 2 anchor (40\u00b0C gave same conversion as 60\u00b0C in Entry 1 \u2014 no benefit to higher temperature, Chemistry Plan: temperature_sensitive=false). Matches batch temperature. Analogy 3 used 35\u00b0C \u2014 negligible difference. Adopt 40\u00b0C.",
+      "concentration_M": "0.25 M from KHU anchor (Entries 1 and 2). KRICT entries at 0.50 M used only 34-38 min t_in-channel \u2014 residence time effect dominates and cannot be separated from concentration effect. Screen 0.50 M at same residence time as next step. Analogy 2 used 0.1 M \u2014 not applicable. Analogy 3 used 0.05 M \u2014 not applicable (lower throughput).",
+      "BPR_bar": "3 bar from KHU anchor (Entries 1 and 2). Calculations require BPR (gas-liquid system, DMSO bp 189\u00b0C >> 40\u00b0C operation \u2014 BPR needed for gas compression not solvent boiling). Engineering calculation recommends 8.8 bar \u2014 this is the pressure drop estimate, not the BPR setpoint. KHU experimental data at 3 bar gave 52% yield; KRICT at 6 bar gave only 10-12% (but shorter residence time \u2014 confounded). Use 3 bar as anchor; 6 bar as screen for concentration effect. Analogy 2 used 1 bar BPR \u2014 insufficient for our gas-liquid Taylor flow requirements.",
+      "reactor_type": "FEP coil \u2014 Chemistry Plan specifies coil reactor; Analogy 3 uses FEP coil at 450 nm (most analogous). KHU uses Vapourtec with coil format. FEP is transparent at 450 nm (photochemistry rule).",
+      "tubing_material": "FEP \u2014 photochemistry rule (transparent to visible/blue light). KHU entry used PFA/FEP-compatible tubing at 1.016 mm ID. Analogy 3 uses FEP coil. Analogy 1 uses quartz \u2014 not necessary here (450 nm, not UV). FEP chemically compatible with DMSO and O2.",
+      "tubing_ID_mm": "1.016 mm from KHU experimental data (Entry 2 anchor, tubing ID = 1.016 mm). Within photochemistry recommended range 0.5-2.0 mm. Ensures adequate photon penetration and Taylor flow regime. KRICT used 0.75-1.00 mm \u2014 consistent range. Analogy 1 used 2 mm (larger, less uniform irradiation for our substrate). Use 1.016 mm to match anchor exactly.",
+      "reactor_volume_mL": "10.0 mL from KHU anchor (Entry 2, reactor volume = 10.00 mL). Analogy 3 uses 10 mL FEP coil \u2014 directly analogous hardware. Verification: 10.0 mL / 0.073 mL/min = 137 min. Confirmed. Screen: 20 mL reactor at same flow for 274 min to target 75%.",
+      "light_setup": "450 nm blue LED from Chemistry Plan (wavelength_reasoning: substrate or EDA complex absorbs at 450 nm; confirmed by batch and flow experimental data). Analogy 3 uses 14 W 450 nm LED with FEP coil \u2014 adopt same power class. Analogy 1 uses 425 nm LED (slightly blue-shifted, different photocatalyst Ir(ppy)3 \u2014 not directly applicable but confirms blue LED + FEP coil format). Analogy 2 uses 420 nm violet LED \u2014 close but different reactor type (FBR). Use commercial 450 nm LED strip or panel (\u226510 W) wrapped around 10 mL FEP coil.",
+      "wavelength_nm": "450 nm \u2014 Chemistry Plan recommended_wavelength_nm = 450. Batch data (75% yield, 450 nm) and flow data (52% at 137 min, 450 nm) both confirm. Analogy 3 uses 450 nm \u2014 directly matched.",
+      "deoxygenation_method": "None \u2014 Chemistry Plan: deoxygenation_required = false. O2 is the required co-substrate; removing it would stop the reaction.",
+      "closed_loop_refinement": "Updated from experimental feedback. The next run keeps deterministic volume closure and prioritizes operational stability before scale-up."
+    },
+    "literature_analogies": [
+      "analogy_1_doi_unavailable",
+      "analogy_2_doi_unavailable",
+      "analogy_3_doi_unavailable"
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      "ENGINE_FALLBACK: screen required: all candidates disqualified before Chief selection",
+      "SCREEN_REQUIRED: all candidates disqualified before Chief selection",
+      "SCREEN_REQUIRED: evidence-calibrated from experimental feedback"
+    ],
+    "confidence": "MEDIUM",
+    "gas_flow_actual_mL_min": 0.04211,
+    "gas_flow_sccm": 0.10921,
+    "residence_time_in_channel_min": 191.912,
+    "residence_time_inlet_min": 83.89,
+    "residence_time_basis": "in-channel total actual flow",
+    "evidence_calibration": {
+      "n_experiments": 4,
+      "n_usable": 4,
+      "response_metric": "yield_pct",
+      "target_response_pct": 75.0,
+      "best_run_id": "entry_02_khu_manual",
+      "best_response_pct": 52.0,
+      "best_tau_in_channel_min": 137.08,
+      "apparent_rate_min_inv": 0.005354,
+      "target_tau_in_channel_min": 258.912,
+      "recommended_tau_in_channel_min": 191.912,
+      "anchor_conditions": {
+        "residence_time_basis": "in-channel total actual flow",
+        "residence_time_in_channel_min": 137.08,
+        "reactor_volume_mL": 10.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.25,
+        "BPR_bar": 3.0,
+        "tubing_ID_mm": 1.016,
+        "gas_equiv_inlet": 1.95,
+        "substrate_flow_mL_min": 0.01399,
+        "gas_flow_in_channel_mL_min": 0.05896,
+        "gas_flow_stp_mL_min": 0.1529,
+        "residence_time_inlet_min": 59.921
+      },
+      "recommended_conditions": {
+        "residence_time_basis": "in-channel total actual flow",
+        "residence_time_in_channel_min": 191.912,
+        "reactor_volume_mL": 10.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.25,
+        "BPR_bar": 3.0,
+        "tubing_ID_mm": 1.016,
+        "gas_equiv_inlet": 1.95,
+        "substrate_flow_mL_min": 0.00999,
+        "gas_flow_in_channel_mL_min": 0.04211,
+        "gas_flow_stp_mL_min": 0.10921,
+        "residence_time_inlet_min": 83.89
+      },
+      "design_ladder": [
+        {
+          "label": "best_observed_anchor",
+          "purpose": "Reproduce the best measured condition before claiming improvement.",
+          "residence_time_basis": "in-channel total actual flow",
+          "residence_time_in_channel_min": 137.08,
+          "reactor_volume_mL": 10.0,
+          "temperature_C": 40.0,
+          "concentration_M": 0.25,
+          "BPR_bar": 3.0,
+          "tubing_ID_mm": 1.016,
+          "gas_equiv_inlet": 1.95,
+          "substrate_flow_mL_min": 0.01399,
+          "gas_flow_in_channel_mL_min": 0.05896,
+          "gas_flow_stp_mL_min": 0.1529,
+          "residence_time_inlet_min": 59.921
+        },
+        {
+          "label": "next_intermediate_screen",
+          "purpose": "Step toward the target while limiting the next experimental jump.",
+          "residence_time_basis": "in-channel total actual flow",
+          "residence_time_in_channel_min": 191.912,
+          "reactor_volume_mL": 10.0,
+          "temperature_C": 40.0,
+          "concentration_M": 0.25,
+          "BPR_bar": 3.0,
+          "tubing_ID_mm": 1.016,
+          "gas_equiv_inlet": 1.95,
+          "substrate_flow_mL_min": 0.00999,
+          "gas_flow_in_channel_mL_min": 0.04211,
+          "gas_flow_stp_mL_min": 0.10921,
+          "residence_time_inlet_min": 83.89
+        },
+        {
+          "label": "target_estimate",
+          "purpose": "Fitted first-order estimate for 75.0% yield_pct.",
+          "residence_time_basis": "in-channel total actual flow",
+          "residence_time_in_channel_min": 258.912,
+          "reactor_volume_mL": 10.0,
+          "temperature_C": 40.0,
+          "concentration_M": 0.25,
+          "BPR_bar": 3.0,
+          "tubing_ID_mm": 1.016,
+          "gas_equiv_inlet": 1.95,
+          "substrate_flow_mL_min": 0.00741,
+          "gas_flow_in_channel_mL_min": 0.03122,
+          "gas_flow_stp_mL_min": 0.08095,
+          "residence_time_inlet_min": 113.177
+        }
+      ],
+      "notes": [
+        "Experimental campaign data override the first-pass intensification mandate.",
+        "Residence time is calibrated on in-channel total actual flow for gas-liquid runs.",
+        "The fitted target is a screening estimate, not a final kinetic model."
+      ]
+    },
+    "reactor_volume_mL_reported_by_council_mL": 10.0
+  },
+  "unit_operations": [],
+  "pid_description": "",
+  "council_rounds": 0,
+  "safety_report": {
+    "fallback_reason": "screen required: all candidates disqualified before Chief selection",
+    "feasibility_diagnostic": {
+      "status": "KINETIC_ANCHOR_UNCERTAIN_SCREEN_REQUIRED",
+      "hard_block": false,
+      "kinetic_anchor_quality": "UNCERTAIN",
+      "uncertainty_reasons": [
+        "raw_analogy_IFs=[48.0, 2.5, 4.8]; corrected_analogy_IFs=[48.0, 2.5, 4.8]",
+        "design-space candidate tau=37.5 min is under the intensification ceiling with projected X\u22480.82; delegating kinetics risk to council"
+      ],
+      "batch_time_min": 900.0,
+      "tau_kinetics_min": 49.83,
+      "tau_reduction_target": 20.0,
+      "tau_intensification_ceiling_min": 45.0,
+      "required_to_ceiling_ratio": 1.107,
+      "candidate_tau_min": 37.5,
+      "candidate_projected_conversion": 0.823,
+      "candidate_under_ceiling": true,
+      "candidate_worth_council": true,
+      "minimum_flow_advantage": "mass_transfer",
+      "diagnosis": "Current kinetic anchor is uncertain, not a hard infeasibility: analogy kinetic anchor \u03c4=49.8 min exceeds the intensification ceiling \u03c4\u226445.0 min (20.0\u00d7 faster than 900.0 min batch), but the upstream design-space search already found a candidate at \u03c4=37.5 min with projected X\u22480.82 \u2014 proceed and let the council evaluate it as a screening hypothesis.",
+      "recommended_next_steps": [
+        "Council proceeds with the design-space candidate; outcome is a SCREEN_REQUIRED hypothesis.",
+        "Run a small flow screen to measure conversion at sub-batch tau values.",
+        "Test intensification levers: higher temperature, lower viscosity/dilution strategy, smaller ID or enhanced mixing, and staged/recycle operation if chemically justified.",
+        "Revisit analogy/kinetic anchor if it came from weak local-model reasoning rather than measured flow precedent."
+      ]
+    },
+    "screen_required": true,
+    "screen_reason": "all candidates disqualified before Chief selection",
+    "screen_candidates": [
+      {
+        "id": 1,
+        "screen_id": "S1",
+        "purpose": "target-ceiling small-ID baseline",
+        "tau_min": 45.0,
+        "batch_time_min": 900.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.0982,
+        "V_R_mL": 4.418,
+        "d_mm": 0.75,
+        "L_m": 10.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.25,
+        "BPR_bar": 3.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 900.0,
+          "tau_min": 45.0,
+          "tau_ratio": 0.05,
+          "achieved_reduction_factor": 20.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 1.0,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.0982,
+          "L_m": 10.0,
+          "V_R_mL": 4.418,
+          "surface_to_volume_m_inv": 5333.3,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.858,
+          "automatic_flags": []
+        }
+      },
+      {
+        "id": 2,
+        "screen_id": "S2",
+        "purpose": "mid-tau small-ID intensified",
+        "tau_min": 30.0,
+        "batch_time_min": 900.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.1473,
+        "V_R_mL": 4.418,
+        "d_mm": 0.75,
+        "L_m": 10.0,
+        "temperature_C": 50.0,
+        "concentration_M": 0.25,
+        "BPR_bar": 3.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 900.0,
+          "tau_min": 30.0,
+          "tau_ratio": 0.0333,
+          "achieved_reduction_factor": 30.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 1.5,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.1473,
+          "L_m": 10.0,
+          "V_R_mL": 4.418,
+          "surface_to_volume_m_inv": 5333.3,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.858,
+          "automatic_flags": []
+        }
+      },
+      {
+        "id": 3,
+        "screen_id": "S3",
+        "purpose": "short-tau high surface-area challenge",
+        "tau_min": 15.0,
+        "batch_time_min": 900.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.1047,
+        "V_R_mL": 1.571,
+        "d_mm": 0.5,
+        "L_m": 8.0,
+        "temperature_C": 60.0,
+        "concentration_M": 0.25,
+        "BPR_bar": 3.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 900.0,
+          "tau_min": 15.0,
+          "tau_ratio": 0.0167,
+          "achieved_reduction_factor": 60.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 3.0,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.1047,
+          "L_m": 8.0,
+          "V_R_mL": 1.571,
+          "surface_to_volume_m_inv": 8000.0,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.858,
+          "automatic_flags": []
+        }
+      },
+      {
+        "id": 4,
+        "screen_id": "S4",
+        "purpose": "target-ceiling mid-ID practical comparator",
+        "tau_min": 45.0,
+        "batch_time_min": 900.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.1745,
+        "V_R_mL": 7.854,
+        "d_mm": 1.0,
+        "L_m": 10.0,
+        "temperature_C": 50.0,
+        "concentration_M": 0.25,
+        "BPR_bar": 3.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 900.0,
+          "tau_min": 45.0,
+          "tau_ratio": 0.05,
+          "achieved_reduction_factor": 20.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 1.0,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.1745,
+          "L_m": 10.0,
+          "V_R_mL": 7.854,
+          "surface_to_volume_m_inv": 4000.0,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.858,
+          "automatic_flags": []
+        }
+      },
+      {
+        "id": 5,
+        "screen_id": "S5",
+        "purpose": "large-ID dispersion/control comparator",
+        "tau_min": 45.0,
+        "batch_time_min": 900.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.3574,
+        "V_R_mL": 16.085,
+        "d_mm": 1.6,
+        "L_m": 8.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.25,
+        "BPR_bar": 3.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 900.0,
+          "tau_min": 45.0,
+          "tau_ratio": 0.05,
+          "achieved_reduction_factor": 20.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 1.0,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.3574,
+          "L_m": 8.0,
+          "V_R_mL": 16.085,
+          "surface_to_volume_m_inv": 2500.0,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.752,
+          "automatic_flags": []
+        }
+      }
+    ],
+    "screen_acceptance_criteria": [
+      "Measure conversion, isolated/assay yield, impurity profile, pressure drop, and visual clogging for every screen point.",
+      "Do not promote a point to final design unless tau_flow is below the batch-proximity threshold and measured conversion/yield meets the project target.",
+      "If all screen points underperform, report the reaction as not currently flow-intensifiable under the available kinetic anchor and require manual chemistry review."
+    ]
+  },
+  "council_messages": [],
+  "confidence": "MEDIUM",
+  "explanation": "# Flow Chemistry Design: Aerobic Photodehydrogenation of 6-Methyl-1,2,3,4-tetrahydroquinoline to 6-Methylquinoline\n\n---\n\n## (1) Proposed Flow Setup\n\n**Reactor:** FEP coil, 1.0 mm ID, 18.116 mL total volume (~23 m length), operated at 40.0 \u00b0C under fan cooling.\n\n**Light source:** Blue LED array, 450.0 nm, \u226510 W, wrapped around or positioned uniformly beside the FEP coil. Fan cooling is mandatory to prevent local heating under continuous LED illumination.\n\n**Two feed streams meeting at a PTFE or SS T-junction:**\n\n| Stream | Contents | Concentration | Flow Rate |\n|--------|----------|---------------|-----------|\n| A | 6-methyl-1,2,3,4-tetrahydroquinoline in DMSO | 0.25 M | 0.09048 mL/min (liquid) |\n| B | O\u2082 gas via MFC | \u2014 | 2.0279 sccm |\n\n- Stream A pump: HPLC or syringe pump with PTFE-wetted parts (DMSO compatibility).\n- Stream B: mass flow controller (MFC) calibrated for O\u2082.\n- Mixing at T-junction establishes Taylor/slug gas\u2013liquid segmented flow entering the coil.\n- **Back-pressure regulator (BPR):** 5.0 bar, positioned after the coil outlet.\n- **Downstream:** gas\u2013liquid phase separator (gravity settler or commercial inline separator); discard ~3 reactor volumes (~55 mL) of startup waste before collecting product fractions.\n- **Residence time:** 37.5 min (total reactor volume basis); note that effective liquid-phase residence time is longer due to gas holdup of 0.8127 \u2014 liquid holdup volume is 3.393 mL, giving a liquid-phase contact time significantly exceeding the nominal value.\n- **No quench required.** 6-Methylquinoline is stable; collect liquid fraction directly for GC or HPLC analysis.\n\n---\n\n## (2) Why These Conditions Were Chosen\n\n**Reaction mechanism and wavelength (450.0 nm):**\nThis is a catalyst-free aerobic photodehydrogenation. The tetrahydroquinoline substrate (or its electron donor\u2013acceptor complex with O\u2082 in DMSO) absorbs at ~450 nm. Photoexcitation triggers single-electron transfer (SET) to O\u2082, generating superoxide radical anion, which abstracts H from the substrate radical cation to give a dihydroquinoline intermediate. A second SET/H-abstraction cycle completes aromatization to 6-methylquinoline. Net stoichiometry requires ~2 equiv O\u2082 (yielding H\u2082O\u2082/H\u2082O as byproduct). The 450 nm wavelength is confirmed by both batch data (75% yield at 15 h) and flow precedent (52% at 137 min effective residence time). The closest structural analogy in the literature used a 14 W, 450 nm LED with a 10 mL FEP coil reactor at ~0.1 mL/min \u2014 the same wavelength, reactor material, and flow format are adopted here.\n\n**FEP tubing (1.0 mm ID):**\nFEP is transparent to visible light including 450 nm, chemically resistant to DMSO and O\u2082, and compatible with the pressures applied. The 1.0 mm ID is within the photon-penetration optimum for blue LEDs (0.5\u20132.0 mm range). Quartz (as used in some UV photoreactor analogies) is unnecessary at 450 nm and less practical for gas\u2013liquid service.\n\n**Temperature (40.0 \u00b0C):**\nAnchored to experimental data showing no yield benefit from increasing to 60 \u00b0C. The reaction is not thermally activated in the accessible range; photon flux and O\u2082 mass transfer are the controlling variables.\n\n**Concentration (0.25 M):**\nTaken directly from the best-characterized experimental entry (KHU Entry 2, 52% yield at ~137 min effective liquid residence time, 0.25 M, 40 \u00b0C, 3 bar). The effect of increasing to 0.50 M cannot be cleanly separated from residence time differences in available data and should be treated as a screen variable.\n\n**BPR (5.0 bar):**\nRequired to maintain O\u2082 in a compressed gas\u2013liquid segmented flow regime throughout the coil, preventing uncontrolled expansion and phase separation upstream. The BPR also raises dissolved O\u2082 concentration (Henry's law) \u2014 at 6.0 bar absolute, dissolved O\u2082 is calculated at 37.1 mM. The 5.0 bar BPR setpoint represents a practical operating point balancing O\u2082 solubility, slug-flow stability, and equipment compatibility.\n\n**Gas\u2013liquid (Taylor slug) flow and O\u2082 MFC:**\nSegmented flow in mm-scale tubing gives a mass transfer coefficient kLa = 0.304 s\u207b\u00b9, with an O\u2082 transfer capacity of 2.302 mmol/min against a demand of 0.09048 mmol/min \u2014 the O\u2082 transfer sufficiency ratio is **25.4x**, confirming that O\u2082 supply to the liquid phase is not mass-transfer limited under these conditions. The gas holdup fraction of 0.8127 is high; the actual liquid volume in the reactor is 3.393 mL. The MFC delivers 2.0279 sccm O\u2082 (~2.0 equiv relative to substrate molar flow), matching the stoichiometric requirement with margin.\n\n**Heat transfer:**\nUA = 21.74 W/K; heat generation from reaction is estimated at 0.125 W; heat removal capacity is 217 W. Thermal Damk\u00f6hler number Da_th = 0.000577 (\u226a1). Heat transfer score = 1.0. Thermal runaway risk is negligible; temperature control at 40 \u00b0C is straightforward with a recirculating bath or fan-cooled enclosure.\n\n---\n\n## (3) Key Differences from Batch\n\n**Confidence: MEDIUM** \u2014 Best analogy score: 0.55. A related literature precedent was found but conditions differ. Validate key parameters (residence time, concentration) experimentally.\n\nClosed-loop v2: Diagnosis: conversion is below target (15.0%). Next run: Refine for kinetic_underconversion, experiment_calibrated_kinetics. residence_time_min: 137.68 -> 191.912; flow_rate_mL_min: 0.0164 -> 0.00999; reactor_volume_mL: 13.27 -> 10.0; concentration_M: 0.5 -> 0.25; BPR_bar: 6.0 -> 3.0; tubing_ID_mm: 1.0 -> 1.016; gas_flow_actual_mL_min: 0.07999 -> 0.04211; gas_flow_sccm: 0.41405 -> 0.10921; residence_time_in_channel_min: 137.68 -> 191.912; residence_time_inlet_min: 30.828 -> 83.89; residence_time_basis: None -> in-channel total actual flow. Use evidence-calibrated residence times from the experimental campaign instead of the original intensification estimate. Increase in-channel residence time before changing chemistry because conversion is below target.",
+  "chemistry_plan": {
+    "reaction_name": "Aerobic photocatalytic dehydrogenation of 6-methyl-1,2,3,4-tetrahydroquinoline to 6-methylquinoline",
+    "reaction_class": "Photocatalytic aerobic dehydrogenation / aromatization",
+    "mechanism_type": "Photoinduced oxidative dehydrogenation (catalyst-free, O2 as terminal oxidant)",
+    "bond_formed": "C2=C3 and C4a=C8a aromatic C=N/C=C bonds in quinoline ring",
+    "bond_broken": "C-H bonds at C2, C3, C4 positions of tetrahydroquinoline ring",
+    "stages": [
+      {
+        "stage_number": 1,
+        "stage_name": "Photocatalytic aerobic dehydrogenation",
+        "reaction_type": "Photochemical oxidative aromatization",
+        "reactor_type": "coil",
+        "temperature_C": 40.0,
+        "requires_light": true,
+        "wavelength_nm": 450.0,
+        "batch_time_h": 15.0,
+        "feed_streams": [
+          {
+            "stream_label": "A",
+            "reagents": [
+              "6-methyl-1,2,3,4-tetrahydroquinoline (1.0 equiv) in DMSO (0.25\u20130.50 M)"
+            ],
+            "reasoning": "Substrate dissolved in DMSO at specified concentration; pumped as liquid feed",
+            "molar_equiv": 1.0,
+            "phase": ""
+          },
+          {
+            "stream_label": "B",
+            "reagents": [
+              "O2 gas (~2.0 equiv at inlet/STP)"
+            ],
+            "reasoning": "Oxygen gas feed via MFC; generates segmented (Taylor) gas-liquid flow for mass transfer; ~2.0 equiv at inlet conditions based on experimental data",
+            "molar_equiv": 1.0,
+            "phase": ""
+          }
+        ],
+        "inlet_from_previous": "",
+        "solvent": "DMSO",
+        "atmosphere": "O2",
+        "oxygen_sensitive": false,
+        "moisture_sensitive": false,
+        "deoxygenation_required": false,
+        "post_stage_action": "",
+        "post_stage_reasoning": ""
+      }
+    ],
+    "n_stages": 1,
+    "reagents": [
+      {
+        "name": "6-methyl-1,2,3,4-tetrahydroquinoline",
+        "role": "substrate",
+        "equiv_or_loading": "1.0 equiv",
+        "smiles": "Cc1ccc2c(c1)NCCC2",
+        "notes": "Limiting reagent; undergoes dehydrogenation to form 6-methylquinoline"
+      },
+      {
+        "name": "oxygen (O2)",
+        "role": "terminal oxidant / co-substrate",
+        "equiv_or_loading": "~2.0 equiv (inlet/STP)",
+        "smiles": "O=O",
+        "notes": "Gas feed; experimentally calibrated at 1.95\u20132.25 equiv at inlet STP. In-channel equivalents are lower due to gas compression at elevated pressure."
+      },
+      {
+        "name": "DMSO",
+        "role": "solvent",
+        "equiv_or_loading": "solvent",
+        "smiles": "CS(C)=O",
+        "notes": "May serve dual role as solvent and mild oxidant; high boiling point compatible with 40\u00b0C operation"
+      }
+    ],
+    "mechanism_steps": [
+      {
+        "step_number": 1,
+        "description": "Photoexcitation of 6-methyl-1,2,3,4-tetrahydroquinoline (or charge-transfer complex with O2) by 450 nm blue LED to generate excited-state species",
+        "species_involved": [
+          "6-methyl-1,2,3,4-tetrahydroquinoline",
+          "O2"
+        ],
+        "is_photon_dependent": true,
+        "is_rate_limiting": false
+      },
+      {
+        "step_number": 2,
+        "description": "Single electron transfer (SET) from excited tetrahydroquinoline to O2, generating substrate radical cation and superoxide radical anion (O2\u2022\u2212)",
+        "species_involved": [
+          "6-methyl-1,2,3,4-tetrahydroquinoline excited state",
+          "O2",
+          "substrate radical cation",
+          "superoxide radical anion"
+        ],
+        "is_photon_dependent": false,
+        "is_rate_limiting": true
+      },
+      {
+        "step_number": 3,
+        "description": "Proton-coupled electron transfer / H-atom abstraction from substrate radical cation by superoxide, forming dihydroquinoline intermediate and H2O2",
+        "species_involved": [
+          "substrate radical cation",
+          "superoxide radical anion",
+          "6-methyl-3,4-dihydroquinoline",
+          "H2O2"
+        ],
+        "is_photon_dependent": false,
+        "is_rate_limiting": false
+      },
+      {
+        "step_number": 4,
+        "description": "Second photoexcitation and SET oxidation cycle: dihydroquinoline undergoes further dehydrogenation to yield fully aromatic 6-methylquinoline",
+        "species_involved": [
+          "6-methyl-3,4-dihydroquinoline",
+          "O2",
+          "6-methylquinoline",
+          "H2O2"
+        ],
+        "is_photon_dependent": true,
+        "is_rate_limiting": true
+      },
+      {
+        "step_number": 5,
+        "description": "H2O2 decomposes or acts as secondary oxidant; net byproduct is water",
+        "species_involved": [
+          "H2O2",
+          "H2O"
+        ],
+        "is_photon_dependent": false,
+        "is_rate_limiting": false
+      }
+    ],
+    "key_intermediate": "6-methyl-3,4-dihydroquinoline (partially oxidized dihydroquinoline intermediate)",
+    "excited_state_type": "S1 of tetrahydroquinoline or EDA complex with O2",
+    "energy_transfer_or_redox": "Single electron transfer (SET) from photoexcited substrate to O2",
+    "oxygen_sensitive": false,
+    "o2_is_reagent": false,
+    "moisture_sensitive": false,
+    "temperature_sensitive": false,
+    "light_sensitive_reagents": [],
+    "stream_logic": [
+      {
+        "stream_label": "A",
+        "reagents": [
+          "6-methyl-1,2,3,4-tetrahydroquinoline",
+          "DMSO"
+        ],
+        "reasoning": "Substrate in DMSO at 0.25\u20130.50 M. Best anchor uses 0.25 M; screening at 0.50 M for higher throughput. Syringe or HPLC pump at 0.014 mL/min (anchor) or adjusted for target residence time.",
+        "molar_equiv": 1.0,
+        "concentration_M": 0.25,
+        "phase": "liquid"
+      },
+      {
+        "stream_label": "B",
+        "reagents": [
+          "O2"
+        ],
+        "reasoning": "O2 gas via MFC. Experimentally calibrated: ~2.0 equiv at inlet/STP (0.153 mL/min STP for 0.014 mL/min substrate at 0.25 M). In-channel flow ~0.059 mL/min at 3 bar. Gas/liquid slug ratio must be preserved when scaling flows.",
+        "molar_equiv": 2.0,
+        "phase": "gas"
+      }
+    ],
+    "mixing_order_reasoning": "Gas-liquid segmented (Taylor) flow: substrate solution (stream A) and O2 gas (stream B) meet at a T-junction or cross-mixer upstream of the photoreactor coil. Slug flow ensures periodic refreshing of the gas-liquid interface for O2 mass transfer. No premixing of other reagents needed \u2014 this is a two-stream system.",
+    "incompatible_pairs": [],
+    "deoxygenation_required": false,
+    "deoxygenation_reasoning": "O2 is a required co-substrate/oxidant; deoxygenation would be counterproductive.",
+    "quench_required": false,
+    "quench_reagent": "",
+    "quench_reasoning": "No reactive intermediates accumulate post-reactor that require quenching. Product 6-methylquinoline is stable.",
+    "retrieval_keywords": [
+      "aerobic photocatalytic dehydrogenation",
+      "tetrahydroquinoline aromatization",
+      "catalyst-free photo-oxidation blue LED",
+      "gas-liquid segmented flow photoreactor",
+      "oxidative dehydrogenation O2 DMSO"
+    ],
+    "similar_reaction_classes": [
+      "Photocatalytic aerobic oxidation of amines",
+      "Acceptorless dehydrogenation of N-heterocycles",
+      "Photo-oxidative aromatization",
+      "DDQ-mediated dehydrogenation (thermal analogue)"
+    ],
+    "batch_limitations": [
+      "mass_transfer_gas_liquid",
+      "photon_penetration"
+    ],
+    "batch_limitations_reasoning": "mass_transfer_gas_liquid: matched [gas-liquid mass transfer]; photon_penetration: matched [photon delivery]",
+    "recommended_wavelength_nm": 450.0,
+    "wavelength_reasoning": "Blue LED at 450 nm matches the absorption of the tetrahydroquinoline substrate or its EDA complex with O2 in DMSO. Experimental data from both batch (75% yield) and flow (52% at 137 min) confirm this wavelength is effective. No external photocatalyst used \u2014 substrate itself or substrate-O2 CT complex absorbs at this wavelength.",
+    "confidence_notes": "High confidence in experimental calibration data from KHU/KRICT entries. Mechanism assignment (catalyst-free photoinduced SET with O2) is plausible but not definitively proven \u2014 some literature invokes trace metal impurities or DMSO participation. The 450 nm absorption may be from a weak n\u2192\u03c0* transition of the amine or an EDA complex rather than direct substrate absorption. Yield extrapolation to 75% at 180\u2013200 min in-channel is a linear estimate and may be non-linear due to product inhibition or O2 depletion along the reactor. Concentration effect (0.25 vs 0.50 M) is confounded with residence time in available data \u2014 KRICT entries at 0.50 M used much shorter residence times (34\u201338 min), so concentration benefit is unclear. Recommend systematic screening to deconvolute concentration and residence time effects.",
+    "intensification_mandate": {
+      "tau_reduction_target": 20.0,
+      "minimum_flow_advantage": "mass_transfer",
+      "required_mixing_regime": "taylor_slug_flow",
+      "flow_justification_basis": "Flow must demonstrate 20.0x residence-time reduction. Identified batch limitations: mass_transfer_gas_liquid, photon_penetration. Primary flow advantage: mass_transfer. Mechanisms: gas-liquid kLa enhancement (segmented flow), photon penetration via small ID. Limitation-driven IF (20x) exceeds class default (6x)."
+    }
+  },
+  "design_calculations": {
+    "steps": [
+      {
+        "step": 1,
+        "name": "Batch Conditions",
+        "status": "PASS",
+        "summary": "T = 40 \u00b0C, C\u2080 = 0.5 M, t_batch = 15.0 h (54000 s), X = 0.75",
+        "values": {
+          "T_C": 40.0,
+          "T_K": 313.15,
+          "C_M": 0.5,
+          "t_batch_h": 15.0,
+          "t_batch_s": 54000.0,
+          "X": 0.75
+        },
+        "equations": [],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "Intensification policy active downstream \u2192 tau_flow must remain \u2264 900.0 min"
+        ]
+      },
+      {
+        "step": 2,
+        "name": "Kinetics & Residence Time",
+        "status": "PASS",
+        "summary": "\u03c4 = 37.5 min (council-approved \u2014 not re-derived from kinetics). Implied IF = 24\u00d7 vs batch.",
+        "values": {
+          "tau_primary_min": 37.5,
+          "method": "council-approved",
+          "IF_implied": 24.0,
+          "IF_class": 30.0,
+          "k_flow": 0.0006161308271643959
+        },
+        "equations": [],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "\u03c4 set by ENGINE council \u2014 kinetics estimation bypassed"
+        ]
+      },
+      {
+        "step": 3,
+        "name": "Reactor Sizing",
+        "status": "PASS",
+        "summary": "V_R = 18.12 mL, d = 1.00 mm, L = 23.07 m, Pe = 432 (\u2713 plug flow)",
+        "values": {
+          "V_R_mL": 18.115957060500005,
+          "liquid_holdup_mL": 3.393,
+          "gas_holdup": 0.8127,
+          "d_mm": 1.0,
+          "L_m": 23.065952920152785,
+          "Q_mL_min": 0.09048,
+          "v_m_s": 0.010251534631179013,
+          "Pe": 432.0,
+          "Pe_adequate": true
+        },
+        "equations": [
+          "V_{L} = \\tau_L \\times Q_L = 37.50 \\times 0.0905 = 3.39\\;\\mathrm{mL}",
+          "\\varepsilon_g = \\frac{Q_g}{Q_g+Q_L} = 0.813",
+          "V_R = \\frac{V_L}{1-\\varepsilon_g} = \\frac{3.39}{1-0.813} = 18.12\\;\\mathrm{mL}",
+          "L = \\frac{4\\,V_R}{\\pi\\,d^2} = 23.07\\;\\mathrm{m}",
+          "Pe = \\frac{192\\,\\tau\\,D_{\\mathrm{mol}}}{d^2} = \\frac{192 \\times 2250.0 \\times 1e-09}{0.0010^2} = 432\\;\\checkmark"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 4,
+        "name": "Fluid Dynamics",
+        "status": "PASS",
+        "summary": "Re = 1.1 (laminar), v = 0.0103 m/s",
+        "values": {
+          "Re": 1.056024878403344,
+          "regime": "laminar",
+          "v_m_s": 0.010251534631179013,
+          "mu_Pa_s": 0.002,
+          "rho_kg_m3": 1100.0,
+          "mu_cP": 2.0,
+          "rho_g_mL": 1.1
+        },
+        "equations": [
+          "v = \\frac{4\\,Q}{\\pi\\,d^2} = \\frac{4 \\times 1.508e-09}{\\pi \\times (0.0010)^2} = 0.0103\\;\\mathrm{m/s}",
+          "Re = \\frac{\\rho\\,v\\,d}{\\mu} = \\frac{1100 \\times 0.0103 \\times 0.0010}{2.0000e-03} = 1.1"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 5,
+        "name": "Pressure Drop",
+        "status": "PASS",
+        "summary": "\u0394P = 0.3401 bar (pump max = 400 bar, margin = 100 %)",
+        "values": {
+          "dP_bar": 0.34012932832947107,
+          "dP_Pa": 34012.9328329471,
+          "pump_max_bar": 400.0,
+          "margin_pct": 99.91496766791764
+        },
+        "equations": [
+          "\\Delta P = \\frac{128\\,\\mu\\,L\\,Q}{\\pi\\,d^4} = \\frac{128 \\times 2.0000e-03 \\times 23.07 \\times 1.508e-09}{\\pi \\times (0.0010)^4} \\times \\phi^2_{2p} = 0.3401\\;\\mathrm{bar}",
+          "\\phi^2_{2p} = 1 + 12\\varepsilon_g + 25\\varepsilon_g^2 = 12.00"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 6,
+        "name": "Mass Transfer",
+        "status": "PASS",
+        "summary": "t_mix = 101.3 s, Da = 0.616 \u2014 Kinetically controlled \u2014 mixing is not limiting",
+        "values": {
+          "t_mix_s": 101.32118364233777,
+          "Da_mass": 0.6161308271643958,
+          "D_m2_s": 1e-09,
+          "interpretation": "Kinetically controlled \u2014 mixing is not limiting",
+          "gas_species": "O2",
+          "gas_flow_sccm": 2.0279,
+          "gas_flow_actual_mL_min": 0.3926,
+          "gas_pressure_abs_bar": 6.0,
+          "gas_liquid_ratio": 4.3392,
+          "gas_holdup": 0.8127,
+          "o2_supply_mmol_min": 0.09048,
+          "o2_required_mmol_min": 0.09048,
+          "o2_equiv_supplied": 2.0,
+          "dissolved_o2_mM": 37.1429,
+          "kLa_s": 0.30445,
+          "o2_transfer_capacity_mmol_min": 2.302091,
+          "o2_transfer_sufficiency": 25.4431
+        },
+        "equations": [
+          "t_{\\mathrm{mix}} \\approx \\frac{d^2}{D \\cdot \\pi^2} = \\frac{(0.0010)^2}{1.0e-09 \\times \\pi^2} = 101.3\\;\\mathrm{s}",
+          "Da = \\frac{k \\cdot d^2}{D} = \\frac{6.161e-04 \\times (0.0010)^2}{1.0e-09} = 0.616",
+          "Q_{g,\\mathrm{actual}} = Q_{g,\\mathrm{STP}}\\frac{T}{T_{STP}}\\frac{P_{STP}}{P} = 0.393\\;\\mathrm{mL/min}",
+          "C^*_{O2} \\approx 1.3\\;\\mathrm{mM}\\times\\frac{P_{O2}}{0.21\\;\\mathrm{bar}} = 37.14\\;\\mathrm{mM}",
+          "\\dot n_{O2,transfer} = k_La C^* V_L = 2.3021\\;\\mathrm{mmol/min}"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "D = 1e-09 m\u00b2/s (typical for small organic molecules in liquid)",
+          "Gas holdup estimated from actual reactor gas/liquid volumetric ratio.",
+          "O2 solubility uses a water/ethanol-scale Henry-law approximation; validate experimentally for final scale-up.",
+          "kLa is a conservative capillary slug-flow estimate tied to gas holdup."
+        ]
+      },
+      {
+        "step": 7,
+        "name": "Heat Transfer",
+        "status": "PASS",
+        "summary": "Q_gen = 0.1254 W, Q_rem = 217.3919 W, Da_th = 0.0006 \u2014 Thermally safe",
+        "values": {
+          "Q_gen_W": 0.12543191379412771,
+          "Q_rem_W": 217.3919284431065,
+          "Da_th": 0.0005769851470219347,
+          "S_V_m_inv": 4000.0,
+          "U_W_m2K": 300,
+          "A_wall_m2": 0.07246397614770217,
+          "UA_W_K": 21.739193,
+          "heat_transfer_score": 1.0,
+          "dH_J_mol": -120000,
+          "dT_lm_C": 10.0,
+          "r_mol_m3_s": 0.30806541358219797
+        },
+        "equations": [
+          "\\dot{Q}_{\\mathrm{rxn}} = |\\Delta H_r| \\cdot r \\cdot V_R = 120000 \\times 0.308 \\times 3.393e-06 = 0.1254\\;\\mathrm{W}",
+          "A_{\\mathrm{wall}} = \\pi\\,d\\,L = \\pi \\times 0.0010 \\times 23.07 = 0.07246\\;\\mathrm{m^2}",
+          "\\dot{Q}_{\\mathrm{rem}} = U \\cdot A \\cdot \\Delta T_{\\mathrm{lm}} = 300 \\times 0.07246 \\times 10 = 217.3919\\;\\mathrm{W}",
+          "Da_{\\mathrm{th}} = \\frac{\\dot{Q}_{\\mathrm{rxn}}}{\\dot{Q}_{\\mathrm{rem}}} = \\frac{0.1254}{217.3919} = 0.0006",
+          "\\frac{S}{V} = \\frac{4}{d} = \\frac{4}{0.0010} = 4000\\;\\mathrm{m^{-1}}"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "\u0394H_r \u2248 -120 kJ/mol (estimated for hydrogenation)",
+          "U \u2248 300 W/m\u00b2\u00b7K (coil in temperature-controlled bath)",
+          "\u0394T_lm \u2248 10.0 \u00b0C (conservative estimate)"
+        ]
+      },
+      {
+        "step": 8,
+        "name": "Back-Pressure Regulator",
+        "status": "PASS",
+        "summary": "BPR REQUIRED: 5.0 bar (Gas-liquid system detected \u2014 BPR mandatory to maintain gas solubility (Henry's law: C_gas = H\u00b7P) and prevent uncontrolled degassing.)",
+        "values": {
+          "bpr_required": true,
+          "bpr_bar": 5.0,
+          "P_vapor_bar": 0.0016464025916263856,
+          "dP_system_bar": 0.340129,
+          "solvent_bp_C": 189,
+          "gas_liquid": true,
+          "gas_species": "O2",
+          "gas_pressure_abs_bar": 6.0,
+          "gas_flow_sccm": 2.0279,
+          "dissolved_o2_mM": 37.1429
+        },
+        "equations": [
+          "C_{\\mathrm{gas}} = H \\cdot P_{\\mathrm{partial}}\\quad\\text{(higher BPR} \\Rightarrow \\text{more dissolved gas)}",
+          "P_{\\mathrm{BPR}} \\geq \\max\\left(P_{\\mathrm{vap}} + \\Delta P + 0.5,\\; 5\\right) = \\max(0.00 + 0.340 + 0.5,\\; 5) = 5.0\\;\\mathrm{bar}"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 9,
+        "name": "Process Metrics",
+        "status": "PASS",
+        "summary": "STY = 0.6000 mol/(L\u00b7h), P = 2.036 mmol/h, startup waste = 10.2 mL, IF = 24\u00d7",
+        "values": {
+          "STY_mol_L_h": 0.6,
+          "productivity_mmol_h": 2.0358,
+          "IF": 24.0,
+          "n_molar_flow_mmol_min": null,
+          "P_batch_mmol_h": null,
+          "P_flow_mmol_h": null,
+          "C_reactor_M": null,
+          "startup_waste_mL": 10.2,
+          "productivity_closure_ok": null,
+          "is_gas_liquid": true,
+          "liquid_flow_rate_mL_min": 0.09048,
+          "gas_flow_sccm": 2.0279,
+          "gas_holdup": 0.8127,
+          "liquid_holdup_volume_mL": 3.393,
+          "total_reactor_volume_mL": 18.116
+        },
+        "equations": [
+          "STY = \\frac{C_0 \\cdot X \\cdot 60}{\\tau} = \\frac{0.5 \\times 0.75 \\times 60}{37.5} = 0.6000\\;\\mathrm{mol/(L \\cdot h)}",
+          "P = Q \\cdot C_0 \\cdot X \\cdot 60 = 0.090 \\times 0.5 \\times 0.75 \\times 60 = 2.036\\;\\mathrm{mmol/h}",
+          "V_{\\mathrm{startup}} = 3 \\cdot \\tau \\cdot Q = 3 \\times 37.5 \\times 0.090 = 10.2\\;\\mathrm{mL}",
+          "IF = \\frac{t_{\\mathrm{batch}}}{\\tau_{\\mathrm{flow}}} = \\frac{54000}{2250.0} = 24.0\\times"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      }
+    ],
+    "temperature_C": 40.0,
+    "temperature_K": 313.15,
+    "concentration_M": 0.5,
+    "batch_time_s": 54000.0,
+    "target_conversion": 0.75,
+    "rate_constant": 0.0006161308271643959,
+    "reaction_order": 1,
+    "kinetics_method": "council-approved",
+    "residence_time_s": 11514.72,
+    "residence_time_min": 191.912,
+    "residence_time_range_min": [
+      30.0,
+      45.0
+    ],
+    "intensification_factor": 24.0,
+    "tau_analogy_min": null,
+    "tau_class_min": null,
+    "tau_kinetics_min": null,
+    "if_analogy": 4.8,
+    "if_class": 30.0,
+    "n_analogy_datapoints": 3,
+    "arrhenius_correction": null,
+    "flow_rate_mL_min": 0.09048,
+    "flow_rate_m3_s": 1.508e-09,
+    "reactor_volume_mL": 18.116,
+    "reactor_volume_m3": 1.8115957060500006e-05,
+    "tubing_ID_mm": 1.0,
+    "tubing_ID_m": 0.001,
+    "tubing_length_m": 23.066,
+    "velocity_m_s": 0.010251534631179013,
+    "reynolds_number": 1.06,
+    "flow_regime": "laminar",
+    "viscosity_Pa_s": 0.002,
+    "density_kg_m3": 1100.0,
+    "pressure_drop_bar": 0.340129,
+    "pump_max_bar": 400.0,
+    "pump_adequate": true,
+    "is_gas_liquid": true,
+    "gas_species": "O2",
+    "gas_oxygen_fraction": 1.0,
+    "liquid_flow_rate_mL_min": 0.09048,
+    "gas_flow_sccm": 2.0279,
+    "gas_sccm_uncapped": 2.0279,
+    "gas_flow_actual_mL_min": 0.3926,
+    "gas_actual_uncapped_mL_min": 0.3926,
+    "gas_flow_capped_by_holdup": false,
+    "gas_pressure_abs_bar": 6.0,
+    "gas_liquid_ratio": 4.3392,
+    "gas_holdup": 0.8127,
+    "liquid_holdup_volume_mL": 3.393,
+    "two_phase_multiplier": 12.0,
+    "two_phase_pressure_drop_bar": 0.340129,
+    "o2_supply_mmol_min": 0.09048,
+    "o2_required_mmol_min": 0.09048,
+    "o2_equiv_supplied": 2.0,
+    "dissolved_o2_mM": 37.1429,
+    "kLa_s": 0.30445,
+    "o2_transfer_capacity_mmol_min": 2.302091,
+    "o2_transfer_sufficiency": 25.4431,
+    "mixing_time_s": 101.32,
+    "damkohler_mass": 0.6161,
+    "mass_transfer_limited": false,
+    "heat_generation_W": 0.125432,
+    "heat_removal_W": 217.391928,
+    "thermal_damkohler": 0.000577,
+    "thermal_safe": true,
+    "surface_to_volume": 4000.0,
+    "heat_transfer_area_m2": 0.07246398,
+    "UA_W_K": 21.739193,
+    "heat_transfer_score": 1.0,
+    "bpr_required": true,
+    "bpr_pressure_bar": 5.0,
+    "vapor_pressure_bar": 0.0016,
+    "space_time_yield_mol_L_h": 0.6,
+    "productivity_mmol_h": 2.036,
+    "n_molar_flow_mmol_min": null,
+    "P_batch_mmol_h": null,
+    "P_flow_mmol_h": null,
+    "C_reactor_M": null,
+    "startup_waste_mL": 10.2,
+    "productivity_closure_ok": null,
+    "Pe": 432.0,
+    "Pe_adequate": true,
+    "consistent": true,
+    "consistency_notes": [],
+    "material_warnings": [],
+    "stage_corrected_total_reactor_volume_mL": 10.0,
+    "global_single_zone_reactor_volume_mL": 18.116
+  },
+  "design_version": 2,
+  "closed_loop": {
+    "last_experiment": {
+      "run_id": "entry_04_krict_6",
+      "design_version": 1,
+      "actual_conditions": {
+        "residence_time_min": null,
+        "residence_time_inlet_min": 7.71,
+        "residence_time_in_channel_min": 34.42,
+        "residence_time_basis": "in_channel",
+        "flow_rate_mL_min": 0.0656,
+        "substrate_flow_mL_min": 0.0656,
+        "gas_flow_in_channel_mL_min": 0.32,
+        "gas_flow_stp_mL_min": 1.6565,
+        "gas_equiv_inlet": 2.25,
+        "temperature_C": 40.0,
+        "concentration_M": 0.5,
+        "tubing_ID_mm": 1.0,
+        "reactor_volume_mL": 13.27,
+        "BPR_bar": 6.0,
+        "wavelength_nm": null,
+        "light_power_W": null
+      },
+      "outcomes": {
+        "yield_pct": 10.0,
+        "product_pct": 10.0,
+        "starting_material_pct": 85.0,
+        "conversion_pct": 15.0,
+        "selectivity_pct": null,
+        "pressure_bar": null,
+        "pressure_drift_bar": null,
+        "clogging_observed": false,
+        "precipitation_observed": false,
+        "gas_liquid_stability": "",
+        "impurity_notes": "",
+        "analytical_method": "",
+        "notes": "KRICT 6"
+      },
+      "free_text_observations": "T = 40 C\nc = 0.50 M\nP = 6 bar\nsubstrate flow = 0.0656 mL/min\nO2 in-channel = 0.320 mL/min\nO2 inlet/STP = 1.6565 mL/min\nO2 equiv inlet = 2.25\nt inlet = 7.71 min\nt in-channel = 34.42 min\nreactor volume = 13.27 mL\nstarting material = 85%\nproduct = 10%\ntubing ID = 1.00 mm\n\nTask:\n1. Do not keep the original 34-45 min design as the main recommendation.\n2. Treat KHU/KRICT measured data as stronger evidence than theoretical intensification.\n3. Use in-channel residence time as the kinetic calibration basis.\n4. Preserve gas/liquid ratio when scaling flows.\n5. Propose:\n   - best observed anchor,\n   - next intermediate screen,\n   - target estimate for about 75% product/yield.\n6. Report both t inlet and t in-channel.",
+      "created_at": "2026-06-25T07:42:19.666196+00:00"
+    },
+    "last_decision": {
+      "design_version_in": 1,
+      "design_version_out": 2,
+      "score": 11.25,
+      "status": "needs_refinement",
+      "diagnosis": "Diagnosis: conversion is below target (15.0%).",
+      "failure_modes": [
+        "kinetic_underconversion",
+        "experiment_calibrated_kinetics"
+      ],
+      "recommended_actions": [
+        "Use evidence-calibrated residence times from the experimental campaign instead of the original intensification estimate.",
+        "Increase in-channel residence time before changing chemistry because conversion is below target."
+      ],
+      "revision_instructions": "Refine for kinetic_underconversion, experiment_calibrated_kinetics. residence_time_min: 137.68 -> 191.912; flow_rate_mL_min: 0.0164 -> 0.00999; reactor_volume_mL: 13.27 -> 10.0; concentration_M: 0.5 -> 0.25; BPR_bar: 6.0 -> 3.0; tubing_ID_mm: 1.0 -> 1.016; gas_flow_actual_mL_min: 0.07999 -> 0.04211; gas_flow_sccm: 0.41405 -> 0.10921; residence_time_in_channel_min: 137.68 -> 191.912; residence_time_inlet_min: 30.828 -> 83.89; residence_time_basis: None -> in-channel total actual flow. Use evidence-calibrated residence times from the experimental campaign instead of the original intensification estimate. Increase in-channel residence time before changing chemistry because conversion is below target.",
+      "parameter_changes": {
+        "residence_time_min": {
+          "old": 137.68,
+          "new": 191.912,
+          "changed": true
+        },
+        "flow_rate_mL_min": {
+          "old": 0.0164,
+          "new": 0.00999,
+          "changed": true
+        },
+        "reactor_volume_mL": {
+          "old": 13.27,
+          "new": 10.0,
+          "changed": true
+        },
+        "temperature_C": {
+          "old": 40.0,
+          "new": 40.0,
+          "changed": false
+        },
+        "concentration_M": {
+          "old": 0.5,
+          "new": 0.25,
+          "changed": true
+        },
+        "BPR_bar": {
+          "old": 6.0,
+          "new": 3.0,
+          "changed": true
+        },
+        "tubing_ID_mm": {
+          "old": 1.0,
+          "new": 1.016,
+          "changed": true
+        },
+        "gas_flow_actual_mL_min": {
+          "old": 0.07999,
+          "new": 0.04211,
+          "changed": true
+        },
+        "gas_flow_sccm": {
+          "old": 0.41405,
+          "new": 0.10921,
+          "changed": true
+        },
+        "residence_time_in_channel_min": {
+          "old": 137.68,
+          "new": 191.912,
+          "changed": true
+        },
+        "residence_time_inlet_min": {
+          "old": 30.828,
+          "new": 83.89,
+          "changed": true
+        },
+        "residence_time_basis": {
+          "old": null,
+          "new": "in-channel total actual flow",
+          "changed": true
+        }
+      },
+      "safety_flags": [
+        "ENGINE_FALLBACK: screen required: all candidates disqualified before Chief selection",
+        "SCREEN_REQUIRED: all candidates disqualified before Chief selection",
+        "SCREEN_REQUIRED: evidence-calibrated from experimental feedback"
+      ],
+      "next_experiment": {
+        "design_version": 2,
+        "status": "needs_refinement",
+        "residence_time_min": 191.912,
+        "residence_time_in_channel_min": 191.912,
+        "residence_time_inlet_min": 83.89,
+        "residence_time_basis": "in-channel total actual flow",
+        "flow_rate_mL_min": 0.00999,
+        "reactor_volume_mL": 10.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.25,
+        "BPR_bar": 3.0,
+        "tubing_ID_mm": 1.016,
+        "pre_reactor_steps": [
+          "No deoxygenation required \u2014 O2 is the required co-substrate (Chemistry Plan: deoxygenation_required = false). Purge lines with DMSO before introducing substrate solution.",
+          "Verify O2 MFC calibration and set inlet flow to 0.153 mL/min STP (~1.95 equiv). Confirm Taylor slug flow visually or by pressure trace before collecting product."
+        ],
+        "acceptance_criteria": {
+          "yield_pct_min": 80.0,
+          "conversion_pct_min": 90.0,
+          "selectivity_pct_min": 85.0,
+          "pressure_drift_bar_max": 2.0,
+          "no_clogging": true
+        },
+        "substrate_flow_mL_min": 0.00999,
+        "gas_flow_in_channel_mL_min": 0.04211,
+        "gas_flow_stp_mL_min": 0.10921,
+        "evidence_calibration": {
+          "n_experiments": 4,
+          "n_usable": 4,
+          "response_metric": "yield_pct",
+          "target_response_pct": 75.0,
+          "best_run_id": "entry_02_khu_manual",
+          "best_response_pct": 52.0,
+          "best_tau_in_channel_min": 137.08,
+          "apparent_rate_min_inv": 0.005354,
+          "target_tau_in_channel_min": 258.912,
+          "recommended_tau_in_channel_min": 191.912,
+          "anchor_conditions": {
+            "residence_time_basis": "in-channel total actual flow",
+            "residence_time_in_channel_min": 137.08,
+            "reactor_volume_mL": 10.0,
+            "temperature_C": 40.0,
+            "concentration_M": 0.25,
+            "BPR_bar": 3.0,
+            "tubing_ID_mm": 1.016,
+            "gas_equiv_inlet": 1.95,
+            "substrate_flow_mL_min": 0.01399,
+            "gas_flow_in_channel_mL_min": 0.05896,
+            "gas_flow_stp_mL_min": 0.1529,
+            "residence_time_inlet_min": 59.921
+          },
+          "recommended_conditions": {
+            "residence_time_basis": "in-channel total actual flow",
+            "residence_time_in_channel_min": 191.912,
+            "reactor_volume_mL": 10.0,
+            "temperature_C": 40.0,
+            "concentration_M": 0.25,
+            "BPR_bar": 3.0,
+            "tubing_ID_mm": 1.016,
+            "gas_equiv_inlet": 1.95,
+            "substrate_flow_mL_min": 0.00999,
+            "gas_flow_in_channel_mL_min": 0.04211,
+            "gas_flow_stp_mL_min": 0.10921,
+            "residence_time_inlet_min": 83.89
+          },
+          "design_ladder": [
+            {
+              "label": "best_observed_anchor",
+              "purpose": "Reproduce the best measured condition before claiming improvement.",
+              "residence_time_basis": "in-channel total actual flow",
+              "residence_time_in_channel_min": 137.08,
+              "reactor_volume_mL": 10.0,
+              "temperature_C": 40.0,
+              "concentration_M": 0.25,
+              "BPR_bar": 3.0,
+              "tubing_ID_mm": 1.016,
+              "gas_equiv_inlet": 1.95,
+              "substrate_flow_mL_min": 0.01399,
+              "gas_flow_in_channel_mL_min": 0.05896,
+              "gas_flow_stp_mL_min": 0.1529,
+              "residence_time_inlet_min": 59.921
+            },
+            {
+              "label": "next_intermediate_screen",
+              "purpose": "Step toward the target while limiting the next experimental jump.",
+              "residence_time_basis": "in-channel total actual flow",
+              "residence_time_in_channel_min": 191.912,
+              "reactor_volume_mL": 10.0,
+              "temperature_C": 40.0,
+              "concentration_M": 0.25,
+              "BPR_bar": 3.0,
+              "tubing_ID_mm": 1.016,
+              "gas_equiv_inlet": 1.95,
+              "substrate_flow_mL_min": 0.00999,
+              "gas_flow_in_channel_mL_min": 0.04211,
+              "gas_flow_stp_mL_min": 0.10921,
+              "residence_time_inlet_min": 83.89
+            },
+            {
+              "label": "target_estimate",
+              "purpose": "Fitted first-order estimate for 75.0% yield_pct.",
+              "residence_time_basis": "in-channel total actual flow",
+              "residence_time_in_channel_min": 258.912,
+              "reactor_volume_mL": 10.0,
+              "temperature_C": 40.0,
+              "concentration_M": 0.25,
+              "BPR_bar": 3.0,
+              "tubing_ID_mm": 1.016,
+              "gas_equiv_inlet": 1.95,
+              "substrate_flow_mL_min": 0.00741,
+              "gas_flow_in_channel_mL_min": 0.03122,
+              "gas_flow_stp_mL_min": 0.08095,
+              "residence_time_inlet_min": 113.177
+            }
+          ],
+          "notes": [
+            "Experimental campaign data override the first-pass intensification mandate.",
+            "Residence time is calibrated on in-channel total actual flow for gas-liquid runs.",
+            "The fitted target is a screening estimate, not a final kinetic model."
+          ]
+        },
+        "gas_equiv_inlet": 1.95
+      }
+    },
+    "history_length": 4,
+    "campaign_calibration": {
+      "n_experiments": 4,
+      "n_usable": 4,
+      "response_metric": "yield_pct",
+      "target_response_pct": 75.0,
+      "best_run_id": "entry_02_khu_manual",
+      "best_response_pct": 52.0,
+      "best_tau_in_channel_min": 137.08,
+      "apparent_rate_min_inv": 0.005354,
+      "target_tau_in_channel_min": 258.912,
+      "recommended_tau_in_channel_min": 191.912,
+      "anchor_conditions": {
+        "residence_time_basis": "in-channel total actual flow",
+        "residence_time_in_channel_min": 137.08,
+        "reactor_volume_mL": 10.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.25,
+        "BPR_bar": 3.0,
+        "tubing_ID_mm": 1.016,
+        "gas_equiv_inlet": 1.95,
+        "substrate_flow_mL_min": 0.01399,
+        "gas_flow_in_channel_mL_min": 0.05896,
+        "gas_flow_stp_mL_min": 0.1529,
+        "residence_time_inlet_min": 59.921
+      },
+      "recommended_conditions": {
+        "residence_time_basis": "in-channel total actual flow",
+        "residence_time_in_channel_min": 191.912,
+        "reactor_volume_mL": 10.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.25,
+        "BPR_bar": 3.0,
+        "tubing_ID_mm": 1.016,
+        "gas_equiv_inlet": 1.95,
+        "substrate_flow_mL_min": 0.00999,
+        "gas_flow_in_channel_mL_min": 0.04211,
+        "gas_flow_stp_mL_min": 0.10921,
+        "residence_time_inlet_min": 83.89
+      },
+      "design_ladder": [
+        {
+          "label": "best_observed_anchor",
+          "purpose": "Reproduce the best measured condition before claiming improvement.",
+          "residence_time_basis": "in-channel total actual flow",
+          "residence_time_in_channel_min": 137.08,
+          "reactor_volume_mL": 10.0,
+          "temperature_C": 40.0,
+          "concentration_M": 0.25,
+          "BPR_bar": 3.0,
+          "tubing_ID_mm": 1.016,
+          "gas_equiv_inlet": 1.95,
+          "substrate_flow_mL_min": 0.01399,
+          "gas_flow_in_channel_mL_min": 0.05896,
+          "gas_flow_stp_mL_min": 0.1529,
+          "residence_time_inlet_min": 59.921
+        },
+        {
+          "label": "next_intermediate_screen",
+          "purpose": "Step toward the target while limiting the next experimental jump.",
+          "residence_time_basis": "in-channel total actual flow",
+          "residence_time_in_channel_min": 191.912,
+          "reactor_volume_mL": 10.0,
+          "temperature_C": 40.0,
+          "concentration_M": 0.25,
+          "BPR_bar": 3.0,
+          "tubing_ID_mm": 1.016,
+          "gas_equiv_inlet": 1.95,
+          "substrate_flow_mL_min": 0.00999,
+          "gas_flow_in_channel_mL_min": 0.04211,
+          "gas_flow_stp_mL_min": 0.10921,
+          "residence_time_inlet_min": 83.89
+        },
+        {
+          "label": "target_estimate",
+          "purpose": "Fitted first-order estimate for 75.0% yield_pct.",
+          "residence_time_basis": "in-channel total actual flow",
+          "residence_time_in_channel_min": 258.912,
+          "reactor_volume_mL": 10.0,
+          "temperature_C": 40.0,
+          "concentration_M": 0.25,
+          "BPR_bar": 3.0,
+          "tubing_ID_mm": 1.016,
+          "gas_equiv_inlet": 1.95,
+          "substrate_flow_mL_min": 0.00741,
+          "gas_flow_in_channel_mL_min": 0.03122,
+          "gas_flow_stp_mL_min": 0.08095,
+          "residence_time_inlet_min": 113.177
+        }
+      ],
+      "notes": [
+        "Experimental campaign data override the first-pass intensification mandate.",
+        "Residence time is calibrated on in-channel total actual flow for gas-liquid runs.",
+        "The fitted target is a screening estimate, not a final kinetic model."
+      ]
+    }
+  },
+  "design_space": [
+    {
+      "tau_min": 37.5,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.09048,
+      "L_fraction": 0.8,
+      "V_R_mL": 22.6195,
+      "L_m": 28.8,
+      "liquid_holdup_volume_mL": 3.3929,
+      "Re": 1.06,
+      "delta_P_bar": 0.42468,
+      "t_mix_s": 250.0,
+      "r_mix": 0.11111,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.5288,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0635,
+      "productivity_mg_h": 358.86,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.6326,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.64038,
+      "score_breakdown": {
+        "productivity": 0.8733,
+        "L": 0.08,
+        "dP": 1.0,
+        "mixing": 0.4445,
+        "re": 0.9995,
+        "conversion": 0.5288
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=28.8 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.53 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.25",
+      "is_council_candidate": true
+    },
+    {
+      "tau_min": 45.0,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.0754,
+      "L_fraction": 0.8,
+      "V_R_mL": 22.6195,
+      "L_m": 28.8,
+      "liquid_holdup_volume_mL": 3.3929,
+      "Re": 0.88,
+      "delta_P_bar": 0.35388,
+      "t_mix_s": 250.0,
+      "r_mix": 0.09259,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.5947,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0595,
+      "productivity_mg_h": 336.28,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.3605,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.63802,
+      "score_breakdown": {
+        "productivity": 0.8183,
+        "L": 0.08,
+        "dP": 1.0,
+        "mixing": 0.5371,
+        "re": 0.9996,
+        "conversion": 0.5947
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=28.8 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.59 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.50",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 30.0,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.1131,
+      "L_fraction": 0.8,
+      "V_R_mL": 22.6195,
+      "L_m": 28.8,
+      "liquid_holdup_volume_mL": 3.3929,
+      "Re": 1.32,
+      "delta_P_bar": 0.53088,
+      "t_mix_s": 250.0,
+      "r_mix": 0.13889,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.4523,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0678,
+      "productivity_mg_h": 383.66,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 2.0407,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.63512,
+      "score_breakdown": {
+        "productivity": 0.9336,
+        "L": 0.08,
+        "dP": 1.0,
+        "mixing": 0.3055,
+        "re": 0.9994,
+        "conversion": 0.4523
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=28.8 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.45 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 45.0,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.06126,
+      "L_fraction": 0.65,
+      "V_R_mL": 18.3783,
+      "L_m": 23.4,
+      "liquid_holdup_volume_mL": 2.7567,
+      "Re": 0.71,
+      "delta_P_bar": 0.23364,
+      "t_mix_s": 250.0,
+      "r_mix": 0.09259,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.5947,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0595,
+      "productivity_mg_h": 273.23,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.1054,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.61531,
+      "score_breakdown": {
+        "productivity": 0.6649,
+        "L": 0.44,
+        "dP": 1.0,
+        "mixing": 0.5371,
+        "re": 0.9997,
+        "conversion": 0.5947
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=23.4 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.59 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.50",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.1508,
+      "L_fraction": 0.8,
+      "V_R_mL": 22.6195,
+      "L_m": 28.8,
+      "liquid_holdup_volume_mL": 3.3929,
+      "Re": 1.76,
+      "delta_P_bar": 0.70776,
+      "t_mix_s": 250.0,
+      "r_mix": 0.18519,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 410.94,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 2.7209,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.6131,
+      "score_breakdown": {
+        "productivity": 1.0,
+        "L": 0.08,
+        "dP": 1.0,
+        "mixing": 0.0741,
+        "re": 0.9992,
+        "conversion": 0.3633
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=28.8 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 37.5,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.07351,
+      "L_fraction": 0.65,
+      "V_R_mL": 18.3783,
+      "L_m": 23.4,
+      "liquid_holdup_volume_mL": 2.7567,
+      "Re": 0.86,
+      "delta_P_bar": 0.28032,
+      "t_mix_s": 250.0,
+      "r_mix": 0.11111,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.5288,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0635,
+      "productivity_mg_h": 291.58,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.3265,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.61252,
+      "score_breakdown": {
+        "productivity": 0.7095,
+        "L": 0.44,
+        "dP": 1.0,
+        "mixing": 0.4445,
+        "re": 0.9996,
+        "conversion": 0.5288
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=23.4 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.53 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.25",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 30.0,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.09189,
+      "L_fraction": 0.65,
+      "V_R_mL": 18.3783,
+      "L_m": 23.4,
+      "liquid_holdup_volume_mL": 2.7567,
+      "Re": 1.07,
+      "delta_P_bar": 0.3504,
+      "t_mix_s": 250.0,
+      "r_mix": 0.13889,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.4523,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0678,
+      "productivity_mg_h": 311.73,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.6581,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.60161,
+      "score_breakdown": {
+        "productivity": 0.7586,
+        "L": 0.44,
+        "dP": 1.0,
+        "mixing": 0.3055,
+        "re": 0.9995,
+        "conversion": 0.4523
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=23.4 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.45 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 37.5,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.05655,
+      "L_fraction": 0.5,
+      "V_R_mL": 14.1372,
+      "L_m": 18.0,
+      "liquid_holdup_volume_mL": 2.1206,
+      "Re": 0.66,
+      "delta_P_bar": 0.16584,
+      "t_mix_s": 250.0,
+      "r_mix": 0.11111,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.5288,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0635,
+      "productivity_mg_h": 224.29,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.0204,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.58465,
+      "score_breakdown": {
+        "productivity": 0.5458,
+        "L": 0.8,
+        "dP": 1.0,
+        "mixing": 0.4445,
+        "re": 0.9997,
+        "conversion": 0.5288
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=18.0 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.53 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.25",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.12252,
+      "L_fraction": 0.65,
+      "V_R_mL": 18.3783,
+      "L_m": 23.4,
+      "liquid_holdup_volume_mL": 2.7567,
+      "Re": 1.43,
+      "delta_P_bar": 0.46728,
+      "t_mix_s": 250.0,
+      "r_mix": 0.18519,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 333.89,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 2.2108,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.57336,
+      "score_breakdown": {
+        "productivity": 0.8125,
+        "L": 0.44,
+        "dP": 1.0,
+        "mixing": 0.0741,
+        "re": 0.9994,
+        "conversion": 0.3633
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=23.4 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 30.0,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.07069,
+      "L_fraction": 0.5,
+      "V_R_mL": 14.1372,
+      "L_m": 18.0,
+      "liquid_holdup_volume_mL": 2.1206,
+      "Re": 0.83,
+      "delta_P_bar": 0.20736,
+      "t_mix_s": 250.0,
+      "r_mix": 0.13889,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.4523,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0678,
+      "productivity_mg_h": 239.79,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.2754,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.56808,
+      "score_breakdown": {
+        "productivity": 0.5835,
+        "L": 0.8,
+        "dP": 1.0,
+        "mixing": 0.3055,
+        "re": 0.9996,
+        "conversion": 0.4523
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=18.0 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.45 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.09425,
+      "L_fraction": 0.5,
+      "V_R_mL": 14.1372,
+      "L_m": 18.0,
+      "liquid_holdup_volume_mL": 2.1206,
+      "Re": 1.1,
+      "delta_P_bar": 0.27648,
+      "t_mix_s": 250.0,
+      "r_mix": 0.18519,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 256.84,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.7006,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.53362,
+      "score_breakdown": {
+        "productivity": 0.625,
+        "L": 0.8,
+        "dP": 1.0,
+        "mixing": 0.0741,
+        "re": 0.9995,
+        "conversion": 0.3633
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=18.0 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 37.5,
+      "d_mm": 0.75,
+      "Q_mL_min": 0.05089,
+      "L_fraction": 0.8,
+      "V_R_mL": 12.7235,
+      "L_m": 28.8,
+      "liquid_holdup_volume_mL": 1.9085,
+      "Re": 0.79,
+      "delta_P_bar": 0.75492,
+      "t_mix_s": 140.625,
+      "r_mix": 0.0625,
+      "Da_mass": 0.4333,
+      "expected_conversion": 0.5288,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0635,
+      "productivity_mg_h": 201.86,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 0.9183,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.49797,
+      "score_breakdown": {
+        "productivity": 0.4912,
+        "L": 0.08,
+        "dP": 1.0,
+        "mixing": 0.6875,
+        "re": 0.9997,
+        "conversion": 0.5288
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=28.8 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.53 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.25",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 30.0,
+      "d_mm": 0.75,
+      "Q_mL_min": 0.05169,
+      "L_fraction": 0.65,
+      "V_R_mL": 10.3378,
+      "L_m": 23.4,
+      "liquid_holdup_volume_mL": 1.5507,
+      "Re": 0.8,
+      "delta_P_bar": 0.62304,
+      "t_mix_s": 140.625,
+      "r_mix": 0.07812,
+      "Da_mass": 0.4333,
+      "expected_conversion": 0.4523,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0678,
+      "productivity_mg_h": 175.35,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 0.9327,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.49644,
+      "score_breakdown": {
+        "productivity": 0.4267,
+        "L": 0.44,
+        "dP": 1.0,
+        "mixing": 0.6094,
+        "re": 0.9997,
+        "conversion": 0.4523
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=23.4 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.45 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 30.0,
+      "d_mm": 0.75,
+      "Q_mL_min": 0.06362,
+      "L_fraction": 0.8,
+      "V_R_mL": 12.7235,
+      "L_m": 28.8,
+      "liquid_holdup_volume_mL": 1.9085,
+      "Re": 0.99,
+      "delta_P_bar": 0.94368,
+      "t_mix_s": 140.625,
+      "r_mix": 0.07812,
+      "Da_mass": 0.4333,
+      "expected_conversion": 0.4523,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0678,
+      "productivity_mg_h": 215.81,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.1479,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.49167,
+      "score_breakdown": {
+        "productivity": 0.5252,
+        "L": 0.08,
+        "dP": 1.0,
+        "mixing": 0.6094,
+        "re": 0.9996,
+        "conversion": 0.4523
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=28.8 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.45 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 0.75,
+      "Q_mL_min": 0.05301,
+      "L_fraction": 0.5,
+      "V_R_mL": 7.9522,
+      "L_m": 18.0,
+      "liquid_holdup_volume_mL": 1.1928,
+      "Re": 0.82,
+      "delta_P_bar": 0.49152,
+      "t_mix_s": 140.625,
+      "r_mix": 0.10417,
+      "Da_mass": 0.4333,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 144.47,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 0.9566,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.47792,
+      "score_breakdown": {
+        "productivity": 0.3516,
+        "L": 0.8,
+        "dP": 1.0,
+        "mixing": 0.4792,
+        "re": 0.9996,
+        "conversion": 0.3633
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=18.0 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 0.75,
+      "Q_mL_min": 0.06892,
+      "L_fraction": 0.65,
+      "V_R_mL": 10.3378,
+      "L_m": 23.4,
+      "liquid_holdup_volume_mL": 1.5507,
+      "Re": 1.07,
+      "delta_P_bar": 0.83064,
+      "t_mix_s": 140.625,
+      "r_mix": 0.10417,
+      "Da_mass": 0.4333,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 187.81,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.2436,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.47665,
+      "score_breakdown": {
+        "productivity": 0.457,
+        "L": 0.44,
+        "dP": 1.0,
+        "mixing": 0.4792,
+        "re": 0.9995,
+        "conversion": 0.3633
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=23.4 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 0.75,
+      "Q_mL_min": 0.08482,
+      "L_fraction": 0.8,
+      "V_R_mL": 12.7235,
+      "L_m": 28.8,
+      "liquid_holdup_volume_mL": 1.9085,
+      "Re": 1.32,
+      "delta_P_bar": 1.25832,
+      "t_mix_s": 140.625,
+      "r_mix": 0.10417,
+      "Da_mass": 0.4333,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 231.15,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.5305,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.47538,
+      "score_breakdown": {
+        "productivity": 0.5625,
+        "L": 0.08,
+        "dP": 1.0,
+        "mixing": 0.4792,
+        "re": 0.9994,
+        "conversion": 0.3633
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=28.8 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 0.75,
+      "Q_mL_min": 0.09543,
+      "L_fraction": 0.9,
+      "V_R_mL": 14.3139,
+      "L_m": 32.4,
+      "liquid_holdup_volume_mL": 2.1471,
+      "Re": 1.48,
+      "delta_P_bar": 1.59252,
+      "t_mix_s": 140.625,
+      "r_mix": 0.10417,
+      "Da_mass": 0.4333,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 260.05,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.7218,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "L=32.4 m > 30.0 m (bench limit)"
+      ],
+      "warnings": [
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.16965,
+      "L_fraction": 0.9,
+      "V_R_mL": 25.4469,
+      "L_m": 32.4,
+      "liquid_holdup_volume_mL": 3.817,
+      "Re": 1.98,
+      "delta_P_bar": 0.8958,
+      "t_mix_s": 250.0,
+      "r_mix": 0.18519,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 462.31,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 3.0611,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "L=32.4 m > 30.0 m (bench limit)",
+        "V_R=25.4 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.24127,
+      "L_fraction": 0.5,
+      "V_R_mL": 36.1911,
+      "L_m": 18.0,
+      "liquid_holdup_volume_mL": 5.4287,
+      "Re": 1.76,
+      "delta_P_bar": 0.108,
+      "t_mix_s": 640.0,
+      "r_mix": 0.47407,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 657.5,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 4.3535,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=36.2 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=18.0 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.47 > 0.20",
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.31366,
+      "L_fraction": 0.65,
+      "V_R_mL": 47.0485,
+      "L_m": 23.4,
+      "liquid_holdup_volume_mL": 7.0573,
+      "Re": 2.29,
+      "delta_P_bar": 0.18252,
+      "t_mix_s": 640.0,
+      "r_mix": 0.47407,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 854.75,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 5.6596,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=47.0 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=23.4 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.47 > 0.20",
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.38604,
+      "L_fraction": 0.8,
+      "V_R_mL": 57.9058,
+      "L_m": 28.8,
+      "liquid_holdup_volume_mL": 8.6859,
+      "Re": 2.82,
+      "delta_P_bar": 0.27648,
+      "t_mix_s": 640.0,
+      "r_mix": 0.47407,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 1052.0,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 6.9656,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=57.9 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=28.8 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.47 > 0.20",
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.43429,
+      "L_fraction": 0.9,
+      "V_R_mL": 65.1441,
+      "L_m": 32.4,
+      "liquid_holdup_volume_mL": 9.7716,
+      "Re": 3.17,
+      "delta_P_bar": 0.34992,
+      "t_mix_s": 640.0,
+      "r_mix": 0.47407,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 1183.5,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 7.8363,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "L=32.4 m > 30.0 m (bench limit)",
+        "V_R=65.1 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.47 > 0.20",
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 30.0,
+      "d_mm": 0.75,
+      "Q_mL_min": 0.07157,
+      "L_fraction": 0.9,
+      "V_R_mL": 14.3139,
+      "L_m": 32.4,
+      "liquid_holdup_volume_mL": 2.1471,
+      "Re": 1.11,
+      "delta_P_bar": 1.19436,
+      "t_mix_s": 140.625,
+      "r_mix": 0.07812,
+      "Da_mass": 0.4333,
+      "expected_conversion": 0.4523,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0678,
+      "productivity_mg_h": 242.79,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.2914,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "L=32.4 m > 30.0 m (bench limit)"
+      ],
+      "warnings": [
+        "X=0.45 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 30.0,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.12723,
+      "L_fraction": 0.9,
+      "V_R_mL": 25.4469,
+      "L_m": 32.4,
+      "liquid_holdup_volume_mL": 3.817,
+      "Re": 1.48,
+      "delta_P_bar": 0.67188,
+      "t_mix_s": 250.0,
+      "r_mix": 0.13889,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.4523,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0678,
+      "productivity_mg_h": 431.62,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 2.2958,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "L=32.4 m > 30.0 m (bench limit)",
+        "V_R=25.4 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "X=0.45 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 30.0,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.18096,
+      "L_fraction": 0.5,
+      "V_R_mL": 36.1911,
+      "L_m": 18.0,
+      "liquid_holdup_volume_mL": 5.4287,
+      "Re": 1.32,
+      "delta_P_bar": 0.081,
+      "t_mix_s": 640.0,
+      "r_mix": 0.35556,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.4523,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0678,
+      "productivity_mg_h": 613.86,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 3.2651,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=36.2 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=18.0 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.36 > 0.20",
+        "X=0.45 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 30.0,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.23524,
+      "L_fraction": 0.65,
+      "V_R_mL": 47.0485,
+      "L_m": 23.4,
+      "liquid_holdup_volume_mL": 7.0573,
+      "Re": 1.72,
+      "delta_P_bar": 0.13692,
+      "t_mix_s": 640.0,
+      "r_mix": 0.35556,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.4523,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0678,
+      "productivity_mg_h": 798.02,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 4.2447,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=47.0 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=23.4 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.36 > 0.20",
+        "X=0.45 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 30.0,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.28953,
+      "L_fraction": 0.8,
+      "V_R_mL": 57.9058,
+      "L_m": 28.8,
+      "liquid_holdup_volume_mL": 8.6859,
+      "Re": 2.11,
+      "delta_P_bar": 0.20736,
+      "t_mix_s": 640.0,
+      "r_mix": 0.35556,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.4523,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0678,
+      "productivity_mg_h": 982.18,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 5.2242,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=57.9 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=28.8 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.36 > 0.20",
+        "X=0.45 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 30.0,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.32572,
+      "L_fraction": 0.9,
+      "V_R_mL": 65.1441,
+      "L_m": 32.4,
+      "liquid_holdup_volume_mL": 9.7716,
+      "Re": 2.38,
+      "delta_P_bar": 0.26244,
+      "t_mix_s": 640.0,
+      "r_mix": 0.35556,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.4523,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0678,
+      "productivity_mg_h": 1104.95,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 5.8772,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "L=32.4 m > 30.0 m (bench limit)",
+        "V_R=65.1 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.36 > 0.20",
+        "X=0.45 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 37.5,
+      "d_mm": 0.75,
+      "Q_mL_min": 0.05726,
+      "L_fraction": 0.9,
+      "V_R_mL": 14.3139,
+      "L_m": 32.4,
+      "liquid_holdup_volume_mL": 2.1471,
+      "Re": 0.89,
+      "delta_P_bar": 0.95556,
+      "t_mix_s": 140.625,
+      "r_mix": 0.0625,
+      "Da_mass": 0.4333,
+      "expected_conversion": 0.5288,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0635,
+      "productivity_mg_h": 227.09,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.0331,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "L=32.4 m > 30.0 m (bench limit)"
+      ],
+      "warnings": [
+        "X=0.53 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.25",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 37.5,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.10179,
+      "L_fraction": 0.9,
+      "V_R_mL": 25.4469,
+      "L_m": 32.4,
+      "liquid_holdup_volume_mL": 3.817,
+      "Re": 1.19,
+      "delta_P_bar": 0.53748,
+      "t_mix_s": 250.0,
+      "r_mix": 0.11111,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.5288,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0635,
+      "productivity_mg_h": 403.72,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.8366,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "L=32.4 m > 30.0 m (bench limit)",
+        "V_R=25.4 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "X=0.53 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.25",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 37.5,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.14476,
+      "L_fraction": 0.5,
+      "V_R_mL": 36.1911,
+      "L_m": 18.0,
+      "liquid_holdup_volume_mL": 5.4287,
+      "Re": 1.06,
+      "delta_P_bar": 0.0648,
+      "t_mix_s": 640.0,
+      "r_mix": 0.28444,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.5288,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0635,
+      "productivity_mg_h": 574.18,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 2.6121,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=36.2 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=18.0 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.28 > 0.20",
+        "X=0.53 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.25",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 37.5,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.18819,
+      "L_fraction": 0.65,
+      "V_R_mL": 47.0485,
+      "L_m": 23.4,
+      "liquid_holdup_volume_mL": 7.0573,
+      "Re": 1.37,
+      "delta_P_bar": 0.10956,
+      "t_mix_s": 640.0,
+      "r_mix": 0.28444,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.5288,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0635,
+      "productivity_mg_h": 746.43,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 3.3957,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=47.0 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=23.4 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.28 > 0.20",
+        "X=0.53 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.25",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 37.5,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.23162,
+      "L_fraction": 0.8,
+      "V_R_mL": 57.9058,
+      "L_m": 28.8,
+      "liquid_holdup_volume_mL": 8.6859,
+      "Re": 1.69,
+      "delta_P_bar": 0.16584,
+      "t_mix_s": 640.0,
+      "r_mix": 0.28444,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.5288,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0635,
+      "productivity_mg_h": 918.69,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 4.1794,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=57.9 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=28.8 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.28 > 0.20",
+        "X=0.53 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.25",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 37.5,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.26058,
+      "L_fraction": 0.9,
+      "V_R_mL": 65.1441,
+      "L_m": 32.4,
+      "liquid_holdup_volume_mL": 9.7716,
+      "Re": 1.9,
+      "delta_P_bar": 0.21,
+      "t_mix_s": 640.0,
+      "r_mix": 0.28444,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.5288,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0635,
+      "productivity_mg_h": 1033.52,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 4.7018,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "L=32.4 m > 30.0 m (bench limit)",
+        "V_R=65.1 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.28 > 0.20",
+        "X=0.53 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.25",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 45.0,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.08482,
+      "L_fraction": 0.9,
+      "V_R_mL": 25.4469,
+      "L_m": 32.4,
+      "liquid_holdup_volume_mL": 3.817,
+      "Re": 0.99,
+      "delta_P_bar": 0.44784,
+      "t_mix_s": 250.0,
+      "r_mix": 0.09259,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.5947,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0595,
+      "productivity_mg_h": 378.32,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.5305,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "L=32.4 m > 30.0 m (bench limit)",
+        "V_R=25.4 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "X=0.59 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.50",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 45.0,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.12064,
+      "L_fraction": 0.5,
+      "V_R_mL": 36.1911,
+      "L_m": 18.0,
+      "liquid_holdup_volume_mL": 5.4287,
+      "Re": 0.88,
+      "delta_P_bar": 0.054,
+      "t_mix_s": 640.0,
+      "r_mix": 0.23704,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.5947,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0595,
+      "productivity_mg_h": 538.05,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 2.1768,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=36.2 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=18.0 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.24 > 0.20",
+        "X=0.59 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.50",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 45.0,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.15683,
+      "L_fraction": 0.65,
+      "V_R_mL": 47.0485,
+      "L_m": 23.4,
+      "liquid_holdup_volume_mL": 7.0573,
+      "Re": 1.14,
+      "delta_P_bar": 0.0912,
+      "t_mix_s": 640.0,
+      "r_mix": 0.23704,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.5947,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0595,
+      "productivity_mg_h": 699.47,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 2.8298,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=47.0 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=23.4 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.24 > 0.20",
+        "X=0.59 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.50",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 45.0,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.19302,
+      "L_fraction": 0.8,
+      "V_R_mL": 57.9058,
+      "L_m": 28.8,
+      "liquid_holdup_volume_mL": 8.6859,
+      "Re": 1.41,
+      "delta_P_bar": 0.13824,
+      "t_mix_s": 640.0,
+      "r_mix": 0.23704,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.5947,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0595,
+      "productivity_mg_h": 860.88,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 3.4828,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=57.9 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=28.8 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.24 > 0.20",
+        "X=0.59 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.50",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 45.0,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.21715,
+      "L_fraction": 0.9,
+      "V_R_mL": 65.1441,
+      "L_m": 32.4,
+      "liquid_holdup_volume_mL": 9.7716,
+      "Re": 1.58,
+      "delta_P_bar": 0.17496,
+      "t_mix_s": 640.0,
+      "r_mix": 0.23704,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.5947,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0595,
+      "productivity_mg_h": 968.49,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 3.9182,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "L=32.4 m > 30.0 m (bench limit)",
+        "V_R=65.1 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "Mixing-limited: Da_mass=1.97 > 1 AND r_mix=0.24 > 0.20",
+        "X=0.59 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.50",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 93.8,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.05787,
+      "L_fraction": 0.5,
+      "V_R_mL": 36.1911,
+      "L_m": 18.0,
+      "liquid_holdup_volume_mL": 5.4287,
+      "Re": 0.42,
+      "delta_P_bar": 0.02592,
+      "t_mix_s": 640.0,
+      "r_mix": 0.11372,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.8478,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0407,
+      "productivity_mg_h": 367.99,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.0443,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=36.2 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=18.0 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.85 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "\u03c4_lit/2",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 93.8,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.07524,
+      "L_fraction": 0.65,
+      "V_R_mL": 47.0485,
+      "L_m": 23.4,
+      "liquid_holdup_volume_mL": 7.0573,
+      "Re": 0.55,
+      "delta_P_bar": 0.0438,
+      "t_mix_s": 640.0,
+      "r_mix": 0.11372,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.8478,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0407,
+      "productivity_mg_h": 478.38,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.3576,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=47.0 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=23.4 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.85 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "\u03c4_lit/2",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 93.8,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.0926,
+      "L_fraction": 0.8,
+      "V_R_mL": 57.9058,
+      "L_m": 28.8,
+      "liquid_holdup_volume_mL": 8.6859,
+      "Re": 0.68,
+      "delta_P_bar": 0.06636,
+      "t_mix_s": 640.0,
+      "r_mix": 0.11372,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.8478,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0407,
+      "productivity_mg_h": 588.78,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.6709,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "V_R=57.9 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "L=28.8 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.85 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "\u03c4_lit/2",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 93.8,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.10417,
+      "L_fraction": 0.9,
+      "V_R_mL": 65.1441,
+      "L_m": 32.4,
+      "liquid_holdup_volume_mL": 9.7716,
+      "Re": 0.76,
+      "delta_P_bar": 0.08388,
+      "t_mix_s": 640.0,
+      "r_mix": 0.11372,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.8478,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0407,
+      "productivity_mg_h": 662.38,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.8797,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "L=32.4 m > 30.0 m (bench limit)",
+        "V_R=65.1 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [
+        "X=0.85 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "\u03c4_lit/2",
+      "is_council_candidate": false
+    },
+    {
+      "tau_min": 187.5,
+      "d_mm": 1.6,
+      "Q_mL_min": 0.05212,
+      "L_fraction": 0.9,
+      "V_R_mL": 65.1441,
+      "L_m": 32.4,
+      "liquid_holdup_volume_mL": 9.7716,
+      "Re": 0.38,
+      "delta_P_bar": 0.042,
+      "t_mix_s": 640.0,
+      "r_mix": 0.05689,
+      "Da_mass": 1.9719,
+      "expected_conversion": 0.9768,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0234,
+      "productivity_mg_h": 381.79,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 0.9404,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.0,
+      "score_breakdown": {},
+      "feasible": false,
+      "violations": [
+        "L=32.4 m > 30.0 m (bench limit)",
+        "V_R=65.1 mL > 25.0 mL (single coil)"
+      ],
+      "warnings": [],
+      "tau_source": "\u03c4_lit",
+      "is_council_candidate": false
+    }
+  ],
+  "_analogies": [
+    {
+      "record_id": "photochemflow (10).pdf",
+      "metadata": {
+        "doi": "",
+        "phase_regime": "single_phase_liquid",
+        "wavelength_nm": 425.0,
+        "chemistry_class": "photoredox catalysis",
+        "process_mode": "both",
+        "title": "",
+        "photocatalyst": "fac-[Ir(ppy)3]",
+        "mechanism_type": "radical addition followed by oxidation",
+        "reactor_type": "MiChS flow photoreactor L-1 (M)",
+        "has_translation": true,
+        "solvent": "DMSO",
+        "confidence": 85,
+        "year": 0
+      },
+      "summary": "This photoredox catalysis process involves a radical addition followed by oxidation using fac-[Ir(ppy)3] as the photocatalyst with 425 nm LED irradiation. The reaction was performed in DMSO solvent at 25\u00b0C using a MiChS flow photoreactor L-1 (M) with 2 mm ID quartz tubing and a 2.7 mL reactor volume. The flow process achieved a remarkable 30-minute residence time at 0.09 mL/min flow rate, compared to 24 hours required in batch conditions. Flow chemistry provided dramatic improvements with a 48-fold reduction in reaction time (from 24 hours to 30 minutes) and a substantial increase in yield from 22% in batch to 75% in flow. The enhanced performance in flow resulted from improved light penetration and better mass transfer in the thin quartz tubing, enabling more efficient photocatalytic activation and faster reaction kinetics.",
+      "semantic_score": 0.6563,
+      "field_score": 0.4,
+      "final_score": 0.5538,
+      "full_record": {
+        "chemistry": {
+          "reaction_name": "Keto-Difluoromethylation of Aromatic Alkenes",
+          "reaction_class": "photoredox catalysis",
+          "mechanism_type": "radical addition followed by oxidation",
+          "substrates": {
+            "substrate_A": "aromatic alkenes",
+            "substrate_B": "N-tosyl-S-difluoromethyl-S-phenylsulfoximine (1a)",
+            "limiting_reagent": "N-tosyl-S-difluoromethyl-S-phenylsulfoximine (1a)",
+            "stoichiometry": "1:1.2 (1a:alkene)"
+          },
+          "photocatalyst": {
+            "name": "fac-[Ir(ppy)3]",
+            "loading_mol_pct": 5,
+            "role": "photoredox catalyst",
+            "absorption_max_nm": 425
+          },
+          "co_catalyst": {
+            "name": "",
+            "loading_mol_pct": null,
+            "role": ""
+          },
+          "additives": [
+            {
+              "name": "DMSO",
+              "equiv": null,
+              "role": "solvent and oxidant"
+            }
+          ],
+          "base": {
+            "name": "sodium benzoate",
+            "equiv": 1
+          },
+          "oxidant": {
+            "name": "DMSO",
+            "equiv": null
+          },
+          "reductant": {
+            "name": "",
+            "equiv": null
+          },
+          "product": "\u03b1-CF2H-substituted ketones",
+          "bond_formed": "C-CF2H bond and C=O bond",
+          "mechanistic_details": {
+            "excited_state_lifetime_ns": null,
+            "redox_potential_discussed": true,
+            "triplet_state_involved": false,
+            "key_intermediate": "\u03b1-CF2H-substituted carbocationic species"
+          },
+          "scope_summary": "Various aromatic alkenes including styrenes with electron-neutral, electron-rich, and electron-poor substituents. Internal alkenes like trans-stilbene and indene derivatives also compatible. Functional groups compatible include ethers, carbonyls, halogens, and pyridyl groups."
+        },
+        "batch_baseline": {
+          "temperature_C": 25,
+          "reaction_time_min": 1440,
+          "solvent": "DMSO",
+          "concentration_M": null,
+          "light_source": "blue LEDs",
+          "light_power_W": null,
+          "atmosphere": null,
+          "yield_percent": 22,
+          "ee_percent": null,
+          "scale_mmol": null,
+          "vessel": "200 mL-Schlenk tube"
+        },
+        "flow_optimized": {
+          "temperature_C": 25,
+          "residence_time_min": 30,
+          "flow_rate_total_mL_min": 0.09,
+          "flow_rate_stream_A_mL_min": null,
+          "flow_rate_stream_B_mL_min": null,
+          "concentration_M": null,
+          "back_pressure_bar": null,
+          "atmosphere": null,
+          "yield_percent": 75,
+          "ee_percent": null,
+          "scale_mmol": null,
+          "throughput_mmol_h": null
+        },
+        "optimization_table": {
+          "variables_screened": [
+            "CF2H reagent",
+            "photocatalyst",
+            "base"
+          ],
+          "number_of_entries": 14,
+          "optimal_entry_number": 10,
+          "key_findings": "fac-[Ir(ppy)3] with reagent 1a and PhCO2Na base gave best results"
+        },
+        "reactor": {
+          "type": "MiChS flow photoreactor L-1 (M)",
+          "material": "quartz",
+          "volume_mL": 2.7,
+          "tubing_diameter_mm": 2,
+          "channel_depth_mm": 1
+        },
+        "light_source": {
+          "type": "LED",
+          "wavelength_nm": 425,
+          "power_W": 0.077,
+          "irradiance_mW_cm2": null,
+          "color": "blue",
+          "position_relative_to_reactor": null
+        },
+        "pump": {
+          "type": "syringe pump",
+          "number_of_inlets": null
+        },
+        "figures": [
+          {
+            "figure_type": "other",
+            "page": 11,
+            "caption": "Figure 1 . Cyclic voltammograms of the CF 2 H reagents ( 1a \u2013 d ). Measurements were ",
+            "description": "Non-chemistry figure, skipped extraction."
+          },
+          {
+            "figure_type": "other",
+            "page": 13,
+            "caption": "Figure 2 . (a) Measurements of phosphorescence decay (excited at 355 nm and monitored ",
+            "description": "Non-chemistry figure, skipped extraction."
+          },
+          {
+            "figure_type": "other",
+            "page": 13,
+            "caption": "Figure 2 . (a) Measurements of phosphorescence decay (excited at 355 nm and monitored ",
+            "description": "Non-chemistry figure, skipped extraction."
+          },
+          {
+            "figure_type": "other",
+            "page": 26,
+            "caption": "Figure 4 .  1 H NMR spectra of the reaction of  2b  in the presence of PhCO 2 Na.  a The reaction  | Scheme 10 . Detection of Dimethylsulfide in Keto-Difluoromethylation under Base-free ",
+            "description": "Non-chemistry figure, skipped extraction."
+          }
+        ],
+        "translation_logic": {
+          "batch_limitation": "Long reaction times (24 hours) and poor yields (22%)",
+          "flow_advantage": "Dramatically reduced reaction time (30 min) and significantly improved yield (75%)",
+          "what_changed": "Reaction time reduced from 24 hours to 30 minutes, yield improved from 22% to 75%",
+          "what_stayed_same": "Temperature (25\u00b0C), solvent (DMSO), photocatalyst (fac-[Ir(ppy)3]) and loading (5 mol%)",
+          "time_reduction_factor": 48,
+          "yield_change_percent": 240.9,
+          "safety_improvement": "Reduced reaction time and better heat management in flow",
+          "scale_up_discussed": true
+        },
+        "process_figures": {
+          "has_reactor_scheme": false,
+          "has_flow_diagram": false,
+          "has_optimization_table": true,
+          "figure_descriptions": [
+            "Cyclic voltammograms of CF2H reagents",
+            "Phosphorescence decay measurements",
+            "1H NMR spectra and mechanistic scheme"
+          ]
+        },
+        "field_sources": {
+          "reaction_name": "text",
+          "yield_percent": "table",
+          "residence_time_min": "table",
+          "reactor_type": "text",
+          "optimization_variables": "table"
+        },
+        "field_confidence": {
+          "reaction_name": 3,
+          "yield_percent": 3,
+          "residence_time_min": 3,
+          "reactor_type": 3,
+          "time_reduction_factor": 3,
+          "yield_change_percent": 3
+        },
+        "conflicts": [],
+        "confidence_overall": 85,
+        "notes": "Well-documented photoredox catalysis study with clear batch-to-flow translation showing dramatic improvements in both time and yield. Gram-scale capability demonstrated. Some missing details on exact concentrations and flow rates for individual streams.",
+        "source_pdf": "photochemflow (10).pdf"
+      }
+    },
+    {
+      "record_id": "acs.joc.1c01151.pdf",
+      "metadata": {
+        "solvent": "MeCN",
+        "process_mode": "both",
+        "wavelength_nm": 420.0,
+        "mechanism_type": "photocatalysis",
+        "phase_regime": "single_phase_liquid",
+        "title": "",
+        "chemistry_class": "aerobic oxidation",
+        "doi": "",
+        "year": 0,
+        "has_translation": true,
+        "confidence": 95,
+        "photocatalyst": "4,7-diphenyl-2,1,3-benzothiadiazole",
+        "reactor_type": "FBR"
+      },
+      "summary": "This study describes a photocatalyzed aerobic oxidation using 4,7-diphenyl-2,1,3-benzothiadiazole as the photocatalyst at 10 mol% loading. The reaction was conducted at 25\u00b0C with a 2-minute residence time in acetonitrile solvent using 420 nm LED irradiation. The flow setup employed a fixed-bed reactor (FBR) with 6 mm ID borosilicate glass tubing, 6 mL reactor volume, and 0.2 mL/min flow rate with a back pressure regulator at 1 bar. The flow process achieved 97.2% yield compared to 99% in batch, demonstrating nearly equivalent performance with significantly reduced reaction time from the batch baseline. The flow approach enabled precise control over residence time and continuous processing while maintaining high efficiency for this photocatalytic transformation.",
+      "semantic_score": 0.7006,
+      "field_score": 0.2,
+      "final_score": 0.5004,
+      "full_record": {
+        "chemistry": {
+          "reaction_name": "oxidation of Fmoc-L-methionine",
+          "reaction_class": "aerobic oxidation",
+          "mechanism_type": "photocatalysis",
+          "substrates": {
+            "substrate_A": "Fmoc-L-methionine",
+            "substrate_B": "oxygen",
+            "limiting_reagent": "Fmoc-L-methionine",
+            "stoichiometry": "1:1"
+          },
+          "catalyst": {
+            "name": "4,7-diphenyl-2,1,3-benzothiadiazole",
+            "type": "photocatalyst",
+            "loading_mol_pct": 10,
+            "role": "photosensitizer"
+          },
+          "photocatalyst": {
+            "name": "4,7-diphenyl-2,1,3-benzothiadiazole",
+            "loading_mol_pct": 10,
+            "role": "photosensitizer",
+            "absorption_max_nm": 420
+          },
+          "co_catalyst": {
+            "name": "",
+            "loading_mol_pct": null,
+            "role": ""
+          },
+          "additives": [
+            {
+              "name": "",
+              "equiv": null,
+              "role": ""
+            }
+          ],
+          "base": {
+            "name": "",
+            "equiv": null
+          },
+          "oxidant": {
+            "name": "oxygen",
+            "equiv": 1
+          },
+          "reductant": {
+            "name": "",
+            "equiv": null
+          },
+          "product": "Fmoc-methionine sulfoxide",
+          "bond_formed": "S=O bond",
+          "mechanistic_details": {
+            "excited_state_lifetime_ns": null,
+            "redox_potential_discussed": false,
+            "triplet_state_involved": false,
+            "key_intermediate": ""
+          },
+          "scope_summary": "The oxidation of Fmoc-L-methionine was optimized, achieving full conversion with a residence time of 5 minutes in the photoreactor. The product was isolated as a diastereomeric mixture with 97.2% purity."
+        },
+        "batch_baseline": {
+          "temperature_C": 21,
+          "reaction_time_min": 5,
+          "solvent": "MeCN",
+          "concentration_M": 0.1,
+          "light_source": "LED",
+          "light_power_W": 1.5,
+          "atmosphere": "air",
+          "yield_percent": 99,
+          "ee_percent": null,
+          "scale_mmol": 3.7,
+          "vessel": "round-bottom flask"
+        },
+        "flow_optimized": {
+          "temperature_C": 25,
+          "residence_time_min": 2,
+          "flow_rate_total_mL_min": 0.2,
+          "flow_rate_stream_A_mL_min": 0.1,
+          "flow_rate_stream_B_mL_min": 0.1,
+          "concentration_M": 0.1,
+          "back_pressure_bar": 1,
+          "atmosphere": "O2",
+          "yield_percent": 97.2,
+          "ee_percent": null,
+          "scale_mmol": 10,
+          "throughput_mmol_h": 0.36
+        },
+        "optimization_table": {
+          "variables_screened": [
+            "flow rate",
+            "temperature",
+            "mixing junction angle"
+          ],
+          "number_of_entries": 8,
+          "optimal_entry_number": 6,
+          "key_findings": "Flow rate of 2 mL/min at 25\u00b0C optimized residence time."
+        },
+        "reactor": {
+          "type": "FBR",
+          "material": "borosilicate glass",
+          "volume_mL": 6,
+          "tubing_diameter_mm": 6,
+          "channel_depth_mm": null
+        },
+        "light_source": {
+          "type": "LED",
+          "wavelength_nm": 420,
+          "power_W": 18,
+          "irradiance_mW_cm2": 0.9,
+          "color": "Violet",
+          "position_relative_to_reactor": "wrapped around"
+        },
+        "pump": {
+          "type": "peristaltic",
+          "number_of_inlets": 3
+        },
+        "figures": [
+          {
+            "figure_type": "reactor_scheme",
+            "components": [
+              "Reactants",
+              "Aq. Phase",
+              "Gas Phase",
+              "Isolated Product(s)"
+            ],
+            "flow_path": "Reactants -> (Ideal: Continuous Isolation of Pure Product) -> Pure Product; Reactants -> (Reality: Intermediate Work-Up or Extractions) -> Crude Product; Reactants -> (In-Line Extractions: Continuous Production of Product Mixtures) -> Product Mixtures; Reactants -> (In-Line Flash Chromatography: This Work) -> Isolated Product(s)",
+            "number_of_inlets": null,
+            "mixer_type": "",
+            "reactor_geometry": "",
+            "light_source_position": "",
+            "BPR_present": false,
+            "inline_analytics": [
+              "Chromatography"
+            ],
+            "labeled_dimensions": {},
+            "key_information": "Comparison of different product isolation methods, including in-line flash chromatography.",
+            "caption": "Figure 1.  Evolution of in-line puri \ufb01 cation for continuous  \ufb02 ow synthesis. Inspired by a  \ufb01 gure from ref  23 .",
+            "page": 1
+          },
+          {
+            "figure_type": "reactor_scheme",
+            "components": [
+              "Continuous Flow Reactor",
+              "Automated In-Line Flash Chromatography System",
+              "Pumps",
+              "Mixing System"
+            ],
+            "flow_path": "Mixer -> Reactor -> Chromatography System",
+            "number_of_inlets": 2,
+            "mixer_type": "Pump Mixing",
+            "reactor_geometry": null,
+            "light_source_position": null,
+            "BPR_present": false,
+            "inline_analytics": [
+              "Chromatography Monitoring System"
+            ],
+            "labeled_dimensions": {},
+            "key_information": "9.9 mmol/h output, >99% purity",
+            "caption": "Figure 1.  Evolution of in-line puri \ufb01 cation for continuous  \ufb02 ow synthesis. Inspired by a  \ufb01 gure from ref  23 .",
+            "page": 1
+          },
+          {
+            "figure_type": "optimization_plot",
+            "x_axis": "Time (mins)",
+            "y_axis": "280 nm Absorbance (a.u.)",
+            "x_range": [
+              "00:00",
+              "08:00"
+            ],
+            "y_range": [
+              0,
+              80000
+            ],
+            "data_points": [
+              {
+                "x": null,
+                "y": null,
+                "label": "1"
+              },
+              {
+                "x": null,
+                "y": null,
+                "label": "2"
+              }
+            ],
+            "trend": null,
+            "optimal_x": null,
+            "optimal_y": null,
+            "number_of_series": 2,
+            "series_labels": [
+              "Day 1",
+              "Day 2"
+            ],
+            "caption": "Figure 3.  Processed chromatograms from (A) the initial method development with a 1 mL injection of stock solution and (B) the optimized method for high throughput with a 4 mL injection of stock solution. | Figure 4.  Processed data from 100 runs of the proof-of-principle study. The purple spectra are the  \ufb01 rst 50 chromatograms collected on day 1, and the dark blue spectra are the  \ufb01 nal 50 collected on day 2 after being stored for  \u223c 16 h overnight in isopropanol.",
+            "page": 4
+          },
+          {
+            "figure_type": "reactor_scheme",
+            "components": [
+              "Pump A",
+              "Pump B",
+              "Pump C",
+              "UV-150",
+              "In-Line Reversed-Phase Flash Chromatography",
+              "Vent"
+            ],
+            "flow_path": "Pump A and Pump B feed into UV-150 which is connected to a vent and then to Pump C leading to in-line chromatography.",
+            "number_of_inlets": 2,
+            "mixer_type": "",
+            "reactor_geometry": "",
+            "light_source_position": "Within UV-150",
+            "BPR_present": false,
+            "inline_analytics": [
+              "In-Line Reversed-Phase Flash Chromatography"
+            ],
+            "labeled_dimensions": {
+              "volume": "10 mL",
+              "temperature": "25-30 \u00b0C",
+              "wavelength": "420 nm"
+            },
+            "key_information": "Yield: 215 mg (0.56 mmol, 82%), Productivity: 0.23 mmol/h, Purity: 97.2%, Recovery: 53%, Purity: >99%",
+            "caption": "Scheme 2. (A) Schematic Flow Diagram for the Continuous Flow Synthesis and Puri \ufb01 cation of 4  via  Photosensitized   1 O 2 . 4 Was Isolated as a Mixture of Diastereomers. (B) Processed Chromatograms for 10 Runs Performed under Continuous Operation. (C) Plot of Absorbance across 200 \u2212 400 nm versus Time for the Eighth Run in the Sequence",
+            "page": 6
+          },
+          {
+            "figure_type": "reactor_scheme",
+            "components": [
+              "Pump A",
+              "Pump B",
+              "Pump C",
+              "Pump D",
+              "FBR Molecular Sieves",
+              "In-Line Flash Chromatography"
+            ],
+            "flow_path": "Pump A -> Mixer -> Reactor -> Mixer -> Reactor -> Separation -> FBR Molecular Sieves -> In-Line Flash Chromatography",
+            "number_of_inlets": 4,
+            "mixer_type": "Coil",
+            "reactor_geometry": "Coil",
+            "light_source_position": "",
+            "BPR_present": false,
+            "inline_analytics": [
+              "In-Line Flash Chromatography"
+            ],
+            "labeled_dimensions": {
+              "VR": "10 mL",
+              "L": "13 cm",
+              "ID": "6.6 mm"
+            },
+            "key_information": "Isolated compounds: 10 - Yield: 6.558 g (39.5 mmol, 37%), Selectivity: 56%, Purity: >99%, Productivity: 9.9 mmol/h; 11 - Yield: 8.239 g (30.5 mmol, 28%), Selectivity: 44%, Purity: >99%, Productivity: 7.6 mmol/h",
+            "caption": "Scheme 4. (A) Schematic Flow Diagram for the Idealized Continuous Flow Esteri \ufb01 cation of Ethylene Glycol 8 with Benzoyl Chloride 9. (B) Stacked Plot of 40 Processed Chromatograms from the Continuous Isolation of 10 and 11",
+            "page": 8
+          }
+        ],
+        "translation_logic": {
+          "batch_limitation": "",
+          "flow_advantage": "",
+          "what_changed": "",
+          "what_stayed_same": "",
+          "time_reduction_factor": null,
+          "yield_change_percent": null,
+          "safety_improvement": "",
+          "scale_up_discussed": false
+        },
+        "process_figures": {
+          "has_reactor_scheme": true,
+          "has_flow_diagram": false,
+          "has_optimization_table": false,
+          "figure_descriptions": []
+        },
+        "field_sources": {
+          "reaction_name": "text",
+          "reaction_class": "text",
+          "mechanism_type": "text",
+          "substrates": "text",
+          "catalyst": "text",
+          "photocatalyst": "text",
+          "co_catalyst": "text",
+          "additives": "text",
+          "base": "text",
+          "oxidant": "text",
+          "reductant": "text",
+          "product": "text",
+          "bond_formed": "text",
+          "mechanistic_details": "text",
+          "scope_summary": "text",
+          "batch_baseline": "table",
+          "flow_optimized": "table",
+          "reactor": "text",
+          "light_source": "text",
+          "pump": "text",
+          "inline_analytics": "figure",
+          "degassing_method": "text"
+        },
+        "field_confidence": {
+          "reaction_name": 3,
+          "reaction_class": 3,
+          "mechanism_type": 3,
+          "substrates": 3,
+          "catalyst": 3,
+          "photocatalyst": 3,
+          "co_catalyst": 3,
+          "additives": 3,
+          "base": 3,
+          "oxidant": 3,
+          "reductant": 3,
+          "product": 3,
+          "bond_formed": 3,
+          "mechanistic_details": 3,
+          "scope_summary": 3,
+          "batch_baseline": 3,
+          "flow_optimized": 3,
+          "reactor": 3,
+          "light_source": 3,
+          "pump": 3,
+          "inline_analytics": 3,
+          "degassing_method": 3
+        },
+        "conflicts": [],
+        "confidence_overall": 95,
+        "notes": "The reactor scheme figures confirm no BPR, consistent with table data. Time reduction factor and yield change require calculation based on additional data not provided.",
+        "source_pdf": "acs.joc.1c01151.pdf"
+      }
+    },
+    {
+      "record_id": "photochemflow (40).pdf",
+      "metadata": {
+        "photocatalyst": "Iridium catalyst i",
+        "has_translation": true,
+        "mechanism_type": "Single electron transfer",
+        "chemistry_class": "Photoredox coupling",
+        "solvent": "1:1 Acetone : MeOH",
+        "phase_regime": "single_phase_liquid",
+        "reactor_type": "FEP coil",
+        "doi": "",
+        "title": "",
+        "year": 0,
+        "confidence": 85,
+        "wavelength_nm": 450.0,
+        "process_mode": "both"
+      },
+      "summary": "This photoredox coupling reaction employs single electron transfer using an iridium photocatalyst (1 mol%) with 3-quinuclidinol base in a 1:1 acetone:methanol solvent system at 35\u00b0C under 450 nm LED irradiation. The flow process utilizes a 10 mL FEP coil reactor with a residence time of 100 minutes at 0.1 mL/min flow rate, achieving 70% yield compared to 86% in the 8-hour batch process. Flow processing provided a 4.8-fold intensification factor by significantly reducing the required reaction time from 8 hours to 100 minutes residence time. The primary advantage of flow was enabling continuous processing with much shorter residence times and improved scalability potential, despite experiencing an 18.6% yield decrease compared to the batch baseline.",
+      "semantic_score": 0.6978,
+      "field_score": 0.2,
+      "final_score": 0.4987,
+      "full_record": {
+        "chemistry": {
+          "reaction_name": "Photoredox coupling reaction of benzylboronic esters and carbonyl compounds",
+          "reaction_class": "Photoredox coupling",
+          "mechanism_type": "Single electron transfer",
+          "substrates": {
+            "substrate_A": "Benzylboronic acid pinacol esters",
+            "substrate_B": "Carbonyl compounds (aldehydes and ketones)",
+            "limiting_reagent": "Benzylboronic acid pinacol ester",
+            "stoichiometry": "1:1.5 (boronic ester:aldehyde/ketone)"
+          },
+          "photocatalyst": {
+            "name": "Iridium catalyst i",
+            "loading_mol_pct": 1,
+            "role": "Photoredox catalyst",
+            "absorption_max_nm": null
+          },
+          "co_catalyst": {
+            "name": null,
+            "loading_mol_pct": null,
+            "role": null
+          },
+          "additives": [
+            {
+              "name": "3-quinuclidinol",
+              "equiv": 0.2,
+              "role": "Lewis base"
+            }
+          ],
+          "base": {
+            "name": "3-quinuclidinol",
+            "equiv": 0.2
+          },
+          "oxidant": {
+            "name": null,
+            "equiv": null
+          },
+          "reductant": {
+            "name": null,
+            "equiv": null
+          },
+          "product": "Benzylated alcohol products",
+          "bond_formed": "C-C bond",
+          "mechanistic_details": {
+            "excited_state_lifetime_ns": null,
+            "redox_potential_discussed": true,
+            "triplet_state_involved": false,
+            "key_intermediate": "Ketyl radical anion"
+          },
+          "scope_summary": "51 examples demonstrated including 13 heterocyclic compounds. Works with electron-donating benzyl boronic esters, various aromatic aldehydes, ketones, and some imines. Compatible with many functional groups and heterocycles."
+        },
+        "batch_baseline": {
+          "temperature_C": 35,
+          "reaction_time_min": 480,
+          "solvent": "1:1 Acetone : MeOH",
+          "concentration_M": 0.05,
+          "light_source": "450 nm LED, 14 W",
+          "light_power_W": 14,
+          "atmosphere": null,
+          "yield_percent": 86,
+          "ee_percent": null,
+          "scale_mmol": null,
+          "vessel": null
+        },
+        "flow_optimized": {
+          "temperature_C": 35,
+          "residence_time_min": 100,
+          "flow_rate_total_mL_min": 0.1,
+          "flow_rate_stream_A_mL_min": null,
+          "flow_rate_stream_B_mL_min": null,
+          "concentration_M": 0.05,
+          "back_pressure_bar": null,
+          "atmosphere": null,
+          "yield_percent": 70,
+          "ee_percent": null,
+          "scale_mmol": null,
+          "throughput_mmol_h": null
+        },
+        "optimization_table": {
+          "variables_screened": [
+            "photocatalyst",
+            "base",
+            "solvent",
+            "concentration",
+            "light conditions"
+          ],
+          "number_of_entries": 11,
+          "optimal_entry_number": 1,
+          "key_findings": "Entry 1 with no variation gave 86% yield. DMAP as base gave 44% yield. Removing photocatalyst, base, or light shut down reaction."
+        },
+        "reactor": {
+          "type": "FEP coil",
+          "material": "FEP",
+          "volume_mL": 10,
+          "tubing_diameter_mm": null,
+          "channel_depth_mm": null
+        },
+        "light_source": {
+          "type": "LED",
+          "wavelength_nm": 450,
+          "power_W": 14,
+          "irradiance_mW_cm2": null,
+          "color": "blue",
+          "position_relative_to_reactor": null
+        },
+        "pump": {
+          "type": null,
+          "number_of_inlets": null
+        },
+        "figures": [],
+        "translation_logic": {
+          "batch_limitation": "Long reaction time of 8 hours required for completion",
+          "flow_advantage": "Continuous processing with reduced residence time and potential for scale-up",
+          "what_changed": "Reaction time reduced from 480 minutes to 100 minutes residence time",
+          "what_stayed_same": "Temperature (35\u00b0C), concentration (0.05 M), solvent system (1:1 Acetone:MeOH), photocatalyst loading (1 mol%), and base loading (0.2 equiv)",
+          "time_reduction_factor": 4.8,
+          "yield_change_percent": -18.6,
+          "safety_improvement": "Continuous flow processing reduces exposure to light-sensitive reactions",
+          "scale_up_discussed": true
+        },
+        "process_figures": {
+          "has_reactor_scheme": true,
+          "has_flow_diagram": false,
+          "has_optimization_table": true,
+          "figure_descriptions": [
+            "Reactor scheme showing FEP coil setup",
+            "Optimization table with 11 entries",
+            "Scope table with 51 examples",
+            "Mechanistic scheme"
+          ]
+        },
+        "field_sources": {
+          "reaction_name": "text",
+          "batch_baseline": "table",
+          "flow_optimized": "table",
+          "optimization_table": "table",
+          "reactor": "text",
+          "light_source": "table",
+          "time_reduction_factor": "calculated"
+        },
+        "field_confidence": {
+          "reaction_name": 3,
+          "batch_baseline": 3,
+          "flow_optimized": 3,
+          "optimization_table": 3,
+          "reactor": 2,
+          "light_source": 3,
+          "time_reduction_factor": 3
+        },
+        "conflicts": [],
+        "confidence_overall": 85,
+        "notes": "Complete extraction with clear batch and flow conditions. Flow shows reduced yield (70% vs 86%) but significant time reduction (100 min vs 480 min residence time). Reactor details are limited but FEP coil setup is clearly specified.",
+        "source_pdf": "photochemflow (40).pdf"
+      }
+    }
+  ],
+  "deliberation_log": {
+    "rounds": [],
+    "sanity_checks": [],
+    "total_rounds": 0,
+    "consensus_reached": false,
+    "all_changes_applied": {},
+    "summary": "Council v4 fallback: screen required: all candidates disqualified before Chief selection. Designer: 12 survivors, 12 hard-gate disqualified. Keeping calculator center-point. Current kinetic anchor is uncertain, not a hard infeasibility: analogy kinetic anchor \u03c4=49.8 min exceeds the intensification ceiling \u03c4\u226445.0 min (20.0\u00d7 faster than 900.0 min batch), but the upstream design-space search already found a candidate at \u03c4=37.5 min with projected X\u22480.82 \u2014 proceed and let the council evaluate it as a screening hypothesis. Experimental screen required before final design selection.",
+    "trade_off_summary": "",
+    "trade_off_matrix": ""
+  },
+  "pre_council_proposal": {
+    "residence_time_min": 37.5,
+    "flow_rate_mL_min": 0.09048,
+    "temperature_C": 40.0,
+    "concentration_M": 0.25,
+    "BPR_bar": 3.0,
+    "reactor_type": "FEP coil",
+    "tubing_material": "FEP",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 22.619,
+    "light_setup": "Blue LED array (450 nm) wrapped around or positioned beside FEP coil reactor; Analogy 3 used 14 W 450 nm LED with FEP coil \u2014 adopt same configuration. Ensure uniform irradiation of entire coil. Analogy 1 used 425 nm quartz tubing (not applicable here \u2014 FEP preferred for gas-liquid O2 compatibility and cost). Use fan cooling to maintain reactor at 40\u00b0C under LED illumination.",
+    "wavelength_nm": 450.0,
+    "deoxygenation_method": null,
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Liquid substrate feed via HPLC or syringe pump",
+        "contents": [
+          "6-methyl-1,2,3,4-tetrahydroquinoline (1.0 equiv)"
+        ],
+        "solvent": "DMSO",
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.014,
+        "phase": "",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "molar_equiv": 1.0,
+        "reasoning": "Chemistry Plan stream_logic: substrate dissolved in DMSO at 0.25 M (KHU anchor). Flow rate 0.014 mL/min matches KHU Entry 2 (anchor). Screen toward 0.50 M at same flow for concentration effect. Pump must be chemically resistant to DMSO (PTFE wetted parts)."
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "O2 gas feed via mass flow controller (MFC)",
+        "contents": [
+          "O2 gas (~2.0 equiv at inlet/STP)"
+        ],
+        "solvent": "",
+        "concentration_M": null,
+        "flow_rate_mL_min": 0.153,
+        "phase": "",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "molar_equiv": 1.0,
+        "reasoning": "Chemistry Plan stream_logic: O2 via MFC at ~0.153 mL/min STP (KHU Entry 2). In-channel flow ~0.059 mL/min at 3 bar. Gas/liquid ratio (O2 equiv ~1.95) must be preserved on scaling. Taylor slug flow established at T-junction."
+      }
+    ],
+    "mixer_type": "T-junction (PTFE or SS)",
+    "mixing_order_reasoning": "Chemistry Plan: Stream A (liquid substrate in DMSO) and Stream B (O2 gas) meet at T-junction upstream of photoreactor coil to establish Taylor/slug gas-liquid flow. Slug flow periodically refreshes gas-liquid interface for O2 mass transfer. No other reagents present \u2014 two-stream system only.",
+    "pre_reactor_steps": [
+      "No deoxygenation required \u2014 O2 is the required co-substrate (Chemistry Plan: deoxygenation_required = false). Purge lines with DMSO before introducing substrate solution.",
+      "Verify O2 MFC calibration and set inlet flow to 0.153 mL/min STP (~1.95 equiv). Confirm Taylor slug flow visually or by pressure trace before collecting product."
+    ],
+    "post_reactor_steps": [
+      "No quench required \u2014 6-methylquinoline product is stable and no reactive intermediates accumulate post-reactor (Chemistry Plan: quench_required = false).",
+      "BPR set to 3 bar (anchor) or 6 bar (high-concentration screen) to maintain gas compression and prevent uncontrolled degassing.",
+      "Gas-liquid separation downstream of BPR using a simple phase separator or gravity settler. Collect liquid fraction for GC/HPLC analysis and yield determination.",
+      "Discard startup waste (~3 reactor volumes, ~30 mL at anchor conditions) before collecting product fractions."
+    ],
+    "chemistry_notes": "Catalyst-free aerobic photodehydrogenation: substrate or substrate-O2 EDA complex absorbs at 450 nm, undergoes SET to O2 generating superoxide, then sequential H-abstraction yields 6-methylquinoline via dihydroquinoline intermediate. Two photon/oxidation cycles required (Chemistry Plan mechanism steps 1-4). Key design drivers: (1) Residence time is the dominant kinetic variable \u2014 experimental data clearly show 34-38 min in-channel gives only 10-12% product; 137 min gives 52%; estimated 180-200 min or 0.50 M at 137 min needed for ~75%. (2) KHU Entry 2 (40\u00b0C, 0.25 M, 3 bar, t_in-channel=137 min) is the primary anchor \u2014 engineering calculation range 20-281 min supports this. (3) Taylor slug flow in 1.016 mm ID FEP tubing provides high kLa for O2 mass transfer. (4) BPR mandatory for gas-liquid system (Chemistry Plan, calculations). (5) FEP tubing chosen for UV-vis transparency at 450 nm (photochemistry rule). (6) Analogy 3 (FEP coil, 10 mL, 100 min, 450 nm, 0.1 mL/min) is most structurally similar \u2014 same wavelength, similar reactor type, but our reaction is slower (requires 137-200 min vs 100 min) due to multi-step dehydrogenation. (7) Reactor volume 10 mL (matching KHU) gives t_in-channel ~137 min at 0.014 mL/min + 0.059 mL/min in-channel \u2014 verify: 10 mL / 0.073 mL/min = 137 min. Confirmed. Screening recommendation: next step use 10 mL reactor at 0.50 M, 0.014 mL/min substrate, 0.153 mL/min O2 STP, 40\u00b0C, 3 bar (same t_in-channel, doubled concentration). If insufficient, extend to 20 mL reactor at 0.014 mL/min for t_in-channel ~274 min.",
+    "stage_parameters": [],
+    "multiphase_metrics": {},
+    "heat_transfer_metrics": {},
+    "reasoning_per_field": {
+      "residence_time_min": "Primary source: KHU experimental data (Entries 1 and 2), t_in-channel = 137.08 min at 0.014 mL/min liquid + 0.059 mL/min in-channel O2, 10 mL reactor. Verified: 10.0 / 0.073 = 137 min. Calculation range 20-281 min encompasses this. Engineering calculation \u03c4_analogy = 187.5 min is slightly higher \u2014 consistent with needing ~180-200 min for 75%. Anchoring at 137 min (52% yield) as starting point; screen to 180-200 min (larger reactor or reduced flow). Analogy 3 used 100 min for a simpler single-step photoredox \u2014 our two-step dehydrogenation requires longer residence time, consistent with 137+ min. Analogy 1 used 30 min for Ir-photocatalyzed reaction \u2014 much faster due to efficient catalyst, not applicable. Analogy 2 used 2 min \u2014 completely different (FBR, photocatalyst, fast oxidation), not applicable for residence time.",
+      "flow_rate_mL_min": "Total in-channel flow = 0.014 (liquid) + 0.059 (O2 in-channel at 3 bar) = 0.073 mL/min. Liquid substrate flow 0.014 mL/min from KHU Entry 2 (experimental anchor). O2 STP flow 0.153 mL/min \u2192 in-channel at 3 bar absolute (4 bar total including atmospheric): 0.153/4 \u2248 0.038 mL/min (ideal gas), but KHU reports 0.059 mL/min in-channel \u2014 use experimental value directly. Gas/liquid ratio preserved from anchor.",
+      "temperature_C": "40\u00b0C from KHU Entry 2 anchor (40\u00b0C gave same conversion as 60\u00b0C in Entry 1 \u2014 no benefit to higher temperature, Chemistry Plan: temperature_sensitive=false). Matches batch temperature. Analogy 3 used 35\u00b0C \u2014 negligible difference. Adopt 40\u00b0C.",
+      "concentration_M": "0.25 M from KHU anchor (Entries 1 and 2). KRICT entries at 0.50 M used only 34-38 min t_in-channel \u2014 residence time effect dominates and cannot be separated from concentration effect. Screen 0.50 M at same residence time as next step. Analogy 2 used 0.1 M \u2014 not applicable. Analogy 3 used 0.05 M \u2014 not applicable (lower throughput).",
+      "BPR_bar": "3 bar from KHU anchor (Entries 1 and 2). Calculations require BPR (gas-liquid system, DMSO bp 189\u00b0C >> 40\u00b0C operation \u2014 BPR needed for gas compression not solvent boiling). Engineering calculation recommends 8.8 bar \u2014 this is the pressure drop estimate, not the BPR setpoint. KHU experimental data at 3 bar gave 52% yield; KRICT at 6 bar gave only 10-12% (but shorter residence time \u2014 confounded). Use 3 bar as anchor; 6 bar as screen for concentration effect. Analogy 2 used 1 bar BPR \u2014 insufficient for our gas-liquid Taylor flow requirements.",
+      "reactor_type": "FEP coil \u2014 Chemistry Plan specifies coil reactor; Analogy 3 uses FEP coil at 450 nm (most analogous). KHU uses Vapourtec with coil format. FEP is transparent at 450 nm (photochemistry rule).",
+      "tubing_material": "FEP \u2014 photochemistry rule (transparent to visible/blue light). KHU entry used PFA/FEP-compatible tubing at 1.016 mm ID. Analogy 3 uses FEP coil. Analogy 1 uses quartz \u2014 not necessary here (450 nm, not UV). FEP chemically compatible with DMSO and O2.",
+      "tubing_ID_mm": "1.016 mm from KHU experimental data (Entry 2 anchor, tubing ID = 1.016 mm). Within photochemistry recommended range 0.5-2.0 mm. Ensures adequate photon penetration and Taylor flow regime. KRICT used 0.75-1.00 mm \u2014 consistent range. Analogy 1 used 2 mm (larger, less uniform irradiation for our substrate). Use 1.016 mm to match anchor exactly.",
+      "reactor_volume_mL": "10.0 mL from KHU anchor (Entry 2, reactor volume = 10.00 mL). Analogy 3 uses 10 mL FEP coil \u2014 directly analogous hardware. Verification: 10.0 mL / 0.073 mL/min = 137 min. Confirmed. Screen: 20 mL reactor at same flow for 274 min to target 75%.",
+      "light_setup": "450 nm blue LED from Chemistry Plan (wavelength_reasoning: substrate or EDA complex absorbs at 450 nm; confirmed by batch and flow experimental data). Analogy 3 uses 14 W 450 nm LED with FEP coil \u2014 adopt same power class. Analogy 1 uses 425 nm LED (slightly blue-shifted, different photocatalyst Ir(ppy)3 \u2014 not directly applicable but confirms blue LED + FEP coil format). Analogy 2 uses 420 nm violet LED \u2014 close but different reactor type (FBR). Use commercial 450 nm LED strip or panel (\u226510 W) wrapped around 10 mL FEP coil.",
+      "wavelength_nm": "450 nm \u2014 Chemistry Plan recommended_wavelength_nm = 450. Batch data (75% yield, 450 nm) and flow data (52% at 137 min, 450 nm) both confirm. Analogy 3 uses 450 nm \u2014 directly matched.",
+      "deoxygenation_method": "None \u2014 Chemistry Plan: deoxygenation_required = false. O2 is the required co-substrate; removing it would stop the reaction."
+    },
+    "literature_analogies": [
+      "analogy_1_doi_unavailable",
+      "analogy_2_doi_unavailable",
+      "analogy_3_doi_unavailable"
+    ],
+    "engine_validated": false,
+    "safety_flags": [],
+    "confidence": "MEDIUM"
+  },
+  "svg_path": "outputs/translate_process.svg",
+  "png_path": "outputs/translate_process.png",
+  "process_topology": {
+    "topology_id": "translate",
+    "unit_operations": [
+      {
+        "op_id": "pump_a",
+        "op_type": "pump",
+        "label": "Pump A \u2014 Liquid substrate feed via HPLC or syringe pump",
+        "parameters": {
+          "stream": "A",
+          "contents": [
+            "6-methyl-1,2,3,4-tetrahydroquinoline (1.0 equiv)"
+          ],
+          "solvent": "DMSO",
+          "flow_rate_mL_min": 0.09048,
+          "phase": "liquid",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null
+        },
+        "required": true,
+        "rationale": "Chemistry Plan stream_logic: substrate dissolved in DMSO at 0.25 M (KHU anchor). Flow rate 0.014 mL/min matches KHU Entry 2 (anchor). Screen toward 0.50 M at same flow for concentration effect. Pump must be chemically resistant to DMSO (PTFE wetted parts).\nFinal synchronization: liquid pump rate set to 0.09048 mL/min so \u03a3 liquid reactor feeds = final Q_liquid 0.09048 mL/min.\n\nClosed-loop update: flow and concentration synchronized to the revised next-run design.\nFinal synchronization: liquid pump rate set to 0.09048 mL/min so \u03a3 liquid reactor feeds = final Q_liquid 0.09048 mL/min."
+      },
+      {
+        "op_id": "pump_b",
+        "op_type": "mfc",
+        "label": "MFC B \u2014 O2 gas feed via mass flow controller (MFC)",
+        "parameters": {
+          "stream": "B",
+          "contents": [
+            "O2 gas (~2.0 equiv at inlet/STP)"
+          ],
+          "solvent": "",
+          "flow_rate_mL_min": 0.3926,
+          "phase": "gas",
+          "gas_flow_sccm": 2.0279,
+          "gas_flow_actual_mL_min": 0.3926,
+          "delivery_hardware": "MFC"
+        },
+        "required": true,
+        "rationale": "Chemistry Plan stream_logic: O2 via MFC at ~0.153 mL/min STP (KHU Entry 2). In-channel flow ~0.059 mL/min at 3 bar. Gas/liquid ratio (O2 equiv ~1.95) must be preserved on scaling. Taylor slug flow established at T-junction.\n\nClosed-loop update: gas flow scaled with liquid flow to preserve gas-liquid ratio while targeting the revised in-channel residence time."
+      },
+      {
+        "op_id": "mixer_1",
+        "op_type": "mixer",
+        "label": "T-junction (PTFE or SS)",
+        "parameters": {
+          "type": "T-junction (PTFE or SS)",
+          "material": "PEEK"
+        },
+        "required": true,
+        "rationale": "Chemistry Plan: Stream A (liquid substrate in DMSO) and Stream B (O2 gas) meet at T-junction upstream of photoreactor coil to establish Taylor/slug gas-liquid flow. Slug flow periodically refreshes gas-liquid interface for O2 mass transfer. No other reagents present \u2014 two-stream system only."
+      },
+      {
+        "op_id": "reactor_1",
+        "op_type": "photoreactor",
+        "label": "FEP Photoreactor Coil",
+        "parameters": {
+          "material": "FEP",
+          "ID_mm": 1.016,
+          "volume_mL": 10.0,
+          "Q_inlet_mL_min": 0.0905,
+          "temperature_C": 40.0,
+          "wavelength_nm": 450.0,
+          "length_m": 12.33,
+          "residence_time_min": 191.912,
+          "reactor_type": "FEP coil"
+        },
+        "required": true,
+        "rationale": "Flow reactor"
+      },
+      {
+        "op_id": "led_1",
+        "op_type": "led_module",
+        "label": "LED 450 nm",
+        "parameters": {
+          "wavelength_nm": 450.0
+        },
+        "required": true,
+        "rationale": "Photoexcitation"
+      },
+      {
+        "op_id": "bpr_1",
+        "op_type": "bpr",
+        "label": "BPR",
+        "parameters": {
+          "pressure_bar": 3.0
+        },
+        "required": true,
+        "rationale": "Maintain liquid phase"
+      },
+      {
+        "op_id": "collector_1",
+        "op_type": "collector",
+        "label": "Product Collection",
+        "parameters": {},
+        "required": true,
+        "rationale": "Outlet"
+      }
+    ],
+    "streams": [
+      {
+        "stream_id": "s1",
+        "from_op": "pump_a",
+        "to_op": "mixer_1",
+        "stream_type": "liquid",
+        "label": ""
+      },
+      {
+        "stream_id": "s2",
+        "from_op": "pump_b",
+        "to_op": "mixer_1",
+        "stream_type": "liquid",
+        "label": ""
+      },
+      {
+        "stream_id": "s3",
+        "from_op": "mixer_1",
+        "to_op": "reactor_1",
+        "stream_type": "liquid",
+        "label": ""
+      },
+      {
+        "stream_id": "s4",
+        "from_op": "reactor_1",
+        "to_op": "bpr_1",
+        "stream_type": "liquid",
+        "label": ""
+      },
+      {
+        "stream_id": "s5",
+        "from_op": "bpr_1",
+        "to_op": "collector_1",
+        "stream_type": "liquid",
+        "label": ""
+      }
+    ],
+    "total_flow_rate_mL_min": 0.0905,
+    "residence_time_min": 191.912,
+    "reactor_volume_mL": 10.0,
+    "pid_description": "Pump A \u2014 Liquid substrate feed via HPLC or syringe pump \u2192 MFC B \u2014 O2 gas feed via mass flow controller (MFC) \u2192 T-junction (PTFE or SS) \u2192 FEP Photoreactor Coil \u2192 BPR \u2192 Product Collection",
+    "literature_support": [],
+    "topology_confidence": "MEDIUM"
+  }
+}

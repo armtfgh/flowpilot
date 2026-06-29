@@ -1,0 +1,319 @@
+from flora_translate.experiment_loop import (
+    ActualConditions,
+    ExperimentalOutcomes,
+    ExperimentResult,
+    calibrate_experimental_campaign,
+    extract_experiments_from_text,
+    refine_from_experimental_campaign,
+    refine_from_experiment,
+)
+
+
+def _base_result():
+    return {
+        "design_version": 1,
+        "confidence": "MEDIUM",
+        "explanation": "Initial FLORA design.",
+        "proposal": {
+            "residence_time_min": 10.0,
+            "flow_rate_mL_min": 0.2,
+            "reactor_volume_mL": 2.0,
+            "temperature_C": 40.0,
+            "concentration_M": 0.1,
+            "BPR_bar": 5.0,
+            "reactor_type": "photoreactor coil",
+            "tubing_material": "FEP",
+            "tubing_ID_mm": 0.8,
+            "pre_reactor_steps": ["degas stream A with N2"],
+            "post_reactor_steps": [],
+            "chemistry_notes": "Photoredox reaction.",
+            "safety_flags": [],
+            "streams": [
+                {
+                    "stream_label": "A",
+                    "pump_role": "substrate + photocatalyst",
+                    "contents": ["substrate", "photocatalyst"],
+                    "solvent": "MeCN",
+                    "concentration_M": 0.1,
+                    "flow_rate_mL_min": 0.1,
+                    "phase": "liquid",
+                    "reasoning": "Main reaction stream.",
+                },
+                {
+                    "stream_label": "B",
+                    "pump_role": "base",
+                    "contents": ["base"],
+                    "solvent": "MeCN",
+                    "concentration_M": 0.1,
+                    "flow_rate_mL_min": 0.1,
+                    "phase": "liquid",
+                    "reasoning": "Separate base stream.",
+                },
+            ],
+            "reasoning_per_field": {},
+        },
+    }
+
+
+def _thq_base_result():
+    result = _base_result()
+    proposal = result["proposal"]
+    proposal.update(
+        {
+            "residence_time_min": 34.5,
+            "flow_rate_mL_min": 0.0656,
+            "reactor_volume_mL": 13.27,
+            "temperature_C": 40.0,
+            "concentration_M": 0.5,
+            "BPR_bar": 6.0,
+            "tubing_ID_mm": 1.0,
+            "streams": [
+                {
+                    "stream_label": "A",
+                    "pump_role": "substrate in DMSO",
+                    "contents": ["6-methyl-1,2,3,4-tetrahydroquinoline"],
+                    "solvent": "DMSO",
+                    "concentration_M": 0.5,
+                    "flow_rate_mL_min": 0.0656,
+                    "phase": "liquid",
+                    "reasoning": "Starting short screen.",
+                },
+                {
+                    "stream_label": "B",
+                    "pump_role": "O2",
+                    "contents": ["O2"],
+                    "solvent": "",
+                    "concentration_M": None,
+                    "flow_rate_mL_min": 0.32,
+                    "phase": "gas",
+                    "gas_flow_actual_mL_min": 0.32,
+                    "gas_flow_sccm": 1.6565,
+                    "reasoning": "Starting short screen.",
+                },
+            ],
+        }
+    )
+    return result
+
+
+def _thq_experiments():
+    rows = [
+        ("khu_manual", 40.0, 0.25, 3.0, 0.014, 0.059, 0.1530, 1.95, 59.91, 137.08, 10.00, None, 52.0, 1.016),
+        ("krict_2", 40.0, 0.50, 6.0, 0.0509, 0.234, 1.2113, 2.12, 8.51, 37.68, 10.74, 83.0, 12.0, 0.75),
+        ("krict_6", 40.0, 0.50, 6.0, 0.0656, 0.320, 1.6565, 2.25, 7.71, 34.42, 13.27, 85.0, 10.0, 1.00),
+    ]
+    experiments = []
+    for idx, row in enumerate(rows, 1):
+        (
+            run_id,
+            temperature,
+            concentration,
+            pressure,
+            substrate_q,
+            gas_channel,
+            gas_stp,
+            gas_equiv,
+            t_inlet,
+            t_channel,
+            volume,
+            sm_pct,
+            product_pct,
+            tubing_id,
+        ) = row
+        experiments.append(
+            ExperimentResult(
+                run_id=run_id,
+                design_version=1,
+                actual_conditions=ActualConditions(
+                    residence_time_inlet_min=t_inlet,
+                    residence_time_in_channel_min=t_channel,
+                    residence_time_basis="in_channel",
+                    flow_rate_mL_min=substrate_q,
+                    substrate_flow_mL_min=substrate_q,
+                    gas_flow_in_channel_mL_min=gas_channel,
+                    gas_flow_stp_mL_min=gas_stp,
+                    gas_equiv_inlet=gas_equiv,
+                    temperature_C=temperature,
+                    concentration_M=concentration,
+                    tubing_ID_mm=tubing_id,
+                    reactor_volume_mL=volume,
+                    BPR_bar=pressure,
+                ),
+                outcomes=ExperimentalOutcomes(
+                    product_pct=product_pct,
+                    yield_pct=product_pct,
+                    starting_material_pct=sm_pct,
+                ),
+            )
+        )
+    return experiments
+
+
+def test_low_conversion_increases_residence_time_and_preserves_volume():
+    experiment = ExperimentResult(
+        run_id="run_01",
+        design_version=1,
+        actual_conditions=ActualConditions(
+            residence_time_min=10.0,
+            flow_rate_mL_min=0.2,
+            reactor_volume_mL=2.0,
+            temperature_C=40.0,
+            concentration_M=0.1,
+        ),
+        outcomes=ExperimentalOutcomes(
+            yield_pct=28.0,
+            conversion_pct=45.0,
+            selectivity_pct=92.0,
+        ),
+    )
+
+    closed_loop = refine_from_experiment(_base_result(), experiment)
+
+    assert closed_loop.decision.failure_modes == ["kinetic_underconversion"]
+    proposal = closed_loop.refined_result["proposal"]
+    assert proposal["residence_time_min"] == 38.515
+    assert proposal["reactor_volume_mL"] == 2.0
+    assert proposal["flow_rate_mL_min"] == 0.05193
+    assert closed_loop.refined_result["design_version"] == 2
+
+
+def test_precipitation_and_pressure_drift_add_screening_controls():
+    experiment = ExperimentResult(
+        run_id="run_01",
+        design_version=1,
+        actual_conditions=ActualConditions(
+            residence_time_min=10.0,
+            flow_rate_mL_min=0.2,
+            reactor_volume_mL=2.0,
+            temperature_C=40.0,
+            concentration_M=0.1,
+            BPR_bar=5.0,
+        ),
+        outcomes=ExperimentalOutcomes(
+            yield_pct=42.0,
+            conversion_pct=88.0,
+            selectivity_pct=62.0,
+            pressure_bar=9.0,
+            pressure_drift_bar=4.0,
+            precipitation_observed=True,
+        ),
+    )
+
+    closed_loop = refine_from_experiment(_base_result(), experiment)
+    proposal = closed_loop.refined_result["proposal"]
+
+    assert "selectivity_loss" in closed_loop.decision.failure_modes
+    assert "solubility_or_fouling" in closed_loop.decision.failure_modes
+    assert "pressure_instability" in closed_loop.decision.failure_modes
+    assert proposal["temperature_C"] == 30.0
+    assert proposal["concentration_M"] == 0.07
+    assert proposal["BPR_bar"] == 7.0
+    assert "inline 2 um filter before reactor" in proposal["pre_reactor_steps"]
+    assert closed_loop.decision.status == "screen_required"
+    assert any("pressure instability" in flag for flag in proposal["safety_flags"])
+
+
+def test_three_cycle_case_reaches_converged_design_version():
+    result = _base_result()
+    cycles = [
+        ExperimentalOutcomes(yield_pct=30.0, conversion_pct=48.0, selectivity_pct=90.0),
+        ExperimentalOutcomes(yield_pct=58.0, conversion_pct=90.0, selectivity_pct=74.0),
+        ExperimentalOutcomes(yield_pct=84.0, conversion_pct=94.0, selectivity_pct=91.0),
+    ]
+    last = None
+    for idx, outcomes in enumerate(cycles, 1):
+        proposal = result["proposal"]
+        experiment = ExperimentResult(
+            run_id=f"run_{idx:02d}",
+            design_version=result["design_version"],
+            actual_conditions=ActualConditions(
+                residence_time_min=proposal["residence_time_min"],
+                flow_rate_mL_min=proposal["flow_rate_mL_min"],
+                reactor_volume_mL=proposal["reactor_volume_mL"],
+                temperature_C=proposal["temperature_C"],
+                concentration_M=proposal["concentration_M"],
+                BPR_bar=proposal["BPR_bar"],
+            ),
+            outcomes=outcomes,
+        )
+        last = refine_from_experiment(result, experiment)
+        result = last.refined_result
+
+    assert last is not None
+    assert last.decision.status == "converged"
+    assert result["design_version"] == 4
+    assert result["proposal"]["confidence"] == "MEDIUM"
+
+
+def test_campaign_calibration_builds_thq_residence_time_ladder():
+    calibration = calibrate_experimental_campaign(
+        _thq_experiments(),
+        target_yield_pct=75.0,
+        target_conversion_pct=75.0,
+    )
+
+    assert calibration.n_usable == 3
+    assert calibration.best_run_id == "khu_manual"
+    assert calibration.best_tau_in_channel_min == 137.08
+    assert 190.0 < calibration.recommended_tau_in_channel_min < 193.0
+    assert 258.0 < calibration.target_tau_in_channel_min < 260.5
+    assert calibration.design_ladder[0]["label"] == "best_observed_anchor"
+    assert calibration.design_ladder[-1]["label"] == "target_estimate"
+
+
+def test_campaign_refinement_overrides_short_intensification_design():
+    closed_loop = refine_from_experimental_campaign(
+        _thq_base_result(),
+        _thq_experiments(),
+        target_yield_pct=75.0,
+        target_conversion_pct=75.0,
+    )
+
+    proposal = closed_loop.refined_result["proposal"]
+    next_exp = closed_loop.decision.next_experiment
+    assert proposal["residence_time_min"] > 190.0
+    assert proposal["residence_time_in_channel_min"] > 190.0
+    assert proposal["flow_rate_mL_min"] < 0.014
+    assert next_exp["evidence_calibration"]["best_tau_in_channel_min"] == 137.08
+    assert next_exp["evidence_calibration"]["target_tau_in_channel_min"] > 258.0
+    assert "experiment_calibrated_kinetics" in closed_loop.decision.failure_modes
+
+
+def test_extract_experiments_from_prompt_text():
+    prompt = """
+Entry 1, KHU manual:
+T = 40 C
+c = 0.25 M
+P = 3 bar
+substrate flow = 0.014 mL/min
+O2 in-channel = 0.059 mL/min
+O2 inlet/STP = 0.1530 mL/min
+O2 equiv inlet = 1.95
+t inlet = 59.91 min
+t in-channel = 137.08 min
+reactor volume = 10.00 mL
+product = 52%
+tubing ID = 1.016 mm
+
+Entry 2, KRICT 6:
+T = 40 C
+c = 0.50 M
+P = 6 bar
+substrate flow = 0.0656 mL/min
+O2 in-channel = 0.320 mL/min
+O2 inlet/STP = 1.6565 mL/min
+O2 equiv inlet = 2.25
+t inlet = 7.71 min
+t in-channel = 34.42 min
+reactor volume = 13.27 mL
+starting material = 85%
+product = 10%
+tubing ID = 1.00 mm
+"""
+    experiments = extract_experiments_from_text(prompt)
+
+    assert len(experiments) == 2
+    assert experiments[0].run_id == "entry_01_khu_manual"
+    assert experiments[0].actual_conditions.residence_time_in_channel_min == 137.08
+    assert experiments[0].outcomes.yield_pct == 52.0
+    assert experiments[1].outcomes.conversion_pct == 15.0

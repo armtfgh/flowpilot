@@ -17,7 +17,7 @@ LAB_INVENTORY_PATH = DATA_DIR / "lab_inventory.json"
 # Base model aliases  (change these to remap multiple components at once)
 # ---------------------------------------------------------------------------
 
-_SONNET  = "claude-sonnet-4-20250514"
+_SONNET  = "claude-sonnet-4-6"
 _OPUS    = "claude-opus-4-6"
 
 # kept for backward compatibility — other modules still import these
@@ -36,7 +36,7 @@ EMBEDDING_DIM        = 1536
 #
 # Available Anthropic models:
 #   claude-opus-4-6            (most capable, slowest, most expensive)
-#   claude-sonnet-4-20250514   (balanced — default for most components)
+#   claude-sonnet-4-6          (balanced - default for most components)
 #   claude-haiku-4-5-20251001  (fast + cheap — good for parsing / classification)
 # ---------------------------------------------------------------------------
 
@@ -128,7 +128,7 @@ CHIEF_SCORE_WEIGHT_GEOMETRY = 0.15
 
 ENGINE_PROVIDER        = "openai"                # ← flip this to switch
 
-ENGINE_MODEL_ANTHROPIC = TRANSLATION_MODEL       # claude-sonnet-4-20250514
+ENGINE_MODEL_ANTHROPIC = TRANSLATION_MODEL       # claude-sonnet-4-6
 ENGINE_MODEL_OPENAI    = "gpt-4o"                # gpt-4o | gpt-4o-mini | o1-mini
 ENGINE_MODEL_OLLAMA    = "gemma4-flora"           # gemma4:31b + num_ctx 8192 (see Modelfile)
 

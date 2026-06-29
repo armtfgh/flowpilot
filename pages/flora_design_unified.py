@@ -240,6 +240,7 @@ def _render_result(result: dict, key_prefix: str = ""):
         "Stream Assignments",
         "Council Deliberation",
         "Council Report",
+        "Experiment Loop",
         "Raw JSON",
     ])
 
@@ -374,12 +375,335 @@ def _render_result(result: dict, key_prefix: str = ""):
                 self.council_messages = r.get("council_messages", [])
         render_council_report(_C(result))
 
-    # ── Tab 7: Raw JSON ───────────────────────────────────────────────────────
+    # ── Tab 7: Experiment Loop ────────────────────────────────────────────────
     with tabs[7]:
+        _render_experiment_loop(result, key_prefix=key_prefix)
+
+    # ── Tab 8: Raw JSON ───────────────────────────────────────────────────────
+    with tabs[8]:
         st.json(result)
 
     from components.feedback import render_feedback_widget
     render_feedback_widget(result, context="flora_design_translate")
+
+
+def _render_experiment_loop(result: dict, key_prefix: str = ""):
+    """Closed-loop experiment entry and deterministic next-design refinement."""
+    from flora_translate.experiment_loop import (
+        ActualConditions,
+        ExperimentalOutcomes,
+        ExperimentResult,
+        refine_from_experiment,
+    )
+
+    proposal = result.get("proposal", {})
+    loop_key = f"{key_prefix or 'result'}_experiment_loop"
+    campaign = st.session_state.setdefault(
+        loop_key,
+        {"cycles": [], "design_versions": [result]},
+    )
+
+    design_version = int(result.get("design_version", proposal.get("design_version", 1)) or 1)
+    st.markdown("### Experimental Feedback Loop")
+    st.caption(
+        "Enter what actually happened in the lab. FLORA will diagnose the gap "
+        "and create the next design version while keeping previous cycles in history."
+    )
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Current version", f"v{design_version}")
+    c2.metric("Target tau", f"{proposal.get('residence_time_min', '?')} min")
+    c3.metric("Target Q", f"{proposal.get('flow_rate_mL_min', '?')} mL/min")
+    c4.metric("Target C", f"{proposal.get('concentration_M', '?')} M")
+
+    form_key = f"{loop_key}_form_v{design_version}_{len(campaign.get('cycles', []))}"
+    with st.form(form_key):
+        st.markdown("#### Actual Run Conditions")
+        a1, a2, a3, a4 = st.columns(4)
+        residence_time = a1.number_input(
+            "Residence time (min)",
+            min_value=0.0,
+            value=_float_default(proposal.get("residence_time_min"), 10.0),
+            step=0.5,
+            key=f"{form_key}_tau",
+        )
+        flow_rate = a2.number_input(
+            "Flow rate (mL/min)",
+            min_value=0.0,
+            value=_float_default(proposal.get("flow_rate_mL_min"), 0.1),
+            step=0.01,
+            format="%.5f",
+            key=f"{form_key}_q",
+        )
+        temperature = a3.number_input(
+            "Temperature (C)",
+            value=_float_default(proposal.get("temperature_C"), 25.0),
+            step=1.0,
+            key=f"{form_key}_temp",
+        )
+        concentration = a4.number_input(
+            "Concentration (M)",
+            min_value=0.0,
+            value=_float_default(proposal.get("concentration_M"), 0.1),
+            step=0.01,
+            format="%.4f",
+            key=f"{form_key}_conc",
+        )
+
+        b1, b2, b3, b4 = st.columns(4)
+        reactor_volume = b1.number_input(
+            "Reactor volume (mL)",
+            min_value=0.0,
+            value=_float_default(proposal.get("reactor_volume_mL"), residence_time * flow_rate),
+            step=0.1,
+            key=f"{form_key}_vol",
+        )
+        tubing_id = b2.number_input(
+            "Tubing ID (mm)",
+            min_value=0.0,
+            value=_float_default(proposal.get("tubing_ID_mm"), 1.0),
+            step=0.1,
+            key=f"{form_key}_id",
+        )
+        bpr = b3.number_input(
+            "BPR (bar)",
+            min_value=0.0,
+            value=_float_default(proposal.get("BPR_bar"), 0.0),
+            step=1.0,
+            key=f"{form_key}_bpr",
+        )
+        wavelength = b4.number_input(
+            "Wavelength (nm)",
+            min_value=0.0,
+            value=_float_default(proposal.get("wavelength_nm"), 0.0),
+            step=10.0,
+            key=f"{form_key}_wl",
+        )
+
+        st.markdown("#### Gas-Liquid Timing")
+        gas_stream = _first_gas_stream(proposal)
+        g1, g2, g3, g4 = st.columns(4)
+        substrate_flow = g1.number_input(
+            "Substrate flow (mL/min)",
+            min_value=0.0,
+            value=_float_default(proposal.get("flow_rate_mL_min"), flow_rate),
+            step=0.001,
+            format="%.5f",
+            key=f"{form_key}_substrate_q",
+        )
+        gas_in_channel = g2.number_input(
+            "O2 in-channel (mL/min)",
+            min_value=0.0,
+            value=_float_default(gas_stream.get("gas_flow_actual_mL_min"), 0.0),
+            step=0.001,
+            format="%.5f",
+            key=f"{form_key}_gas_channel",
+        )
+        gas_stp = g3.number_input(
+            "O2 inlet/STP (mL/min)",
+            min_value=0.0,
+            value=_float_default(gas_stream.get("gas_flow_sccm"), 0.0),
+            step=0.001,
+            format="%.5f",
+            key=f"{form_key}_gas_stp",
+        )
+        gas_equiv = g4.number_input(
+            "O2 equiv inlet",
+            min_value=0.0,
+            value=0.0,
+            step=0.1,
+            format="%.3f",
+            key=f"{form_key}_gas_equiv",
+        )
+
+        t1, t2 = st.columns(2)
+        t_inlet = t1.number_input(
+            "t inlet (min)",
+            min_value=0.0,
+            value=_time_default(reactor_volume, substrate_flow, gas_stp),
+            step=1.0,
+            format="%.3f",
+            key=f"{form_key}_t_inlet",
+        )
+        t_channel = t2.number_input(
+            "t in-channel (min)",
+            min_value=0.0,
+            value=_time_default(reactor_volume, substrate_flow, gas_in_channel),
+            step=1.0,
+            format="%.3f",
+            key=f"{form_key}_t_channel",
+        )
+
+        st.markdown("#### Experimental Outcome")
+        o1, o2, o3, o4, o5 = st.columns(5)
+        yield_pct = o1.number_input("Yield (%)", min_value=0.0, max_value=100.0, value=0.0, step=1.0, key=f"{form_key}_yield")
+        product_pct = o2.number_input("Product (%)", min_value=0.0, max_value=100.0, value=0.0, step=1.0, key=f"{form_key}_product")
+        starting_material_pct = o3.number_input("Starting material (%)", min_value=0.0, max_value=100.0, value=0.0, step=1.0, key=f"{form_key}_sm")
+        conversion_pct = o4.number_input("Conversion (%)", min_value=0.0, max_value=100.0, value=0.0, step=1.0, key=f"{form_key}_conv")
+        selectivity_pct = o5.number_input("Selectivity (%)", min_value=0.0, max_value=100.0, value=0.0, step=1.0, key=f"{form_key}_sel")
+
+        pressure_bar = st.number_input("Observed pressure (bar)", min_value=0.0, value=0.0, step=0.5, key=f"{form_key}_pressure")
+
+        p1, p2, p3, p4 = st.columns(4)
+        pressure_drift = p1.number_input("Pressure drift (bar)", min_value=0.0, value=0.0, step=0.5, key=f"{form_key}_drift")
+        clogging = p2.checkbox("Clogging observed", key=f"{form_key}_clog")
+        precipitation = p3.checkbox("Precipitation observed", key=f"{form_key}_ppt")
+        gas_state = p4.selectbox(
+            "Gas-liquid stability",
+            ["stable", "unknown", "slugging", "flooding"],
+            key=f"{form_key}_gas",
+        )
+
+        impurity_notes = st.text_input("Impurity / analytical notes", key=f"{form_key}_impurity")
+        free_text = st.text_area("Additional observations", height=90, key=f"{form_key}_notes")
+
+        submitted = st.form_submit_button("Analyze Result and Create Next Design", type="primary")
+
+    if submitted:
+        run_index = len(campaign.get("cycles", [])) + 1
+        experiment = ExperimentResult(
+            run_id=f"run_{run_index:02d}",
+            design_version=design_version,
+            actual_conditions=ActualConditions(
+                residence_time_min=residence_time,
+                residence_time_inlet_min=t_inlet or None,
+                residence_time_in_channel_min=t_channel or None,
+                residence_time_basis="in_channel" if t_channel else "unknown",
+                flow_rate_mL_min=flow_rate,
+                substrate_flow_mL_min=substrate_flow or None,
+                gas_flow_in_channel_mL_min=gas_in_channel or None,
+                gas_flow_stp_mL_min=gas_stp or None,
+                gas_equiv_inlet=gas_equiv or None,
+                temperature_C=temperature,
+                concentration_M=concentration,
+                reactor_volume_mL=reactor_volume,
+                tubing_ID_mm=tubing_id,
+                BPR_bar=bpr,
+                wavelength_nm=wavelength or None,
+            ),
+            outcomes=ExperimentalOutcomes(
+                yield_pct=yield_pct or None,
+                product_pct=product_pct or None,
+                starting_material_pct=starting_material_pct or None,
+                conversion_pct=conversion_pct or None,
+                selectivity_pct=selectivity_pct or None,
+                pressure_bar=pressure_bar or None,
+                pressure_drift_bar=pressure_drift or None,
+                clogging_observed=clogging,
+                precipitation_observed=precipitation,
+                gas_liquid_stability=gas_state,
+                impurity_notes=impurity_notes,
+                notes=free_text,
+            ),
+            free_text_observations=free_text,
+        )
+        closed_loop = refine_from_experiment(
+            result,
+            experiment,
+            campaign_history=campaign.get("cycles", []),
+        )
+        campaign.setdefault("cycles", []).append(closed_loop.model_dump())
+        campaign.setdefault("design_versions", []).append(closed_loop.refined_result)
+        st.session_state[loop_key] = campaign
+        st.session_state["active_result"] = closed_loop.refined_result
+        st.success(f"Created design v{closed_loop.decision.design_version_out}.")
+        st.rerun()
+
+    cycles = campaign.get("cycles", [])
+    if not cycles:
+        st.info("No experimental cycles entered yet.")
+        return
+
+    st.divider()
+    st.markdown("### Closed-Loop History")
+    rows = []
+    for item in cycles:
+        exp = item.get("experiment", {})
+        decision = item.get("decision", {})
+        outcomes = exp.get("outcomes", {})
+        rows.append({
+            "Run": exp.get("run_id"),
+            "Design In": decision.get("design_version_in"),
+            "Design Out": decision.get("design_version_out"),
+            "Yield": outcomes.get("yield_pct"),
+            "Conversion": outcomes.get("conversion_pct"),
+            "Selectivity": outcomes.get("selectivity_pct"),
+            "Score": decision.get("score"),
+            "Status": decision.get("status"),
+            "Failure Modes": ", ".join(decision.get("failure_modes", [])),
+        })
+    if rows:
+        import pandas as pd
+        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+    last = cycles[-1]
+    decision = last.get("decision", {})
+    st.markdown("### Latest Diagnosis")
+    st.info(decision.get("diagnosis", "No diagnosis available."))
+    for action in decision.get("recommended_actions", []):
+        st.markdown(f"- {action}")
+
+    changes = decision.get("parameter_changes", {})
+    changed_rows = [
+        {"Parameter": key, "Before": value.get("old"), "Next": value.get("new")}
+        for key, value in changes.items()
+        if value.get("changed")
+    ]
+    if changed_rows:
+        import pandas as pd
+        st.markdown("#### Parameter Changes")
+        st.dataframe(pd.DataFrame(changed_rows), hide_index=True, use_container_width=True)
+
+    st.markdown("#### Next Experiment Package")
+    st.json(decision.get("next_experiment", {}))
+    calibration = (decision.get("next_experiment", {}) or {}).get("evidence_calibration")
+    if calibration:
+        st.markdown("#### Evidence-Calibrated Design Ladder")
+        st.caption(
+            "When multiple experimental cycles are available, measured response "
+            "versus in-channel residence time overrides the original intensification estimate."
+        )
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Best observed tau", f"{calibration.get('best_tau_in_channel_min')} min")
+        c2.metric("Best response", f"{calibration.get('best_response_pct')}%")
+        c3.metric("Next tau", f"{calibration.get('recommended_tau_in_channel_min')} min")
+        c4.metric("Target estimate", f"{calibration.get('target_tau_in_channel_min')} min")
+        ladder = calibration.get("design_ladder") or []
+        if ladder:
+            import pandas as pd
+            st.dataframe(pd.DataFrame(ladder), hide_index=True, use_container_width=True)
+
+    import json
+    st.download_button(
+        "Download closed-loop campaign JSON",
+        json.dumps(campaign, indent=2, default=str),
+        "flora_closed_loop_campaign.json",
+        "application/json",
+        key=f"{loop_key}_download",
+    )
+
+
+def _float_default(value, default: float) -> float:
+    try:
+        if value is None:
+            return float(default)
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _first_gas_stream(proposal: dict) -> dict:
+    for stream in proposal.get("streams") or []:
+        if str(stream.get("phase", "")).lower() == "gas":
+            return stream
+    return {}
+
+
+def _time_default(volume_mL: float, liquid_q: float, gas_q: float) -> float:
+    total_q = _float_default(liquid_q, 0.0) + _float_default(gas_q, 0.0)
+    if total_q <= 0:
+        return 0.0
+    return float(volume_mL) / total_q
 
 
 def _render_summary(result: dict, proposal: dict):

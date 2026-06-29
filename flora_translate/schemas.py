@@ -33,6 +33,8 @@ class LightSourceSpec(BaseModel):
     wavelength_nm: float
     power_W: float
     compatible_reactor: str  # "coil" / "chip" / "both"
+    intensity_mW_cm2: Optional[float] = None
+    distance_cm: Optional[float] = None
 
 
 class ReactorSpec(BaseModel):
@@ -40,6 +42,20 @@ class ReactorSpec(BaseModel):
     material: str
     volume_mL: float
     ID_mm: float
+    name: str = ""
+    system: str = ""
+    light_source: str = ""
+    wavelength_nm: Optional[float] = None
+    intensity_mW_cm2: Optional[float] = None
+    irradiation: str = ""
+    min_temperature_C: Optional[float] = None
+    max_temperature_C: Optional[float] = None
+    allowed_temperatures_C: list[float] = Field(default_factory=list)
+    min_concentration_M: Optional[float] = None
+    max_concentration_M: Optional[float] = None
+    min_pressure_bar: Optional[float] = None
+    max_pressure_bar: Optional[float] = None
+    notes: str = ""
 
 
 class LabInventory(BaseModel):
@@ -346,6 +362,9 @@ class FlowProposal(BaseModel):
     tubing_material: str = "FEP"
     tubing_ID_mm: float = 1.0
     reactor_volume_mL: float = 0
+    residence_time_inlet_min: Optional[float] = None
+    residence_time_in_channel_min: Optional[float] = None
+    residence_time_basis: str = ""
     light_setup: str = ""
     wavelength_nm: Optional[float] = None
     deoxygenation_method: Optional[str] = None
@@ -365,6 +384,9 @@ class FlowProposal(BaseModel):
     # Deterministic engineering annotations populated after final calculation.
     multiphase_metrics: dict = Field(default_factory=dict)
     heat_transfer_metrics: dict = Field(default_factory=dict)
+    inventory_selection: dict = Field(default_factory=dict)
+    inventory_constraints: dict = Field(default_factory=dict)
+    evidence_calibration: dict = Field(default_factory=dict)
 
     # Reasoning
     reasoning_per_field: dict[str, str] = Field(default_factory=dict)

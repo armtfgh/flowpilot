@@ -20,6 +20,7 @@ from pathlib import Path
 from flora_translate.analogy_selector import AnalogySelector
 from flora_translate.config import LAB_INVENTORY_PATH, RECORDS_DIR
 from flora_translate.engine.council_v4 import CouncilV4
+from flora_translate.inventory_constraints import enforce_reactor_inventory
 from flora_translate.lightweight_upstream import analyze_batch_chemistry, parse_batch_input
 from flora_translate.output_formatter import OutputFormatter
 from flora_translate.prompt_builder import TranslationPromptBuilder
@@ -1083,10 +1084,11 @@ def translate(
     # 3b. Pre-compute engineering calculations (9-step design calculator)
     logger.info("Step 3b: Running 9-step design calculator")
     from flora_translate.design_calculator import DesignCalculator
+    inventory = LabInventory.from_json(inventory_path)
     calculations = DesignCalculator().run(
         batch_record,
         chemistry_plan=chemistry_plan,
-        inventory=LabInventory.from_json(inventory_path),
+        inventory=inventory,
         analogies=analogies,
     )
     logger.info(
@@ -1111,7 +1113,7 @@ def translate(
         batch_record=batch_record,
         chemistry_plan=chemistry_plan,
         calculations=calculations,
-        inventory=LabInventory.from_json(inventory_path),
+        inventory=inventory,
         reaction_class=chemistry_plan.reaction_class if chemistry_plan else "default",
     )
     logger.info(f"  Design space: {len(design_candidates)} candidates, "
@@ -1127,7 +1129,8 @@ def translate(
     # 4. Generate flow proposal
     logger.info("Step 4: Generating flow proposal via LLM")
     system_prompt, user_prompt = TranslationPromptBuilder().build(
-        batch_record, analogies, chemistry_plan=chemistry_plan, calculations=calculations
+        batch_record, analogies, chemistry_plan=chemistry_plan,
+        calculations=calculations, inventory=inventory
     )
     proposal = TranslationLLM().generate(system_prompt, user_prompt)
     logger.info(f"  Proposal: {proposal.residence_time_min}min, {proposal.reactor_type}, "
@@ -1143,7 +1146,6 @@ def translate(
 
     # 5. ENGINE deliberation council — Layer 3
     logger.info("Step 5: Multi-agent deliberation council (ENGINE)")
-    inventory = LabInventory.from_json(inventory_path)
     pre_council_proposal = proposal.model_dump()  # snapshot before council modifies it
     # Pre-package Design Space feasible candidates as council seeds. If the
     # Council Designer's LLM-guided sampling finds 0 feasible points, the
@@ -1174,6 +1176,86 @@ def translate(
     result["design_calculations"] = asdict(calculations)
     _reconcile_final_bpr(result, design_candidate)
     _sync_final_stream_flowrates(result, design_candidate)
+
+    # If the user included measured flow experiments in the prompt, apply the
+    # deterministic closed-loop calibration before building the final topology.
+    # This prevents unsupported first-pass intensification from overriding
+    # observed conversion/yield data.
+    try:
+        raw_input_text = batch_input if isinstance(batch_input, str) else json.dumps(batch_input, default=str)
+        from flora_translate.experiment_loop import (
+            extract_experiments_from_text,
+            refine_from_experimental_campaign,
+        )
+        experiments = extract_experiments_from_text(raw_input_text)
+        if len(experiments) >= 2:
+            logger.info(
+                "Step 6b: Applying evidence-calibrated closed-loop refinement from %d experiments",
+                len(experiments),
+            )
+            closed_loop = refine_from_experimental_campaign(
+                result,
+                experiments,
+                target_yield_pct=75.0,
+                target_conversion_pct=75.0,
+                target_selectivity_pct=85.0,
+            )
+            result = closed_loop.refined_result
+            design_candidate.proposal = FlowProposal(**result["proposal"])
+            _sync_final_stream_flowrates(result, design_candidate)
+    except Exception as exc:
+        logger.warning("Evidence-calibrated closed-loop refinement skipped: %s", exc)
+
+    # Enforce discrete inventory hardware after all model/campaign refinements.
+    # The inventory is a hard physical constraint: final reactor volume/ID/material
+    # must be one of the available options, and flow rates are recalculated from
+    # the selected volume and target residence time.
+    try:
+        inventory_proposal, inventory_report = enforce_reactor_inventory(
+            design_candidate.proposal,
+            inventory,
+        )
+        if inventory_report.get("applied"):
+            enforced_volume = inventory_proposal.reactor_volume_mL
+            enforced_bpr = inventory_proposal.BPR_bar
+            logger.info(
+                "Step 6c: Enforced inventory reactor %s",
+                inventory_report.get("selected_reactor", {}).get("name")
+                or inventory_report.get("selected_reactor", {}).get("system")
+                or inventory_report.get("selected_reactor", {}),
+            )
+            design_candidate.proposal = inventory_proposal
+            calculations = DesignCalculator().run(
+                batch_record,
+                chemistry_plan=chemistry_plan,
+                proposal=design_candidate.proposal,
+                inventory=inventory,
+                analogies=analogies,
+                target_flow_rate_mL_min=design_candidate.proposal.flow_rate_mL_min or None,
+                target_tubing_ID_mm=design_candidate.proposal.tubing_ID_mm or None,
+                target_residence_time_min=design_candidate.proposal.residence_time_min or None,
+            )
+            design_candidate.proposal = DesignCalculator.annotate_proposal_with_calculations(
+                design_candidate.proposal,
+                calculations,
+            )
+            if enforced_volume:
+                design_candidate.proposal.reactor_volume_mL = enforced_volume
+            if enforced_bpr:
+                design_candidate.proposal.BPR_bar = enforced_bpr
+            result["proposal"] = design_candidate.proposal.model_dump()
+            result["design_calculations"] = asdict(calculations)
+            result["inventory_enforcement"] = inventory_report
+            result["explanation"] = (
+                (result.get("explanation") or "").rstrip()
+                + "\n\nInventory enforcement: final reactor hardware was snapped to "
+                + str(inventory_report.get("selected_reactor", {}))
+                + "."
+            ).strip()
+            _reconcile_final_bpr(result, design_candidate)
+            _sync_final_stream_flowrates(result, design_candidate)
+    except Exception as exc:
+        logger.warning("Inventory enforcement skipped: %s", exc)
 
     # Attach design space grid search results
     result["design_space"] = candidates_to_dicts(design_candidates)

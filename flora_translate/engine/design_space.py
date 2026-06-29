@@ -40,6 +40,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import flora_translate.config as cfg
+from flora_translate.inventory_constraints import reactor_is_compatible
 from flora_translate.engine.sampling import (
     compute_metrics,
     hard_filter,
@@ -47,6 +48,7 @@ from flora_translate.engine.sampling import (
     L_MAX_BENCH_M,
     V_MAX_SINGLE_REACTOR_ML,
     Q_MIN_ML_MIN,
+    GAS_LIQUID_MIN_ID_MM,
 )
 
 PI = math.pi
@@ -148,6 +150,11 @@ class DesignPoint:
     # Metadata
     tau_source: str = ""
     is_council_candidate: bool = False
+    inventory_reactor_name: str = ""
+    inventory_system: str = ""
+    inventory_light_source: str = ""
+    inventory_wavelength_nm: Optional[float] = None
+    inventory_intensity_mW_cm2: Optional[float] = None
 
 
 def _metrics_to_point(
@@ -159,6 +166,7 @@ def _metrics_to_point(
     feasible: bool,
     violations: list,
     warnings: list,
+    inventory_reactor=None,
 ) -> DesignPoint:
     """Map a metric dict from sampling.compute_metrics into a DesignPoint."""
     return DesignPoint(
@@ -188,8 +196,70 @@ def _metrics_to_point(
         feasible=feasible,
         violations=list(violations),
         warnings=list(warnings),
+        inventory_reactor_name=getattr(inventory_reactor, "name", "") if inventory_reactor else "",
+        inventory_system=getattr(inventory_reactor, "system", "") if inventory_reactor else "",
+        inventory_light_source=getattr(inventory_reactor, "light_source", "") if inventory_reactor else "",
+        inventory_wavelength_nm=getattr(inventory_reactor, "wavelength_nm", None) if inventory_reactor else None,
+        inventory_intensity_mW_cm2=getattr(inventory_reactor, "intensity_mW_cm2", None) if inventory_reactor else None,
         tau_source=tau_source,
     )
+
+
+def _inventory_reactors(inventory) -> list:
+    try:
+        return [r for r in (getattr(inventory, "reactors", []) or []) if r.volume_mL and r.ID_mm]
+    except AttributeError:
+        return []
+
+
+def _flow_for_target_volume(
+    *,
+    target_volume_mL: float,
+    tau_min: float,
+    d_mm: float,
+    solvent: str,
+    temperature_C: float,
+    concentration_M: float,
+    assumed_MW: float,
+    IF_used: float,
+    tau_kinetics_min: float,
+    pump_max: float,
+    is_photochem: bool,
+    is_gas_liquid: bool,
+    BPR_bar: float,
+    ext_coeff: Optional[float],
+    tau_source: str,
+) -> tuple[float, dict]:
+    """Find liquid Q that makes compute_metrics hit a target tube volume."""
+
+    q = max(target_volume_mL / max(tau_min, 1e-9), Q_MIN_ML_MIN)
+    metrics: dict = {}
+    for _ in range(8):
+        metrics = compute_metrics(
+            tau_min=tau_min,
+            d_mm=d_mm,
+            Q_mL_min=q,
+            solvent=solvent,
+            temperature_C=temperature_C,
+            concentration_M=concentration_M,
+            assumed_MW=assumed_MW,
+            IF_used=IF_used,
+            tau_kinetics_min=tau_kinetics_min,
+            pump_max_bar=pump_max,
+            is_photochem=is_photochem,
+            is_gas_liquid=is_gas_liquid,
+            BPR_bar=BPR_bar,
+            extinction_coeff_M_cm=ext_coeff,
+            tau_source=tau_source,
+        )
+        observed = float(metrics.get("V_R_mL") or 0.0)
+        if observed <= 0:
+            break
+        ratio = target_volume_mL / observed
+        if abs(ratio - 1.0) < 0.001:
+            break
+        q *= ratio
+    return q, metrics
 
 
 class DesignSpaceSearch:
@@ -397,56 +467,51 @@ class DesignSpaceSearch:
         if calculations is not None:
             ext_coeff = getattr(calculations, "extinction_coefficient_M_cm", None)
 
+        reactor_options = _inventory_reactors(inventory)
+
         # ── Enumerate ─────────────────────────────────────────────────────
         candidates: list[DesignPoint] = []
 
-        for tau_min in tau_values:
-            tau_source = tau_sources.get(tau_min, "derived")
-            for d_mm in d_values:
-                d_m = d_mm * 1e-3
-                for L_frac in L_FRACTIONS:
-                    # Derive Q from desired physical tube volume.
-                    # For gas-liquid the metric calc internally inflates
-                    # V_total = V_liquid / (1 - ε_gas), so we treat the
-                    # target volume here as physical-tube and let
-                    # compute_metrics reconcile. For consistency with the
-                    # original behavior, use physical-tube here and let
-                    # the engine compute liquid holdup downstream.
-                    L_target_m = L_frac * L_MAX_BENCH_M
-                    V_R_target_mL = (PI * d_m ** 2 / 4.0) * L_target_m * 1e6
-                    # Liquid flow rate: Q_liquid × τ = liquid holdup volume.
-                    # For liquid-only this equals V_R. For gas-liquid the
-                    # physical V_R is larger; we size Q_liquid for the
-                    # liquid holdup target so τ_liquid = τ_min.
-                    if is_gas_liquid:
-                        # Liquid holdup ≈ 18% of physical V_R for design (worst-case)
-                        V_liquid_target_mL = V_R_target_mL * 0.18
-                    else:
-                        V_liquid_target_mL = V_R_target_mL
-                    Q_mL_min = V_liquid_target_mL / tau_min
-
-                    if Q_mL_min < Q_MIN_ML_MIN:
-                        continue
-                    if max_tau_min is not None and tau_min > max_tau_min:
+        if reactor_options:
+            for tau_min in tau_values:
+                tau_source = tau_sources.get(tau_min, "derived")
+                for reactor in reactor_options:
+                    d_mm = float(reactor.ID_mm)
+                    if d_mm not in d_values:
+                        # Inventory is authoritative, but still reject IDs that
+                        # violate chemistry class constraints such as dry
+                        # photochemistry Beer-Lambert limits.
+                        if not (is_gas_liquid and d_mm >= GAS_LIQUID_MIN_ID_MM):
+                            continue
+                    if not reactor_is_compatible(
+                        reactor,
+                        temperature_C=temperature_C,
+                        concentration_M=concentration_M,
+                        pressure_bar=BPR_bar,
+                    ):
                         continue
 
-                    metrics = compute_metrics(
+                    Q_mL_min, metrics = _flow_for_target_volume(
+                        target_volume_mL=float(reactor.volume_mL),
                         tau_min=tau_min,
                         d_mm=d_mm,
-                        Q_mL_min=Q_mL_min,
                         solvent=solvent,
                         temperature_C=temperature_C,
                         concentration_M=concentration_M,
                         assumed_MW=assumed_MW,
                         IF_used=IF_used,
                         tau_kinetics_min=tau_kinetics_min,
-                        pump_max_bar=pump_max,
+                        pump_max=pump_max,
                         is_photochem=is_photochem,
                         is_gas_liquid=is_gas_liquid,
                         BPR_bar=BPR_bar,
-                        extinction_coeff_M_cm=ext_coeff,
+                        ext_coeff=ext_coeff,
                         tau_source=tau_source,
                     )
+                    if Q_mL_min < Q_MIN_ML_MIN:
+                        continue
+                    if max_tau_min is not None and tau_min > max_tau_min:
+                        continue
 
                     ok, violations, warnings = hard_filter(
                         metrics,
@@ -456,17 +521,92 @@ class DesignSpaceSearch:
                         BPR_bar=BPR_bar,
                         max_tau_min=max_tau_min,
                     )
+                    if abs(float(metrics.get("V_R_mL") or 0.0) - float(reactor.volume_mL)) > 0.05:
+                        violations.append(
+                            f"inventory volume closure failed: {metrics.get('V_R_mL')} mL "
+                            f"vs {reactor.volume_mL} mL"
+                        )
+                        ok = False
 
                     point = _metrics_to_point(
                         metrics,
                         tau_source=tau_source,
-                        L_fraction=L_frac,
+                        L_fraction=0.0,
                         is_gas_liquid=is_gas_liquid,
                         feasible=ok,
                         violations=violations,
                         warnings=warnings,
+                        inventory_reactor=reactor,
                     )
                     candidates.append(point)
+        else:
+            for tau_min in tau_values:
+                tau_source = tau_sources.get(tau_min, "derived")
+                for d_mm in d_values:
+                    d_m = d_mm * 1e-3
+                    for L_frac in L_FRACTIONS:
+                        # Derive Q from desired physical tube volume.
+                        # For gas-liquid the metric calc internally inflates
+                        # V_total = V_liquid / (1 - ε_gas), so we treat the
+                        # target volume here as physical-tube and let
+                        # compute_metrics reconcile. For consistency with the
+                        # original behavior, use physical-tube here and let
+                        # the engine compute liquid holdup downstream.
+                        L_target_m = L_frac * L_MAX_BENCH_M
+                        V_R_target_mL = (PI * d_m ** 2 / 4.0) * L_target_m * 1e6
+                        # Liquid flow rate: Q_liquid × τ = liquid holdup volume.
+                        # For liquid-only this equals V_R. For gas-liquid the
+                        # physical V_R is larger; we size Q_liquid for the
+                        # liquid holdup target so τ_liquid = τ_min.
+                        if is_gas_liquid:
+                            # Liquid holdup ≈ 18% of physical V_R for design (worst-case)
+                            V_liquid_target_mL = V_R_target_mL * 0.18
+                        else:
+                            V_liquid_target_mL = V_R_target_mL
+                        Q_mL_min = V_liquid_target_mL / tau_min
+
+                        if Q_mL_min < Q_MIN_ML_MIN:
+                            continue
+                        if max_tau_min is not None and tau_min > max_tau_min:
+                            continue
+
+                        metrics = compute_metrics(
+                            tau_min=tau_min,
+                            d_mm=d_mm,
+                            Q_mL_min=Q_mL_min,
+                            solvent=solvent,
+                            temperature_C=temperature_C,
+                            concentration_M=concentration_M,
+                            assumed_MW=assumed_MW,
+                            IF_used=IF_used,
+                            tau_kinetics_min=tau_kinetics_min,
+                            pump_max_bar=pump_max,
+                            is_photochem=is_photochem,
+                            is_gas_liquid=is_gas_liquid,
+                            BPR_bar=BPR_bar,
+                            extinction_coeff_M_cm=ext_coeff,
+                            tau_source=tau_source,
+                        )
+
+                        ok, violations, warnings = hard_filter(
+                            metrics,
+                            is_photochem=is_photochem,
+                            is_gas_liquid=is_gas_liquid,
+                            pump_max_bar=pump_max,
+                            BPR_bar=BPR_bar,
+                            max_tau_min=max_tau_min,
+                        )
+
+                        point = _metrics_to_point(
+                            metrics,
+                            tau_source=tau_source,
+                            L_fraction=L_frac,
+                            is_gas_liquid=is_gas_liquid,
+                            feasible=ok,
+                            violations=violations,
+                            warnings=warnings,
+                        )
+                        candidates.append(point)
 
         # ── Normalize productivity and score ──────────────────────────────
         feasible_candidates = [c for c in candidates if c.feasible]
@@ -601,6 +741,11 @@ def feasible_candidates_as_council_seeds(
             "pareto_front": idx == 1,
             "source": "design_space_fallback",
             "design_space_score": round(c.score, 5),
+            "inventory_reactor_name": c.inventory_reactor_name,
+            "inventory_system": c.inventory_system,
+            "inventory_light_source": c.inventory_light_source,
+            "inventory_wavelength_nm": c.inventory_wavelength_nm,
+            "inventory_intensity_mW_cm2": c.inventory_intensity_mW_cm2,
         }
         out.append(d)
     return out
