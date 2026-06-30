@@ -49,8 +49,9 @@ from flora_translate.engine.council_v4.scoring import (
 )
 from flora_translate.engine.council_v4.skeptic import run_skeptic_audit
 from flora_translate.engine.sampling import compute_metrics, format_candidate_table, hard_filter
+from flora_translate.intake_agent import intake_context_block
 from flora_translate.schemas import (
-    BatchRecord, ChemistryPlan, FlowProposal, LabInventory,
+    BatchRecord, ChemistryPlan, DesignInputPackage, FlowProposal, LabInventory,
     DesignCandidate, CouncilMessage, DeliberationLog,
     AgentDeliberation, FieldProposal,
 )
@@ -725,6 +726,13 @@ def _positive_float(value, default: float = 0.0) -> float:
     return parsed if parsed > 0 else default
 
 
+def _float_or_default(value, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _tube_volume_mL(length_m: float, d_mm: float) -> float:
     area_mm2 = math.pi * (d_mm / 2.0) ** 2
     # 1 mL = 1000 mm3 and 1 m = 1000 mm, so mL = area_mm2 * length_m.
@@ -1224,11 +1232,29 @@ def _materialize_revised_candidate(
     parent_id: int,
     variant_mode: str,
 ) -> dict:
-    new_tau = float(patch.get("tau_min", candidate.get("tau_min")))
-    new_d = float(patch.get("d_mm", candidate.get("d_mm")))
-    new_Q = float(patch.get("Q_mL_min", candidate.get("Q_mL_min", 0.01)))
-    new_c = float(patch.get("concentration_M", candidate.get("concentration_M", concentration_M)))
-    new_bpr = float(patch.get("BPR_bar", candidate.get("BPR_bar", 0.0)))
+    new_tau = _positive_float(
+        patch.get("tau_min"),
+        _positive_float(candidate.get("tau_min"), 1.0),
+    )
+    new_d = _positive_float(
+        patch.get("d_mm"),
+        _positive_float(candidate.get("d_mm"), 1.0),
+    )
+    new_Q = _positive_float(
+        patch.get("Q_mL_min"),
+        _positive_float(candidate.get("Q_mL_min"), 0.01),
+    )
+    new_c = _positive_float(
+        patch.get("concentration_M"),
+        _positive_float(candidate.get("concentration_M"), concentration_M),
+    )
+    new_bpr = max(
+        0.0,
+        _float_or_default(
+            patch.get("BPR_bar"),
+            _float_or_default(candidate.get("BPR_bar"), 0.0),
+        ),
+    )
     new_mat = str(patch.get("tubing_material", candidate.get("tubing_material", "FEP")))
 
     revised = compute_metrics(
@@ -2574,6 +2600,7 @@ class CouncilV4:
         benchmark_branching_revision_mode: bool = False,
         benchmark_max_descendants_per_candidate: int = 2,
         benchmark_max_total_revised_candidates: Optional[int] = None,
+        intake_package: Optional[DesignInputPackage | dict] = None,
     ) -> tuple[DesignCandidate, DesignCalculations]:
         """Run the full council pipeline.
 
@@ -2664,6 +2691,9 @@ class CouncilV4:
         pump_max = calc.pump_max_bar or 20.0
         ext_coeff = _extract_extinction_coeff(batch_record, chemistry_plan)
         chem_brief = _build_chemistry_brief(batch_record, chemistry_plan, current)
+        intake_block = intake_context_block(intake_package) if intake_package is not None else ""
+        if intake_block:
+            chem_brief += "\n\n" + intake_block
         reaction_class = (chemistry_plan.reaction_class if chemistry_plan else "unknown") or "unknown"
         intensification_mandate = (
             chemistry_plan.intensification_mandate.model_dump()
@@ -2736,6 +2766,8 @@ class CouncilV4:
                     "stage0_intensification_feasibility",
                     feasibility_diagnostic,
                 )
+        if intake_block:
+            problem_statement["intake_context"] = intake_block
 
         # ═══════════════════════════════════════════════════════════════════
         #  STAGE 1 — Designer: Candidate Matrix  (or bypass with fixed_candidates)

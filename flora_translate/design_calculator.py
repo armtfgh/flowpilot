@@ -45,6 +45,13 @@ from flora_translate.batch_normalization import (
     infer_batch_concentration_M,
     infer_reaction_time_h,
 )
+from flora_translate.residence_time_basis import (
+    IN_CHANNEL_BASIS,
+    INLET_STP_BASIS,
+    UNKNOWN_BASIS,
+    normalize_residence_time_basis,
+    residence_time_basis_label,
+)
 
 logger = logging.getLogger("flora.design_calculator")
 
@@ -225,6 +232,9 @@ class DesignCalculations:
     kinetics_method: str = ""               # "analogy" | "class" | "default"
     residence_time_s: float = 0.0
     residence_time_min: float = 0.0
+    residence_time_inlet_min: float = 0.0
+    residence_time_in_channel_min: float = 0.0
+    residence_time_basis: str = ""
     residence_time_range_min: tuple[float, float] | None = None  # (τ_low, τ_high)
     intensification_factor: float = 1.0
     tau_analogy_min: float | None = None    # τ from analogy-derived IF
@@ -616,6 +626,12 @@ class DesignCalculator:
             proposal.reactor_volume_mL = round(calc.reactor_volume_mL, 4)
         if calc.bpr_required and calc.bpr_pressure_bar > 0:
             proposal.BPR_bar = round(calc.bpr_pressure_bar, 1)
+        if calc.residence_time_basis:
+            proposal.residence_time_basis = calc.residence_time_basis
+        if calc.residence_time_inlet_min > 0:
+            proposal.residence_time_inlet_min = round(calc.residence_time_inlet_min, 4)
+        if calc.residence_time_in_channel_min > 0:
+            proposal.residence_time_in_channel_min = round(calc.residence_time_in_channel_min, 4)
         if getattr(calc, "is_gas_liquid", False):
             proposal.multiphase_metrics = {
                 "gas_species": calc.gas_species,
@@ -631,6 +647,9 @@ class DesignCalculator:
                 "gas_holdup": calc.gas_holdup,
                 "liquid_holdup_volume_mL": calc.liquid_holdup_volume_mL,
                 "total_reactor_volume_mL": calc.reactor_volume_mL,
+                "residence_time_basis": calc.residence_time_basis,
+                "residence_time_inlet_min": calc.residence_time_inlet_min,
+                "residence_time_in_channel_min": calc.residence_time_in_channel_min,
                 "two_phase_multiplier": calc.two_phase_multiplier,
                 "two_phase_pressure_drop_bar": calc.two_phase_pressure_drop_bar,
                 "o2_supply_mmol_min": calc.o2_supply_mmol_min,
@@ -923,6 +942,24 @@ class DesignCalculator:
         # excess; it does not silently alter the MFC setpoint.
         eps = max(0.02, min(0.85, gas_actual / max(gas_actual + Q_liquid_mL_min, 1e-9)))
         multiplier = min(12.0, 1.0 + 12.0 * eps + 25.0 * eps * eps)
+        basis = normalize_residence_time_basis(getattr(proposal, "residence_time_basis", ""))
+        if basis == INLET_STP_BASIS and gas_sccm > 0:
+            residence_time_inlet_min = calc.residence_time_min
+            residence_time_in_channel_min = (
+                residence_time_inlet_min
+                * (Q_liquid_mL_min + gas_sccm)
+                / max(Q_liquid_mL_min + gas_actual, 1e-9)
+            )
+        else:
+            basis = IN_CHANNEL_BASIS if basis == UNKNOWN_BASIS else normalize_residence_time_basis(basis)
+            residence_time_in_channel_min = calc.residence_time_min
+            residence_time_inlet_min = (
+                residence_time_in_channel_min
+                * (Q_liquid_mL_min + gas_actual)
+                / max(Q_liquid_mL_min + gas_sccm, 1e-9)
+                if gas_sccm > 0
+                else residence_time_in_channel_min
+            )
 
         o2_supply = 0.0
         if y_o2 > 0:
@@ -931,7 +968,7 @@ class DesignCalculator:
         p_o2_abs = P_abs_bar * y_o2
         dissolved_o2_mM = 1.3 * (p_o2_abs / 0.21) if y_o2 > 0 else 0.0
         kLa_s = 0.02 + 0.35 * eps if y_o2 > 0 else 0.0
-        liquid_holdup_L = calc.residence_time_min * Q_liquid_mL_min / 1000.0
+        liquid_holdup_L = residence_time_in_channel_min * Q_liquid_mL_min / 1000.0
         transfer_capacity = kLa_s * dissolved_o2_mM * liquid_holdup_L * 60.0
         transfer_suff = transfer_capacity / max(o2_required, 1e-12) if o2_required > 0 else 0.0
         o2_equiv_supplied = o2_supply / max(n_substrate_mmol_min, 1e-12) if n_substrate_mmol_min > 0 else 0.0
@@ -948,6 +985,9 @@ class DesignCalculator:
             "gas_liquid_ratio": glr,
             "gas_holdup": eps,
             "two_phase_multiplier": multiplier,
+            "residence_time_basis": basis,
+            "residence_time_inlet_min": residence_time_inlet_min,
+            "residence_time_in_channel_min": residence_time_in_channel_min,
             "o2_supply_mmol_min": o2_supply,
             "o2_required_mmol_min": o2_required,
             "o2_equiv_supplied": o2_equiv_supplied,
@@ -1552,15 +1592,25 @@ class DesignCalculator:
             calc, Q_mL_min, proposal, is_gas_liquid,
             batch_record=batch_record, chemistry_plan=chemistry_plan,
         )
+        basis = normalize_residence_time_basis(gas_ctx.get("residence_time_basis"))
+        if basis not in {INLET_STP_BASIS, "in_channel", "liquid_only"}:
+            basis = normalize_residence_time_basis(getattr(proposal, "residence_time_basis", ""))
 
         for _iter in range(5):
             Q_m3s = Q_mL_min * 1e-6 / 60.0
+            Q_gas_stp_m3s = (gas_ctx.get("gas_sccm", 0.0) or 0.0) * 1e-6 / 60.0
             Q_gas_actual_m3s = (gas_ctx.get("gas_actual_mL_min", 0.0) or 0.0) * 1e-6 / 60.0
             d_m = d_mm * 1e-3
             A = PI * (d_m / 2) ** 2
-            V_liquid_m3 = tau_s * Q_m3s
             gas_holdup = gas_ctx.get("gas_holdup", 0.0) or 0.0
-            V_m3 = V_liquid_m3 / max(1.0 - gas_holdup, 1e-9)
+            if basis == INLET_STP_BASIS and Q_gas_stp_m3s > 0:
+                V_m3 = tau_s * (Q_m3s + Q_gas_stp_m3s)
+                V_liquid_m3 = V_m3 * max(1.0 - gas_holdup, 0.0)
+                tau_in_channel_s = V_m3 / max(Q_m3s + Q_gas_actual_m3s, 1e-12)
+            else:
+                V_liquid_m3 = tau_s * Q_m3s
+                V_m3 = V_liquid_m3 / max(1.0 - gas_holdup, 1e-9)
+                tau_in_channel_s = V_m3 / max(Q_m3s + Q_gas_actual_m3s, 1e-12)
             V_mL = V_m3 * 1e6
             L = (4.0 * V_m3 / (PI * d_m ** 2)) if d_m > 0 else 0.0
             v = (Q_m3s + Q_gas_actual_m3s) / A if A > 0 else 0.0
@@ -1647,6 +1697,16 @@ class DesignCalculator:
         calc.pressure_drop_bar = round(dP_bar, 6)
         if gas_ctx:
             calc.is_gas_liquid = True
+            calc.residence_time_basis = residence_time_basis_label(basis)
+            if basis == INLET_STP_BASIS:
+                calc.residence_time_inlet_min = round(tau_s / 60.0, 4)
+                calc.residence_time_in_channel_min = round(tau_in_channel_s / 60.0, 4)
+            else:
+                calc.residence_time_in_channel_min = round(tau_in_channel_s / 60.0, 4)
+                calc.residence_time_inlet_min = round(
+                    gas_ctx.get("residence_time_inlet_min", tau_s / 60.0),
+                    4,
+                )
             calc.gas_species = gas_ctx.get("species", "")
             calc.gas_oxygen_fraction = round(gas_ctx.get("y_o2", 0.0), 4)
             calc.gas_flow_sccm = round(gas_ctx.get("gas_sccm", 0.0), 4)
@@ -1686,17 +1746,34 @@ class DesignCalculator:
                 f"Reduce d (smaller d → higher Pe) or accept lower conversion efficiency."
             )
         if gas_ctx:
-            eqs_3 = [
-                (rf"V_{{L}} = \tau_L \times Q_L = {tau_min:.2f}"
-                 rf" \times {Q_mL_min:.4f} = {V_liquid_m3 * 1e6:.2f}\;\mathrm{{mL}}"),
-                (rf"\varepsilon_g = \frac{{Q_g}}{{Q_g+Q_L}}"
-                 rf" = {calc.gas_holdup:.3f}"),
-                (rf"V_R = \frac{{V_L}}{{1-\varepsilon_g}}"
-                 rf" = \frac{{{V_liquid_m3 * 1e6:.2f}}}{{1-{calc.gas_holdup:.3f}}}"
-                 rf" = {V_mL:.2f}\;\mathrm{{mL}}"),
-                (rf"L = \frac{{4\,V_R}}{{\pi\,d^2}}"
-                 rf" = {L:.2f}\;\mathrm{{m}}"),
-            ]
+            if basis == INLET_STP_BASIS:
+                eqs_3 = [
+                    (rf"V_R = t_{{inlet}} \times (Q_L + Q_{{g,STP}})"
+                     rf" = {tau_min:.2f} \times ({Q_mL_min:.4f}"
+                     rf" + {gas_ctx.get('gas_sccm', 0.0):.4f})"
+                     rf" = {V_mL:.2f}\;\mathrm{{mL}}"),
+                    (rf"Q_{{g,actual}} = Q_{{g,STP}}\frac{{T}}{{T_{{STP}}}}"
+                     rf"\frac{{P_{{STP}}}}{{P}}"
+                     rf" = {gas_ctx.get('gas_actual_mL_min', 0.0):.4f}\;\mathrm{{mL/min}}"),
+                    (rf"t_{{in-channel}} = \frac{{V_R}}{{Q_L + Q_{{g,actual}}}}"
+                     rf" = {calc.residence_time_in_channel_min:.2f}\;\mathrm{{min}}"),
+                    (rf"\varepsilon_g = \frac{{Q_{{g,actual}}}}{{Q_{{g,actual}}+Q_L}}"
+                     rf" = {calc.gas_holdup:.3f}"),
+                    (rf"L = \frac{{4\,V_R}}{{\pi\,d^2}}"
+                     rf" = {L:.2f}\;\mathrm{{m}}"),
+                ]
+            else:
+                eqs_3 = [
+                    (rf"V_{{L}} = \tau_L \times Q_L = {tau_min:.2f}"
+                     rf" \times {Q_mL_min:.4f} = {V_liquid_m3 * 1e6:.2f}\;\mathrm{{mL}}"),
+                    (rf"\varepsilon_g = \frac{{Q_g}}{{Q_g+Q_L}}"
+                     rf" = {calc.gas_holdup:.3f}"),
+                    (rf"V_R = \frac{{V_L}}{{1-\varepsilon_g}}"
+                     rf" = \frac{{{V_liquid_m3 * 1e6:.2f}}}{{1-{calc.gas_holdup:.3f}}}"
+                     rf" = {V_mL:.2f}\;\mathrm{{mL}}"),
+                    (rf"L = \frac{{4\,V_R}}{{\pi\,d^2}}"
+                     rf" = {L:.2f}\;\mathrm{{m}}"),
+                ]
         else:
             eqs_3 = [
                 (rf"V_R = \tau \times Q = {tau_s:.1f}"
@@ -1726,6 +1803,9 @@ class DesignCalculator:
             values={"V_R_mL": V_mL, "liquid_holdup_mL": V_liquid_m3 * 1e6,
                     "gas_holdup": calc.gas_holdup, "d_mm": d_mm, "L_m": L,
                     "Q_mL_min": Q_mL_min, "v_m_s": v,
+                    "residence_time_basis": calc.residence_time_basis or residence_time_basis_label(basis),
+                    "residence_time_inlet_min": calc.residence_time_inlet_min or None,
+                    "residence_time_in_channel_min": calc.residence_time_in_channel_min or None,
                     "Pe": Pe_val, "Pe_adequate": calc.Pe_adequate},
             equations=eqs_3,
             warnings=Pe_warn,
@@ -2324,9 +2404,19 @@ class DesignCalculator:
         """Cross-check that all derived quantities are internally consistent."""
         notes: list[str] = []
 
-        # τ = V_R / Q
+        # τ = V_R / Q on the declared primary basis.
         if calc.flow_rate_m3_s > 0 and calc.residence_time_s > 0:
-            if calc.is_gas_liquid and calc.gas_holdup > 0:
+            basis = normalize_residence_time_basis(calc.residence_time_basis)
+            if (
+                calc.is_gas_liquid
+                and basis == INLET_STP_BASIS
+                and calc.gas_flow_sccm > 0
+            ):
+                q_basis_m3_s = (
+                    calc.flow_rate_mL_min + calc.gas_flow_sccm
+                ) * 1e-6 / 60.0
+                tau_check = calc.reactor_volume_m3 / max(q_basis_m3_s, 1e-12)
+            elif calc.is_gas_liquid and calc.gas_holdup > 0:
                 liquid_volume_m3 = calc.reactor_volume_m3 * (1.0 - calc.gas_holdup)
                 tau_check = liquid_volume_m3 / calc.flow_rate_m3_s
             else:
@@ -2337,6 +2427,22 @@ class DesignCalculator:
                     f"τ: V_R/Q = {tau_check:.1f} s vs τ = {calc.residence_time_s:.1f} s "
                     f"(Δ = {err*100:.1f}%)"
                 )
+            if (
+                calc.is_gas_liquid
+                and calc.gas_flow_actual_mL_min > 0
+                and calc.residence_time_in_channel_min > 0
+            ):
+                q_actual_m3_s = (
+                    calc.flow_rate_mL_min + calc.gas_flow_actual_mL_min
+                ) * 1e-6 / 60.0
+                tau_channel_check = calc.reactor_volume_m3 / max(q_actual_m3_s, 1e-12)
+                expected = calc.residence_time_in_channel_min * 60.0
+                err_channel = abs(tau_channel_check - expected) / max(expected, 1e-9)
+                if err_channel > 0.01:
+                    notes.append(
+                        f"t_in_channel: V_R/(Q_L+Q_g_actual) = {tau_channel_check:.1f} s "
+                        f"vs {expected:.1f} s (Δ = {err_channel*100:.1f}%)"
+                    )
 
         # L = 4V/(πd²)
         d = calc.tubing_ID_m

@@ -55,9 +55,58 @@ def _render_translate():
             st.session_state.chat_messages = []
             st.session_state.active_result = None
             st.session_state.chat_agent.reset()
+            for key in list(st.session_state.keys()):
+                if str(key).startswith("flowpilot_intake"):
+                    del st.session_state[key]
             st.rerun()
 
+    from components.intake_wizard import render_intake_wizard
+
+    intake_package = render_intake_wizard("flowpilot_intake")
+    if st.session_state.get("active_result") is None:
+        if not intake_package or not intake_package.ready_for_design:
+            st.info("Complete the standardized intake package before running FlowPilot design.")
+            return
+
+        if st.button("Run FlowPilot Design", type="primary", use_container_width=True):
+            with st.spinner("Running FlowPilot pipeline from standardized intake..."):
+                try:
+                    from flora_translate.main import translate
+
+                    result = translate(
+                        intake_package.raw_protocol,
+                        intake_package=intake_package,
+                    )
+                    from flora_translate.gui_autosave import autosave_gui_result
+
+                    autosave_dir = autosave_gui_result(
+                        result,
+                        intake_package=intake_package,
+                        source="standardized_intake",
+                        user_input=intake_package.raw_protocol,
+                    )
+                    result["autosave_dir"] = str(autosave_dir)
+                    st.session_state["active_result"] = result
+                    st.session_state.chat_agent.current_result = result
+                    st.session_state.chat_agent.original_query = intake_package.raw_protocol
+                    st.session_state.chat_messages.append({
+                        "role": "assistant",
+                        "content": "FlowPilot design generated from standardized intake.",
+                        "result": result,
+                        "questions": [],
+                    })
+                    st.rerun()
+                except Exception as e:
+                    from components.error_card import render_error
+
+                    render_error(e, "FlowPilot standardized intake design")
+                    return
+        st.info("Intake is ready. Run FlowPilot Design to generate the first flow proposal.")
+        return
+
     # ── Render chat history ────────────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("Design Chat")
     for i, msg in enumerate(st.session_state.chat_messages):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
@@ -69,7 +118,7 @@ def _render_translate():
                         "\n".join(f"{j+1}. {q}" for j, q in enumerate(msg["questions"])))
 
     # ── Example prompts (only when chat is empty) ──────────────────────────
-    if not st.session_state.chat_messages:
+    if not st.session_state.chat_messages and st.session_state.get("active_result") is None:
         st.markdown(
             """
             <div style="color:#888; font-size:0.88em; margin-bottom:8px;">
@@ -138,6 +187,14 @@ def _render_translate():
             st.markdown(response.message)
 
             if response.result:
+                from flora_translate.gui_autosave import autosave_gui_result
+
+                autosave_dir = autosave_gui_result(
+                    response.result,
+                    source="chat",
+                    user_input=prompt,
+                )
+                response.result["autosave_dir"] = str(autosave_dir)
                 st.session_state["active_result"] = response.result
                 _render_result_compact(response.result, "new")
 
@@ -220,6 +277,8 @@ def _render_result_compact(result: dict, key_suffix):
         f"**Q =** {fr} mL/min"
     )
     st.caption("↓ Full design with process diagram, chemistry plan, and conditions shown below")
+    if result.get("autosave_dir"):
+        st.caption(f"Autosaved: {result['autosave_dir']}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -231,6 +290,8 @@ def _render_result(result: dict, key_prefix: str = ""):
     conf = result.get("confidence", "LOW")
     conf_color = {"HIGH": "green", "MEDIUM": "orange", "LOW": "red"}.get(conf, "gray")
     st.markdown(f"### Confidence: :{conf_color}[{conf}]")
+    if result.get("autosave_dir"):
+        st.caption(f"Autosaved run folder: {result['autosave_dir']}")
 
     tabs = st.tabs([
         "Summary",
@@ -533,6 +594,17 @@ def _render_experiment_loop(result: dict, key_prefix: str = ""):
             format="%.3f",
             key=f"{form_key}_t_channel",
         )
+        default_basis_index = 0 if gas_stp > 0 else 1
+        basis_choice = st.selectbox(
+            "Primary calibration basis",
+            [
+                "inlet/STP apparent residence time",
+                "in-channel pressure-corrected total residence time",
+                "liquid-only reactor volume / liquid flow",
+            ],
+            index=default_basis_index,
+            key=f"{form_key}_basis",
+        )
 
         st.markdown("#### Experimental Outcome")
         o1, o2, o3, o4, o5 = st.columns(5)
@@ -561,14 +633,20 @@ def _render_experiment_loop(result: dict, key_prefix: str = ""):
 
     if submitted:
         run_index = len(campaign.get("cycles", [])) + 1
+        if basis_choice.startswith("inlet"):
+            submitted_residence_time = t_inlet or residence_time
+        elif basis_choice.startswith("in-channel"):
+            submitted_residence_time = t_channel or residence_time
+        else:
+            submitted_residence_time = residence_time
         experiment = ExperimentResult(
             run_id=f"run_{run_index:02d}",
             design_version=design_version,
             actual_conditions=ActualConditions(
-                residence_time_min=residence_time,
+                residence_time_min=submitted_residence_time,
                 residence_time_inlet_min=t_inlet or None,
                 residence_time_in_channel_min=t_channel or None,
-                residence_time_basis="in_channel" if t_channel else "unknown",
+                residence_time_basis=basis_choice,
                 flow_rate_mL_min=flow_rate,
                 substrate_flow_mL_min=substrate_flow or None,
                 gas_flow_in_channel_mL_min=gas_in_channel or None,

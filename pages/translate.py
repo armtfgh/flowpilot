@@ -72,7 +72,14 @@ def render():
         with st.spinner("Running FLORA-Translate pipeline..."):
             try:
                 from flora_translate.main import translate
+                from flora_translate.gui_autosave import autosave_gui_result
                 result = translate(batch_input)
+                autosave_dir = autosave_gui_result(
+                    result,
+                    source="legacy_translate",
+                    user_input=batch_input if isinstance(batch_input, str) else json.dumps(batch_input, default=str),
+                )
+                result["autosave_dir"] = str(autosave_dir)
                 st.session_state["translate_result"] = result
             except Exception as e:
                 from components.error_card import render_error
@@ -86,6 +93,8 @@ def render():
 
     result = st.session_state["translate_result"]
     proposal = result.get("proposal", {})
+    if result.get("autosave_dir"):
+        st.caption(f"Autosaved run folder: {result['autosave_dir']}")
 
     # Confidence badge
     conf = result.get("confidence", "LOW")

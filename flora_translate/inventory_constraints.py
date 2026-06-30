@@ -11,6 +11,14 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from flora_translate.residence_time_basis import (
+    INLET_STP_BASIS,
+    UNKNOWN_BASIS,
+    actual_gas_flow_from_stp,
+    normalize_residence_time_basis,
+    residence_time_basis_label,
+    stp_gas_flow_from_actual,
+)
 from flora_translate.schemas import FlowProposal, LabInventory, ReactorSpec
 
 
@@ -85,11 +93,24 @@ def enforce_reactor_inventory(
         "wavelength_nm": data.get("wavelength_nm"),
     }
 
-    tau = _first_positive(
-        data.get("residence_time_in_channel_min"),
-        data.get("residence_time_min"),
-        10.0,
-    )
+    basis = normalize_residence_time_basis(data.get("residence_time_basis"))
+    if basis == UNKNOWN_BASIS:
+        if _num(data.get("residence_time_inlet_min"), 0.0) > 0:
+            basis = INLET_STP_BASIS
+        elif _num(data.get("residence_time_in_channel_min"), 0.0) > 0:
+            basis = "in_channel"
+    if basis == INLET_STP_BASIS:
+        tau = _first_positive(
+            data.get("residence_time_min"),
+            data.get("residence_time_inlet_min"),
+            10.0,
+        )
+    else:
+        tau = _first_positive(
+            data.get("residence_time_in_channel_min"),
+            data.get("residence_time_min"),
+            10.0,
+        )
     volume = float(selected.volume_mL)
     temperature = _snap_temperature(_num(data.get("temperature_C"), 25.0), selected)
     concentration = _clamp(
@@ -105,6 +126,11 @@ def enforce_reactor_inventory(
     )
 
     current_liquid_q, current_gas_actual, current_gas_sccm = _current_flow_basis(data)
+    gas_stp_ratio = (
+        current_gas_sccm / current_liquid_q
+        if current_liquid_q > 0 and current_gas_sccm > 0
+        else 0.0
+    )
     gas_actual_ratio = (
         current_gas_actual / current_liquid_q
         if current_liquid_q > 0 and current_gas_actual > 0
@@ -115,20 +141,29 @@ def enforce_reactor_inventory(
     # volume remains closed after recalculation.
     gas_actual_ratio = min(gas_actual_ratio, 0.85 / 0.15)
 
-    if gas_actual_ratio > 0:
+    if basis == INLET_STP_BASIS and gas_stp_ratio > 0:
+        total_stp_q = volume / max(tau, 1e-9)
+        liquid_q = total_stp_q / (1.0 + gas_stp_ratio)
+        gas_sccm = total_stp_q - liquid_q
+        gas_actual = actual_gas_flow_from_stp(gas_sccm, temperature, bpr)
+        residence_time_in_channel = volume / max(liquid_q + gas_actual, 1e-9)
+        data["residence_time_basis"] = residence_time_basis_label(INLET_STP_BASIS)
+        data["residence_time_inlet_min"] = round(tau, 3)
+        data["residence_time_in_channel_min"] = round(residence_time_in_channel, 3)
+    elif gas_actual_ratio > 0:
         total_actual_q = volume / max(tau, 1e-9)
         liquid_q = total_actual_q / (1.0 + gas_actual_ratio)
         gas_actual = total_actual_q - liquid_q
-        gas_sccm = _actual_to_sccm(gas_actual, temperature, bpr)
+        gas_sccm = stp_gas_flow_from_actual(gas_actual, temperature, bpr)
         residence_time_inlet = volume / max(liquid_q + gas_sccm, 1e-9)
-        data["residence_time_basis"] = "in-channel total actual flow"
+        data["residence_time_basis"] = residence_time_basis_label("in_channel")
         data["residence_time_in_channel_min"] = round(tau, 3)
         data["residence_time_inlet_min"] = round(residence_time_inlet, 3)
     else:
         liquid_q = volume / max(tau, 1e-9)
         gas_actual = 0.0
         gas_sccm = 0.0
-        data["residence_time_basis"] = "liquid-only reactor volume / liquid flow"
+        data["residence_time_basis"] = residence_time_basis_label("liquid_only")
         data["residence_time_in_channel_min"] = round(tau, 3)
         data["residence_time_inlet_min"] = round(tau, 3)
 

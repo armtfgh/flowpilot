@@ -149,6 +149,51 @@ def _thq_experiments():
     return experiments
 
 
+def _krict_inlet_basis_experiments():
+    return [
+        ExperimentResult(
+            run_id="krict_2",
+            design_version=1,
+            actual_conditions=ActualConditions(
+                residence_time_inlet_min=8.51,
+                residence_time_in_channel_min=37.68,
+                residence_time_basis="inlet_stp",
+                flow_rate_mL_min=0.0509,
+                substrate_flow_mL_min=0.0509,
+                gas_flow_in_channel_mL_min=0.234,
+                gas_flow_stp_mL_min=1.2113,
+                gas_equiv_inlet=2.12,
+                temperature_C=40.0,
+                concentration_M=0.5,
+                tubing_ID_mm=0.75,
+                reactor_volume_mL=10.74,
+                BPR_bar=6.0,
+            ),
+            outcomes=ExperimentalOutcomes(product_pct=12.0, yield_pct=12.0, starting_material_pct=83.0),
+        ),
+        ExperimentResult(
+            run_id="krict_6",
+            design_version=1,
+            actual_conditions=ActualConditions(
+                residence_time_inlet_min=7.71,
+                residence_time_in_channel_min=34.42,
+                residence_time_basis="inlet_stp",
+                flow_rate_mL_min=0.0656,
+                substrate_flow_mL_min=0.0656,
+                gas_flow_in_channel_mL_min=0.320,
+                gas_flow_stp_mL_min=1.6565,
+                gas_equiv_inlet=2.25,
+                temperature_C=40.0,
+                concentration_M=0.5,
+                tubing_ID_mm=1.0,
+                reactor_volume_mL=13.27,
+                BPR_bar=6.0,
+            ),
+            outcomes=ExperimentalOutcomes(product_pct=10.0, yield_pct=10.0, starting_material_pct=85.0),
+        ),
+    ]
+
+
 def test_low_conversion_increases_residence_time_and_preserves_volume():
     experiment = ExperimentResult(
         run_id="run_01",
@@ -279,6 +324,55 @@ def test_campaign_refinement_overrides_short_intensification_design():
     assert "experiment_calibrated_kinetics" in closed_loop.decision.failure_modes
 
 
+def test_krict_only_campaign_can_calibrate_on_inlet_stp_basis():
+    calibration = calibrate_experimental_campaign(
+        _krict_inlet_basis_experiments(),
+        target_yield_pct=75.0,
+        target_conversion_pct=75.0,
+    )
+
+    assert calibration.n_usable == 2
+    assert calibration.primary_residence_time_basis == "inlet/STP apparent residence time"
+    assert calibration.best_run_id == "krict_2"
+    assert calibration.best_tau_min == 8.51
+    assert calibration.best_tau_inlet_min == 8.51
+    assert calibration.best_tau_in_channel_min == 37.68
+    assert 38.0 < calibration.recommended_tau_inlet_min < 39.0
+    assert 91.0 < calibration.target_tau_inlet_min < 93.5
+
+    recommended = calibration.recommended_conditions
+    assert recommended["residence_time_min"] == recommended["residence_time_inlet_min"]
+    assert recommended["residence_time_in_channel_min"] > 160.0
+    assert recommended["gas_flow_stp_mL_min"] > recommended["gas_flow_in_channel_mL_min"]
+    assert abs(
+        recommended["gas_flow_stp_mL_min"] / recommended["substrate_flow_mL_min"]
+        - 1.2113 / 0.0509
+    ) < 0.05
+
+
+def test_campaign_refinement_preserves_inlet_basis_for_krict_only_feedback():
+    result = _thq_base_result()
+    result["proposal"]["residence_time_basis"] = "inlet/STP apparent residence time"
+    result["proposal"]["residence_time_min"] = 8.51
+    result["proposal"]["residence_time_inlet_min"] = 8.51
+    result["proposal"]["residence_time_in_channel_min"] = 37.68
+
+    closed_loop = refine_from_experimental_campaign(
+        result,
+        _krict_inlet_basis_experiments(),
+        target_yield_pct=75.0,
+        target_conversion_pct=75.0,
+    )
+
+    proposal = closed_loop.refined_result["proposal"]
+    assert proposal["residence_time_basis"] == "inlet/STP apparent residence time"
+    assert proposal["residence_time_min"] == proposal["residence_time_inlet_min"]
+    assert 38.0 < proposal["residence_time_inlet_min"] < 39.0
+    assert proposal["residence_time_in_channel_min"] > 160.0
+    assert proposal["gas_flow_sccm"] > proposal["gas_flow_actual_mL_min"]
+    assert "experiment_calibrated_kinetics" in closed_loop.decision.failure_modes
+
+
 def test_extract_experiments_from_prompt_text():
     prompt = """
 Entry 1, KHU manual:
@@ -315,5 +409,6 @@ tubing ID = 1.00 mm
     assert len(experiments) == 2
     assert experiments[0].run_id == "entry_01_khu_manual"
     assert experiments[0].actual_conditions.residence_time_in_channel_min == 137.08
+    assert experiments[0].actual_conditions.residence_time_basis == "inlet_stp"
     assert experiments[0].outcomes.yield_pct == 52.0
     assert experiments[1].outcomes.conversion_pct == 15.0

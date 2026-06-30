@@ -20,6 +20,11 @@ from pathlib import Path
 from flora_translate.analogy_selector import AnalogySelector
 from flora_translate.config import LAB_INVENTORY_PATH, RECORDS_DIR
 from flora_translate.engine.council_v4 import CouncilV4
+from flora_translate.intake_agent import (
+    batch_input_from_package,
+    historical_text_from_package,
+    intake_context_block,
+)
 from flora_translate.inventory_constraints import enforce_reactor_inventory
 from flora_translate.lightweight_upstream import analyze_batch_chemistry, parse_batch_input
 from flora_translate.output_formatter import OutputFormatter
@@ -28,6 +33,7 @@ from flora_translate.retriever import VectorRetriever
 from flora_translate.schemas import (
     BatchRecord,
     ChemistryPlan,
+    DesignInputPackage,
     FlowProposal,
     LabInventory,
     ProcessStage,
@@ -50,6 +56,46 @@ def _safe_float(value, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _coerce_intake_package(intake_package) -> DesignInputPackage | None:
+    if intake_package is None:
+        return None
+    if isinstance(intake_package, DesignInputPackage):
+        package = intake_package
+    else:
+        package = DesignInputPackage.model_validate(intake_package)
+    if not package.ready_for_design:
+        missing = ", ".join(package.missing_question_ids or [])
+        raise ValueError(
+            "DesignInputPackage is not ready for design"
+            + (f"; missing intake questions: {missing}" if missing else "")
+        )
+    return package
+
+
+def _inventory_from_intake_or_path(
+    intake_package: DesignInputPackage | None,
+    inventory_path: str,
+) -> LabInventory:
+    inventory_payload = None
+    if intake_package is not None:
+        inventory_payload = intake_package.inventory_constraints
+        if isinstance(inventory_payload, str):
+            stripped = inventory_payload.strip()
+            if stripped.startswith("{"):
+                try:
+                    inventory_payload = json.loads(stripped)
+                except json.JSONDecodeError:
+                    inventory_payload = None
+            else:
+                inventory_payload = None
+    if isinstance(inventory_payload, dict):
+        try:
+            return LabInventory.model_validate(inventory_payload)
+        except Exception as exc:
+            logger.warning("Intake inventory was not valid LabInventory JSON; using path inventory: %s", exc)
+    return LabInventory.from_json(inventory_path)
 
 
 def _reconcile_final_bpr(result: dict, design_candidate=None) -> None:
@@ -1054,6 +1100,7 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
 def translate(
     batch_input: str | dict,
     inventory_path: str = str(LAB_INVENTORY_PATH),
+    intake_package: DesignInputPackage | dict | None = None,
 ) -> dict:
     """Full FLORA-Translate pipeline.
 
@@ -1061,14 +1108,19 @@ def translate(
         Dict with proposal, chemistry_plan, explanation, safety report,
         council messages, svg_path, png_path.
     """
+    intake = _coerce_intake_package(intake_package)
+    intake_block = intake_context_block(intake)
+    effective_batch_input = batch_input_from_package(intake) if intake else batch_input
+    objectives = intake.objective if intake and intake.objective else "balanced"
+
     # 1. Parse input
     logger.info("Step 1: Parsing batch input")
-    batch_record = parse_batch_input(batch_input)
+    batch_record = parse_batch_input(effective_batch_input)
     logger.info(f"  Parsed: {batch_record.reaction_description[:80]}...")
 
     # 2. Chemistry Reasoning — Layer 1
     logger.info("Step 2: Chemistry analysis (Layer 1)")
-    chemistry_plan = analyze_batch_chemistry(batch_record)
+    chemistry_plan = analyze_batch_chemistry(batch_record, intake_package=intake)
     logger.info(f"  Mechanism: {chemistry_plan.mechanism_type}")
     logger.info(f"  Streams: {len(chemistry_plan.stream_logic)}  O2: {chemistry_plan.oxygen_sensitive}")
     logger.info(f"  Upstream mode: {getattr(chemistry_plan, '_upstream_mode', 'full')}")
@@ -1084,7 +1136,7 @@ def translate(
     # 3b. Pre-compute engineering calculations (9-step design calculator)
     logger.info("Step 3b: Running 9-step design calculator")
     from flora_translate.design_calculator import DesignCalculator
-    inventory = LabInventory.from_json(inventory_path)
+    inventory = _inventory_from_intake_or_path(intake, inventory_path)
     calculations = DesignCalculator().run(
         batch_record,
         chemistry_plan=chemistry_plan,
@@ -1130,7 +1182,8 @@ def translate(
     logger.info("Step 4: Generating flow proposal via LLM")
     system_prompt, user_prompt = TranslationPromptBuilder().build(
         batch_record, analogies, chemistry_plan=chemistry_plan,
-        calculations=calculations, inventory=inventory
+        calculations=calculations, inventory=inventory,
+        intake_package=intake,
     )
     proposal = TranslationLLM().generate(system_prompt, user_prompt)
     logger.info(f"  Proposal: {proposal.residence_time_min}min, {proposal.reactor_type}, "
@@ -1163,13 +1216,18 @@ def translate(
     design_candidate, calculations = CouncilV4().run(
         proposal, batch_record, analogies, inventory,
         chemistry_plan=chemistry_plan, calculations=calculations,
+        objectives=objectives,
         design_space_seed_candidates=_ds_seeds,
+        intake_package=intake,
     )
 
     # 6. Format output
     logger.info("Step 6: Formatting output")
     result = OutputFormatter().format(design_candidate, analogies)
     result["chemistry_plan"] = chemistry_plan.model_dump(exclude_none=True)
+    if intake:
+        result["intake_package"] = intake.model_dump()
+        result["intake_context"] = intake_block
 
     # Attach 9-step design calculations for Streamlit rendering
     from dataclasses import asdict
@@ -1182,7 +1240,17 @@ def translate(
     # This prevents unsupported first-pass intensification from overriding
     # observed conversion/yield data.
     try:
-        raw_input_text = batch_input if isinstance(batch_input, str) else json.dumps(batch_input, default=str)
+        if intake:
+            raw_input_text = "\n\n".join(
+                part
+                for part in [
+                    intake.raw_protocol,
+                    historical_text_from_package(intake),
+                ]
+                if part
+            )
+        else:
+            raw_input_text = batch_input if isinstance(batch_input, str) else json.dumps(batch_input, default=str)
         from flora_translate.experiment_loop import (
             extract_experiments_from_text,
             refine_from_experimental_campaign,

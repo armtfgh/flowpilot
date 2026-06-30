@@ -4,8 +4,9 @@ import json
 from pathlib import Path
 
 from flora_translate.config import PROMPTS_DIR
+from flora_translate.intake_agent import intake_context_block
 from flora_translate.inventory_constraints import inventory_prompt_block
-from flora_translate.schemas import BatchRecord, ChemistryPlan, LabInventory
+from flora_translate.schemas import BatchRecord, ChemistryPlan, DesignInputPackage, LabInventory
 
 
 def _load_prompt(name: str) -> str:
@@ -61,6 +62,7 @@ class TranslationPromptBuilder:
         chemistry_plan: ChemistryPlan | None = None,
         calculations=None,
         inventory: LabInventory | None = None,
+        intake_package: DesignInputPackage | dict | None = None,
     ) -> tuple[str, str]:
         """Returns (system_prompt, user_prompt).
 
@@ -108,6 +110,7 @@ class TranslationPromptBuilder:
             "No calculations available — use analogy data and first principles."
         )
         inventory_block = inventory_prompt_block(inventory)
+        intake_block = intake_context_block(intake_package)
 
         user_template = _load_prompt("translate_user.txt")
 
@@ -120,10 +123,12 @@ class TranslationPromptBuilder:
                 .replace("{chemistry_reasoning}", reasoning or "(not available)")
                 .replace("{analogies_text}", analogies_text)
                 .replace("{calculations_block}", calc_block))
-        user = user + "\n\n" + inventory_block + (
+        user = user + "\n\n" + intake_block + "\n\n" + inventory_block + (
             "\n\nIMPORTANT: Use one of the listed inventory reactors exactly for "
             "the final reactor volume, ID, material, pressure/temperature range, "
-            "and light setup. Do not invent a reactor volume outside this list."
+            "and light setup. Do not invent a reactor volume outside this list. "
+            "Measured evidence in the intake context overrides unsupported model "
+            "inference; chemist hypotheses are hypotheses to test, not facts."
         )
 
         return system, user

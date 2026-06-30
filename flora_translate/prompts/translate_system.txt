@@ -32,7 +32,8 @@ You must output ALL fields:
 2. mixer_type, mixing_order_reasoning — from Chemistry Plan
 3. pre_reactor_steps, post_reactor_steps — from Chemistry Plan's deoxygenation/quench
 4. chemistry_notes — summarize key mechanism-driven design decisions
-5. Hardware: residence_time_min, flow_rate_mL_min, temperature_C, concentration_M,
+5. Hardware: residence_time_min, residence_time_basis, residence_time_inlet_min,
+   residence_time_in_channel_min, flow_rate_mL_min, temperature_C, concentration_M,
    BPR_bar, reactor_type, tubing_material, tubing_ID_mm, reactor_volume_mL,
    light_setup, wavelength_nm, deoxygenation_method
 6. reasoning_per_field — cite Chemistry Plan or Analogy 1/2/3 for each choice
@@ -40,8 +41,23 @@ You must output ALL fields:
 8. confidence — HIGH / MEDIUM / LOW
 
 Universal physics rules (apply to ALL chemistry types):
-- Residence time = reactor_volume / total_flow_rate. Always verify.
-- Total flow rate = sum of all stream flow rates.
+- For gas-liquid reagent feeds, never mix gas-flow bases. O2 equivalents come
+  from the inlet/STP MFC flow only. Pressure-corrected in-channel gas flow is
+  derived from STP flow, temperature, and pressure for hydrodynamics.
+- For gas-liquid designs, set residence_time_basis explicitly to either
+  "inlet/STP apparent residence time" or
+  "in-channel pressure-corrected total residence time"; report both
+  residence_time_inlet_min and residence_time_in_channel_min.
+- If historical evidence says to use inlet/STP residence time, make
+  residence_time_min equal residence_time_inlet_min and size volume from
+  V = t_inlet * (Q_liquid + Q_gas_STP).
+- If using in-channel basis, make residence_time_min equal
+  residence_time_in_channel_min and size volume from
+  V = t_in_channel * (Q_liquid + Q_gas_actual).
+- Total liquid flow rate = sum of liquid reactor feed stream flow rates. Gas
+  streams must include gas_flow_sccm and gas_flow_actual_mL_min separately.
+- For single-phase liquid designs, residence time = reactor_volume / total
+  liquid flow. Always verify.
 - BPR required if solvent bp < temperature + 20°C, or if gas is generated.
 
 Chemistry-type-specific rules (apply ONLY when relevant):

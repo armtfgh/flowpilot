@@ -106,3 +106,50 @@ def test_inventory_enforcement_snaps_krict_like_design_to_available_reactor():
     assert revised.flow_rate_mL_min < proposal.flow_rate_mL_min
     assert revised.streams[1].gas_flow_sccm is not None
     assert revised.residence_time_inlet_min is not None
+
+
+def test_inventory_enforcement_preserves_inlet_stp_residence_basis():
+    inventory = LabInventory.from_json(str(THQ_INVENTORY))
+    proposal = FlowProposal(
+        residence_time_min=67.0,
+        residence_time_inlet_min=67.0,
+        residence_time_in_channel_min=137.0,
+        residence_time_basis="inlet/STP apparent residence time",
+        flow_rate_mL_min=0.014,
+        reactor_volume_mL=10.0,
+        temperature_C=40,
+        concentration_M=0.5,
+        BPR_bar=6,
+        tubing_ID_mm=1.0,
+        tubing_material="FEP",
+        wavelength_nm=450,
+        streams=[
+            StreamAssignment(
+                stream_label="A",
+                pump_role="substrate solution",
+                contents=["6-methyl-THQ"],
+                solvent="DMSO",
+                concentration_M=0.5,
+                flow_rate_mL_min=0.014,
+            ),
+            StreamAssignment(
+                stream_label="G",
+                pump_role="O2 gas feed",
+                contents=["O2"],
+                phase="gas",
+                flow_rate_mL_min=0.059,
+                gas_flow_actual_mL_min=0.059,
+                gas_flow_sccm=0.153,
+            ),
+        ],
+    )
+
+    revised, report = enforce_reactor_inventory(proposal, inventory)
+
+    assert report["applied"]
+    assert revised.reactor_volume_mL == 10.0
+    assert revised.residence_time_basis == "inlet/STP apparent residence time"
+    assert revised.residence_time_min == 67.0
+    assert revised.residence_time_inlet_min == 67.0
+    assert revised.residence_time_in_channel_min > 120.0
+    assert revised.streams[1].gas_flow_sccm > revised.streams[1].gas_flow_actual_mL_min

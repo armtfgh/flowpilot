@@ -183,6 +183,49 @@ def _get_ollama_client():
     return _OLLAMA_CLIENT
 
 
+def _retry_llm_request(fn, *, provider: str, model: str, api_name: str, attempts: int = 3):
+    """Retry transient provider failures with useful context for the GUI."""
+
+    last_exc = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return fn()
+        except Exception as exc:
+            last_exc = exc
+            msg = str(exc)
+            retryable = (
+                "connection" in msg.lower()
+                or "timeout" in msg.lower()
+                or "temporarily" in msg.lower()
+                or "rate" in msg.lower()
+                or "overloaded" in msg.lower()
+                or exc.__class__.__name__.lower() in {
+                    "apiconnectionerror",
+                    "apitimeouterror",
+                    "ratelimiterror",
+                    "overloadederror",
+                }
+            )
+            if not retryable or attempt == attempts:
+                break
+            delay_s = min(2 ** (attempt - 1), 8)
+            logger.warning(
+                "LLM request failed during %s (%s/%s), retry %d/%d in %ss: %s",
+                api_name,
+                provider,
+                model,
+                attempt + 1,
+                attempts,
+                delay_s,
+                exc,
+            )
+            time.sleep(delay_s)
+    raise RuntimeError(
+        f"LLM request failed during {api_name} ({provider}/{model}) "
+        f"after {attempts} attempts: {last_exc}"
+    ) from last_exc
+
+
 def get_max_rounds() -> int:
     """Return the configured number of council rounds for the active provider."""
     return ENGINE_MAX_ROUNDS.get(ENGINE_PROVIDER, 2)
@@ -237,11 +280,16 @@ def call_model_messages(
         if "seed" in _RUNTIME_OVERRIDES:
             kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
         started = time.perf_counter()
-        resp = _get_openai_client().chat.completions.create(
+        resp = _retry_llm_request(
+            lambda: _get_openai_client().chat.completions.create(
+                model=model,
+                max_tokens=max_tokens,
+                messages=[{"role": "system", "content": system}, *messages],
+                **kwargs,
+            ),
+            provider="openai",
             model=model,
-            max_tokens=max_tokens,
-            messages=[{"role": "system", "content": system}, *messages],
-            **kwargs,
+            api_name=api_name,
         )
         content = (resp.choices[0].message.content or "").strip()
         usage = _usage_to_dict(resp)
@@ -277,19 +325,24 @@ def call_model_messages(
             kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
 
         started = time.perf_counter()
-        resp = client.chat.completions.create(
+        resp = _retry_llm_request(
+            lambda: client.chat.completions.create(
+                model=model,
+                max_tokens=max_tokens,
+                stream=False,
+                messages=[{"role": "system", "content": system}, *[
+                    {
+                        **msg,
+                        "content": f"/no_think\n{msg['content']}" if idx == len(messages) - 1 and isinstance(msg.get("content"), str) else msg.get("content", "")
+                    }
+                    for idx, msg in enumerate(messages)
+                ]],
+                extra_body={"think": False},
+                **kwargs,
+            ),
+            provider="ollama",
             model=model,
-            max_tokens=max_tokens,
-            stream=False,
-            messages=[{"role": "system", "content": system}, *[
-                {
-                    **msg,
-                    "content": f"/no_think\n{msg['content']}" if idx == len(messages) - 1 and isinstance(msg.get("content"), str) else msg.get("content", "")
-                }
-                for idx, msg in enumerate(messages)
-            ]],
-            extra_body={"think": False},
-            **kwargs,
+            api_name=api_name,
         )
         choice = resp.choices[0] if resp.choices else None
         content = choice.message.content if choice else None
@@ -331,12 +384,17 @@ def call_model_messages(
     if "temperature" in _RUNTIME_OVERRIDES:
         kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
     started = time.perf_counter()
-    resp = _get_anthropic_client().messages.create(
+    resp = _retry_llm_request(
+        lambda: _get_anthropic_client().messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=system,
+            messages=messages,
+            **kwargs,
+        ),
+        provider="anthropic",
         model=model,
-        max_tokens=max_tokens,
-        system=system,
-        messages=messages,
-        **kwargs,
+        api_name=api_name,
     )
     content = resp.content[0].text.strip()
     usage = _usage_to_dict(resp)
@@ -398,14 +456,19 @@ def call_llm(system: str, user_content: str, max_tokens: int) -> str:
         if "seed" in _RUNTIME_OVERRIDES:
             kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
         started = time.perf_counter()
-        resp = _get_openai_client().chat.completions.create(
+        resp = _retry_llm_request(
+            lambda: _get_openai_client().chat.completions.create(
+                model=ENGINE_MODEL_OPENAI,
+                max_tokens=max_tokens,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user",   "content": user_content},
+                ],
+                **kwargs,
+            ),
+            provider="openai",
             model=ENGINE_MODEL_OPENAI,
-            max_tokens=max_tokens,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user",   "content": user_content},
-            ],
-            **kwargs,
+            api_name="call_llm",
         )
         content = resp.choices[0].message.content.strip()
         _emit_llm_event({
@@ -437,16 +500,21 @@ def call_llm(system: str, user_content: str, max_tokens: int) -> str:
         # Disable thinking via the Ollama API flag (0.9+) AND via the /no_think
         # user-message prefix (all versions that support it).
         started = time.perf_counter()
-        resp = client.chat.completions.create(
+        resp = _retry_llm_request(
+            lambda: client.chat.completions.create(
+                model=ENGINE_MODEL_OLLAMA,
+                max_tokens=max_tokens,
+                stream=False,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user",   "content": f"/no_think\n{user_content}"},
+                ],
+                extra_body=extra_body,
+                **kwargs,
+            ),
+            provider="ollama",
             model=ENGINE_MODEL_OLLAMA,
-            max_tokens=max_tokens,
-            stream=False,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user",   "content": f"/no_think\n{user_content}"},
-            ],
-            extra_body=extra_body,
-            **kwargs,
+            api_name="call_llm",
         )
 
         choice  = resp.choices[0] if resp.choices else None
@@ -505,12 +573,17 @@ def call_llm(system: str, user_content: str, max_tokens: int) -> str:
         if "temperature" in _RUNTIME_OVERRIDES:
             kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
         started = time.perf_counter()
-        resp = _get_anthropic_client().messages.create(
+        resp = _retry_llm_request(
+            lambda: _get_anthropic_client().messages.create(
+                model=ENGINE_MODEL_ANTHROPIC,
+                max_tokens=max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": user_content}],
+                **kwargs,
+            ),
+            provider="anthropic",
             model=ENGINE_MODEL_ANTHROPIC,
-            max_tokens=max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": user_content}],
-            **kwargs,
+            api_name="call_llm",
         )
         content = resp.content[0].text.strip()
         _emit_llm_event({

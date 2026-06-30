@@ -20,6 +20,7 @@ import flora_translate.config as cfg
 from flora_translate.config import PROMPTS_DIR
 from flora_translate.engine.llm_agents import call_model_text
 from flora_translate.intensification import ensure_intensification_mandate
+from flora_translate.intake_agent import intake_context_block
 from flora_translate.schemas import BatchRecord, ChemistryPlan
 
 logger = logging.getLogger("flora.chemistry_agent")
@@ -47,6 +48,17 @@ def _parse_json(text: str) -> dict:
         if start != -1 and end != -1:
             return json.loads(text[start : end + 1])
         raise
+
+
+def _strip_fundamentals_block(system: str) -> str:
+    marker = "\n\n## FLOW CHEMISTRY HANDBOOK RULES\n"
+    if marker not in system:
+        return system
+    return system.split(marker, 1)[0] + (
+        "\n\n## FLOW CHEMISTRY HANDBOOK RULES\n"
+        "Fundamentals rules were omitted in this fallback call because the "
+        "larger prompt failed at the provider connection layer."
+    )
 
 
 CHEMISTRY_SYSTEM = """\
@@ -295,8 +307,10 @@ class ChemistryReasoningAgent:
     knowledge alongside its own training data.
     """
 
-    def analyze(self, batch_record: BatchRecord) -> ChemistryPlan:
+    def analyze(self, batch_record: BatchRecord, intake_package=None) -> ChemistryPlan:
         """Analyze a batch protocol and return a ChemistryPlan."""
+        self._last_model_used = cfg.MODEL_CHEMISTRY_AGENT
+        self._fallback_note = ""
         logger.info(f"  Chemistry Agent: Analyzing with {cfg.MODEL_CHEMISTRY_AGENT}")
 
         # Load fundamentals rules if available
@@ -310,6 +324,13 @@ class ChemistryReasoningAgent:
             batch_record.model_dump(exclude_none=True), indent=2
         )
         user_prompt = CHEMISTRY_USER_TEMPLATE.format(batch_json=batch_json)
+        if intake_package is not None:
+            user_prompt += (
+                "\n\n"
+                + intake_context_block(intake_package)
+                + "\n\nUse measured evidence and hard constraints as context. "
+                "Treat chemist hypotheses as hypotheses to test, not as facts."
+            )
 
         raw_text = self._call_with_retry(system, user_prompt)
 
@@ -327,6 +348,14 @@ class ChemistryReasoningAgent:
         # the mandate to fall back to class defaults when the limitation
         # keywords live in the reasoning text rather than the JSON fields.
         plan._reasoning = reasoning
+        setattr(plan, "_chemistry_model_used", getattr(self, "_last_model_used", cfg.MODEL_CHEMISTRY_AGENT))
+        if getattr(self, "_fallback_note", ""):
+            plan.confidence_notes = (
+                (plan.confidence_notes or "").rstrip()
+                + "\n"
+                + self._fallback_note
+            ).strip()
+            setattr(plan, "_chemistry_fallback_note", self._fallback_note)
         plan = ensure_intensification_mandate(batch_record, plan)
 
         logger.info(f"    Reaction: {plan.reaction_name} ({plan.mechanism_type})")
@@ -341,18 +370,47 @@ class ChemistryReasoningAgent:
 
     def _call_with_retry(self, system: str, user_prompt: str) -> str:
         """Call the model. Warn if truncated but do not retry — 8192 is the hard cap."""
-        started = time.perf_counter()
-        result = call_model_text(
-            model=cfg.MODEL_CHEMISTRY_AGENT,
-            api_name="chemistry_agent",
-            max_tokens=cfg.CHEMISTRY_MAX_TOKENS,
-            system=system,
-            user_content=user_prompt,
-        )
-        logger.debug("Chemistry agent LLM call completed in %.2f ms", (time.perf_counter() - started) * 1000)
-        if result.stop_reason == "max_tokens" or result.finish_reason == "length":
-            logger.warning("    Chemistry Agent output hit token limit — JSON may be incomplete")
-        return result.text
+        candidates: list[tuple[str, str, str]] = [
+            (cfg.MODEL_CHEMISTRY_AGENT, "chemistry_agent", system),
+        ]
+        fallback_model = getattr(cfg, "MODEL_TRANSLATION", None) or "claude-sonnet-4-6"
+        if fallback_model != cfg.MODEL_CHEMISTRY_AGENT:
+            candidates.append((fallback_model, "chemistry_agent_fallback", system))
+        compact_system = _strip_fundamentals_block(system)
+        if compact_system != system:
+            candidates.append((fallback_model, "chemistry_agent_compact_fallback", compact_system))
+
+        errors: list[str] = []
+        for idx, (model, api_name, system_prompt) in enumerate(candidates):
+            started = time.perf_counter()
+            try:
+                result = call_model_text(
+                    model=model,
+                    api_name=api_name,
+                    max_tokens=cfg.CHEMISTRY_MAX_TOKENS,
+                    system=system_prompt,
+                    user_content=user_prompt,
+                )
+                logger.debug(
+                    "Chemistry agent LLM call completed in %.2f ms with %s",
+                    (time.perf_counter() - started) * 1000,
+                    model,
+                )
+                if idx > 0:
+                    self._fallback_note = (
+                        f"Chemistry analysis used fallback model {model} after "
+                        f"{cfg.MODEL_CHEMISTRY_AGENT} failed during GUI/API call."
+                    )
+                    logger.warning("    %s", self._fallback_note)
+                self._last_model_used = model
+                if result.stop_reason == "max_tokens" or result.finish_reason == "length":
+                    logger.warning("    Chemistry Agent output hit token limit — JSON may be incomplete")
+                return result.text
+            except Exception as exc:
+                errors.append(f"{api_name}({model}): {exc}")
+                logger.warning("    Chemistry Agent call failed via %s (%s): %s", api_name, model, exc)
+
+        raise RuntimeError("Chemistry Agent failed after fallback attempts: " + " | ".join(errors))
 
     def _extract_reasoning(self, text: str) -> str:
         """Extract the NOTES section (between <NOTES> tags)."""

@@ -16,6 +16,7 @@ import flora_translate.config as cfg
 from flora_translate.batch_normalization import apply_authoritative_batch_evidence, enrich_batch_record_dict
 from flora_translate.chemistry_agent import _parse_json_from_tagged
 from flora_translate.engine.llm_agents import call_model_text, infer_provider_for_model
+from flora_translate.intake_agent import intake_context_block
 from flora_translate.intensification import ensure_intensification_mandate
 from flora_translate.schemas import (
     BatchRecord,
@@ -340,13 +341,15 @@ def should_use_lightweight_v2(model: str | None = None) -> bool:
     return False
 
 
-def analyze_batch_chemistry(batch_record: BatchRecord) -> ChemistryPlan:
+def analyze_batch_chemistry(batch_record: BatchRecord, intake_package=None) -> ChemistryPlan:
     """Route chemistry analysis through the appropriate upstream path."""
     if should_use_lightweight_upstream(cfg.MODEL_CHEMISTRY_AGENT):
-        return LightweightChemistryReasoningAgent().analyze(batch_record)
+        return LightweightChemistryReasoningAgent().analyze(
+            batch_record, intake_package=intake_package
+        )
     from flora_translate.chemistry_agent import ChemistryReasoningAgent
 
-    plan = ChemistryReasoningAgent().analyze(batch_record)
+    plan = ChemistryReasoningAgent().analyze(batch_record, intake_package=intake_package)
     setattr(plan, "_upstream_mode", "full")
     return plan
 
@@ -721,7 +724,7 @@ class EvidenceBackedInputParser:
 class LightweightChemistryReasoningAgent:
     """Compact chemistry-planning path for weak/local models."""
 
-    def analyze(self, batch_record: BatchRecord) -> ChemistryPlan:
+    def analyze(self, batch_record: BatchRecord, intake_package=None) -> ChemistryPlan:
         v2 = should_use_lightweight_v2(cfg.MODEL_CHEMISTRY_AGENT)
         logger.info(
             "  %s Chemistry Agent: Analyzing with %s",
@@ -730,6 +733,13 @@ class LightweightChemistryReasoningAgent:
         )
         batch_json = json.dumps(batch_record.model_dump(exclude_none=True), indent=2)
         user_prompt = LIGHTWEIGHT_CHEMISTRY_USER_TEMPLATE.format(batch_json=batch_json)
+        if intake_package is not None:
+            user_prompt += (
+                "\n\n"
+                + intake_context_block(intake_package)
+                + "\n\nUse measured evidence and hard constraints as context. "
+                "Treat chemist hypotheses as hypotheses to test, not as facts."
+            )
 
         started = time.perf_counter()
         result = call_model_text(

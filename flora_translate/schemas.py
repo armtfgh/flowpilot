@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -95,6 +95,63 @@ class BatchRecord(BaseModel):
     additives: Optional[list[str]] = None
     atmosphere: Optional[str] = None
     raw_text: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Intake — standardized pre-design package
+# ---------------------------------------------------------------------------
+
+
+class IntakeQuestion(BaseModel):
+    """One reproducible intake question from the fixed FlowPilot question bank."""
+
+    question_id: str
+    section: str
+    question: str
+    expected_format: str = ""
+    required: bool = False
+    why_needed: str = ""
+
+
+class IntakeAnswer(BaseModel):
+    """User response to a standardized intake question."""
+
+    question_id: str
+    answer: Any = None
+    status: Literal["answered", "unavailable"] = "answered"
+    source: str = "user"
+
+
+class DesignInputPackage(BaseModel):
+    """Frozen, authority-labeled input package used before design starts."""
+
+    schema_version: str = "flowpilot_intake_v1.0"
+    raw_protocol: str = ""
+    extracted_batch_fields: dict[str, Any] = Field(default_factory=dict)
+    objective: str = ""
+    historical_data: Any = None
+    inventory_constraints: Any = None
+    hypotheses: list[str] = Field(default_factory=list)
+    operating_limits: Any = None
+    output_preferences: str = ""
+    question_log: list[IntakeQuestion] = Field(default_factory=list)
+    answers: list[IntakeAnswer] = Field(default_factory=list)
+    missing_question_ids: list[str] = Field(default_factory=list)
+    ready_for_design: bool = False
+    authority_order: list[str] = Field(
+        default_factory=lambda: [
+            "measured_evidence",
+            "hard_constraints",
+            "protocol_facts",
+            "chemist_hypotheses",
+            "model_inference",
+        ]
+    )
+
+    def answer_map(self) -> dict[str, IntakeAnswer]:
+        """Return the latest answer for each question ID."""
+
+        return {answer.question_id: answer for answer in self.answers}
 
 
 # ---------------------------------------------------------------------------

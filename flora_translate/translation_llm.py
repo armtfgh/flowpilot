@@ -7,6 +7,12 @@ import time
 
 import flora_translate.config as cfg
 from flora_translate.engine.llm_agents import call_model_text
+from flora_translate.residence_time_basis import (
+    IN_CHANNEL_BASIS,
+    INLET_STP_BASIS,
+    UNKNOWN_BASIS,
+    normalize_residence_time_basis,
+)
 from flora_translate.schemas import FlowProposal
 
 logger = logging.getLogger("flora.translation_llm")
@@ -43,12 +49,37 @@ class TranslationLLM:
         vol = _as_float(data.get("reactor_volume_mL"))
         flow = _as_float(data.get("flow_rate_mL_min"))
         rt = _as_float(data.get("residence_time_min"))
+        gas_actual = 0.0
+        gas_stp = 0.0
+        for stream in data.get("streams") or []:
+            if str(stream.get("phase", "")).lower() == "gas":
+                gas_actual = _as_float(stream.get("gas_flow_actual_mL_min") or stream.get("flow_rate_mL_min"))
+                gas_stp = _as_float(stream.get("gas_flow_sccm"))
+                break
+        basis = normalize_residence_time_basis(data.get("residence_time_basis"))
+        if basis == UNKNOWN_BASIS and gas_stp > 0:
+            basis = INLET_STP_BASIS
+            data["residence_time_basis"] = "inlet/STP apparent residence time"
+        elif basis == UNKNOWN_BASIS and gas_actual > 0:
+            basis = IN_CHANNEL_BASIS
+            data["residence_time_basis"] = "in-channel pressure-corrected total residence time"
         if vol > 0 and flow > 0 and rt > 0:
-            computed_rt = vol / flow
+            if basis == INLET_STP_BASIS and gas_stp > 0:
+                computed_rt = vol / (flow + gas_stp)
+                data["residence_time_inlet_min"] = round(computed_rt, 2)
+                if gas_actual > 0:
+                    data["residence_time_in_channel_min"] = round(vol / (flow + gas_actual), 2)
+            elif basis == IN_CHANNEL_BASIS and gas_actual > 0:
+                computed_rt = vol / (flow + gas_actual)
+                data["residence_time_in_channel_min"] = round(computed_rt, 2)
+                if gas_stp > 0:
+                    data["residence_time_inlet_min"] = round(vol / (flow + gas_stp), 2)
+            else:
+                computed_rt = vol / flow
             if abs(computed_rt - rt) / max(rt, 0.01) > 0.1:
                 logger.warning(
                     f"Residence time inconsistency: stated={rt:.2f}, "
-                    f"computed={computed_rt:.2f} (vol/flow). Using computed."
+                    f"computed={computed_rt:.2f} on {basis}. Using computed."
                 )
                 data["residence_time_min"] = round(computed_rt, 2)
         return data
@@ -77,7 +108,8 @@ class TranslationLLM:
             + "\n\nGenerate the FlowProposal as compact JSON only. Required top-level "
             "fields include: residence_time_min, flow_rate_mL_min, temperature_C, "
             "concentration_M, BPR_bar, reactor_type, tubing_material, tubing_ID_mm, "
-            "reactor_volume_mL, light_setup, wavelength_nm, streams, mixer_type, "
+            "reactor_volume_mL, residence_time_basis, residence_time_inlet_min, "
+            "residence_time_in_channel_min, light_setup, wavelength_nm, streams, mixer_type, "
             "mixing_order_reasoning, pre_reactor_steps, post_reactor_steps, "
             "chemistry_notes, reasoning_per_field, literature_analogies, "
             "engine_validated, safety_flags, confidence."

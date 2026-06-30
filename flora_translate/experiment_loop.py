@@ -16,6 +16,17 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+from flora_translate.residence_time_basis import (
+    IN_CHANNEL_BASIS,
+    INLET_STP_BASIS,
+    LIQUID_ONLY_BASIS,
+    UNKNOWN_BASIS,
+    actual_gas_flow_from_stp,
+    normalize_residence_time_basis,
+    residence_time_basis_label,
+    stp_gas_flow_from_actual,
+)
+
 
 DEFAULT_TARGET_YIELD = 80.0
 DEFAULT_TARGET_CONVERSION = 90.0
@@ -105,11 +116,18 @@ class CampaignCalibration(BaseModel):
     n_usable: int = 0
     response_metric: str = ""
     target_response_pct: float = 0.0
+    primary_residence_time_basis: str = ""
     best_run_id: str = ""
     best_response_pct: Optional[float] = None
+    best_tau_min: Optional[float] = None
+    target_tau_min: Optional[float] = None
+    recommended_tau_min: Optional[float] = None
+    best_tau_inlet_min: Optional[float] = None
     best_tau_in_channel_min: Optional[float] = None
+    target_tau_inlet_min: Optional[float] = None
     apparent_rate_min_inv: Optional[float] = None
     target_tau_in_channel_min: Optional[float] = None
+    recommended_tau_inlet_min: Optional[float] = None
     recommended_tau_in_channel_min: Optional[float] = None
     anchor_conditions: dict[str, Any] = Field(default_factory=dict)
     recommended_conditions: dict[str, Any] = Field(default_factory=dict)
@@ -174,7 +192,7 @@ def extract_experiments_from_text(text: str, design_version: int = 1) -> list[Ex
             actual_conditions=ActualConditions(
                 residence_time_inlet_min=_extract_number(block, r"\bt\s+inlet\s*="),
                 residence_time_in_channel_min=_extract_number(block, r"\bt\s+in-channel\s*="),
-                residence_time_basis="in_channel",
+                residence_time_basis="inlet_stp",
                 flow_rate_mL_min=_extract_number(block, r"\bsubstrate\s+flow\s*="),
                 substrate_flow_mL_min=_extract_number(block, r"\bsubstrate\s+flow\s*="),
                 gas_flow_in_channel_mL_min=_extract_number(block, r"\bO2\s+in-channel\s*="),
@@ -207,6 +225,7 @@ def calibrate_experimental_campaign(
     experiments: list[ExperimentResult],
     target_yield_pct: float = DEFAULT_TARGET_YIELD,
     target_conversion_pct: float = DEFAULT_TARGET_CONVERSION,
+    residence_time_basis: str | None = None,
 ) -> CampaignCalibration:
     """Fit an apparent one-parameter response model from campaign data.
 
@@ -216,14 +235,12 @@ def calibrate_experimental_campaign(
     dominate a later, better empirical anchor.
     """
 
+    preferred_basis = _campaign_residence_time_basis(experiments, residence_time_basis)
     usable: list[dict[str, Any]] = []
     for exp in experiments:
         normalized = _normalize_outcomes(exp.outcomes)
         metric, response = _select_campaign_response(normalized)
-        tau = _num(
-            exp.actual_conditions.residence_time_in_channel_min,
-            exp.actual_conditions.residence_time_min,
-        )
+        tau, basis = _residence_time_for_basis(exp.actual_conditions, preferred_basis)
         if not metric or response is None or tau <= 0:
             continue
         response = _bounded(response, 0.01, 98.0)
@@ -233,6 +250,7 @@ def calibrate_experimental_campaign(
                 "metric": metric,
                 "response_pct": response,
                 "tau_min": tau,
+                "residence_time_basis": basis,
                 "k_min_inv": _first_order_rate(response, tau),
             }
         )
@@ -240,10 +258,11 @@ def calibrate_experimental_campaign(
     calibration = CampaignCalibration(
         n_experiments=len(experiments),
         n_usable=len(usable),
+        primary_residence_time_basis=residence_time_basis_label(preferred_basis),
     )
     if len(usable) < 2:
         calibration.notes.append(
-            "Need at least two usable experiments with response and in-channel residence time for campaign calibration."
+            "Need at least two usable experiments with response and residence time on the selected basis for campaign calibration."
         )
         return calibration
 
@@ -264,9 +283,9 @@ def calibrate_experimental_campaign(
         # screen before the fitted ~260 min target point.
         recommended_tau = min(target_tau, max(best_tau * 1.4, best_tau + 30.0))
 
-    anchor = _conditions_for_tau(best_exp.actual_conditions, best_tau)
-    recommended = _conditions_for_tau(best_exp.actual_conditions, recommended_tau)
-    target_conditions = _conditions_for_tau(best_exp.actual_conditions, target_tau)
+    anchor = _conditions_for_tau(best_exp.actual_conditions, best_tau, preferred_basis)
+    recommended = _conditions_for_tau(best_exp.actual_conditions, recommended_tau, preferred_basis)
+    target_conditions = _conditions_for_tau(best_exp.actual_conditions, target_tau, preferred_basis)
 
     ladder = [
         {
@@ -296,17 +315,25 @@ def calibrate_experimental_campaign(
     calibration.target_response_pct = round(target_response, 3)
     calibration.best_run_id = best_exp.run_id
     calibration.best_response_pct = round(best["response_pct"], 3)
-    calibration.best_tau_in_channel_min = round(best_tau, 3)
+    calibration.best_tau_min = round(best_tau, 3)
+    calibration.target_tau_min = round(target_tau, 3)
+    calibration.recommended_tau_min = round(recommended_tau, 3)
+    calibration.best_tau_inlet_min = best_exp.actual_conditions.residence_time_inlet_min
+    calibration.best_tau_in_channel_min = best_exp.actual_conditions.residence_time_in_channel_min
     calibration.apparent_rate_min_inv = round(k_best, 6)
-    calibration.target_tau_in_channel_min = round(target_tau, 3)
-    calibration.recommended_tau_in_channel_min = round(recommended_tau, 3)
+    if preferred_basis == INLET_STP_BASIS:
+        calibration.target_tau_inlet_min = round(target_tau, 3)
+        calibration.recommended_tau_inlet_min = round(recommended_tau, 3)
+    else:
+        calibration.target_tau_in_channel_min = round(target_tau, 3)
+        calibration.recommended_tau_in_channel_min = round(recommended_tau, 3)
     calibration.anchor_conditions = anchor
     calibration.recommended_conditions = recommended
     calibration.design_ladder = ladder
     calibration.notes.extend(
         [
             "Experimental campaign data override the first-pass intensification mandate.",
-            "Residence time is calibrated on in-channel total actual flow for gas-liquid runs.",
+            f"Residence time is calibrated on {residence_time_basis_label(preferred_basis)}.",
             "The fitted target is a screening estimate, not a final kinetic model.",
         ]
     )
@@ -349,12 +376,13 @@ def refine_from_experiment(
     recommended_actions: list[str] = []
     safety_flags: list[str] = list(proposal.get("safety_flags") or [])
 
-    base_tau = _num(
-        actual.residence_time_in_channel_min,
-        actual.residence_time_min,
-        proposal.get("residence_time_min"),
-        10.0,
-    )
+    actual_tau, selected_basis = _residence_time_for_basis(actual)
+    if actual_tau <= 0:
+        actual_tau, selected_basis = _residence_time_for_basis(
+            actual,
+            proposal.get("residence_time_basis"),
+        )
+    base_tau = _num(actual_tau, proposal.get("residence_time_min"), 10.0)
     base_q = _num(
         actual.substrate_flow_mL_min,
         actual.flow_rate_mL_min,
@@ -451,8 +479,10 @@ def refine_from_experiment(
         tau_min=tau,
         fallback_liquid_q=base_q,
         actual=actual,
+        residence_time_basis=selected_basis,
     )
     _set_change(proposal, parameter_changes, "residence_time_min", round(tau, 3))
+    _set_change(proposal, parameter_changes, "residence_time_basis", residence_time_basis_label(selected_basis))
     _set_change(proposal, parameter_changes, "flow_rate_mL_min", round(flow_rate, 5))
     _set_change(proposal, parameter_changes, "reactor_volume_mL", round(base_volume, 4))
     _set_change(proposal, parameter_changes, "temperature_C", round(temperature, 2))
@@ -613,6 +643,57 @@ def _select_campaign_response(outcomes: ExperimentalOutcomes) -> tuple[str, Opti
     return "", None
 
 
+def _campaign_residence_time_basis(
+    experiments: list[ExperimentResult],
+    requested_basis: str | None = None,
+) -> str:
+    requested = normalize_residence_time_basis(requested_basis)
+    if requested != UNKNOWN_BASIS:
+        return requested
+    counts = {
+        INLET_STP_BASIS: 0,
+        IN_CHANNEL_BASIS: 0,
+        LIQUID_ONLY_BASIS: 0,
+    }
+    for exp in experiments:
+        basis = normalize_residence_time_basis(exp.actual_conditions.residence_time_basis)
+        if basis != UNKNOWN_BASIS:
+            counts[basis] = counts.get(basis, 0) + 1
+            continue
+        actual = exp.actual_conditions
+        if actual.residence_time_inlet_min is not None and actual.gas_flow_stp_mL_min:
+            counts[INLET_STP_BASIS] += 1
+        elif actual.residence_time_in_channel_min is not None:
+            counts[IN_CHANNEL_BASIS] += 1
+        elif actual.residence_time_min is not None:
+            counts[LIQUID_ONLY_BASIS] += 1
+    return max(counts.items(), key=lambda item: item[1])[0] if any(counts.values()) else IN_CHANNEL_BASIS
+
+
+def _residence_time_for_basis(
+    actual: ActualConditions,
+    preferred_basis: str | None = None,
+) -> tuple[float, str]:
+    basis = normalize_residence_time_basis(preferred_basis)
+    if basis == UNKNOWN_BASIS:
+        basis = normalize_residence_time_basis(actual.residence_time_basis)
+    if basis == UNKNOWN_BASIS:
+        if actual.residence_time_inlet_min is not None and actual.gas_flow_stp_mL_min:
+            basis = INLET_STP_BASIS
+        elif actual.residence_time_in_channel_min is not None:
+            basis = IN_CHANNEL_BASIS
+        elif actual.residence_time_min is not None:
+            basis = LIQUID_ONLY_BASIS
+        else:
+            basis = IN_CHANNEL_BASIS
+
+    if basis == INLET_STP_BASIS:
+        return _num(actual.residence_time_inlet_min, actual.residence_time_min, 0.0), basis
+    if basis == IN_CHANNEL_BASIS:
+        return _num(actual.residence_time_in_channel_min, actual.residence_time_min, 0.0), basis
+    return _num(actual.residence_time_min, actual.residence_time_inlet_min, actual.residence_time_in_channel_min, 0.0), basis
+
+
 def _extract_number(text: str, label_pattern: str) -> Optional[float]:
     match = re.search(label_pattern + r"\s*([-+]?\d+(?:\.\d+)?)", text, flags=re.IGNORECASE)
     if not match:
@@ -642,15 +723,22 @@ def _tau_for_response(response_pct: float, k_min_inv: float) -> float:
     return -math.log(1.0 - response_fraction) / max(k_min_inv, 1e-9)
 
 
-def _conditions_for_tau(actual: ActualConditions, tau_min: float) -> dict[str, Any]:
+def _conditions_for_tau(
+    actual: ActualConditions,
+    tau_min: float,
+    residence_time_basis: str | None = None,
+) -> dict[str, Any]:
+    basis = normalize_residence_time_basis(residence_time_basis)
+    if basis == UNKNOWN_BASIS:
+        _, basis = _residence_time_for_basis(actual)
     volume = _num(actual.reactor_volume_mL, 0.0)
     liquid_q = _num(actual.substrate_flow_mL_min, actual.flow_rate_mL_min, 0.0)
     gas_actual = _num(actual.gas_flow_in_channel_mL_min, 0.0)
     gas_stp = _num(actual.gas_flow_stp_mL_min, 0.0)
 
     package: dict[str, Any] = {
-        "residence_time_basis": "in-channel total actual flow",
-        "residence_time_in_channel_min": round(tau_min, 3),
+        "residence_time_basis": residence_time_basis_label(basis),
+        "residence_time_min": round(tau_min, 3),
         "reactor_volume_mL": round(volume, 4) if volume else None,
         "temperature_C": actual.temperature_C,
         "concentration_M": actual.concentration_M,
@@ -665,13 +753,35 @@ def _conditions_for_tau(actual: ActualConditions, tau_min: float) -> dict[str, A
         package["gas_flow_stp_mL_min"] = round(gas_stp, 5) if gas_stp else None
         return package
 
-    if gas_actual > 0 and liquid_q > 0:
+    if basis == INLET_STP_BASIS and gas_stp > 0 and liquid_q > 0:
+        total_current = liquid_q + gas_stp
+        total_target = volume / tau_min
+        liquid_target = total_target * liquid_q / total_current
+        gas_stp_target = total_target * gas_stp / total_current
+        if gas_actual > 0:
+            gas_actual_target = gas_actual * gas_stp_target / gas_stp
+        else:
+            gas_actual_target = actual_gas_flow_from_stp(
+                gas_stp_target,
+                _num(actual.temperature_C, 25.0),
+                _num(actual.BPR_bar, 0.0),
+            )
+        package["substrate_flow_mL_min"] = round(liquid_target, 5)
+        package["gas_flow_stp_mL_min"] = round(gas_stp_target, 5)
+        package["gas_flow_in_channel_mL_min"] = round(gas_actual_target, 5)
+        package["residence_time_inlet_min"] = round(tau_min, 3)
+        package["residence_time_in_channel_min"] = round(
+            volume / max(liquid_target + gas_actual_target, 1e-9),
+            3,
+        )
+    elif gas_actual > 0 and liquid_q > 0:
         total_current = liquid_q + gas_actual
         total_target = volume / tau_min
         liquid_target = total_target * liquid_q / total_current
         gas_actual_target = total_target * gas_actual / total_current
         package["substrate_flow_mL_min"] = round(liquid_target, 5)
         package["gas_flow_in_channel_mL_min"] = round(gas_actual_target, 5)
+        package["residence_time_in_channel_min"] = round(tau_min, 3)
         if gas_stp > 0:
             gas_stp_target = gas_stp * gas_actual_target / gas_actual
             package["gas_flow_stp_mL_min"] = round(gas_stp_target, 5)
@@ -687,6 +797,7 @@ def _conditions_for_tau(actual: ActualConditions, tau_min: float) -> dict[str, A
         package["gas_flow_in_channel_mL_min"] = None
         package["gas_flow_stp_mL_min"] = None
         package["residence_time_inlet_min"] = round(tau_min, 3)
+        package["residence_time_in_channel_min"] = round(tau_min, 3)
 
     return package
 
@@ -701,7 +812,7 @@ def _apply_campaign_calibration(
         return
 
     field_map = {
-        "residence_time_min": rec.get("residence_time_in_channel_min"),
+        "residence_time_min": rec.get("residence_time_min"),
         "residence_time_in_channel_min": rec.get("residence_time_in_channel_min"),
         "residence_time_inlet_min": rec.get("residence_time_inlet_min"),
         "residence_time_basis": rec.get("residence_time_basis"),
@@ -738,7 +849,8 @@ def _apply_campaign_calibration(
     reasoning = proposal.setdefault("reasoning_per_field", {})
     reasoning["residence_time_min"] = (
         "Evidence-calibrated from measured conversion/product response versus "
-        "in-channel residence time; the original short residence-time design is "
+        f"{rec.get('residence_time_basis', 'the selected residence-time basis')}; "
+        "the original short residence-time design is "
         "treated as an aggressive screen only."
     )
 
@@ -910,7 +1022,7 @@ def _sync_gas_streams(proposal: dict, gas_update: dict[str, Any]) -> None:
             stream["gas_flow_sccm"] = gas_update["gas_flow_sccm"]
         stream["reasoning"] = _append_note(
             stream.get("reasoning", ""),
-            "Closed-loop update: gas flow scaled with liquid flow to preserve gas-liquid ratio while targeting the revised in-channel residence time.",
+            "Closed-loop update: gas flow scaled with liquid flow to preserve O2 equivalents while targeting the revised residence-time basis.",
         )
 
 
@@ -961,14 +1073,44 @@ def _scaled_flows_for_tau(
     tau_min: float,
     fallback_liquid_q: float,
     actual: ActualConditions,
+    residence_time_basis: str | None = None,
 ) -> tuple[float, dict[str, Any]]:
+    basis = normalize_residence_time_basis(residence_time_basis)
+    if basis == UNKNOWN_BASIS:
+        _, basis = _residence_time_for_basis(actual)
     gas_actual, gas_stp = _extract_gas_flows(proposal)
     gas_actual = _num(actual.gas_flow_in_channel_mL_min, gas_actual, 0.0)
     gas_stp = _num(actual.gas_flow_stp_mL_min, gas_stp, 0.0)
     liquid_q = _num(actual.substrate_flow_mL_min, actual.flow_rate_mL_min, fallback_liquid_q)
 
-    if gas_actual <= 0:
+    if gas_actual <= 0 and not (basis == INLET_STP_BASIS and gas_stp > 0):
         return _safe_flow_from_volume(volume_mL, tau_min, fallback=fallback_liquid_q), {}
+
+    if basis == INLET_STP_BASIS and gas_stp > 0:
+        total_current = max(liquid_q + gas_stp, 1e-9)
+        liquid_fraction = liquid_q / total_current
+        gas_stp_fraction = gas_stp / total_current
+        total_target = volume_mL / max(tau_min, 1e-9)
+        liquid_target = total_target * liquid_fraction
+        gas_stp_target = total_target * gas_stp_fraction
+        if gas_actual > 0:
+            gas_actual_target = gas_actual * gas_stp_target / gas_stp
+        else:
+            gas_actual_target = actual_gas_flow_from_stp(
+                gas_stp_target,
+                _num(actual.temperature_C, proposal.get("temperature_C"), 25.0),
+                _num(actual.BPR_bar, proposal.get("BPR_bar"), 0.0),
+            )
+        gas_update = {
+            "gas_flow_actual_mL_min": round(gas_actual_target, 5),
+            "gas_flow_sccm": round(gas_stp_target, 5),
+            "residence_time_inlet_min": round(tau_min, 3),
+            "residence_time_in_channel_min": round(
+                volume_mL / max(liquid_target + gas_actual_target, 1e-9),
+                3,
+            ),
+        }
+        return liquid_target, gas_update
 
     total_current = max(liquid_q + gas_actual, 1e-9)
     liquid_fraction = liquid_q / total_current
@@ -982,6 +1124,15 @@ def _scaled_flows_for_tau(
     }
     if gas_stp > 0 and gas_actual > 0:
         gas_update["gas_flow_sccm"] = round(gas_stp * (gas_actual_target / gas_actual), 5)
+    elif gas_actual_target > 0:
+        gas_update["gas_flow_sccm"] = round(
+            stp_gas_flow_from_actual(
+                gas_actual_target,
+                _num(actual.temperature_C, proposal.get("temperature_C"), 25.0),
+                _num(actual.BPR_bar, proposal.get("BPR_bar"), 0.0),
+            ),
+            5,
+        )
     gas_update["residence_time_in_channel_min"] = round(
         volume_mL / max(liquid_target + gas_actual_target, 1e-9), 3
     )
@@ -1009,8 +1160,11 @@ def _gas_liquid_summary(proposal: dict) -> dict[str, Any]:
     if gas_actual <= 0 or volume <= 0:
         return {}
 
+    basis = normalize_residence_time_basis(proposal.get("residence_time_basis"))
+    if basis == UNKNOWN_BASIS:
+        basis = INLET_STP_BASIS if gas_stp > 0 else IN_CHANNEL_BASIS
     summary = {
-        "residence_time_basis": "in-channel total actual flow",
+        "residence_time_basis": residence_time_basis_label(basis),
         "substrate_flow_mL_min": round(liquid_q, 5),
         "gas_flow_in_channel_mL_min": round(gas_actual, 5),
         "gas_flow_stp_mL_min": round(gas_stp, 5) if gas_stp else None,
@@ -1018,6 +1172,10 @@ def _gas_liquid_summary(proposal: dict) -> dict[str, Any]:
     }
     if gas_stp:
         summary["residence_time_inlet_min"] = round(volume / max(liquid_q + gas_stp, 1e-9), 3)
+    if basis == INLET_STP_BASIS and summary.get("residence_time_inlet_min") is not None:
+        summary["residence_time_min"] = summary["residence_time_inlet_min"]
+    else:
+        summary["residence_time_min"] = summary["residence_time_in_channel_min"]
     return summary
 
 
