@@ -412,3 +412,39 @@ tubing ID = 1.00 mm
     assert experiments[0].actual_conditions.residence_time_basis == "inlet_stp"
     assert experiments[0].outcomes.yield_pct == 52.0
     assert experiments[1].outcomes.conversion_pct == 15.0
+
+
+def test_extract_compact_krict_rows_and_calibrate_longer_inlet_screen():
+    prompt = """
+1- Entry 3: Note KRICT 2, T 40, c 0.50, P 6.0 (5+1), Substrate 0.0509, O₂ In-channel 0.234, O₂ Inlet/STP 1.2113, O₂ equiv 2.12, t inlet 8.51, t in-channel 37.68, Reactor Volume 10.74, Starting Material 83, Product 12, Tubing ID 0.75
+
+2- Entry 4: Note KRICT 6, T 40, c 0.50, P 6.0 (5+1), Substrate 0.0656, O₂ In-channel 0.320, O₂ Inlet/STP 1.6565, O₂ equiv 2.25, t inlet 7.71, t in-channel 34.42, Reactor Volume 13.27, Starting Material 85, Product 10, Tubing ID 1.00
+
+3- Entry 5: Note KRICT 2-1, T 40, c 0.50, P 6.0 (5+1), Substrate 0.01047, O₂ In-channel 0.0489, O₂ Inlet/STP 0.2492, O₂ equiv ~2, t inlet 38.6, t in-channel 168.43, Reactor Volume 10.00, Starting Material -, Product 27, Tubing ID 1.016
+"""
+    experiments = extract_experiments_from_text(prompt)
+
+    assert len(experiments) == 3
+    entry_5 = experiments[-1]
+    assert entry_5.run_id == "entry_05_krict_2_1"
+    assert entry_5.actual_conditions.substrate_flow_mL_min == 0.01047
+    assert entry_5.actual_conditions.gas_flow_stp_mL_min == 0.2492
+    assert entry_5.actual_conditions.gas_flow_in_channel_mL_min == 0.0489
+    assert entry_5.actual_conditions.residence_time_inlet_min == 38.6
+    assert entry_5.actual_conditions.residence_time_in_channel_min == 168.43
+    assert entry_5.outcomes.product_pct == 27.0
+
+    calibration = calibrate_experimental_campaign(
+        experiments,
+        target_yield_pct=75.0,
+        target_conversion_pct=75.0,
+        residence_time_basis="inlet_stp",
+    )
+
+    assert calibration.best_run_id == entry_5.run_id
+    assert calibration.best_tau_inlet_min == 38.6
+    assert calibration.recommended_tau_inlet_min > calibration.best_tau_inlet_min
+    assert 68.0 < calibration.recommended_tau_inlet_min < 69.0
+    assert calibration.target_tau_inlet_min > 160.0
+    assert calibration.recommended_conditions["residence_time_in_channel_min"] > 290.0
+    assert calibration.recommended_conditions["gas_flow_stp_mL_min"] > calibration.recommended_conditions["gas_flow_in_channel_mL_min"]

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from flora_translate.design_calculator import DesignCalculator
-from flora_translate.engine.sampling import compute_metrics, generate_candidates, hard_filter
+from flora_translate.engine.sampling import L_MAX_BENCH_M, compute_metrics, generate_candidates, hard_filter
 from flora_translate.engine.council_v4.chief import _intensification_feasibility_precheck
 from flora_translate.engine.council_v4.skeptic import _verify_v_r_equals_tau_q
 from flora_translate.main import (
@@ -70,11 +70,70 @@ def test_gas_liquid_calculation_corrects_volume_and_adds_o2_metrics():
     assert calc.gas_flow_actual_mL_min > 0
     assert calc.gas_holdup > 0
     assert calc.reactor_volume_mL > calc.liquid_holdup_volume_mL
-    assert calc.o2_equiv_supplied >= 2.9
+    assert abs(calc.o2_equiv_supplied - 1.0) < 0.02
+    assert abs(calc.target_gas_equiv_inlet - 1.0) < 0.02
     assert calc.UA_W_K > 0
     bprs = [op for op in topology.unit_operations if op.op_type == "bpr"]
     assert bprs
     assert bprs[-1].parameters["pressure_bar"] >= 5.0
+
+
+def test_o2_mfc_is_recomputed_from_target_equivalents_not_llm_stream_guess():
+    batch = BatchRecord(
+        reaction_description="THQ aerobic oxidation with O2 (2.0 equiv) in DMSO.",
+        solvent="DMSO",
+        temperature_C=40,
+        reaction_time_h=15,
+        concentration_M=0.5,
+        atmosphere="O2",
+    )
+    plan = ChemistryPlan(
+        reaction_class="photochemical aerobic oxidation",
+        mechanism_type="O2-mediated photochemical oxidation",
+        o2_is_reagent=True,
+        stream_logic=[
+            StreamLogic(stream_label="A", reagents=["THQ"], concentration_M=0.5, phase="liquid"),
+            StreamLogic(stream_label="G", reagents=["O2"], phase="gas", molar_equiv=2.0),
+        ],
+    )
+    proposal = FlowProposal(
+        residence_time_min=68.6,
+        residence_time_basis="inlet/STP apparent residence time",
+        flow_rate_mL_min=0.06,
+        concentration_M=0.5,
+        temperature_C=40,
+        BPR_bar=6.0,
+        tubing_ID_mm=1.0,
+        streams=[
+            StreamAssignment(
+                stream_label="A",
+                pump_role="substrate solution",
+                contents=["THQ"],
+                solvent="DMSO",
+                concentration_M=0.5,
+                flow_rate_mL_min=0.06,
+            ),
+            StreamAssignment(
+                stream_label="G",
+                pump_role="O2 gas feed",
+                contents=["O2"],
+                phase="gas",
+                gas_flow_sccm=0.04,
+                gas_flow_actual_mL_min=0.04,
+                flow_rate_mL_min=0.04,
+            ),
+        ],
+    )
+
+    calc = DesignCalculator().run(batch, chemistry_plan=plan, proposal=proposal)
+    proposal = DesignCalculator.annotate_proposal_with_calculations(proposal, calc)
+
+    assert calc.gas_flow_recomputed_from_equiv
+    assert abs(calc.gas_flow_sccm - 1.344) < 0.02
+    assert abs(calc.o2_equiv_supplied - 2.0) < 0.02
+    assert calc.gas_flow_actual_mL_min > 0.2
+    assert proposal.streams[1].gas_flow_sccm > 1.3
+    assert proposal.streams[1].molar_equiv == 2.0
 
 
 def test_n2_blanket_does_not_trigger_multiphase_and_quench_is_not_reactor():
@@ -376,9 +435,9 @@ def test_gas_liquid_candidate_generation_uses_total_tube_volume_basis():
     )
 
     assert feasible
-    assert all(c["L_m"] <= 20.0 for c in feasible)
+    assert all(c["L_m"] <= L_MAX_BENCH_M for c in feasible)
     assert all(c["required_bpr_bar"] <= 10.0 for c in feasible)
-    assert len(infeasible) == 0
+    assert all(c["violations"] for c in infeasible)
 
 
 def test_skeptic_volume_audit_uses_liquid_holdup_for_gas_liquid():

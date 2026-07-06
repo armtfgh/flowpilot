@@ -2,6 +2,7 @@ from pathlib import Path
 
 from flora_translate.engine.design_space import DesignSpaceSearch
 from flora_translate.inventory_constraints import enforce_reactor_inventory
+from flora_translate.residence_time_basis import gas_equiv_from_stp_flow
 from flora_translate.schemas import BatchRecord, ChemistryPlan, FlowProposal, LabInventory, StreamAssignment
 
 
@@ -153,3 +154,67 @@ def test_inventory_enforcement_preserves_inlet_stp_residence_basis():
     assert revised.residence_time_inlet_min == 67.0
     assert revised.residence_time_in_channel_min > 120.0
     assert revised.streams[1].gas_flow_sccm > revised.streams[1].gas_flow_actual_mL_min
+
+
+def test_inventory_enforcement_recomputes_o2_from_target_equiv():
+    inventory = LabInventory.from_json(str(THQ_INVENTORY))
+    proposal = FlowProposal(
+        residence_time_min=68.6,
+        residence_time_inlet_min=68.6,
+        residence_time_in_channel_min=300.0,
+        residence_time_basis="inlet/STP apparent residence time",
+        flow_rate_mL_min=0.06,
+        reactor_volume_mL=10.0,
+        temperature_C=40,
+        concentration_M=0.5,
+        BPR_bar=6,
+        tubing_ID_mm=1.0,
+        tubing_material="FEP",
+        wavelength_nm=450,
+        evidence_calibration={
+            "best_run_id": "entry_05_krict_2_1",
+            "best_tau_inlet_min": 38.6,
+            "best_response_pct": 27.0,
+            "target_response_pct": 75.0,
+            "recommended_conditions": {
+                "residence_time_basis": "inlet/STP apparent residence time",
+                "residence_time_min": 68.6,
+                "residence_time_inlet_min": 68.6,
+                "gas_equiv_inlet": 2.0,
+            },
+        },
+        streams=[
+            StreamAssignment(
+                stream_label="A",
+                pump_role="substrate solution",
+                contents=["6-methyl-THQ"],
+                solvent="DMSO",
+                concentration_M=0.5,
+                flow_rate_mL_min=0.06,
+            ),
+            StreamAssignment(
+                stream_label="G",
+                pump_role="O2 gas feed",
+                contents=["O2"],
+                phase="gas",
+                flow_rate_mL_min=0.04,
+                gas_flow_actual_mL_min=0.04,
+                gas_flow_sccm=0.04,
+            ),
+        ],
+    )
+
+    revised, report = enforce_reactor_inventory(proposal, inventory)
+    gas = revised.streams[1]
+    supplied_equiv = gas_equiv_from_stp_flow(
+        gas.gas_flow_sccm,
+        revised.flow_rate_mL_min,
+        revised.concentration_M,
+        1.0,
+    )
+
+    assert report["applied"]
+    assert revised.residence_time_inlet_min == 68.6
+    assert abs(supplied_equiv - 2.0) < 0.02
+    assert gas.gas_flow_sccm > gas.gas_flow_actual_mL_min
+    assert gas.molar_equiv == 2.0

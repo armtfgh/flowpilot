@@ -36,8 +36,10 @@ from flora_translate.schemas import (
     DesignInputPackage,
     FlowProposal,
     LabInventory,
+    LightSourceSpec,
     ProcessStage,
     ProcessTopology,
+    ReactorSpec,
     StreamConnection,
     UnitOperation,
 )
@@ -89,6 +91,9 @@ def _inventory_from_intake_or_path(
                 except json.JSONDecodeError:
                     inventory_payload = None
             else:
+                parsed = _lab_inventory_from_text(stripped)
+                if parsed and parsed.reactors:
+                    return parsed
                 inventory_payload = None
     if isinstance(inventory_payload, dict):
         try:
@@ -96,6 +101,147 @@ def _inventory_from_intake_or_path(
         except Exception as exc:
             logger.warning("Intake inventory was not valid LabInventory JSON; using path inventory: %s", exc)
     return LabInventory.from_json(inventory_path)
+
+
+def _lab_inventory_from_text(text: str) -> LabInventory | None:
+    """Parse the standardized intake inventory text into LabInventory.
+
+    This intentionally handles the compact human-readable inventory block
+    emitted by ``inventory_prompt_block`` so hard constraints are not lost when
+    a user pastes inventory as text instead of JSON.
+    """
+
+    text = str(text or "")
+    if not text.strip():
+        return None
+
+    reactors: list[ReactorSpec] = []
+    light_sources: list[LightSourceSpec] = []
+    bpr_available: list[float] = []
+
+    bpr_match = re.search(r"Available BPR/pressure settings:\s*\[([^\]]+)\]", text, flags=re.IGNORECASE)
+    if bpr_match:
+        bpr_available = [
+            float(v)
+            for v in re.findall(r"[-+]?\d+(?:\.\d+)?", bpr_match.group(1))
+        ]
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("- "):
+            continue
+        item = line[2:].strip()
+
+        if re.search(r"\b\d+(?:\.\d+)?\s*mL\b", item, flags=re.IGNORECASE) and re.search(
+            r"\b\d+(?:\.\d+)?\s*mm\s*ID\b", item, flags=re.IGNORECASE
+        ):
+            reactors.append(_parse_inventory_reactor_line(item))
+            continue
+
+        if re.search(r"\b\d+(?:\.\d+)?\s*nm\b", item, flags=re.IGNORECASE):
+            src = _parse_inventory_light_line(item)
+            if src:
+                light_sources.append(src)
+
+    if not reactors and not light_sources and not bpr_available:
+        return None
+    return LabInventory(
+        reactors=reactors,
+        light_sources=light_sources,
+        BPR_available=bpr_available,
+    )
+
+
+def _parse_inventory_reactor_line(item: str) -> ReactorSpec:
+    header, _, rest = item.partition(":")
+    body = rest or item
+    full_name = header.strip() if rest else item.strip()
+
+    system = ""
+    name = full_name
+    for prefix in ("Vapourtec System", "Manual Setup"):
+        if full_name.startswith(prefix):
+            system = prefix
+            name = full_name[len(prefix):].strip() or full_name
+            break
+
+    volume = _safe_float(_first_match(body, r"(\d+(?:\.\d+)?)\s*mL\b"), 0.0)
+    id_mm = _safe_float(_first_match(body, r"(\d+(?:\.\d+)?)\s*mm\s*ID\b"), 1.0)
+    material_match = re.search(r"\b(FEP|PFA|PTFE|SS|stainless steel)\b", body, flags=re.IGNORECASE)
+    material = (material_match.group(1).upper() if material_match else "FEP").replace("STAINLESS STEEL", "SS")
+
+    constraints = item[item.find("(") + 1:item.rfind(")")] if "(" in item and ")" in item else item
+    temp_allowed = [
+        float(v)
+        for v in re.findall(r"T\s+in\s+\[([^\]]+)\]", constraints, flags=re.IGNORECASE)
+        for v in re.findall(r"[-+]?\d+(?:\.\d+)?", v)
+    ]
+    temp_range = _range_from_text(constraints, r"T\s+")
+    conc_range = _range_from_text(constraints, r"C\s+")
+    pressure_range = _range_from_text(constraints, r"P\s+")
+    wavelength = _safe_float(_first_match(constraints, r"lambda\s+(\d+(?:\.\d+)?)\s*nm"), 0.0) or None
+    intensity = _safe_float(_first_match(constraints, r"(\d+(?:\.\d+)?)\s*mW/cm2"), 0.0) or None
+
+    light_source = ""
+    if "vapourtec" in system.lower() and wavelength:
+        light_source = f"Vapourtec mirrored LED bar {wavelength:g} nm"
+    elif "manual" in system.lower() and wavelength:
+        light_source = f"Manual strip LED {wavelength:g} nm"
+
+    irradiation = ""
+    lower = item.lower()
+    if "mirrored" in lower:
+        irradiation = "bilateral 360 irradiation with mirrored photoreactor"
+    elif "360" in lower:
+        irradiation = "standard 360 irradiation"
+
+    return ReactorSpec(
+        name=name,
+        system=system,
+        type="coil",
+        material=material,
+        volume_mL=volume,
+        ID_mm=id_mm,
+        light_source=light_source,
+        wavelength_nm=wavelength,
+        intensity_mW_cm2=intensity,
+        irradiation=irradiation,
+        min_temperature_C=temp_range[0],
+        max_temperature_C=temp_range[1],
+        allowed_temperatures_C=temp_allowed,
+        min_concentration_M=conc_range[0],
+        max_concentration_M=conc_range[1],
+        min_pressure_bar=pressure_range[0],
+        max_pressure_bar=pressure_range[1],
+    )
+
+
+def _parse_inventory_light_line(item: str) -> LightSourceSpec | None:
+    header, _, rest = item.partition(":")
+    source_text = rest or item
+    wavelength = _safe_float(_first_match(source_text, r"(\d+(?:\.\d+)?)\s*nm"), 0.0)
+    if wavelength <= 0:
+        return None
+    intensity = _safe_float(_first_match(source_text, r"(\d+(?:\.\d+)?)\s*mW/cm2"), 0.0) or None
+    return LightSourceSpec(
+        name=header.strip() or f"LED {wavelength:g} nm",
+        wavelength_nm=wavelength,
+        power_W=0.0,
+        compatible_reactor="coil",
+        intensity_mW_cm2=intensity,
+    )
+
+
+def _first_match(text: str, pattern: str) -> str | None:
+    match = re.search(pattern, text, flags=re.IGNORECASE)
+    return match.group(1) if match else None
+
+
+def _range_from_text(text: str, prefix_pattern: str) -> tuple[float | None, float | None]:
+    match = re.search(prefix_pattern + r"([-+]?\d+(?:\.\d+)?)\s*[-–]\s*([-+]?\d+(?:\.\d+)?)", text, flags=re.IGNORECASE)
+    if not match:
+        return None, None
+    return float(match.group(1)), float(match.group(2))
 
 
 def _reconcile_final_bpr(result: dict, design_candidate=None) -> None:
@@ -203,6 +349,8 @@ def _sync_final_stream_flowrates(result: dict, design_candidate=None) -> None:
 
     gas_sccm = calc.get("gas_flow_sccm")
     gas_actual = calc.get("gas_flow_actual_mL_min")
+    target_gas_equiv = _safe_float(calc.get("target_gas_equiv_inlet"))
+    supplied_gas_equiv = _safe_float(calc.get("o2_equiv_supplied"))
     for s in streams:
         if not _stream_dict_is_gas(s):
             continue
@@ -212,6 +360,15 @@ def _sync_final_stream_flowrates(result: dict, design_candidate=None) -> None:
         if gas_actual is not None:
             s["gas_flow_actual_mL_min"] = round(_safe_float(gas_actual), 5)
             s["flow_rate_mL_min"] = round(_safe_float(gas_actual), 5)
+        if target_gas_equiv > 0:
+            s["molar_equiv"] = round(target_gas_equiv, 4)
+            s["reasoning"] = (
+                "Deterministic gas stoichiometry: inlet/STP MFC flow was "
+                f"recomputed from target O2 equivalents ({target_gas_equiv:.2f} equiv), "
+                f"liquid flow {target_liquid_q:.5f} mL/min, and substrate concentration. "
+                f"Pressure-corrected in-channel gas flow is reported separately; "
+                f"supplied O2 equiv = {supplied_gas_equiv:.2f}."
+            )
 
     # Mirror the synchronized dict streams back into the Pydantic proposal used
     # by topology generation.
@@ -219,6 +376,67 @@ def _sync_final_stream_flowrates(result: dict, design_candidate=None) -> None:
         from flora_translate.schemas import StreamAssignment
 
         design_candidate.proposal.streams = [StreamAssignment(**s) for s in streams]
+    except Exception:
+        pass
+
+
+def _apply_final_design_guards(result: dict, design_candidate=None) -> None:
+    """Reject final JSON that violates measured evidence or O2 stoichiometry."""
+
+    proposal = result.get("proposal") or {}
+    calc = result.get("design_calculations") or {}
+    flags = proposal.setdefault("safety_flags", [])
+    if not isinstance(flags, list):
+        flags = [str(flags)]
+        proposal["safety_flags"] = flags
+
+    calibration = proposal.get("evidence_calibration") or {}
+    if calibration:
+        basis_label = str(calibration.get("primary_residence_time_basis") or "").lower()
+        best_response = _safe_float(calibration.get("best_response_pct"))
+        target_response = _safe_float(calibration.get("target_response_pct"))
+        if "inlet" in basis_label or "stp" in basis_label:
+            final_tau = _safe_float(
+                proposal.get("residence_time_inlet_min"),
+                _safe_float(proposal.get("residence_time_min")),
+            )
+            best_tau = _safe_float(
+                calibration.get("best_tau_inlet_min"),
+                _safe_float(calibration.get("best_tau_min")),
+            )
+        elif "channel" in basis_label:
+            final_tau = _safe_float(
+                proposal.get("residence_time_in_channel_min"),
+                _safe_float(proposal.get("residence_time_min")),
+            )
+            best_tau = _safe_float(
+                calibration.get("best_tau_in_channel_min"),
+                _safe_float(calibration.get("best_tau_min")),
+            )
+        else:
+            final_tau = _safe_float(proposal.get("residence_time_min"))
+            best_tau = _safe_float(calibration.get("best_tau_min"))
+        if best_tau > 0 and final_tau > 0 and best_response < target_response and final_tau < best_tau * 0.999:
+            proposal["engine_validated"] = False
+            flags.append(
+                "BLOCKED: final residence time is below the best measured evidence anchor "
+                f"({final_tau:.2f} < {best_tau:.2f} min) while response is still below target."
+            )
+
+    target_equiv = _safe_float(calc.get("target_gas_equiv_inlet"))
+    supplied_equiv = _safe_float(calc.get("o2_equiv_supplied"))
+    if calc.get("is_gas_liquid") and target_equiv > 0:
+        if supplied_equiv <= 0 or supplied_equiv < target_equiv * 0.95:
+            proposal["engine_validated"] = False
+            flags.append(
+                "BLOCKED: final O2 feed does not meet the target inlet/STP equivalents "
+                f"({supplied_equiv:.2f} supplied vs {target_equiv:.2f} target)."
+            )
+        proposal.setdefault("multiphase_metrics", {})["target_gas_equiv_inlet"] = target_equiv
+        proposal.setdefault("multiphase_metrics", {})["o2_equiv_supplied"] = supplied_equiv
+
+    try:
+        design_candidate.proposal = FlowProposal(**proposal)
     except Exception:
         pass
 
@@ -1344,6 +1562,8 @@ def translate(
             result["design_calculations"]["reactor_volume_mL"] = round(
                 _τ_proposal * _Q_proposal, 4
             )
+
+    _apply_final_design_guards(result, design_candidate)
 
     # Store analogies for the revision agent (confidence + context)
     result["_analogies"] = analogies

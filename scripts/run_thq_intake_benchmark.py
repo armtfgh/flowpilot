@@ -57,6 +57,20 @@ t in-channel = 34.42 min
 reactor volume = 13.27 mL
 product = 10%
 tubing ID = 1.00 mm
+
+Entry 3, KRICT 2-1:
+T = 40 C
+c = 0.50 M
+P = 6 bar
+substrate flow = 0.01047 mL/min
+O2 in-channel = 0.0489 mL/min
+O2 inlet/STP = 0.2492 mL/min
+O2 equiv inlet = 2.0
+t inlet = 38.6 min
+t in-channel = 168.43 min
+reactor volume = 10.00 mL
+product = 27%
+tubing ID = 1.016 mm
 """
 
 
@@ -100,10 +114,12 @@ def _build_intake_package():
             question_id="Q-HYP-001",
             answer=(
                 "The KRICT short screens had only 7.7-8.5 min inlet/STP apparent "
-                "residence time and low product. Longer inlet/STP residence time "
-                "may be needed before meaningful product formation; oxygen "
-                "delivery and photon flux should be treated as possible secondary "
-                "limitations."
+                "residence time and low product. The next KRICT run at 38.6 min "
+                "inlet/STP apparent residence time improved product to 27%, so "
+                "the next design should not shorten residence time below that "
+                "measured anchor unless there is direct evidence for overreaction. "
+                "Oxygen delivery and photon flux should be treated as possible "
+                "secondary limitations."
             ),
         ),
         IntakeAnswer(

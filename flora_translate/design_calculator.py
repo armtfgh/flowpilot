@@ -49,8 +49,10 @@ from flora_translate.residence_time_basis import (
     IN_CHANNEL_BASIS,
     INLET_STP_BASIS,
     UNKNOWN_BASIS,
+    gas_equiv_from_stp_flow,
     normalize_residence_time_basis,
     residence_time_basis_label,
+    stp_gas_flow_for_equiv,
 )
 
 logger = logging.getLogger("flora.design_calculator")
@@ -123,20 +125,63 @@ T_STP_K = 273.15
 P_STP_BAR = 1.01325
 
 
-def _extract_gas_equiv(chemistry_plan, default: float = 1.0) -> float:
+def _extract_gas_equiv(
+    chemistry_plan,
+    batch_record=None,
+    proposal=None,
+    default: float = 1.0,
+) -> float:
     """Return the molar equivalents of the gas reagent relative to substrate.
 
     Priority order:
-      1. ChemistryPlan.stream_logic[gas].molar_equiv (if > 0 and not default 1.0)
-      2. Regex extraction from the gas stream's reasoning/reagent text:
+      1. Evidence-calibrated recommendation attached to the proposal.
+      2. ChemistryPlan.stream_logic[gas].molar_equiv (if > 0 and not default 1.0)
+      3. Regex extraction from the gas stream's reasoning/reagent text:
          e.g. "O2 gas (2.0 equiv)" → 2.0
-      3. The supplied default (typically 1.0 for "stoichiometric").
+      4. Regex extraction from the batch protocol text.
+      5. The supplied default (typically 1.0 for "stoichiometric").
     """
     import re
 
+    if proposal is not None:
+        mp = getattr(proposal, "multiphase_metrics", None) or {}
+        calibration = getattr(proposal, "evidence_calibration", None) or {}
+        recommended = calibration.get("recommended_conditions") if isinstance(calibration, dict) else None
+        anchor = calibration.get("anchor_conditions") if isinstance(calibration, dict) else None
+        for source in (recommended, anchor, mp):
+            if not isinstance(source, dict):
+                continue
+            for key in ("gas_equiv_inlet", "target_gas_equiv_inlet", "o2_target_equiv"):
+                try:
+                    value = float(source.get(key) or 0.0)
+                except (TypeError, ValueError):
+                    value = 0.0
+                if value > 0:
+                    return value
+
+    def _regex_equiv(text: str) -> float | None:
+        if not text:
+            return None
+        patterns = [
+            r"(?:O2|O₂|oxygen|air)[^\n]{0,100}?(\d+(?:\.\d+)?)\s*(?:mol\s*)?equiv",
+            r"(\d+(?:\.\d+)?)\s*(?:mol\s*)?equiv[^\n]{0,100}?(?:O2|O₂|oxygen|air)",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, text, flags=re.IGNORECASE)
+            if not match:
+                continue
+            try:
+                value = float(match.group(1))
+            except ValueError:
+                continue
+            if value > 0:
+                return value
+        return None
+
     if chemistry_plan is None:
-        return default
-    streams = getattr(chemistry_plan, "stream_logic", None) or []
+        streams = []
+    else:
+        streams = getattr(chemistry_plan, "stream_logic", None) or []
 
     def _is_gas_stream(s) -> bool:
         phase = (getattr(s, "phase", "") or "").lower()
@@ -151,7 +196,16 @@ def _extract_gas_equiv(chemistry_plan, default: float = 1.0) -> float:
 
     gas_streams = [s for s in streams if _is_gas_stream(s)]
     if not gas_streams:
-        return default
+        batch_text = " ".join(
+            str(part or "")
+            for part in (
+                getattr(batch_record, "raw_text", None),
+                getattr(batch_record, "reaction_description", None),
+                getattr(batch_record, "atmosphere", None),
+            )
+        )
+        parsed = _regex_equiv(batch_text)
+        return parsed if parsed is not None else default
 
     g = gas_streams[0]
     # 1) explicit molar_equiv field, only if set to something other than the schema default
@@ -161,14 +215,21 @@ def _extract_gas_equiv(chemistry_plan, default: float = 1.0) -> float:
 
     # 2) regex fallback over reagents + reasoning text
     text = " ".join(getattr(g, "reagents", []) or []) + " " + (getattr(g, "reasoning", "") or "")
-    m = re.search(r"(\d+(?:\.\d+)?)\s*(?:mol\s*)?equiv", text, re.IGNORECASE)
-    if m:
-        try:
-            v = float(m.group(1))
-            if v > 0:
-                return v
-        except ValueError:
-            pass
+    parsed = _regex_equiv(text)
+    if parsed is not None:
+        return parsed
+
+    batch_text = " ".join(
+        str(part or "")
+        for part in (
+            getattr(batch_record, "raw_text", None),
+            getattr(batch_record, "reaction_description", None),
+            getattr(batch_record, "atmosphere", None),
+        )
+    )
+    parsed = _regex_equiv(batch_text)
+    if parsed is not None:
+        return parsed
 
     # 3) schema default
     return float(me) if (me is not None and me > 0) else default
@@ -284,7 +345,10 @@ class DesignCalculations:
     two_phase_pressure_drop_bar: float = 0.0
     o2_supply_mmol_min: float = 0.0
     o2_required_mmol_min: float = 0.0
+    target_gas_equiv_inlet: float = 0.0
+    explicit_gas_equiv_inlet: float = 0.0
     o2_equiv_supplied: float = 0.0
+    gas_flow_recomputed_from_equiv: bool = False
     dissolved_o2_mM: float = 0.0
     kLa_s: float = 0.0
     o2_transfer_capacity_mmol_min: float = 0.0
@@ -428,6 +492,8 @@ class DesignCalculations:
                 f"({self.gas_flow_actual_mL_min:.3f} mL/min at reactor), "
                 f"ε_g = {self.gas_holdup:.2f}, "
                 f"V_total = {self.reactor_volume_mL:.2f} mL, "
+                f"O2 equiv target/supplied = {self.target_gas_equiv_inlet:.2f}/"
+                f"{self.o2_equiv_supplied:.2f}, "
                 f"O₂ transfer sufficiency = {self.o2_transfer_sufficiency:.2f}×"
             )
         if self.UA_W_K:
@@ -654,7 +720,10 @@ class DesignCalculator:
                 "two_phase_pressure_drop_bar": calc.two_phase_pressure_drop_bar,
                 "o2_supply_mmol_min": calc.o2_supply_mmol_min,
                 "o2_required_mmol_min": calc.o2_required_mmol_min,
+                "target_gas_equiv_inlet": calc.target_gas_equiv_inlet,
+                "explicit_gas_equiv_inlet": calc.explicit_gas_equiv_inlet,
                 "o2_equiv_supplied": calc.o2_equiv_supplied,
+                "gas_flow_recomputed_from_equiv": calc.gas_flow_recomputed_from_equiv,
                 "dissolved_o2_mM": calc.dissolved_o2_mM,
                 "kLa_s": calc.kLa_s,
                 "o2_transfer_capacity_mmol_min": calc.o2_transfer_capacity_mmol_min,
@@ -667,6 +736,8 @@ class DesignCalculator:
                     stream.gas_flow_sccm = round(calc.gas_flow_sccm, 3)
                     stream.gas_flow_actual_mL_min = round(calc.gas_flow_actual_mL_min, 4)
                     stream.flow_rate_mL_min = round(calc.gas_flow_actual_mL_min, 4)
+                    if calc.target_gas_equiv_inlet > 0:
+                        stream.molar_equiv = round(calc.target_gas_equiv_inlet, 4)
                     gas_assigned = True
             if not gas_assigned and proposal.streams is not None:
                 from flora_translate.schemas import StreamAssignment
@@ -678,6 +749,7 @@ class DesignCalculator:
                     gas_flow_sccm=round(calc.gas_flow_sccm, 3),
                     gas_flow_actual_mL_min=round(calc.gas_flow_actual_mL_min, 4),
                     flow_rate_mL_min=round(calc.gas_flow_actual_mL_min, 4),
+                    molar_equiv=round(calc.target_gas_equiv_inlet, 4) if calc.target_gas_equiv_inlet > 0 else 1.0,
                     reasoning="Deterministic gas-liquid calculator added MFC feed for gas-phase reagent.",
                 ))
         proposal.heat_transfer_metrics = {
@@ -909,7 +981,16 @@ class DesignCalculator:
         # The previous behaviour hardcoded 1.0 × 3.0 supply and silently delivered
         # 3 equiv regardless of what the batch protocol specified — that's the
         # bug being fixed here.
-        protocol_o2_equiv = _extract_gas_equiv(chemistry_plan, default=1.0) if y_o2 > 0 else 0.0
+        protocol_o2_equiv = (
+            _extract_gas_equiv(
+                chemistry_plan,
+                batch_record=batch_record,
+                proposal=proposal,
+                default=1.0,
+            )
+            if y_o2 > 0
+            else 0.0
+        )
         o2_equiv_required = protocol_o2_equiv
         o2_required = n_substrate_mmol_min * o2_equiv_required
         # Supply factor is now a flow-specific safety margin on top of the
@@ -922,11 +1003,37 @@ class DesignCalculator:
             protocol_o2_equiv, supply_factor, protocol_o2_equiv * supply_factor,
             n_substrate_mmol_min,
         )
-        if explicit_sccm is not None:
+        explicit_equiv = (
+            gas_equiv_from_stp_flow(
+                explicit_sccm,
+                Q_liquid_mL_min,
+                max(calc.concentration_M or 0.1, 1e-9),
+                y_o2,
+            )
+            if explicit_sccm is not None and y_o2 > 0
+            else 0.0
+        )
+        gas_flow_recomputed = False
+        if y_o2 > 0:
+            gas_sccm = stp_gas_flow_for_equiv(
+                Q_liquid_mL_min,
+                max(calc.concentration_M or 0.1, 1e-9),
+                o2_equiv_required * supply_factor,
+                y_o2,
+            )
+            if explicit_sccm is not None and abs(explicit_sccm - gas_sccm) / max(gas_sccm, 1e-9) > 0.05:
+                gas_flow_recomputed = True
+                logger.info(
+                    "Overriding explicit O2 MFC %.4f sccm with stoichiometric %.4f sccm "
+                    "for %.2f equiv at C=%.3f M and Q_liquid=%.5f mL/min",
+                    explicit_sccm,
+                    gas_sccm,
+                    o2_equiv_required * supply_factor,
+                    calc.concentration_M or 0.1,
+                    Q_liquid_mL_min,
+                )
+        elif explicit_sccm is not None:
             gas_sccm = explicit_sccm
-        elif y_o2 > 0:
-            n_gas_mmol_min = o2_required * supply_factor / max(y_o2, 1e-9)
-            gas_sccm = (n_gas_mmol_min / 1000.0) * R_GAS_L_BAR * T_STP_K / P_STP_BAR * 1000.0
         else:
             # Non-O2 reagent gas default: one gas mol per substrate mol with 3x excess.
             n_gas_mmol_min = n_substrate_mmol_min * 3.0
@@ -990,7 +1097,10 @@ class DesignCalculator:
             "residence_time_in_channel_min": residence_time_in_channel_min,
             "o2_supply_mmol_min": o2_supply,
             "o2_required_mmol_min": o2_required,
+            "target_gas_equiv_inlet": o2_equiv_required * supply_factor,
+            "explicit_gas_equiv_inlet": explicit_equiv,
             "o2_equiv_supplied": o2_equiv_supplied,
+            "gas_flow_recomputed_from_equiv": gas_flow_recomputed,
             "dissolved_o2_mM": dissolved_o2_mM,
             "kLa_s": kLa_s,
             "o2_transfer_capacity_mmol_min": transfer_capacity,
@@ -1722,7 +1832,10 @@ class DesignCalculator:
             calc.two_phase_pressure_drop_bar = round(dP_bar, 6)
             calc.o2_supply_mmol_min = round(gas_ctx.get("o2_supply_mmol_min", 0.0), 6)
             calc.o2_required_mmol_min = round(gas_ctx.get("o2_required_mmol_min", 0.0), 6)
+            calc.target_gas_equiv_inlet = round(gas_ctx.get("target_gas_equiv_inlet", 0.0), 4)
+            calc.explicit_gas_equiv_inlet = round(gas_ctx.get("explicit_gas_equiv_inlet", 0.0), 4)
             calc.o2_equiv_supplied = round(gas_ctx.get("o2_equiv_supplied", 0.0), 4)
+            calc.gas_flow_recomputed_from_equiv = bool(gas_ctx.get("gas_flow_recomputed_from_equiv", False))
             calc.dissolved_o2_mM = round(gas_ctx.get("dissolved_o2_mM", 0.0), 4)
             calc.kLa_s = round(gas_ctx.get("kLa_s", 0.0), 5)
             calc.o2_transfer_capacity_mmol_min = round(gas_ctx.get("o2_transfer_capacity_mmol_min", 0.0), 6)
@@ -1935,10 +2048,16 @@ class DesignCalculator:
                 "Consider static mixer insert."
             )
         if calc.is_gas_liquid and calc.gas_oxygen_fraction > 0:
-            if calc.o2_equiv_supplied < 1.0:
+            target_equiv = calc.target_gas_equiv_inlet or 1.0
+            if calc.o2_equiv_supplied < target_equiv * 0.95:
                 warnings.append(
                     f"O2 gas feed supplies only {calc.o2_equiv_supplied:.2f} equiv "
-                    "relative to substrate; increase MFC setpoint."
+                    f"relative to substrate; target is {target_equiv:.2f} equiv."
+                )
+            if calc.gas_flow_recomputed_from_equiv:
+                warnings.append(
+                    f"Incoming O2 MFC implied {calc.explicit_gas_equiv_inlet:.2f} equiv; "
+                    f"recomputed to {calc.target_gas_equiv_inlet:.2f} equiv from stoichiometry."
                 )
             if calc.o2_transfer_sufficiency < 1.0:
                 warnings.append(
@@ -1969,7 +2088,10 @@ class DesignCalculator:
                 "gas_holdup": calc.gas_holdup,
                 "o2_supply_mmol_min": calc.o2_supply_mmol_min,
                 "o2_required_mmol_min": calc.o2_required_mmol_min,
+                "target_gas_equiv_inlet": calc.target_gas_equiv_inlet,
+                "explicit_gas_equiv_inlet": calc.explicit_gas_equiv_inlet,
                 "o2_equiv_supplied": calc.o2_equiv_supplied,
+                "gas_flow_recomputed_from_equiv": calc.gas_flow_recomputed_from_equiv,
                 "dissolved_o2_mM": calc.dissolved_o2_mM,
                 "kLa_s": calc.kLa_s,
                 "o2_transfer_capacity_mmol_min": calc.o2_transfer_capacity_mmol_min,
@@ -2442,6 +2564,18 @@ class DesignCalculator:
                     notes.append(
                         f"t_in_channel: V_R/(Q_L+Q_g_actual) = {tau_channel_check:.1f} s "
                         f"vs {expected:.1f} s (Δ = {err_channel*100:.1f}%)"
+                    )
+            if (
+                calc.is_gas_liquid
+                and calc.gas_oxygen_fraction > 0
+                and calc.target_gas_equiv_inlet > 0
+                and calc.o2_equiv_supplied > 0
+            ):
+                equiv_err = abs(calc.o2_equiv_supplied - calc.target_gas_equiv_inlet) / calc.target_gas_equiv_inlet
+                if equiv_err > 0.05:
+                    notes.append(
+                        f"O2 equiv: supplied {calc.o2_equiv_supplied:.2f} vs target "
+                        f"{calc.target_gas_equiv_inlet:.2f} (Δ = {equiv_err*100:.1f}%)"
                     )
 
         # L = 4V/(πd²)

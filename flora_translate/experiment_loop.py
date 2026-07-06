@@ -178,31 +178,38 @@ def extract_experiments_from_text(text: str, design_version: int = 1) -> list[Ex
         start = match.end()
         end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
         block = text[start:end]
+        note_match = re.search(r"\bNote\s+([^,:\n]+)", block, flags=re.IGNORECASE)
+        if note.startswith("entry_") and note_match:
+            note = note_match.group(1).strip() or note
 
-        product_pct = _extract_percent(block, r"\bproduct\s*=")
-        isolated_yield_pct = _extract_percent(block, r"\bisolated\s+yield\s*=")
-        starting_material_pct = _extract_percent(block, r"\bstarting\s+material\s*=")
+        product_pct = _extract_percent(block, r"\bproduct\b")
+        isolated_yield_pct = _extract_percent(block, r"\bisolated\s+yield\b")
+        starting_material_pct = _extract_percent(block, r"\bstarting\s+material\b")
         conversion_pct = None
         if starting_material_pct is not None:
             conversion_pct = _bounded(100.0 - starting_material_pct, 0.0, 100.0)
+        substrate_flow = (
+            _extract_number(block, r"\bsubstrate\s+flow\b")
+            or _extract_number(block, r"\bsubstrate\b")
+        )
 
         experiment = ExperimentResult(
             run_id=f"entry_{entry_no:02d}_{_slug(note)}",
             design_version=design_version,
             actual_conditions=ActualConditions(
-                residence_time_inlet_min=_extract_number(block, r"\bt\s+inlet\s*="),
-                residence_time_in_channel_min=_extract_number(block, r"\bt\s+in-channel\s*="),
+                residence_time_inlet_min=_extract_number(block, r"\bt\s+inlet\b"),
+                residence_time_in_channel_min=_extract_number(block, r"\bt\s+in-channel\b"),
                 residence_time_basis="inlet_stp",
-                flow_rate_mL_min=_extract_number(block, r"\bsubstrate\s+flow\s*="),
-                substrate_flow_mL_min=_extract_number(block, r"\bsubstrate\s+flow\s*="),
-                gas_flow_in_channel_mL_min=_extract_number(block, r"\bO2\s+in-channel\s*="),
-                gas_flow_stp_mL_min=_extract_number(block, r"\bO2\s+inlet/STP\s*="),
-                gas_equiv_inlet=_extract_number(block, r"\bO2\s+equiv(?:\s+inlet)?\s*="),
-                temperature_C=_extract_number(block, r"\bT\s*="),
-                concentration_M=_extract_number(block, r"\bc\s*="),
-                tubing_ID_mm=_extract_number(block, r"\btubing\s+ID\s*="),
-                reactor_volume_mL=_extract_number(block, r"\breactor\s+volume\s*="),
-                BPR_bar=_extract_number(block, r"\bP\s*="),
+                flow_rate_mL_min=substrate_flow,
+                substrate_flow_mL_min=substrate_flow,
+                gas_flow_in_channel_mL_min=_extract_number(block, r"\bO[2₂]\s+in-channel\b"),
+                gas_flow_stp_mL_min=_extract_number(block, r"\bO[2₂]\s+inlet/STP\b"),
+                gas_equiv_inlet=_extract_number(block, r"\bO[2₂]\s+equiv(?:\s+inlet)?\b"),
+                temperature_C=_extract_number(block, r"\bT\b"),
+                concentration_M=_extract_number(block, r"\bc\b"),
+                tubing_ID_mm=_extract_number(block, r"\btubing\s+ID\b"),
+                reactor_volume_mL=_extract_number(block, r"\breactor\s+volume\b"),
+                BPR_bar=_extract_number(block, r"\bP\b"),
             ),
             outcomes=ExperimentalOutcomes(
                 yield_pct=isolated_yield_pct if isolated_yield_pct is not None else product_pct,
@@ -695,7 +702,17 @@ def _residence_time_for_basis(
 
 
 def _extract_number(text: str, label_pattern: str) -> Optional[float]:
-    match = re.search(label_pattern + r"\s*([-+]?\d+(?:\.\d+)?)", text, flags=re.IGNORECASE)
+    # Accept both "label = 1.23" and compact table text "label 1.23".
+    # The negative lookahead prevents treating ranges like "40.0-80.0" as
+    # standalone values when the label did not immediately precede the number.
+    pattern = (
+        label_pattern
+        + r"\s*(?:[:=]|is|=)?\s*"
+        + r"[-~≈]?\s*"
+        + r"([-+]?\d+(?:\.\d+)?)"
+        + r"(?!\s*[-–]\s*\d)"
+    )
+    match = re.search(pattern, text, flags=re.IGNORECASE)
     if not match:
         return None
     try:

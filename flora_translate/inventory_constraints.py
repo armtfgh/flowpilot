@@ -15,9 +15,11 @@ from flora_translate.residence_time_basis import (
     INLET_STP_BASIS,
     UNKNOWN_BASIS,
     actual_gas_flow_from_stp,
+    gas_equiv_from_stp_flow,
     normalize_residence_time_basis,
     residence_time_basis_label,
     stp_gas_flow_from_actual,
+    stp_gas_flow_for_equiv,
 )
 from flora_translate.schemas import FlowProposal, LabInventory, ReactorSpec
 
@@ -140,6 +142,15 @@ def enforce_reactor_inventory(
     # gas/liquid ratio inside that physical model so the selected inventory
     # volume remains closed after recalculation.
     gas_actual_ratio = min(gas_actual_ratio, 0.85 / 0.15)
+    target_gas_equiv = _target_gas_equiv_inlet(data)
+    if target_gas_equiv > 0 and _proposal_has_o2(data):
+        gas_stp_ratio = stp_gas_flow_for_equiv(
+            1.0,
+            max(concentration, 1e-9),
+            target_gas_equiv,
+            1.0,
+        )
+        gas_actual_ratio = actual_gas_flow_from_stp(gas_stp_ratio, temperature, bpr)
 
     if basis == INLET_STP_BASIS and gas_stp_ratio > 0:
         total_stp_q = volume / max(tau, 1e-9)
@@ -189,6 +200,11 @@ def enforce_reactor_inventory(
     _scale_liquid_streams(data, liquid_q, concentration)
     if gas_actual_ratio > 0:
         _sync_gas_streams(data, gas_actual, gas_sccm)
+        if target_gas_equiv > 0:
+            for stream in data.get("streams") or []:
+                if _is_gas_stream(stream):
+                    stream["molar_equiv"] = round(target_gas_equiv, 4)
+                    break
 
     selected_payload = _reactor_payload(selected)
     data["inventory_selection"] = selected_payload
@@ -202,6 +218,12 @@ def enforce_reactor_inventory(
             "liquid_flow_rate_mL_min": data["flow_rate_mL_min"],
             "gas_flow_actual_mL_min": round(gas_actual, 5) if gas_actual_ratio > 0 else None,
             "gas_flow_sccm": round(gas_sccm, 5) if gas_actual_ratio > 0 else None,
+            "target_gas_equiv_inlet": round(target_gas_equiv, 4) if target_gas_equiv > 0 else None,
+            "o2_equiv_supplied": (
+                round(gas_equiv_from_stp_flow(gas_sccm, liquid_q, concentration, 1.0), 4)
+                if target_gas_equiv > 0 and gas_sccm > 0 and liquid_q > 0
+                else None
+            ),
         },
     }
     reasoning = data.setdefault("reasoning_per_field", {})
@@ -292,6 +314,41 @@ def reactor_is_compatible(
     if reactor.max_pressure_bar is not None and pressure_bar > reactor.max_pressure_bar:
         return False
     return True
+
+
+def _target_gas_equiv_inlet(data: dict[str, Any]) -> float:
+    calibration = data.get("evidence_calibration") or {}
+    for source in (
+        calibration.get("recommended_conditions") if isinstance(calibration, dict) else None,
+        calibration.get("anchor_conditions") if isinstance(calibration, dict) else None,
+        data.get("multiphase_metrics") or {},
+    ):
+        if not isinstance(source, dict):
+            continue
+        for key in ("gas_equiv_inlet", "target_gas_equiv_inlet", "o2_target_equiv"):
+            value = _num(source.get(key), 0.0)
+            if value > 0:
+                return value
+    for stream in data.get("streams") or []:
+        if not _is_gas_stream(stream):
+            continue
+        value = _num(stream.get("molar_equiv"), 0.0)
+        if value > 0 and abs(value - 1.0) > 1e-9:
+            return value
+    return 0.0
+
+
+def _proposal_has_o2(data: dict[str, Any]) -> bool:
+    text_parts = [
+        str((data.get("multiphase_metrics") or {}).get("gas_species") or ""),
+    ]
+    for stream in data.get("streams") or []:
+        if not _is_gas_stream(stream):
+            continue
+        text_parts.append(str(stream.get("pump_role") or ""))
+        text_parts.extend(str(c) for c in (stream.get("contents") or []))
+    text = " ".join(text_parts).lower()
+    return bool(re.search(r"\b(o2|oxygen)\b|o₂", text))
 
 
 def _current_flow_basis(data: dict[str, Any]) -> tuple[float, float, float]:
