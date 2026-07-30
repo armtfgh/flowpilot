@@ -17,6 +17,7 @@ from typing import Optional
 
 import flora_translate.config as cfg
 from flora_translate.config import FLOW_MAX_TAU_TO_BATCH_RATIO, FLOW_TRANSLATION_POLICY
+from flora_translate.design_calculator import GAS_LIQUID_MIN_BPR_BAR
 from flora_translate.engine.flow_value import attach_flow_sense_reports, mandate_dict
 from flora_translate.engine.llm_agents import call_llm
 from flora_translate.engine.sampling import (
@@ -187,7 +188,7 @@ derived metrics are computed deterministically by tools; you only decide the
 • Mixing: t_mix ≈ d²/(4·D). Halving d gives 4× faster mixing.
 • Photochem: Beer-Lambert A = ε·C·(d[mm]·0.1). Inner-filter risk if A > 1.5.
   FEP/PFA mandatory; PTFE is opaque. Prefer d ≤ 1.0 mm for photoredox.
-• Gas-liquid: slug flow needs d ≥ 0.75 mm. BPR ≥ 5 bar mandatory.
+• Gas-liquid: slug flow needs d ≥ 0.75 mm. BPR ≥ 3 bar mandatory.
 • IF class ranges: photoredox 4–8×, thermal 8–15×, hydrogenation 20–50×,
   radical 10–60×, cross-coupling 5–20×.
 • v4 bench envelope: L ≤ 25 m, V_R ≤ 50 mL.
@@ -359,9 +360,10 @@ def _apply_v4_hard_gates(
                 f"BPR_current={BPR_bar} bar < BPR_min={BPR_min:.2f} bar"
             )
         # Gas-liquid floor
-        if is_gas_liquid and BPR_bar < 5.0:
+        if is_gas_liquid and BPR_bar < GAS_LIQUID_MIN_BPR_BAR:
             reasons.append(
-                f"gas-liquid system: BPR={BPR_bar} bar < 5.0 bar mandatory floor"
+                f"gas-liquid system: BPR={BPR_bar} bar < "
+                f"{GAS_LIQUID_MIN_BPR_BAR:.1f} bar mandatory floor"
             )
         if is_gas_liquid and BPR_bar > V4_GAS_LIQUID_MAX_BPR_BAR:
             reasons.append(
@@ -424,6 +426,7 @@ def run_designer_v4(
     assumed_MW: float,
     IF_used: float,
     pump_max_bar: float,
+    pump_min_flow_mL_min: float = 0.05,
     BPR_bar: float = 0.0,
     batch_time_min: Optional[float] = None,
     translation_policy: str = FLOW_TRANSLATION_POLICY,
@@ -464,6 +467,8 @@ def run_designer_v4(
             f"\nε(photocatalyst)={extinction_coeff_M_cm or 'not provided'} M⁻¹cm⁻¹"
         )
     mandate = mandate_dict(intensification_mandate)
+    if redesign_instructions and redesign_instructions.get("measured_evidence_override"):
+        mandate = {}
     if mandate:
         chem_brief += f"\nintensification_mandate={json.dumps(mandate, ensure_ascii=False)}"
     if redesign_instructions:
@@ -497,6 +502,7 @@ def run_designer_v4(
         else [0.40, 0.60, 0.80]
     )
     max_tau_min = None
+    min_tau_min = None
     if (
         (translation_policy or "").lower() == "intensify"
         and batch_time_min is not None
@@ -509,6 +515,11 @@ def run_designer_v4(
             max_tau_min = min(max_tau_min, ceiling) if max_tau_min else ceiling
         except (TypeError, ValueError):
             pass
+    if redesign_instructions and redesign_instructions.get("tau_floor"):
+        try:
+            min_tau_min = max(float(redesign_instructions["tau_floor"]), 0.0)
+        except (TypeError, ValueError):
+            min_tau_min = None
 
     effective_tau_center = tau_center_min
     if max_tau_min and effective_tau_center > max_tau_min:
@@ -541,6 +552,8 @@ def run_designer_v4(
         L_fractions=L_fractions,
         N_target=N_target,
         max_tau_min=max_tau_min,
+        min_tau_min=min_tau_min,
+        min_flow_rate_mL_min=pump_min_flow_mL_min,
     )
 
     # Re-assign sequential IDs to all_feasible
@@ -632,6 +645,8 @@ def run_designer_v4(
             L_fractions=[0.40, 0.60, 0.80],
             N_target=N_target,
             max_tau_min=regen_tau_ceiling,
+            min_tau_min=min_tau_min,
+            min_flow_rate_mL_min=pump_min_flow_mL_min,
         )
         for i, c in enumerate(regen_feasible, 1):
             c["id"] = i

@@ -1,0 +1,84 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 1.0,
+  "temperature_C": 80.0,
+  "concentration_M": 0.667,
+  "BPR_bar": 0.0,
+  "reactor_type": "single_coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 5.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Nitrogen sparging",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Main feed containing substrate, oxidant, and catalyst",
+      "contents": [
+        "Benzyl Alcohol (0.667 M)",
+        "TBHP (1.0 equiv)",
+        "NaBr (catalytic)",
+        "Sulfuric Acid (catalytic)"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "Chemistry Plan stream_logic defines Stream A as the oxidation stream. Morpholine is excluded due to incompatibility with TBHP. Flow rate derived from reactor volume and residence time."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Nucleophile feed (Morpholine)",
+      "contents": [
+        "Morpholine (1.0 equiv)"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.0,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "Chemistry Plan requires Morpholine to be added after oxidation. However, inventory constraints forbid interstage addition. Stream B is defined but flow rate is 0 because it cannot be introduced in the available single-coil setup without violating the segregation constraint. This highlights the hardware limitation."
+    }
+  ],
+  "mixer_type": "T-mixer",
+  "mixing_order_reasoning": "Chemistry Plan mandates TBHP/NaBr/H2SO4 oxidize alcohol first. Morpholine must be added only after oxidation. Since no interstage addition is possible, a standard T-mixer at the inlet would mix them prematurely, violating the incompatible_pairs constraint. Thus, the design is technically infeasible with current inventory, but Stream A is fed alone to the reactor.",
+  "pre_reactor_steps": [
+    "Degas Dioxane with Nitrogen to remove trace oxygen (good practice for peroxides, though not strictly required by mechanism)."
+  ],
+  "post_reactor_steps": [
+    "Quench with Sodium Bicarbonate or Water to neutralize sulfuric acid and residual TBHP."
+  ],
+  "chemistry_notes": "The reaction is a two-step oxidative amidation. Step 1: Oxidation of benzyl alcohol to benzoyl bromide/cation equivalent using TBHP/NaBr/H2SO4. Step 2: Nucleophilic attack by morpholine. The Chemistry Plan explicitly states that TBHP and Morpholine are incompatible and must be segregated. The available inventory (single coil, no interstage addition) makes it impossible to perform the two steps sequentially in flow without mixing incompatible reagents. The proposed setup feeds only the oxidation stream (A) to demonstrate the first step, but the full transformation cannot be achieved. Residence time is set to 3.0 min based on kinetic calculations (10x intensification). Temperature is 80°C. BPR is not strictly required by boiling point (Dioxane bp 101°C vs 80°C op) but recommended for safety with peroxides; however, inventory lists BPRs available, so a low pressure (5 bar) is suggested if safety protocols demand it, otherwise 0 bar is acceptable per calculation. Given the 'HARD CONSTRAINTS' and 'Chemistry Plan' conflict, the design reflects the oxidation step only.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 estimated 3.0 min (range 2.0-6.5 min) based on 10x intensification factor. Analogy 1 used 78 min (photochem), Analogy 2 used 2 min (photochem). Thermal oxidation kinetics are slower than photochem but faster than batch (30 min). 3.0 min is consistent with calculation.",
+    "residence_time_basis": "Liquid-only system. No gas reagents.",
+    "temperature_C": "Batch protocol specifies 80°C. Chemistry Plan confirms 80°C. Analogy 1 used 80°C. Maintained for kinetic consistency.",
+    "BPR_bar": "Calculation Step 8 states BPR not required (bp 101°C > 80°C + 20°C margin is tight but acceptable). However, peroxides are hazardous. Inventory has BPRs. Set to 0 as per calculation 'not required', but note safety risk.",
+    "tubing_material": "Inventory specifies PFA tubing. PFA is suitable for 80°C and chemical resistance to TBHP/Acid. FEP is preferred for photochem, but this is thermal.",
+    "concentration_M": "Batch protocol specifies 0.667 M. Maintained for direct comparison.",
+    "reactor_volume_mL": "Calculation Step 3 suggests 1.50 mL. Inventory has a 5 mL reactor. We use 1.5 mL of the 5 mL coil (or adjust flow rate to use full 5 mL with longer residence time). To match 3.0 min residence time with 0.5 mL/min flow, V = 1.5 mL. This fits within the 5 mL inventory reactor.",
+    "flow_rate_mL_min": "Derived from V/t = 1.5 mL / 3.0 min = 0.5 mL/min. Within Pump A max flow (3.0 mL/min).",
+    "mixer_type": "Standard T-mixer assumed for liquid-liquid mixing, though Stream B is not used.",
+    "pre_reactor_steps": "Nitrogen sparging recommended for peroxide safety.",
+    "post_reactor_steps": "Quench required by Chemistry Plan to neutralize acid."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "LOW"
+}

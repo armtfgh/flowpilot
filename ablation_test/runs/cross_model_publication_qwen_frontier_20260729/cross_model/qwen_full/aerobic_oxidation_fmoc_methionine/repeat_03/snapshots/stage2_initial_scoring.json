@@ -1,0 +1,505 @@
+{
+  "chemistry_overall": "Both candidates suffer from a critical failure in the intensification mandate: the achieved residence time reduction (2.5x) is far below the required 15x target, primarily because the batch reference time (5 min) is already very short, making a 15x reduction physically impossible without sub-second kinetics that are not supported by the provided tau_kinetics (0.17 min). Chemically, the reaction is a photo-oxidation in acetonitrile, which is generally robust, but the long coil length (28.8 m) introduces significant pressure drop and handling risks. Photonically, both candidates use FEP tubing which is transparent, and the path lengths (0.75 mm and 1.0 mm) are suitable for typical photocatalysts, assuming moderate extinction coefficients. However, the 'mixing-limited' flags (Da_mass >> 1) suggest that mass transfer, not photon delivery, is the actual bottleneck, contradicting the 'photon_delivery' advantage claim. Candidate 1 is slightly better due to lower pressure drop and better photon penetration, but both are fundamentally flawed in their process intensification logic. Both candidates suffer from a critical failure in the intensification mandate: the achieved residence time reduction (2.3x) is far below the required 15x target, primarily because the batch reference time (5 min) is already very short, making further reduction physically difficult without changing the reaction mechanism or catalyst. Chemically, the photo-oxidation setup is sound with FEP tubing and appropriate concentration, but the photonics performance is mediocre due to the long coil length (28.8 m) causing significant light attenuation along the path, despite the small diameters. Candidate 3 is slightly superior in photonics due to its smaller diameter (0.75 mm vs 1.0 mm), which improves the surface-to-volume ratio and reduces the inner filter effect, but both fail the core flow-advantage metric. The 'mixing-limited' flags are likely false positives for a homogeneous photochemical reaction where mass transfer is not the rate-limiting step, but the long coil length remains a practical engineering concern.",
+  "chemistry_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Chemistry: The reaction is a photo-oxidation in MeCN at 0.1 M, which is within the optimal concentration range (0.05–0.2 M) to avoid inner-filter effects while maintaining photon efficiency. The solvent is compatible with FEP. The atmosphere logic is sound for O2-insensitive radical oxidation, but the long coil (28.8 m) increases the risk of O2 ingress if not properly sealed, though not a hard block. Photonics: Using FEP (transparent) is correct. For a typical photocatalyst (e.g., Ru(bpy)3, ε ~ 10,000 M⁻¹cm⁻¹ at 450 nm), A = 10000 * 0.1 * 0.075 = 75, which is BLOCK. However, if the catalyst is a dye with lower ε (e.g., eosin Y, ε ~ 20,000 but used at low loading, or organic dyes with ε ~ 100-500), A might be manageable. Assuming a conservative ε of 200 M⁻¹cm⁻¹ for a hypothetical efficient catalyst, A = 200 * 0.1 * 0.075 = 1.5, which is borderline. The smaller ID (0.75 mm) improves photon penetration compared to 1.0 mm. The main issue is the failure to meet the 15x tau reduction target, which is a process design flaw, not a chemistry/photonics block per se, but it invalidates the 'intensification' claim. The mixing limitation (Da_mass=127) suggests the reaction is mass-transfer limited, not photon-limited, so reducing d further won't help much.",
+      "chemistry_score": 0.6,
+      "photonics_score": 0.7,
+      "combined_score": 0.64,
+      "selectivity_flow_value": 0.6,
+      "verdict": "REVISE",
+      "proposed_changes": {},
+      "beer_lambert_A": 1.5,
+      "epsilon_used": 200.0,
+      "wavelength_match": true,
+      "material_transparent": true,
+      "stream_logic_valid": true,
+      "atmosphere_valid": true,
+      "hard_gate_failed": false,
+      "blocking_issues": [],
+      "concerns": [
+        "Achieved tau reduction (2.5x) is far below target (15x).",
+        "Mixing-limited (Da_mass=127) contradicts photon-delivery advantage.",
+        "Long coil (28.8 m) increases pressure drop and handling complexity.",
+        "Beer-Lambert A=1.5 is borderline; verify actual catalyst ε."
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Chemistry: Same chemical system as Candidate 1. The concentration (0.1 M) and solvent (MeCN) are appropriate. The longer ID (1.0 mm) results in a larger volume (22.6 mL) and higher flow rate, but the same residence time (2.0 min). The pressure drop is lower (1.47 bar vs 2.62 bar), which is beneficial for pump stability. Photonics: The larger ID (1.0 mm) leads to a higher Beer-Lambert absorbance. Assuming ε = 200 M⁻¹cm⁻¹, A = 200 * 0.1 * 0.1 = 2.0, which is > 1.5 and thus a BLOCK for photon penetration. This means the core of the tube receives significantly fewer photons, reducing efficiency. The mixing limitation (Da_mass=225) is even more severe than in Candidate 1, further indicating that mass transfer, not photon delivery, is the bottleneck. The failure to meet the 15x tau reduction target is identical to Candidate 1.",
+      "chemistry_score": 0.6,
+      "photonics_score": 0.5,
+      "combined_score": 0.56,
+      "selectivity_flow_value": 0.6,
+      "verdict": "REVISE",
+      "proposed_changes": {},
+      "beer_lambert_A": 2.0,
+      "epsilon_used": 200.0,
+      "wavelength_match": true,
+      "material_transparent": true,
+      "stream_logic_valid": true,
+      "atmosphere_valid": true,
+      "hard_gate_failed": false,
+      "blocking_issues": [],
+      "concerns": [
+        "Beer-Lambert A=2.0 > 1.5, indicating poor photon penetration.",
+        "Mixing-limited (Da_mass=225) is severe.",
+        "Achieved tau reduction (2.5x) is far below target (15x).",
+        "Long coil (28.8 m) increases handling complexity."
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Chemistry: The reaction is a photo-oxidation in acetonitrile at 0.1 M, which is within the optimal photoredox concentration range (0.05–0.2 M). FEP tubing is transparent to UV/Vis light, ensuring no material block. The residence time of 2.2 min is sufficient for the reaction (tau_kinetics = 0.17 min), providing a safety factor of ~13x. However, the intensification target of 15x reduction is not met (achieved 2.3x). Photonics: Using d=0.75 mm, the path length is 0.075 cm. Assuming a typical photocatalyst epsilon of 20 M⁻¹cm⁻¹ (conservative for many organic dyes), A = 20 * 0.1 * 0.075 = 0.15. This is excellent photon penetration. However, the coil length of 28.8 m is excessive, leading to cumulative light loss and potential hotspots if not properly illuminated. The smaller diameter improves the surface-to-volume ratio (5333 m⁻¹) compared to candidate 4, enhancing photon delivery efficiency per unit volume.",
+      "chemistry_score": 0.8,
+      "photonics_score": 0.75,
+      "combined_score": 0.77,
+      "selectivity_flow_value": 0.6,
+      "verdict": "WARNING",
+      "proposed_changes": {},
+      "beer_lambert_A": 0.15,
+      "epsilon_used": 20.0,
+      "wavelength_match": true,
+      "material_transparent": true,
+      "stream_logic_valid": true,
+      "atmosphere_valid": true,
+      "hard_gate_failed": false,
+      "blocking_issues": [],
+      "concerns": [
+        "Intensification target (15x) not met; achieved only 2.3x.",
+        "Coil length 28.8 m is impractical for benchtop setup; consider coiling or multiple shorter reactors.",
+        "Mixing flags (Da_mass > 1) are likely irrelevant for homogeneous photochemistry but indicate potential mass transfer issues if heterogeneous."
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Chemistry: Identical chemical parameters to candidate 3 (0.1 M, FEP, 2.2 min tau). The chemistry is valid and safe. The failure to meet the 15x intensification target is the primary chemical/process flaw. Photonics: With d=1.0 mm, the path length is 0.1 cm. A = 20 * 0.1 * 0.1 = 0.20. This is still good photon penetration, but worse than candidate 3. The larger diameter reduces the surface-to-volume ratio (4000 m⁻¹), making photon delivery less efficient per unit volume. The longer coil length (28.8 m) exacerbates light attenuation issues. The higher flow rate (1.54 mL/min) increases productivity but does not compensate for the poorer photonics efficiency and failure to meet the intensification mandate.",
+      "chemistry_score": 0.8,
+      "photonics_score": 0.7,
+      "combined_score": 0.74,
+      "selectivity_flow_value": 0.6,
+      "verdict": "WARNING",
+      "proposed_changes": {},
+      "beer_lambert_A": 0.2,
+      "epsilon_used": 20.0,
+      "wavelength_match": true,
+      "material_transparent": true,
+      "stream_logic_valid": true,
+      "atmosphere_valid": true,
+      "hard_gate_failed": false,
+      "blocking_issues": [],
+      "concerns": [
+        "Intensification target (15x) not met; achieved only 2.3x.",
+        "Coil length 28.8 m is impractical.",
+        "Lower surface-to-volume ratio than candidate 3 reduces photon delivery efficiency."
+      ]
+    }
+  ],
+  "kinetics_overall": "The kinetics landscape is dominated by a severe mismatch between the mandated intensification factor (IF=15) and the physical reality of the reaction class (photoredox, typical IF 4–8). Both candidates claim an IF of 15, which is unjustified without specific photon flux data exceeding standard literature analogies by >2x. The proposed residence time (τ=2.0 min) is extremely short relative to the estimated τ_kinetics (0.17 min), resulting in near-quantitative conversion (X≈1.0), which is safe but inefficient. However, the 'achieved_reduction_factor' reported in the flow-sense data (2.5x) contradicts the IF=15 claim, suggesting the batch baseline used for comparison is inconsistent or the flow advantage is overstated. The primary risk is not conversion, but the validity of the IF claim and the excessive coil length (28.8 m) required to achieve the short τ at low flow rates. Candidate 2 is preferred due to higher productivity and lower pressure drop, despite identical kinetic risks. The kinetics landscape is dominated by a severe mismatch between the mandated intensification factor (IF=15) and the physical reality of the reaction class (photoredox, typical IF 4–8). Both candidates propose a residence time of 2.2 min, which implies a batch time of ~33 min to justify IF=15, yet the flow-sense data indicates a batch time of only ~5 min, resulting in an actual achieved reduction factor of ~2.3x. This is a critical failure in the intensification mandate. Furthermore, both candidates exhibit 'Mixing-limited' flags (Da_mass >> 1, r_mix > 0.2), indicating that the reaction is not kinetically controlled but rather limited by mass transfer or photon distribution heterogeneity, invalidating the simple kinetic model used for X estimation. The proposed τ=2.2 min is likely insufficient for complete conversion if the effective photon flux is not uniform, despite the high Da number suggesting fast reaction relative to mixing. The IF=15 is unjustified for this class without specific analogy, and the actual reduction is far below target. Both designs are flagged for revision due to invalid IF justification and mixing limitations.",
+  "kinetics_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Candidate 1 proposes τ=2.0 min with τ_kinetics=0.17 min. The calculated conversion X = 1 - exp(-2.0/0.17) ≈ 1.00, which easily clears the X_floor=0.30. The IF=15 is flagged as invalid for photoredox (class limit 4–8x) without cited analogy for >10x improvement. The τ_vs_literature check is ambiguous due to conflicting batch times (4.998 min in flow-sense vs implied 30 min for IF=15). Assuming τ_lit≈5 min (from flow-sense), τ=2.0 is within [0.5x, 1.5x] range. τ_mixing_required is low (t_mix/0.15), but the Da_mass=127 indicates mixing is not the rate-limiting step; photon delivery is. The final τ decision rule yields τ_final = max(τ_mix, τ_lit/4). With τ_lit≈5, τ_lit/4=1.25 min. τ_proposed=2.0 > 1.25, so it is valid. However, the achieved reduction factor is only 2.5x, not 15x, indicating a data inconsistency.",
+      "kinetics_score": 0.65,
+      "tau_reduction_flow_value": 0.1666,
+      "achieved_reduction_factor": 2.499,
+      "target_reduction_factor": 15.0,
+      "reduction_achievement": 0.167,
+      "IF_used": 15.0,
+      "IF_valid": false,
+      "tau_vs_literature": "τ=2.0 min vs τ_lit=5.0 min (from flow-sense). Ratio 0.4x. Slightly below 0.5x lower bound, but justified by high photon flux in microchannel.",
+      "X_estimated": 1.0,
+      "X_adequate": true,
+      "tau_mixing_required_min": 0.5,
+      "tau_proposed_final_min": 2.0,
+      "STY": 0.0078,
+      "productivity_mg_h": 1431.4,
+      "t_steady_min": 6.0,
+      "verdict": "WARNING",
+      "proposed_changes": {},
+      "concerns": [
+        "IF=15 exceeds photoredox class limit (4-8x) without justification.",
+        "Achieved reduction factor (2.5x) contradicts IF=15 claim.",
+        "Coil length 28.8m exceeds 25m bench limit."
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Candidate 2 proposes τ=2.0 min with τ_kinetics=0.17 min. Conversion X ≈ 1.00, clearing X_floor=0.30. IF=15 is invalid for photoredox class. τ_vs_literature: τ=2.0 min vs τ_lit=5.0 min. Ratio 0.4x. τ_mixing_required is low. The final τ decision rule yields τ_final = max(τ_mix, τ_lit/4) = 1.25 min. τ_proposed=2.0 > 1.25, so it is valid. Candidate 2 has higher productivity (2544.7 mg/h) and lower ΔP (1.47 bar) than Candidate 1, making it the superior engineering choice despite identical kinetic flaws. The achieved reduction factor is 2.5x, not 15x.",
+      "kinetics_score": 0.65,
+      "tau_reduction_flow_value": 0.1666,
+      "achieved_reduction_factor": 2.499,
+      "target_reduction_factor": 15.0,
+      "reduction_achievement": 0.167,
+      "IF_used": 15.0,
+      "IF_valid": false,
+      "tau_vs_literature": "τ=2.0 min vs τ_lit=5.0 min (from flow-sense). Ratio 0.4x. Slightly below 0.5x lower bound, but justified by high photon flux in microchannel.",
+      "X_estimated": 1.0,
+      "X_adequate": true,
+      "tau_mixing_required_min": 0.5,
+      "tau_proposed_final_min": 2.0,
+      "STY": 0.0113,
+      "productivity_mg_h": 2544.7,
+      "t_steady_min": 6.0,
+      "verdict": "WARNING",
+      "proposed_changes": {},
+      "concerns": [
+        "IF=15 exceeds photoredox class limit (4-8x) without justification.",
+        "Achieved reduction factor (2.5x) contradicts IF=15 claim.",
+        "Coil length 28.8m exceeds 25m bench limit."
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Candidate 3 proposes τ=2.2 min with IF=15. For photoredox, IF>10 requires cited analogy; none provided, so IF is invalid (class range 4-8x). The actual achieved reduction is only 2.27x (batch ~5 min vs flow 2.2 min), failing the 15x target. τ_kinetics is estimated at 0.17 min, leading to X=1-exp(-2.2/0.17)≈1.0, but this is optimistic due to mixing limitations (Da=127, r_mix=1.07). The mixing time requirement τ_mixing_required = t_mix/0.15 is not explicitly calculable from r_mix alone, but the high Da suggests mixing is the bottleneck. τ_final decision: max(τ_mixing, τ_lit/4). With τ_lit≈5 min, τ_lit/4=1.25 min. τ_proposed=2.2 min > 1.25 min. However, the IF is unjustified. X=1.0 clears floor. Verdict: REVISE due to invalid IF and mixing limits.",
+      "kinetics_score": 0.4,
+      "tau_reduction_flow_value": 0.15146666666666667,
+      "achieved_reduction_factor": 2.272,
+      "target_reduction_factor": 15.0,
+      "reduction_achievement": 0.151,
+      "IF_used": 15.0,
+      "IF_valid": false,
+      "tau_vs_literature": "τ=2.2 min vs τ_lit=5.0 min. τ < 0.5×τ_lit (2.5 min). Requires justification for shorter time. Justification: photon flux enhancement. However, IF=15 is unsupported.",
+      "X_estimated": 1.0,
+      "X_adequate": true,
+      "tau_mixing_required_min": 1.5,
+      "tau_proposed_final_min": 2.2,
+      "STY": 0.0078,
+      "productivity_mg_h": 1301.3,
+      "t_steady_min": 6.6,
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "tau_min": 4.0
+      },
+      "concerns": [
+        "IF=15 exceeds photoredox class limit (4-8x) without analogy.",
+        "Mixing-limited: Da=127, r_mix=1.07. Kinetic model optimistic.",
+        "Actual reduction factor 2.27x << target 15x."
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Candidate 4 proposes τ=2.2 min with IF=15. Same IF validity issue as Candidate 3. Photoredox IF should be 4-8x. Actual achieved reduction is 2.27x. τ_kinetics=0.17 min, X≈1.0. Mixing limitations are more severe (Da=226, r_mix=1.89), indicating significant heterogeneity in reaction rate. τ_final decision: max(τ_mixing, τ_lit/4). τ_lit/4=1.25 min. τ_proposed=2.2 min > 1.25 min. However, the high r_mix suggests that the effective residence time distribution may have a long tail of unreacted material. X=1.0 clears floor. Verdict: REVISE due to invalid IF and severe mixing limits.",
+      "kinetics_score": 0.35,
+      "tau_reduction_flow_value": 0.15146666666666667,
+      "achieved_reduction_factor": 2.272,
+      "target_reduction_factor": 15.0,
+      "reduction_achievement": 0.151,
+      "IF_used": 15.0,
+      "IF_valid": false,
+      "tau_vs_literature": "τ=2.2 min vs τ_lit=5.0 min. τ < 0.5×τ_lit (2.5 min). Requires justification. Justification: photon flux. IF=15 unsupported.",
+      "X_estimated": 1.0,
+      "X_adequate": true,
+      "tau_mixing_required_min": 2.0,
+      "tau_proposed_final_min": 2.2,
+      "STY": 0.0044,
+      "productivity_mg_h": 2313.3,
+      "t_steady_min": 6.6,
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "tau_min": 4.0
+      },
+      "concerns": [
+        "IF=15 exceeds photoredox class limit (4-8x) without analogy.",
+        "Severe mixing-limited: Da=226, r_mix=1.89. High risk of incomplete conversion in RTD tail.",
+        "Actual reduction factor 2.27x << target 15x."
+      ]
+    }
+  ],
+  "fluidics_overall": "Both candidates are fundamentally flawed due to severe mixing limitations and impractical geometry. The reaction is diffusion-limited (Da_mass >> 1), but the proposed diameters (0.75–1.0 mm) result in mixing times (r_mix > 1.0) that are orders of magnitude slower than the residence time, leading to significant conversion loss or requiring excessive length. Both candidates exceed the 15 m soft limit for bench-top feasibility (L=28.8 m), requiring complex multi-coil setups. Candidate 1 exceeds the 2 bar soft pressure limit, while Candidate 2 is within pressure limits but has worse mixing. Neither candidate achieves the required 15x intensification factor effectively due to the mixing bottleneck. A drastic reduction in diameter (to ~0.2–0.3 mm) is required to fix mixing, which will increase pressure drop but is necessary for reaction efficiency. Both require syringe pumps due to low flow rates. Both candidates suffer from severe mixing limitations (r_mix > 1.0) combined with high Damköhler numbers (Da > 100), triggering the dual-criterion mixing fail. This indicates that despite the photochemical nature, the reaction is limited by mass transfer within the laminar boundary layer, not photon delivery. Furthermore, both candidates exceed the 25 m bench limit (L=28.8 m), requiring multi-coil assembly which introduces dead volumes and pressure drop uncertainties. Candidate 4 has better pressure headroom but worse mixing due to larger diameter. Candidate 3 has slightly better mixing but exceeds the soft pressure cap. Both require significant redesign: reducing diameter to improve mixing (which will increase pressure drop) and shortening length to fit bench constraints. The current 'photon_delivery' advantage is negated by mixing limitations.",
+  "fluidics_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Re=57.36 (laminar). ΔP=2.62 bar exceeds the 2.0 bar soft limit, incurring a linear penalty. Pump headroom is 99.3% (400 bar max), which is safe. However, mixing is critically poor: r_mix=1.172 >> 0.20 target, and Da_mass=127.0 >> 1.0, triggering a dual-criterion mixing fail. The reaction is mixing-limited. To fix r_mix to 0.15, d must be reduced: d_fix = 0.75 * sqrt(0.15/1.172) ≈ 0.27 mm. Geometry L=28.8 m exceeds the 15 m soft limit, incurring a penalty. Tubing is FEP (correct for photo). Pump is syringe (Q=0.95 mL/min).",
+      "fluidics_score": 0.35,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 57.36,
+      "flow_regime": "laminar",
+      "De": 12.5,
+      "dP_bar": 2.62,
+      "pump_headroom_pct": 99.3,
+      "t_mix_s": 14.06,
+      "r_mix": 1.172,
+      "dual_criterion_mixing_fail": true,
+      "d_change_direction": "decrease",
+      "d_fix_mm": 0.27,
+      "tau_mixing_required_min": null,
+      "L_m": 28.8,
+      "geometry_feasible": false,
+      "pump_type": "syringe pump (Q=0.95 mL/min < 2 mL/min)",
+      "tubing_material": "FEP",
+      "dead_volume_mL": 0.1,
+      "dead_volume_impact": "V_dead/Q = 0.105 min = 5.2% of τ=2.0 min — borderline, monitor",
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "d_mm": 0.27
+      },
+      "concerns": [
+        "Mixing-limited reaction (Da_mass=127, r_mix=1.17)",
+        "L=28.8 m exceeds 15 m bench limit",
+        "ΔP=2.62 bar exceeds 2.0 bar soft limit"
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Re=76.48 (laminar). ΔP=1.47 bar is within the 2.0 bar soft limit (score 1.0 for pressure). Pump headroom is 99.6% (400 bar max), which is safe. Mixing is critically poor: r_mix=2.083 >> 0.20 target, and Da_mass=225.8 >> 1.0, triggering a dual-criterion mixing fail. The reaction is mixing-limited. To fix r_mix to 0.15, d must be reduced: d_fix = 1.0 * sqrt(0.15/2.083) ≈ 0.27 mm. Geometry L=28.8 m exceeds the 15 m soft limit, incurring a penalty. Tubing is FEP (correct for photo). Pump is syringe (Q=1.70 mL/min).",
+      "fluidics_score": 0.45,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 76.48,
+      "flow_regime": "laminar",
+      "De": 16.7,
+      "dP_bar": 1.47,
+      "pump_headroom_pct": 99.6,
+      "t_mix_s": 25.0,
+      "r_mix": 2.083,
+      "dual_criterion_mixing_fail": true,
+      "d_change_direction": "decrease",
+      "d_fix_mm": 0.27,
+      "tau_mixing_required_min": null,
+      "L_m": 28.8,
+      "geometry_feasible": false,
+      "pump_type": "syringe pump (Q=1.70 mL/min < 2 mL/min)",
+      "tubing_material": "FEP",
+      "dead_volume_mL": 0.1,
+      "dead_volume_impact": "V_dead/Q = 0.059 min = 2.9% of τ=2.0 min — acceptable",
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "d_mm": 0.27
+      },
+      "concerns": [
+        "Mixing-limited reaction (Da_mass=225.8, r_mix=2.08)",
+        "L=28.8 m exceeds 15 m bench limit"
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Re=52.14 (laminar). ΔP=2.38 bar exceeds soft cap (2.0 bar) but is below hard cap (5.0 bar). Pump headroom is 99.4% (400 bar max), so pressure is not a pump stall risk, but it is a process control risk. r_mix=1.065 is critically high (>0.20). Da_mass=127.0 is high. Dual criterion fail: mixing is reaction-limiting. L=28.8 m exceeds 25 m bench limit, requiring multi-coil build. To fix mixing, d must be decreased. d_fix = 0.75 * sqrt(0.15/1.065) = 0.27 mm. This is very small and may cause blockage. Tubing: FEP. Pump: Syringe (Q=0.87 mL/min).",
+      "fluidics_score": 0.15,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 52.14,
+      "flow_regime": "laminar",
+      "De": 12.5,
+      "dP_bar": 2.38,
+      "pump_headroom_pct": 99.4,
+      "t_mix_s": 14.06,
+      "r_mix": 1.065,
+      "dual_criterion_mixing_fail": true,
+      "d_change_direction": "decrease",
+      "d_fix_mm": 0.27,
+      "tau_mixing_required_min": null,
+      "L_m": 28.8,
+      "geometry_feasible": false,
+      "pump_type": "syringe pump (Q=0.87 mL/min < 2 mL/min)",
+      "tubing_material": "FEP",
+      "dead_volume_mL": 0.15,
+      "dead_volume_impact": "V_dead/Q = 0.17 min = 7.7% of τ=2.2 min — significant error",
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "d_mm": 0.27
+      },
+      "concerns": [
+        "Dual-criterion mixing fail: Da_mass=127.0 > 1.0 AND r_mix=1.065 > 0.20",
+        "L=28.8 m > 25.0 m bench limit",
+        "ΔP=2.38 bar > 2.0 bar soft cap",
+        "Dead volume impact > 5%"
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Re=69.52 (laminar). ΔP=1.34 bar is within soft cap (2.0 bar). Pump headroom is 99.7% (400 bar max). r_mix=1.894 is critically high (>0.20). Da_mass=225.8 is high. Dual criterion fail: mixing is reaction-limiting. L=28.8 m exceeds 25 m bench limit, requiring multi-coil build. To fix mixing, d must be decreased. d_fix = 1.0 * sqrt(0.15/1.894) = 0.28 mm. This is very small and may cause blockage. Tubing: FEP. Pump: Syringe (Q=1.54 mL/min).",
+      "fluidics_score": 0.1,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 69.52,
+      "flow_regime": "laminar",
+      "De": 16.6,
+      "dP_bar": 1.34,
+      "pump_headroom_pct": 99.7,
+      "t_mix_s": 25.0,
+      "r_mix": 1.894,
+      "dual_criterion_mixing_fail": true,
+      "d_change_direction": "decrease",
+      "d_fix_mm": 0.28,
+      "tau_mixing_required_min": null,
+      "L_m": 28.8,
+      "geometry_feasible": false,
+      "pump_type": "syringe pump (Q=1.54 mL/min < 2 mL/min)",
+      "tubing_material": "FEP",
+      "dead_volume_mL": 0.25,
+      "dead_volume_impact": "V_dead/Q = 0.16 min = 7.3% of τ=2.2 min — significant error",
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "d_mm": 0.28
+      },
+      "concerns": [
+        "Dual-criterion mixing fail: Da_mass=225.8 > 1.0 AND r_mix=1.894 > 0.20",
+        "L=28.8 m > 25.0 m bench limit",
+        "Dead volume impact > 5%"
+      ]
+    }
+  ],
+  "safety_overall": "The safety landscape for this photo-oxidation is generally favorable due to the use of acetonitrile (low toxicity compared to DMF) and ambient temperature operation. Thermal risks are negligible (Da_thermal << 0.1) as the reaction is not highly exothermic and heat dissipation is efficient in flow. The primary safety concern is the handling of acetonitrile (flammable, toxic) and the potential generation of singlet oxygen or radical intermediates, which require inert atmosphere management and closed-system operation. BPR settings of 3.0 bar are adequate for the liquid-only system, providing sufficient margin over the calculated vapor pressure and pressure drop. Material compatibility is confirmed for FEP tubing, which is transparent to UV/Vis light and chemically resistant to acetonitrile at 21°C. No blocking issues were identified, but strict adherence to inert atmosphere protocols and leak prevention is required. The safety landscape for these photo-oxidation candidates is dominated by the handling of singlet oxygen and the flammability of acetonitrile, rather than thermal runaway risks. Both candidates operate at ambient temperature (21°C) with low exothermicity, resulting in negligible Da_thermal values (< 0.01), confirming thermal safety. The primary safety concern is the BPR setting: while 3.0 bar is technically sufficient for a liquid-only system (P_vap ~ 0.1 bar + ΔP ~ 2.4 bar), the system involves oxygen, which triggers a conservative gas-liquid safety protocol requiring a minimum of 3.0 bar hard floor. The current 3.0 bar setting meets this hard floor but offers zero robustness margin against pressure spikes or sensor drift. Material compatibility is excellent with FEP tubing, which is mandatory for photochemical transparency and chemically inert to acetonitrile and oxygen. Hazard management requires strict inerting of feed lines to prevent explosive mixtures if air ingress occurs, and closed-system handling to prevent singlet oxygen release. Both candidates are ACCEPTED with the condition that the BPR is verified to hold 3.0 bar reliably and that oxygen supply is regulated with a flashback arrestor.",
+  "safety_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Candidate 1 operates at 21°C with acetonitrile solvent. Thermal safety is excellent (Da_thermal ~0.01) due to low exotherm and efficient cooling. BPR calculation: P_vap(ACN, 21°C) ≈ 0.12 bar. P_min = 0.12 + 2.62 (ΔP) + 0.5 (margin) = 3.24 bar. However, the system is liquid-only, and the hard floor for gas-liquid (3.0 bar) is not strictly applicable, but 3.0 bar is close to the calculated minimum. Given the ΔP is 2.62 bar, a BPR of 3.0 bar leaves only 0.38 bar headroom, which is < 20% of ΔP. This is a safety risk for overpressure on restriction. Recommended BPR should be higher to ensure >40% headroom. Material: FEP is compatible with ACN at 21°C. Hazards: ACN is flammable and toxic; singlet oxygen generation requires inert atmosphere. The BPR setting is marginal and should be increased to 4.0 bar for robustness.",
+      "safety_score": 0.75,
+      "safety_delta_flow_value": 0.4,
+      "Da_thermal": 0.01,
+      "thermal_safe": true,
+      "BPR_required_bar": 3.24,
+      "BPR_current_bar": 3.0,
+      "BPR_adequate": false,
+      "system_type": "liquid",
+      "material_compatible": true,
+      "material_recommendation": "FEP",
+      "material_rationale": "Acetonitrile at 21°C, ambient pressure, pH ~7 — FEP is fully compatible per IDEX/Swagelok compatibility data. No halides, no elevated temperature concern. FEP is transparent for photochemistry.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A — single stage, inert N₂ atmosphere throughout",
+      "hazard_flags": [
+        "Acetonitrile — Flammable, toxic (CN- release on combustion); use fume hood, closed system, PPE (nitrile gloves + goggles)",
+        "Singlet oxygen — Reactive intermediate; ensure inert atmosphere to prevent side reactions and potential pressure buildup from gas evolution if any",
+        "BPR headroom < 20% — Risk of overpressure on restriction; increase BPR to 4.0 bar"
+      ],
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "BPR_bar": 4.0
+      },
+      "blocking_issues": [],
+      "conditions": [
+        "Increase BPR to 4.0 bar to ensure >40% headroom over ΔP",
+        "Ensure N₂ blanket on all feed reservoirs before pressurising",
+        "Verify no gas evolution from reaction; if gas forms, re-evaluate BPR for gas-liquid system"
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Candidate 2 operates at 21°C with acetonitrile solvent. Thermal safety is excellent (Da_thermal ~0.01). BPR calculation: P_vap(ACN, 21°C) ≈ 0.12 bar. P_min = 0.12 + 1.47 (ΔP) + 0.5 (margin) = 2.09 bar. Current BPR is 3.0 bar, which provides 0.91 bar headroom, or ~62% of ΔP. This is adequate (>40% headroom). Material: FEP is compatible with ACN at 21°C. Hazards: ACN is flammable and toxic; singlet oxygen generation requires inert atmosphere. The BPR setting is adequate. No blocking issues.",
+      "safety_score": 0.9,
+      "safety_delta_flow_value": 0.4,
+      "Da_thermal": 0.01,
+      "thermal_safe": true,
+      "BPR_required_bar": 2.09,
+      "BPR_current_bar": 3.0,
+      "BPR_adequate": true,
+      "system_type": "liquid",
+      "material_compatible": true,
+      "material_recommendation": "FEP",
+      "material_rationale": "Acetonitrile at 21°C, ambient pressure, pH ~7 — FEP is fully compatible per IDEX/Swagelok compatibility data. No halides, no elevated temperature concern. FEP is transparent for photochemistry.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A — single stage, inert N₂ atmosphere throughout",
+      "hazard_flags": [
+        "Acetonitrile — Flammable, toxic (CN- release on combustion); use fume hood, closed system, PPE (nitrile gloves + goggles)",
+        "Singlet oxygen — Reactive intermediate; ensure inert atmosphere to prevent side reactions and potential pressure buildup from gas evolution if any"
+      ],
+      "verdict": "ACCEPT",
+      "proposed_changes": {},
+      "blocking_issues": [],
+      "conditions": [
+        "Ensure N₂ blanket on all feed reservoirs before pressurising",
+        "Verify no gas evolution from reaction; if gas forms, re-evaluate BPR for gas-liquid system"
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Candidate 3 operates at 21°C with acetonitrile solvent. Thermal risk is negligible (Da_thermal ≈ 0.005) due to low concentration and efficient heat dissipation in small ID tubing. BPR calculation: P_vap(ACN, 21°C) ≈ 0.12 bar. ΔP = 2.38 bar. Liquid-only P_min = 0.12 + 2.38 + 0.5 = 3.0 bar. However, due to O₂ usage, the gas-liquid hard floor of 3.0 bar applies. Current BPR is 3.0 bar, which meets the hard floor exactly but leaves no safety margin for pressure transients. Material check: FEP is fully compatible with ACN/O₂ at 21°C and provides necessary UV/Vis transparency. Hazard flags include flammable solvent and oxidant gas. The long coil length (28.8 m) increases hold-up volume, requiring careful purging protocols to prevent oxygen accumulation in dead legs.",
+      "safety_score": 0.85,
+      "safety_delta_flow_value": 0.4,
+      "Da_thermal": 0.005,
+      "thermal_safe": true,
+      "BPR_required_bar": 3.0,
+      "BPR_current_bar": 3.0,
+      "BPR_adequate": true,
+      "system_type": "liquid",
+      "material_compatible": true,
+      "material_recommendation": "FEP",
+      "material_rationale": "Acetonitrile and Oxygen at 21°C, 3.0 bar. FEP is chemically inert, optically transparent for photochemistry, and rated for these pressures. No halides or high pH to degrade FEP.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A — single stage, but O₂ feed must be isolated from ambient air via flashback arrestor and check valves",
+      "hazard_flags": [
+        "Acetonitrile — Flammable (Cat 3), Toxic (H302); use closed system, grounding, and spark-free equipment",
+        "Oxygen — Oxidizer (Cat 1); risk of fire/explosion if mixed with organics in confined space; use flashback arrestor",
+        "Singlet Oxygen — Reactive intermediate; ensure exhaust is vented to fume hood to avoid inhalation of oxidized byproducts"
+      ],
+      "verdict": "ACCEPT",
+      "proposed_changes": {},
+      "blocking_issues": [],
+      "conditions": [
+        "Verify BPR valve calibration at 3.0 bar; consider increasing to 3.5 bar if pump stability allows for better margin",
+        "Install flashback arrestor on O₂ line",
+        "Ensure all fittings are leak-tight to prevent O₂ enrichment in lab atmosphere"
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Candidate 4 operates at 21°C with acetonitrile solvent. Thermal risk is negligible (Da_thermal ≈ 0.005). BPR calculation: P_vap(ACN, 21°C) ≈ 0.12 bar. ΔP = 1.34 bar. Liquid-only P_min = 0.12 + 1.34 + 0.5 = 1.96 bar. However, due to O₂ usage, the gas-liquid hard floor of 3.0 bar applies. Current BPR is 3.0 bar, which meets the hard floor. The lower ΔP compared to Candidate 3 provides slightly better pressure headroom, but the BPR setting remains at the minimum safe limit for oxygenated systems. Material check: FEP is fully compatible with ACN/O₂ at 21°C. Hazard flags are identical to Candidate 3. The larger ID (1.0 mm) reduces pressure drop but increases volume, requiring similar purging protocols.",
+      "safety_score": 0.88,
+      "safety_delta_flow_value": 0.4,
+      "Da_thermal": 0.005,
+      "thermal_safe": true,
+      "BPR_required_bar": 3.0,
+      "BPR_current_bar": 3.0,
+      "BPR_adequate": true,
+      "system_type": "liquid",
+      "material_compatible": true,
+      "material_recommendation": "FEP",
+      "material_rationale": "Acetonitrile and Oxygen at 21°C, 3.0 bar. FEP is chemically inert, optically transparent for photochemistry, and rated for these pressures. No halides or high pH to degrade FEP.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A — single stage, but O₂ feed must be isolated from ambient air via flashback arrestor and check valves",
+      "hazard_flags": [
+        "Acetonitrile — Flammable (Cat 3), Toxic (H302); use closed system, grounding, and spark-free equipment",
+        "Oxygen — Oxidizer (Cat 1); risk of fire/explosion if mixed with organics in confined space; use flashback arrestor",
+        "Singlet Oxygen — Reactive intermediate; ensure exhaust is vented to fume hood to avoid inhalation of oxidized byproducts"
+      ],
+      "verdict": "ACCEPT",
+      "proposed_changes": {},
+      "blocking_issues": [],
+      "conditions": [
+        "Verify BPR valve calibration at 3.0 bar; consider increasing to 3.5 bar if pump stability allows for better margin",
+        "Install flashback arrestor on O₂ line",
+        "Ensure all fittings are leak-tight to prevent O₂ enrichment in lab atmosphere"
+      ]
+    }
+  ],
+  "tool_calls": {
+    "chemistry": [],
+    "kinetics": [],
+    "fluidics": [],
+    "safety": []
+  },
+  "blocked_by_scoring": [],
+  "process_value_scores": [
+    {
+      "candidate_id": 1,
+      "PVS": 0.4783,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 0.1666,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.4
+    },
+    {
+      "candidate_id": 2,
+      "PVS": 0.4783,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 0.1666,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.4
+    },
+    {
+      "candidate_id": 3,
+      "PVS": 0.473,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 0.1515,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.4
+    },
+    {
+      "candidate_id": 4,
+      "PVS": 0.473,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 0.1515,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.4
+    }
+  ]
+}

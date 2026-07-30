@@ -1,0 +1,110 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 1.0,
+  "temperature_C": 80.0,
+  "concentration_M": 0.667,
+  "BPR_bar": 5.0,
+  "reactor_type": "single_coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 5.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Nitrogen sparging",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Substrate and catalyst feed",
+      "contents": [
+        "Benzyl Alcohol (0.667 M)",
+        "NaBr (catalytic)",
+        "Sulfuric Acid (catalytic)",
+        "Dioxane"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.333,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream A contains substrate and catalysts. Flow rate set to 2/3 of total to maintain 0.667 M final concentration when mixed with Stream B."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Oxidant feed",
+      "contents": [
+        "TBHP (1.5 equiv)",
+        "Dioxane"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 1.0,
+      "flow_rate_mL_min": 0.167,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream B contains TBHP. Must be mixed with Stream A before Stage 1. Flow rate set to 1/3 of total to provide 1.5 equiv relative to Benzyl Alcohol."
+    },
+    {
+      "stream_label": "C",
+      "pump_role": "Nucleophile feed (Interstage)",
+      "contents": [
+        "Morpholine (1.0 equiv)",
+        "Dioxane"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 1.0,
+      "flow_rate_mL_min": 0.0,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream C contains Morpholine. Must be added AFTER Stage 1. NOTE: Inventory lacks interstage addition port. This stream cannot be implemented with current hardware. Design assumes hypothetical interstage addition for chemical correctness, or requires batch workup between stages."
+    }
+  ],
+  "mixer_type": "T-mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Oxidation must precede amidation. Morpholine cannot be present during oxidation. Stream A and B mix first for Stage 1. Stream C must be added after Stage 1 completion.",
+  "pre_reactor_steps": [
+    "Degas Dioxane with Nitrogen to remove moisture/oxygen (Chemistry Plan: moisture sensitive)",
+    "Prepare Stream A (Benzyl Alcohol, NaBr, H2SO4 in Dioxane)",
+    "Prepare Stream B (TBHP in Dioxane)"
+  ],
+  "post_reactor_steps": [
+    "Quench with Water/Base to neutralize sulfuric acid and hydrolyze intermediates (Chemistry Plan)",
+    "Separate organic layer"
+  ],
+  "chemistry_notes": "This is a two-stage oxidative amidation. Stage 1: Oxidation of Benzyl Alcohol to Benzoyl Bromide/Intermediate using TBHP/NaBr/H2SO4. Stage 2: Amidation with Morpholine. Critical Constraint: TBHP and Morpholine are incompatible. They must be segregated. The provided inventory (single coil, no interstage addition) makes a true continuous flow telescoping impossible without violating chemical safety. The design below assumes a hypothetical interstage addition point for Stream C to satisfy the Chemistry Plan. If strictly limited to inventory, the reaction must be run in two separate batch steps or a different reactor setup is required. Residence time of 3 min is derived from kinetic class intensification (10x factor). PFA tubing used for thermal stability at 80C. No light source required.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 suggests 3.0 min (10x intensification from 30 min batch). Analogy 1 used 78 min (photochem, not applicable). Analogy 2 used 2 min (photochem, not applicable). Analogy 3 used 20 min (nucleophilic substitution, similar to Stage 2). Using 3.0 min based on kinetic class calculation for oxidation stage.",
+    "residence_time_basis": "Single-phase liquid system. No gas reagents.",
+    "temperature_C": "Same as batch (80 C). Chemistry Plan specifies 80 C for both stages.",
+    "BPR_bar": "Calculation Step 8 says BPR not required (bp 101 C vs 80 C). However, precautionary BPR of 5 bar selected from inventory to ensure safety with TBHP and prevent solvent boiling/evaporation in coil.",
+    "tubing_material": "PFA from inventory. Suitable for 80 C and chemical resistance to TBHP/Acid. FEP not available in inventory reactor list.",
+    "concentration_M": "0.667 M from Batch Protocol and Chemistry Plan.",
+    "reactor_volume_mL": "Calculated as V = Q * t = 0.5 mL/min * 3 min = 1.5 mL. Inventory reactor is 5 mL. Using 1.5 mL of the 5 mL coil (approx 1.91 m length).",
+    "flow_rate_mL_min": "0.5 mL/min total. Derived from V=1.5mL and t=3min. Split into Stream A (0.333) and Stream B (0.167) to maintain stoichiometry and concentration.",
+    "mixer_type": "T-mixer assumed for initial mixing of A and B. Static mixer preferred due to Da > 1 (Calculation Step 6), but not in inventory.",
+    "pre_reactor_steps": "Moisture sensitivity noted in Chemistry Plan. Nitrogen sparging recommended.",
+    "post_reactor_steps": "Quench required per Chemistry Plan to neutralize acid.",
+    "light_setup": "Thermal reaction. No light required.",
+    "wavelength_nm": "Null. Thermal reaction."
+  },
+  "literature_analogies": [
+    "Analogy 1: Photodecarboxylation (80C, 78 min). Similar T, but photochem. Not directly applicable for kinetics.",
+    "Analogy 2: Photocatalytic oxidation (25C, 2 min). Similar oxidation class, but photochem. Not directly applicable.",
+    "Analogy 3: Nucleophilic substitution (20 min). Similar to Stage 2 (Amidation). Supports short residence time for nucleophilic attack."
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "LOW"
+}

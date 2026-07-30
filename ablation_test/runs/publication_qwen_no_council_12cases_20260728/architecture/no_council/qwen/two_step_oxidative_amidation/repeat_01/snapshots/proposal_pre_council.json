@@ -1,0 +1,83 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 2.0,
+  "temperature_C": 80.0,
+  "concentration_M": 0.667,
+  "BPR_bar": 5.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Substrate and Catalyst Feed",
+      "contents": [
+        "Benzyl Alcohol (0.667 M)",
+        "NaBr (catalytic)",
+        "Sulfuric Acid (catalytic)"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream A contains substrate, solvent, and acid/bromide catalyst system. Split total flow equally for balanced mixing."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Oxidant and Nucleophile Feed",
+      "contents": [
+        "TBHP (oxidant)",
+        "Morpholine (base/nucleophile)"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream B contains TBHP and Morpholine. Co-feeding allows controlled oxidation and immediate trapping. Split total flow equally."
+    }
+  ],
+  "mixer_type": "Static Mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Mix alcohol/catalyst stream with oxidant/amine stream. Static mixer preferred due to Da > 1 (mixing limited) and need for enhanced laminar mixing to control exotherm and selectivity.",
+  "pre_reactor_steps": [
+    "Pump streams A and B at 0.25 mL/min each.",
+    "Mix streams using static mixer to ensure rapid homogenization before heating."
+  ],
+  "post_reactor_steps": [
+    "Quench with Sodium Bisulfite or Water to decompose excess TBHP and neutralize acid.",
+    "Separate organic phase for analysis."
+  ],
+  "chemistry_notes": "Thermal oxidative amidation. TBHP and Morpholine are incompatible with Sulfuric Acid if pre-mixed, hence separate streams. High Da (7.9) indicates mixing is critical; static mixer used. Pe=35 indicates significant axial dispersion; smaller ID (1.0 mm) chosen to maximize Pe and approach PFR behavior. BPR added precautionarily as T=80C is close to Dioxane bp=101C.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2: tau = 3.0 min based on kinetic class IF=10x. Range [2.0-4.5] min. Selected 3.0 min as target.",
+    "residence_time_basis": "Single-phase liquid system. Basis is liquid volume / liquid flow.",
+    "temperature_C": "Same as batch (80 C). Calculation Step 7 confirms thermal safety (Da_th = 0.026).",
+    "BPR_bar": "Calculation Step 8: BPR not strictly required (bp 101 C > T 80 C + 20 C margin is tight but safe). However, precautionary BPR of 5 bar set to prevent solvent boiling and ensure consistent residence time.",
+    "tubing_material": "PFA selected for thermal stability at 80 C and chemical resistance to TBHP/Acid. FEP also acceptable but PFA preferred for higher temp margin.",
+    "concentration_M": "From Batch Input: 0.667 M. Maintained for direct comparison.",
+    "reactor_volume_mL": "Calculation Step 3: V_R = 1.50 mL derived from tau=3.0 min and Q=0.5 mL/min.",
+    "tubing_ID_mm": "Calculation Step 3: d = 1.00 mm. Chosen to improve Pe number (currently 35) towards PFR behavior, though axial dispersion remains significant."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

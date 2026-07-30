@@ -1,0 +1,81 @@
+{
+  "residence_time_min": 0.6,
+  "flow_rate_mL_min": 0.5,
+  "temperature_C": 40.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 0.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 0.3,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "N2 sparging of solvent prior to reaction",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Substrate feed",
+      "contents": [
+        "Aromatic Bromide (0.1 M)",
+        "Phenylboronic Acid Derivative (0.1 M)"
+      ],
+      "solvent": "DMF",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Substrates dissolved in solvent. Split total flow equally for mixing."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Catalyst/Base feed",
+      "contents": [
+        "Palladium Catalyst (2 mol%)",
+        "Base (2 equiv)",
+        "DMF"
+      ],
+      "solvent": "DMF",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Catalyst and base mixed separately to prevent precipitation. Split total flow equally."
+    }
+  ],
+  "mixer_type": "T-mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Base and catalyst mixed separately to avoid immediate precipitation of Pd species before contact with substrates. T-mixer provides rapid mixing for laminar flow.",
+  "pre_reactor_steps": [
+    "Sparging DMF with N2 for 15 min prior to pumping to remove dissolved oxygen (Chemistry Plan: deoxygenation_required=true)."
+  ],
+  "post_reactor_steps": [
+    "Collection into vial under inert atmosphere."
+  ],
+  "chemistry_notes": "CRITICAL CONSTRAINT VIOLATION: Batch requires 50°C, but all available PFA tubing/reactors are rated max 40°C. Design proposes operating at 40°C (max safe limit) to preserve hardware integrity, acknowledging potential yield drop vs batch. Reaction is thermal Suzuki coupling, not photochemical; light_setup is null. Deoxygenation is critical for Pd(0) stability. Stream separation prevents Pd-base precipitation.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 estimated 0.6 min. Analogy 1 used 12 min but was photoredox/SET; this is thermal Pd-catalyzed. Thermal couplings are faster. Using 0.6 min based on calculation and kinetic class IF.",
+    "residence_time_basis": "Single-phase liquid system. Basis is liquid volume / liquid flow.",
+    "temperature_C": "Batch is 50°C. Inventory max is 40°C. Hard constraint violation. Set to 40°C to prevent tubing failure. Yield may be lower than batch.",
+    "BPR_bar": "Calculation Step 8: BPR not required. DMF bp (153°C) >> 40°C. No gas generation.",
+    "tubing_material": "Inventory only provides PFA. PFA is suitable for thermal reactions up to 40°C. FEP not available in inventory.",
+    "concentration_M": "Calculation Step 1 used 0.1 M. Analogy 1 used 0.05 M. Using 0.1 M to maximize productivity within solubility limits.",
+    "reactor_volume_mL": "Selected 5 mL PFA coil from inventory. Smallest available. 10 mL is too large for short residence times.",
+    "flow_rate_mL_min": "Adjusted to 5.0 mL/min to achieve tau ~1 min with 5 mL reactor (Inventory constraint). Max pump capacity is 5.0 mL/min."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "LOW"
+}

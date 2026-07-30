@@ -1,0 +1,68 @@
+{
+  "residence_time_min": 36.0,
+  "flow_rate_mL_min": 0.27778,
+  "temperature_C": 120.0,
+  "concentration_M": 0.3,
+  "BPR_bar": 10.0,
+  "reactor_type": "Coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Delivers homogeneous reaction mixture",
+      "contents": [
+        "4-Fluoronitrobenzene (0.3 M)",
+        "Piperazine (0.36 M)"
+      ],
+      "solvent": "DMF",
+      "concentration_M": 0.3,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "Chemistry Plan specifies single stream with all reagents premixed. Concentration matches batch (0.3 M). Flow rate derived from calculation to achieve target residence time."
+    }
+  ],
+  "mixer_type": "None (Premixed)",
+  "mixing_order_reasoning": "Chemistry Plan states reagents are dissolved together in batch; co-feeding or premixing is acceptable. Single stream simplifies setup.",
+  "pre_reactor_steps": [
+    "Degas DMF solution if necessary to prevent bubble formation at 120 C, though reaction is air-tolerant."
+  ],
+  "post_reactor_steps": [
+    "Quench with water/brine for aqueous workup as per batch protocol."
+  ],
+  "chemistry_notes": "SnAr reaction of 4-fluoronitrobenzene with piperazine in DMF. Thermal process at 120 C. No light source required. Single stream premixing used. BPR not strictly required by boiling point margin (153 C vs 120 C) but recommended for safety and to prevent solvent evaporation/pressure fluctuations in long coils. Analogy 3 supports 120 C operation in PFA.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 suggests 36.0 min (10x intensification from 6h batch). Analogy 3 used 20 min at 120 C. 36 min is conservative and within calculated range [24-135 min].",
+    "residence_time_basis": "Single phase liquid system. Basis is liquid volume / liquid flow.",
+    "temperature_C": "Same as batch (120 C). Analogy 3 also used 120 C. No need to increase temperature as flow advantage is productivity via shorter residence time, not thermal acceleration beyond batch conditions.",
+    "BPR_bar": "Calculation Step 8 says BPR not required (bp 153 C > 120 C + 20 C). However, Analogy 3 used 9.7 bar BPR at 120 C. Setting 10 bar for safety and to ensure single-phase liquid flow in long coil.",
+    "tubing_material": "PFA is suitable for 120 C and DMF. Analogy 3 used PFA. FEP is also acceptable but PFA has better chemical resistance for long-term use.",
+    "concentration_M": "Matches batch concentration (0.3 M) as per Chemistry Plan and Calculation Step 1.",
+    "reactor_volume_mL": "Calculated as V = t * Q = 36 min * 0.5 mL/min = 18.0 mL. Matches Calculation Step 3.",
+    "tubing_ID_mm": "1.0 mm ID used in Calculation Step 3 to achieve plug flow (Pe=415) and laminar flow (Re=11).",
+    "flow_rate_mL_min": "0.5 mL/min derived from Calculation Step 3 to achieve 36 min residence time with 18 mL volume."
+  },
+  "literature_analogies": [
+    "Analogy 3 (120 C, PFA, BPR)",
+    "Analogy 1 (SnAr, Flow reactor)"
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "HIGH"
+}

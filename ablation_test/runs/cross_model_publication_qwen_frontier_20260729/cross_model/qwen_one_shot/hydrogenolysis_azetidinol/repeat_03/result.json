@@ -1,0 +1,87 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 120,
+    "flow_rate_mL_min": 0.5,
+    "temperature_C": 60,
+    "concentration_M": 0.5,
+    "BPR_bar": 20,
+    "reactor_type": "Packed Bed Reactor (PBR)",
+    "tubing_material": "Stainless Steel 316L",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 60.0,
+    "residence_time_basis": "Liquid phase residence time",
+    "residence_time_inlet_min": 120,
+    "residence_time_in_channel_min": 120,
+    "light_setup": "None",
+    "wavelength_nm": 0,
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Main Liquid Feed",
+        "contents": "N-Diphenylmethylazetidin-3-ol, Acetic Acid",
+        "solvent": "Methanol",
+        "phase": "Liquid",
+        "flow_rate_mL_min": 0.5,
+        "concentration_M": 0.5,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": 0,
+        "gas_flow_actual_mL_min": 0
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "Gas Feed",
+        "contents": "Hydrogen",
+        "solvent": "None",
+        "phase": "Gas",
+        "flow_rate_mL_min": 0,
+        "concentration_M": 0,
+        "molar_equiv": 10.0,
+        "gas_flow_sccm": 500,
+        "gas_flow_actual_mL_min": 10000
+      }
+    ],
+    "mixer_type": "Static Mixer (Tee Junction)",
+    "mixing_order_reasoning": "Hydrogen gas is mixed with the liquid substrate stream immediately before entering the packed bed to ensure saturation of the liquid phase with H2 prior to catalytic contact. Acetic acid is pre-dissolved in the liquid stream to prevent localized pH issues and ensure homogeneous catalytic environment.",
+    "pre_reactor_steps": [
+      "Dissolve N-Diphenylmethylazetidin-3-ol (0.5 M) and Acetic Acid (1.0 equiv) in Methanol.",
+      "Filter solution through 0.22 micron PTFE filter to prevent catalyst bed fouling.",
+      "Purge system with Nitrogen, then switch to Hydrogen."
+    ],
+    "post_reactor_steps": [
+      "Pass effluent through a gas-liquid separator (membrane or gravity-based) to remove unreacted H2.",
+      "Neutralize acetic acid with aqueous NaHCO3 if necessary for downstream processing.",
+      "Concentrate methanol under reduced pressure.",
+      "Purify product via chromatography or crystallization."
+    ],
+    "chemistry_notes": "The batch protocol reports a low yield (38.1%) likely due to mass transfer limitations or catalyst deactivation over 5 hours. Continuous flow with a packed bed allows for better heat/mass transfer control and consistent catalyst exposure. The use of Acetic Acid is retained as per protocol to enhance rate, likely by protonating the amine or modifying catalyst surface properties. Pd(OH)2/Al2O3 (Pearlman's catalyst) is sensitive to poisoning; filtration is critical. The residence time is increased relative to batch (2h vs 5h) because flow reactors often require higher space velocities or longer contact times to achieve conversion if catalyst loading is lower, but here we aim for complete conversion in a single pass or recycle. Given the low batch yield, a longer residence time (2h) is chosen to maximize conversion, assuming the catalyst remains active.",
+    "stage_parameters": {
+      "reactor_length_cm": 764,
+      "catalyst_bed_void_fraction": 0.4,
+      "pressure_drop_bar": 5.0
+    },
+    "reasoning_per_field": {
+      "residence_time_min": "Batch was 5h. Flow often requires longer residence times for heterogeneous catalysis to achieve similar conversion if catalyst loading is not extremely high. 2h is a conservative start to ensure conversion, allowing for potential recycle if conversion is incomplete.",
+      "flow_rate_mL_min": "Low flow rate (0.5 mL/min) ensures laminar flow and good contact with catalyst bed, minimizing channeling.",
+      "temperature_C": "Maintained at 60 C as per batch protocol.",
+      "concentration_M": "0.5 M is a standard concentration for hydrogenation to balance throughput and mass transfer.",
+      "BPR_bar": "20 bar (approx 290 psi) is typical for hydrogenation to increase H2 solubility in methanol and drive reaction kinetics.",
+      "reactor_type": "Packed Bed is standard for heterogeneous hydrogenation with solid catalysts like Pd(OH)2/Al2O3.",
+      "tubing_material": "Stainless Steel 316L is required for high-pressure hydrogen service.",
+      "tubing_ID_mm": "1.0 mm ID is suitable for low flow rates and packed beds to prevent channeling.",
+      "reactor_volume_mL": "Calculated as Flow Rate * Residence Time = 0.5 mL/min * 120 min = 60 mL. This is the void volume of the reactor. The actual packed volume will be larger depending on void fraction.",
+      "streams": "Stream A contains substrate and acid. Stream B is H2 gas. Gas flow is set to 10x molar excess to ensure saturation.",
+      "safety_flags": "Hydrogen is flammable and explosive. System must be leak-tested. Pressure relief valve required. Methanol is flammable. Acetic acid is corrosive."
+    },
+    "literature_analogies": "Continuous flow hydrogenation of amines and alcohols using Pd/C or Pd(OH)2 is well-documented. Typical residence times range from minutes to hours depending on substrate complexity. The use of acid additives in flow hydrogenation is less common but feasible if compatible with materials.",
+    "engine_validated": false,
+    "safety_flags": [
+      "High Pressure Hydrogen",
+      "Flammable Solvent (Methanol)",
+      "Corrosive Acid (Acetic Acid)",
+      "Potential for Catalyst Dust Explosion (if handling dry catalyst)"
+    ],
+    "confidence": 0.7
+  },
+  "schema_valid": false
+}

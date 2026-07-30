@@ -1,0 +1,68 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 2.0,
+  "temperature_C": 50.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 0.0,
+  "reactor_type": "Coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Nitrogen sparging",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Main feed",
+      "contents": [
+        "Aromatic Bromide (1.0 equiv)",
+        "Phenylboronic Acid Derivative (1.0 equiv)",
+        "Base (1.0 equiv)",
+        "Palladium Catalyst (2.0 mol%)"
+      ],
+      "solvent": "DMF",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "Chemistry Plan specifies single stream for all reagents. Concentration 0.1 M from Engineering Design Calculations Step 1. Flow rate 0.5 mL/min from Step 3 to achieve target residence time."
+    }
+  ],
+  "mixer_type": "Static Mixer",
+  "mixing_order_reasoning": "Chemistry Plan indicates all reagents combined prior to heating. Static mixer ensures rapid homogenization before entering heated coil, addressing mass-transfer limitations (Da=70) identified in calculations.",
+  "pre_reactor_steps": [
+    "Degas DMF solution via sparging with Nitrogen for 15 minutes to remove oxygen, protecting Pd catalyst (Chemistry Plan: oxygen_sensitive=true)."
+  ],
+  "post_reactor_steps": [
+    "Collect effluent directly into collection vessel. No chemical quench required (Chemistry Plan: quench_required=false)."
+  ],
+  "chemistry_notes": "Suzuki-Miyaura coupling is thermally driven, not photochemical. Microwave heating in batch is replaced by efficient thermal transfer in flow coil. Pd catalyst is air/moisture sensitive; strict inert atmosphere required. Engineering calculations indicate significant axial dispersion (Pe=7) and mass-transfer limitation (Da=70); static mixer and small ID tubing (1.0 mm) mitigate this. No light source is used.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Engineering Calculation Step 2 suggests 0.6 min (range 0.3-1.0 min) for 18x intensification. Analogies (12-60 min) are for photochemical reactions with different kinetics; thermal Suzuki couplings are faster. 0.6 min is chosen to match calculated kinetic requirement.",
+    "residence_time_basis": "Single-phase liquid system. Basis is liquid volume / liquid flow.",
+    "temperature_C": "50°C matches batch condition (Chemistry Plan). Analogies used 50-80°C but were photochemical; thermal control in flow allows maintaining exact batch temperature with better heat transfer.",
+    "BPR_bar": "Engineering Calculation Step 8 states BPR not required (DMF bp 153°C >> 50°C). Set to 0.",
+    "tubing_material": "PFA selected for thermal stability and chemical resistance to DMF. FEP is preferred for photochemistry (not applicable here). SS is an alternative but PFA allows visual inspection.",
+    "concentration_M": "0.1 M from Engineering Calculation Step 1. Analogies used 0.05-0.5 M; 0.1 M is a standard compromise for solubility and viscosity.",
+    "reactor_volume_mL": "Calculated as V = Q * t = 0.5 mL/min * 0.6 min = 0.3 mL. Closest standard coil volume. Engineering Calc Step 3 suggested 0.29 mL.",
+    "tubing_ID_mm": "1.0 mm from Engineering Calculation Step 3. Balances pressure drop and axial dispersion (Pe=7 warning suggests smaller ID would be better but 1.0mm is standard for this flow rate).",
+    "light_setup": "Empty string. Reaction is thermal, not photochemical. Chemistry Plan confirms 'wavelength_reasoning: Reaction uses microwave heating, not photochemistry.'",
+    "wavelength_nm": "Null. No light source used."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

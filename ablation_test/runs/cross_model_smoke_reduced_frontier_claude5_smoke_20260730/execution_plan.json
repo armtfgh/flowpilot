@@ -1,0 +1,90 @@
+{
+  "schema_version": "flowpilot_reduced_frontier_v1.0",
+  "config_path": "/home/amirreza/Documents/codes/Flow Agent/ablation_test/configs/reduced_frontier_benchmark.json",
+  "config_sha256": "c4c5ab5bf459d144794e5fcd8b5678d714627b613bce4c2543cbccd4812a623b",
+  "profile": "smoke",
+  "candidate_budget": 4,
+  "temperature": 0.0,
+  "seed": 20260730,
+  "repeats": 1,
+  "workers": 1,
+  "cell_count": 1,
+  "conditions": {
+    "claude_sonnet5_one_shot": {
+      "label": "Claude Sonnet 5 one-shot",
+      "variant": "general_one_shot",
+      "bundle": "claude_sonnet5"
+    }
+  },
+  "primary_comparisons": [
+    {
+      "comparison_id": "flowpilot_vs_claude_sonnet5",
+      "treatment": "qwen_full",
+      "comparator": "claude_sonnet5_one_shot"
+    },
+    {
+      "comparison_id": "flowpilot_vs_gpt56_terra",
+      "treatment": "qwen_full",
+      "comparator": "gpt56_terra_one_shot"
+    },
+    {
+      "comparison_id": "claude_sonnet5_vs_gpt56_terra",
+      "treatment": "claude_sonnet5_one_shot",
+      "comparator": "gpt56_terra_one_shot"
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "suzuki_miyaura_aryl_bromide",
+      "title": "Suzuki-Miyaura cross-coupling",
+      "protocol": "An aromatic bromide (1.6 mmol, 1.0 equiv), a phenylboronic acid derivative, base, and a palladium catalyst were combined in DMF. The mixture was irradiated in a 50 W microwave reactor at 50 C for 10 min. The biaryl product was obtained in 91% yield.",
+      "category": "catalytic_high_temperature",
+      "objective": "Translate the batch protocol into a feasible, safe, and testable continuous-flow design.",
+      "suite_id": "literature_batch_to_flow_non_thq",
+      "difficulty": "high",
+      "tags": [
+        "Suzuki-Miyaura",
+        "palladium",
+        "thermal"
+      ],
+      "source_record_id": "op700225u.pdf",
+      "source_record_aliases": [],
+      "reference_quality": "machine_extracted_partial_stoichiometry",
+      "expected_features": {
+        "phase_regime": "liquid_or_suspension",
+        "topology": [
+          "feed_pumps",
+          "mixer",
+          "heated_reactor",
+          "back_pressure_regulator"
+        ],
+        "hazards": [
+          "hot_pressurized_DMF",
+          "possible_salt_precipitation"
+        ]
+      },
+      "reference_flow": {
+        "temperature_C": 120,
+        "residence_time_min": 5,
+        "flow_rate_mL_min": 0.36,
+        "reactor_volume_mL": 3,
+        "tubing_ID_mm": 1.6,
+        "BPR_bar": null,
+        "yield_pct": 91
+      },
+      "protocol_sha256": "02860877b8e244277fccc98bc0488499603d8e338dcd0a0bed9716e3d6b987fb"
+    }
+  ],
+  "model_bundles": {
+    "claude_sonnet5": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "base_url": null,
+      "upstream_mode": "never"
+    }
+  },
+  "frozen_scorer": {
+    "path": "/home/amirreza/Documents/codes/Flow Agent/ablation_test/src/metrics.py",
+    "sha256": "e86509c9a913249a7bccf73c49d9ae884a2748b74ddc5fcda74fe5f5f254b5e8"
+  }
+}

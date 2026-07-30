@@ -165,6 +165,7 @@ def sample_design_space(
     d_exclude_above_mm: Optional[float] = None,
     L_fractions: Optional[list[float]] = None,
     max_tau_min: Optional[float] = None,
+    min_flow_rate_mL_min: float = Q_MIN_ML_MIN,
 ) -> list[tuple[float, float, float, str]]:
     """Full (τ, d, Q, τ_source) enumeration.
 
@@ -197,7 +198,7 @@ def sample_design_space(
                     # contributes to liquid residence time.
                     V_R_target_mL *= GAS_LIQUID_DESIGN_LIQUID_HOLDUP_FRACTION
                 Q_mL_min = V_R_target_mL / tau_min
-                if Q_mL_min < Q_MIN_ML_MIN:
+                if Q_mL_min < min_flow_rate_mL_min:
                     continue
                 triplets.append((tau_min, d_mm, round(Q_mL_min, 5), tau_source))
     return triplets
@@ -348,6 +349,7 @@ def hard_filter(
     pump_max_bar: float,
     BPR_bar: float = 0.0,
     max_tau_min: Optional[float] = None,
+    min_flow_rate_mL_min: float = Q_MIN_ML_MIN,
 ) -> tuple[bool, list[str], list[str]]:
     """Apply hard bench/safety constraints.
 
@@ -391,8 +393,11 @@ def hard_filter(
         )
 
     # Flow floor
-    if m["Q_mL_min"] < Q_MIN_ML_MIN:
-        violations.append(f"Q={m['Q_mL_min']:.4f} mL/min < {Q_MIN_ML_MIN} (syringe pump floor)")
+    if m["Q_mL_min"] < min_flow_rate_mL_min:
+        violations.append(
+            f"Q={m['Q_mL_min']:.4f} mL/min < {min_flow_rate_mL_min} "
+            "(selected pump floor)"
+        )
 
     if max_tau_min is not None and m["tau_min"] > max_tau_min:
         violations.append(
@@ -485,6 +490,8 @@ def generate_candidates(
     L_fractions: Optional[list[float]] = None,
     N_target: int = 12,
     max_tau_min: Optional[float] = None,
+    min_tau_min: Optional[float] = None,
+    min_flow_rate_mL_min: float = Q_MIN_ML_MIN,
 ) -> tuple[list[dict], list[dict]]:
     """Generate → metrics → hard filter. Returns (feasible, infeasible).
 
@@ -504,12 +511,15 @@ def generate_candidates(
         n_tau=n_tau, tau_log_spaced=tau_log_spaced,
         d_exclude_above_mm=d_exclude_above_mm, L_fractions=L_fractions,
         max_tau_min=max_tau_min,
+        min_flow_rate_mL_min=min_flow_rate_mL_min,
     )
 
     feasible: list[dict] = []
     infeasible: list[dict] = []
 
     for tau_min, d_mm, Q_mL_min, tau_source in triplets:
+        if min_tau_min is not None and tau_min < min_tau_min - 1e-9:
+            continue
         m = compute_metrics(
             tau_min=tau_min, d_mm=d_mm, Q_mL_min=Q_mL_min,
             solvent=solvent, temperature_C=temperature_C,
@@ -524,6 +534,7 @@ def generate_candidates(
         ok, viol, warns = hard_filter(
             m, is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,
             pump_max_bar=pump_max_bar, BPR_bar=BPR_bar, max_tau_min=max_tau_min,
+            min_flow_rate_mL_min=min_flow_rate_mL_min,
         )
         m["feasible"] = ok
         m["violations"] = viol

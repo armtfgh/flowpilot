@@ -1,0 +1,86 @@
+{
+  "residence_time_min": 10.0,
+  "flow_rate_mL_min": 0.5,
+  "temperature_C": 21.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 5.0,
+  "reactor_type": "photocoil",
+  "tubing_material": "FEP",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 5.0,
+  "residence_time_inlet_min": 10.0,
+  "residence_time_in_channel_min": 1.6,
+  "residence_time_basis": "inlet/STP apparent residence time",
+  "light_setup": "420 nm LED, 20 W, 100 mW/cm2",
+  "wavelength_nm": 420.0,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "Liquid Feed",
+      "pump_role": "Syringe pump A",
+      "contents": [
+        "Fmoc-L-methionine (0.1 M)",
+        "4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%)"
+      ],
+      "solvent": "acetonitrile",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Homogeneous solution of substrate, catalyst, and solvent. Flow rate set to 0.5 mL/min to achieve target residence time with selected reactor volume."
+    },
+    {
+      "stream_label": "Gas Feed",
+      "pump_role": "Air/O2 mass-flow controller",
+      "contents": [
+        "air"
+      ],
+      "solvent": "",
+      "concentration_M": null,
+      "flow_rate_mL_min": null,
+      "phase": "",
+      "gas_flow_sccm": 5.34,
+      "gas_flow_actual_mL_min": 5.75,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Source of molecular oxygen. Flow rate calculated to provide sufficient O2 equivalents and maintain segmented flow regime (epsilon_g ~0.85) as per Engineering Design Calculations."
+    }
+  ],
+  "mixer_type": "Certified gas-liquid T-mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: All liquid components mixed prior to gas introduction to ensure uniform catalyst distribution. Gas introduced via T-mixer immediately before reactor to maximize interfacial area for mass transfer.",
+  "pre_reactor_steps": [
+    "Mix Fmoc-L-methionine, photocatalyst, and acetonitrile in syringe pump A.",
+    "Introduce air via MFC into liquid stream using Certified gas-liquid T-mixer."
+  ],
+  "post_reactor_steps": [
+    "Pass through BPR (5 bar) to maintain pressure and gas solubility.",
+    "Collect product stream."
+  ],
+  "chemistry_notes": "Photo-oxidation of Fmoc-L-methionine using 4,7-diphenyl-2,1,3-benzothiadiazole. Reaction is mass-transfer limited (Da >> 1), requiring efficient gas-liquid mixing. Flow design uses segmented flow (Taylor flow) to enhance kLa. BPR is mandatory to maintain O2 solubility (Henry's Law) and prevent degassing. 420 nm LED matches photocatalyst absorption. No deoxygenation; air is the oxidant.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation suggested 0.2 min, but Analogy 2 (photoredox) used 12 min and Analogy 3 (photo-C-H) used 15 min. Given mass-transfer limitation (Da=307), a conservative 10 min residence time is chosen to ensure complete conversion, balancing the 20x intensification target with practical mass transfer limits in flow.",
+    "residence_time_basis": "Gas-liquid system. Inlet/STP basis used for reactor sizing (V = t_inlet * (Q_liq + Q_gas_STP)). In-channel time is significantly shorter due to gas compression at 5 bar.",
+    "temperature_C": "From Batch Protocol: 21 C. No thermal advantage needed; reaction is photochemical.",
+    "BPR_bar": "Calculation Step 8: BPR REQUIRED (3.0 bar). Inventory has 5 bar BPR. Set to 5 bar to ensure gas solubility and prevent flashing, as per Engineering Design Calculations.",
+    "tubing_material": "FEP selected from inventory for photochemical transparency (420 nm) and chemical compatibility with acetonitrile.",
+    "concentration_M": "From Batch Protocol: 0.1 M. Maintained to match batch conditions and ensure solubility.",
+    "reactor_volume_mL": "Selected 5.0 mL FEP photocoil from inventory. Calculation suggested 0.83 mL, but 5.0 mL allows for 10 min residence time at 0.5 mL/min liquid flow + gas, providing safety margin for mass transfer.",
+    "light_setup": "From Inventory: 420 nm LED, 20 W. Matches Chemistry Plan recommended wavelength.",
+    "wavelength_nm": "420 nm from Chemistry Plan and Inventory.",
+    "deoxygenation_method": "None. Reaction requires air/O2 as oxidant."
+  },
+  "literature_analogies": [
+    "Analogy 2: Photoredox cross-coupling, 12 min residence time, FEP tubing. Similar photochemical mechanism. Adjusted residence time to 10 min to account for gas-liquid mass transfer needs.",
+    "Analogy 3: Photochemical C-H functionalization, 15 min residence time, MeCN solvent. Similar solvent and photochemical nature. Supports longer residence time for mass-transfer limited reactions."
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

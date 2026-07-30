@@ -1,0 +1,84 @@
+{
+  "residence_time_min": 0.6,
+  "flow_rate_mL_min": 0.5,
+  "temperature_C": 50.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 0.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 0.3,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Sparging with inert gas",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Substrate feed",
+      "contents": [
+        "Aromatic Bromide (1.0 equiv)",
+        "Phenylboronic Acid Derivative (1.0 equiv)"
+      ],
+      "solvent": "DMF",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Substrates dissolved in solvent. Split total flow equally for mixing."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Catalyst/Base feed",
+      "contents": [
+        "Palladium Catalyst (loading)",
+        "Base (equiv)"
+      ],
+      "solvent": "DMF",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Catalyst and base kept separate to prevent premature deactivation. Split total flow equally."
+    }
+  ],
+  "mixer_type": "T-mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Base and catalyst mixed separately from boronic acid to avoid precipitation, then combined. T-mixer provides rapid mixing for laminar flow.",
+  "pre_reactor_steps": [
+    "Deoxygenate DMF solvent streams via sparging with inert gas (N2/Ar) prior to pumping to protect Pd(0) catalyst."
+  ],
+  "post_reactor_steps": [
+    "Collect product stream. No quench required per Chemistry Plan."
+  ],
+  "chemistry_notes": "CRITICAL SAFETY WARNING: The required reaction temperature (50°C) exceeds the maximum rated temperature (40°C) of all available PFA tubing and reactors in the inventory. Operating at 50°C poses a risk of tubing failure/leakage. This design proposes the optimal chemical setup but flags the hardware incompatibility. The reaction is a thermal Suzuki-Miyaura coupling; no light source is used. Deoxygenation is critical for Pd(0) stability. Stream separation prevents base-catalyst precipitation.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 estimated 0.6 min. Analogy 1 used 12 min but was photochemical/SET. This is thermal Pd-catalyzed, so calculation-based kinetic residence time is preferred. 0.6 min is within the 0.3-1.0 min range.",
+    "residence_time_basis": "Single-phase liquid system. Basis is liquid volume / liquid flow.",
+    "temperature_C": "Fixed at 50°C per batch protocol and hard constraints. NOTE: This exceeds the 40°C max rating of available PFA hardware.",
+    "BPR_bar": "Calculation Step 8: BPR not required. DMF bp (153°C) >> 50°C. No gas generation.",
+    "tubing_material": "PFA selected from inventory. Note: PFA is opaque to some UV but transparent to visible; however, this is a thermal reaction, so transparency is irrelevant. PFA is chemically resistant to DMF/Base.",
+    "concentration_M": "Calculation Step 1 used 0.1 M. Analogy 1 used 0.05 M. 0.1 M is standard for Suzuki couplings to ensure sufficient catalyst turnover.",
+    "reactor_volume_mL": "Calculated from V = Q * t = 0.5 mL/min * 0.6 min = 0.3 mL. This is smaller than the smallest available reactor (5 mL). To use available hardware, one would need to reduce flow rate significantly or accept longer residence time. However, 0.3 mL is the chemically optimal volume. Using the 5 mL reactor would require Q = 8.3 mL/min (exceeds pump max 5.0 mL/min) or t = 10 min (likely over-reaction). The design specifies the optimal calculated volume, noting the inventory mismatch.",
+    "tubing_ID_mm": "1.0 mm from inventory. Calculation Step 3 confirms d=1.00 mm is appropriate for the flow rate, though Pe=7 indicates significant axial dispersion (CSTR-like behavior).",
+    "flow_rate_mL_min": "Total flow 0.5 mL/min derived from Calculation Step 9 (n_lim = 0.05 mmol/min, C=0.1 M). Split equally between Stream A and B (0.25 mL/min each).",
+    "light_setup": "Empty. Reaction is thermal, not photochemical. Chemistry Plan confirms 'Thermal reaction, not photochemical.'",
+    "wavelength_nm": "Null. No light source used.",
+    "deoxygenation_method": "Sparging. Chemistry Plan requires deoxygenation to prevent Pd(0) oxidation."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "LOW"
+}

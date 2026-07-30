@@ -1,0 +1,323 @@
+{
+  "schema_version": "flowpilot_fair_architecture_benchmark_v1.0",
+  "study_id": "fair_architecture_benchmark_v1_20260730",
+  "stage": 1,
+  "cell_count": 8,
+  "conditions": {
+    "qwen27b_one_shot": {
+      "label": "Qwen 27B one-shot",
+      "variant": "general_one_shot",
+      "bundle": "qwen"
+    },
+    "qwen27b_full_flowpilot": {
+      "label": "Qwen 27B + Full FlowPilot",
+      "variant": "full",
+      "bundle": "qwen"
+    },
+    "claude_sonnet5_one_shot": {
+      "label": "Claude Sonnet 5 one-shot",
+      "variant": "general_one_shot",
+      "bundle": "claude_sonnet5"
+    },
+    "gpt56_terra_one_shot": {
+      "label": "GPT-5.6 Terra one-shot",
+      "variant": "general_one_shot",
+      "bundle": "gpt56_terra"
+    }
+  },
+  "model_bundles": {
+    "claude_sonnet5": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "base_url": null,
+      "upstream_mode": "never"
+    },
+    "gpt56_terra": {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "base_url": null,
+      "upstream_mode": "never"
+    },
+    "qwen": {
+      "provider": "ollama",
+      "model": "/models/Qwen3.6-27B",
+      "base_url": "http://10.13.24.169:8000/v1",
+      "upstream_mode": "always"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "photo_oxidation_feasible",
+      "scenario_id": "photo_oxidation_feasible",
+      "title": "Photocatalytic aerobic oxidation: matched 420 nm source",
+      "protocol": "Fmoc-L-methionine (3.7 mmol, 1.0 equiv) and 4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%) were dissolved in acetonitrile at 0.10 M. The solution was exposed to air and irradiated with a 1.5 W LED centered near 420 nm at 21 C for 5 min. Fmoc-methionine sulfoxide was formed in 99% yield.",
+      "category": "photochemical_gas_liquid",
+      "objective": "Design a conservative first gas-liquid photochemical flow screen using the validated 420 nm excitation window.",
+      "hard_constraints": [
+        "Use only the listed inventory.",
+        "The light source must be between 410 and 430 nm.",
+        "Liquid flow must be at least 0.01 mL/min.",
+        "Report inlet/STP and pressure-corrected in-channel gas flow separately."
+      ],
+      "inventory": {
+        "pumps": [
+          {
+            "name": "Syringe pump A",
+            "type": "syringe",
+            "max_pressure_bar": 20,
+            "max_flow_rate_mL_min": 5.0,
+            "min_flow_rate_mL_min": 0.01
+          }
+        ],
+        "tubing": [
+          {
+            "material": "FEP",
+            "ID_mm": 1.0,
+            "max_pressure_bar": 20,
+            "max_temperature_C": 100,
+            "transparent": true
+          }
+        ],
+        "BPR_available": [
+          5,
+          10
+        ],
+        "light_sources": [
+          {
+            "name": "420 nm LED",
+            "wavelength_nm": 420,
+            "power_W": 20,
+            "compatible_reactor": "coil",
+            "intensity_mW_cm2": 100
+          }
+        ],
+        "reactors": [
+          {
+            "type": "photocoil",
+            "material": "FEP",
+            "volume_mL": 5,
+            "ID_mm": 1.0,
+            "wavelength_nm": 420,
+            "max_temperature_C": 80
+          },
+          {
+            "type": "photocoil",
+            "material": "FEP",
+            "volume_mL": 10,
+            "ID_mm": 1.0,
+            "wavelength_nm": 420,
+            "max_temperature_C": 80
+          }
+        ]
+      },
+      "design_input_text": "RAW BATCH PROTOCOL:\nFmoc-L-methionine (3.7 mmol, 1.0 equiv) and 4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%) were dissolved in acetonitrile at 0.10 M. The solution was exposed to air and irradiated with a 1.5 W LED centered near 420 nm at 21 C for 5 min. Fmoc-methionine sulfoxide was formed in 99% yield.\n\nOBJECTIVE:\nDesign a conservative first gas-liquid photochemical flow screen using the validated 420 nm excitation window.\n\nHARD CONSTRAINTS:\n- Use only the listed inventory.\n- The light source must be between 410 and 430 nm.\n- Liquid flow must be at least 0.01 mL/min.\n- Report inlet/STP and pressure-corrected in-channel gas flow separately.\n\nAVAILABLE INVENTORY (authoritative JSON):\n{\"BPR_available\":[5,10],\"light_sources\":[{\"compatible_reactor\":\"coil\",\"intensity_mW_cm2\":100,\"name\":\"420 nm LED\",\"power_W\":20,\"wavelength_nm\":420}],\"pumps\":[{\"max_flow_rate_mL_min\":5.0,\"max_pressure_bar\":20,\"min_flow_rate_mL_min\":0.01,\"name\":\"Syringe pump A\",\"type\":\"syringe\"}],\"reactors\":[{\"ID_mm\":1.0,\"material\":\"FEP\",\"max_temperature_C\":80,\"type\":\"photocoil\",\"volume_mL\":5,\"wavelength_nm\":420},{\"ID_mm\":1.0,\"material\":\"FEP\",\"max_temperature_C\":80,\"type\":\"photocoil\",\"volume_mL\":10,\"wavelength_nm\":420}],\"tubing\":[{\"ID_mm\":1.0,\"material\":\"FEP\",\"max_pressure_bar\":20,\"max_temperature_C\":100,\"transparent\":true}]}",
+      "design_input_sha256": "a5a15c325c90e62eadecce48ffd7a1583db0d4c822fef93ed79af85e2bb3b14e",
+      "suite_id": "fair_architecture_non_thq_paired_constraints",
+      "difficulty": "high",
+      "tags": [
+        "photochemistry",
+        "gas-liquid",
+        "paired_constraint"
+      ],
+      "source_record_id": "acs.joc.1c01151.pdf",
+      "source_record_aliases": [],
+      "reference_quality": "not_applicable",
+      "expected_features": {
+        "phase_regime": "gas_liquid",
+        "topology": [
+          "liquid_pump",
+          "oxygen_mass_flow_controller",
+          "gas_liquid_mixer",
+          "photoreactor",
+          "back_pressure_regulator"
+        ],
+        "hazards": [
+          "oxygen_organic_solvent",
+          "pressurized_gas_liquid"
+        ]
+      },
+      "reference_flow": {},
+      "protocol_sha256": "a0137c910751dff7e492ef4fdffb3ec936d0cbcec546e4d662ccff6c7a9d0f6f",
+      "pair_id": "photo_wavelength_pair",
+      "scenario_kind": "feasible",
+      "expected_disposition": "SCREEN",
+      "controlled_change": "Inventory contains a source inside the mandatory 410-430 nm excitation window.",
+      "oracle_constraints": [
+        {
+          "constraint_id": "PHOTO-WL",
+          "field": "wavelength_nm",
+          "min": 410,
+          "max": 430,
+          "required": true
+        },
+        {
+          "constraint_id": "PHOTO-Q",
+          "field": "flow_rate_mL_min",
+          "min": 0.01,
+          "max": 5.0,
+          "required": true
+        },
+        {
+          "constraint_id": "PHOTO-V",
+          "field": "reactor_volume_mL",
+          "allowed": [
+            5,
+            10
+          ]
+        }
+      ],
+      "oracle_witness": {
+        "reported_disposition": "SCREEN",
+        "proposal": {
+          "wavelength_nm": 420,
+          "flow_rate_mL_min": 0.5,
+          "reactor_volume_mL": 5
+        }
+      }
+    },
+    {
+      "case_id": "photo_oxidation_infeasible",
+      "scenario_id": "photo_oxidation_infeasible",
+      "title": "Photocatalytic aerobic oxidation: wavelength mismatch",
+      "protocol": "Fmoc-L-methionine (3.7 mmol, 1.0 equiv) and 4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%) were dissolved in acetonitrile at 0.10 M. The solution was exposed to air and irradiated with a 1.5 W LED centered near 420 nm at 21 C for 5 min. Fmoc-methionine sulfoxide was formed in 99% yield.",
+      "category": "photochemical_gas_liquid",
+      "objective": "Design a flow experiment using the validated 410-430 nm excitation window; wavelength substitution is not permitted.",
+      "hard_constraints": [
+        "Use only the listed inventory.",
+        "The light source must be between 410 and 430 nm.",
+        "The only available source is 525 nm.",
+        "Do not propose an unlisted lamp or relax the excitation requirement."
+      ],
+      "inventory": {
+        "pumps": [
+          {
+            "name": "Syringe pump A",
+            "type": "syringe",
+            "max_pressure_bar": 20,
+            "max_flow_rate_mL_min": 5.0,
+            "min_flow_rate_mL_min": 0.01
+          }
+        ],
+        "tubing": [
+          {
+            "material": "FEP",
+            "ID_mm": 1.0,
+            "max_pressure_bar": 20,
+            "max_temperature_C": 100,
+            "transparent": true
+          }
+        ],
+        "BPR_available": [
+          5,
+          10
+        ],
+        "light_sources": [
+          {
+            "name": "525 nm LED",
+            "wavelength_nm": 525,
+            "power_W": 20,
+            "compatible_reactor": "coil",
+            "intensity_mW_cm2": 100
+          }
+        ],
+        "reactors": [
+          {
+            "type": "photocoil",
+            "material": "FEP",
+            "volume_mL": 5,
+            "ID_mm": 1.0,
+            "wavelength_nm": 525,
+            "max_temperature_C": 80
+          },
+          {
+            "type": "photocoil",
+            "material": "FEP",
+            "volume_mL": 10,
+            "ID_mm": 1.0,
+            "wavelength_nm": 525,
+            "max_temperature_C": 80
+          }
+        ]
+      },
+      "design_input_text": "RAW BATCH PROTOCOL:\nFmoc-L-methionine (3.7 mmol, 1.0 equiv) and 4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%) were dissolved in acetonitrile at 0.10 M. The solution was exposed to air and irradiated with a 1.5 W LED centered near 420 nm at 21 C for 5 min. Fmoc-methionine sulfoxide was formed in 99% yield.\n\nOBJECTIVE:\nDesign a flow experiment using the validated 410-430 nm excitation window; wavelength substitution is not permitted.\n\nHARD CONSTRAINTS:\n- Use only the listed inventory.\n- The light source must be between 410 and 430 nm.\n- The only available source is 525 nm.\n- Do not propose an unlisted lamp or relax the excitation requirement.\n\nAVAILABLE INVENTORY (authoritative JSON):\n{\"BPR_available\":[5,10],\"light_sources\":[{\"compatible_reactor\":\"coil\",\"intensity_mW_cm2\":100,\"name\":\"525 nm LED\",\"power_W\":20,\"wavelength_nm\":525}],\"pumps\":[{\"max_flow_rate_mL_min\":5.0,\"max_pressure_bar\":20,\"min_flow_rate_mL_min\":0.01,\"name\":\"Syringe pump A\",\"type\":\"syringe\"}],\"reactors\":[{\"ID_mm\":1.0,\"material\":\"FEP\",\"max_temperature_C\":80,\"type\":\"photocoil\",\"volume_mL\":5,\"wavelength_nm\":525},{\"ID_mm\":1.0,\"material\":\"FEP\",\"max_temperature_C\":80,\"type\":\"photocoil\",\"volume_mL\":10,\"wavelength_nm\":525}],\"tubing\":[{\"ID_mm\":1.0,\"material\":\"FEP\",\"max_pressure_bar\":20,\"max_temperature_C\":100,\"transparent\":true}]}",
+      "design_input_sha256": "cacc0596c36174d7c2c5565b0b67ad082ab667033fd14084305fa6061f1a634c",
+      "suite_id": "fair_architecture_non_thq_paired_constraints",
+      "difficulty": "high",
+      "tags": [
+        "photochemistry",
+        "gas-liquid",
+        "paired_constraint"
+      ],
+      "source_record_id": "acs.joc.1c01151.pdf",
+      "source_record_aliases": [],
+      "reference_quality": "not_applicable",
+      "expected_features": {
+        "phase_regime": "gas_liquid",
+        "topology": [
+          "liquid_pump",
+          "oxygen_mass_flow_controller",
+          "gas_liquid_mixer",
+          "photoreactor",
+          "back_pressure_regulator"
+        ],
+        "hazards": [
+          "oxygen_organic_solvent",
+          "pressurized_gas_liquid"
+        ]
+      },
+      "reference_flow": {},
+      "protocol_sha256": "a0137c910751dff7e492ef4fdffb3ec936d0cbcec546e4d662ccff6c7a9d0f6f",
+      "pair_id": "photo_wavelength_pair",
+      "scenario_kind": "infeasible",
+      "expected_disposition": "BLOCK",
+      "controlled_change": "Available light source changed from 420 nm to 525 nm.",
+      "oracle_constraints": [
+        {
+          "constraint_id": "PHOTO-I-WL",
+          "field": "wavelength_nm",
+          "min": 410,
+          "max": 430,
+          "allowed": [
+            525
+          ]
+        }
+      ],
+      "oracle_witness": {
+        "reported_disposition": "BLOCK",
+        "proposal": {}
+      }
+    }
+  ],
+  "all_scenario_ids": [
+    "suzuki_feasible",
+    "suzuki_infeasible",
+    "photo_oxidation_feasible",
+    "photo_oxidation_infeasible",
+    "hydrogenolysis_feasible",
+    "hydrogenolysis_infeasible",
+    "dinitration_feasible",
+    "dinitration_infeasible",
+    "multistep_feasible",
+    "multistep_infeasible"
+  ],
+  "random_seed": 20260730,
+  "temperature": 0.0,
+  "candidate_budget": 2,
+  "stage_1_gate": {
+    "planned_cells": 8,
+    "required_recorded_cells": 8,
+    "require_all_providers_reachable": true,
+    "require_all_models_advertised": true,
+    "require_no_systemic_truncation": true,
+    "require_complete_artifact_sets": true,
+    "require_identical_input_hashes_per_scenario": true,
+    "require_oracle_witness_pass_rate": 1.0,
+    "model_accuracy_is_a_gate": false
+  },
+  "frozen_files": {
+    "benchmark_config.json": "9882f3088462fb9a7bae587e81088a466d8086bd9d81ed4e354384fb5ce11503",
+    "protocol_scenarios.json": "b3a144ebc8e70d17441bd439c3a3c528695df3fd0c3ac689464137247fa4fce6",
+    "stage1_oracle.py": "c1e6b5e50393b68f34a9e4fb718cc655c5a1e5f8595eb27cdbdc009d98dadf4d",
+    "metrics.py": "e86509c9a913249a7bccf73c49d9ae884a2748b74ddc5fcda74fe5f5f254b5e8"
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "residence_time_min": 21.4,
+  "flow_rate_mL_min": 0.14019,
+  "temperature_C": 60.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 3.0,
+  "reactor_type": "Packed bed reactor",
+  "tubing_material": "Stainless Steel",
+  "tubing_ID_mm": 1.5,
+  "reactor_volume_mL": 20.0,
+  "residence_time_inlet_min": 10.0,
+  "residence_time_in_channel_min": 12.7,
+  "residence_time_basis": "inlet/STP apparent residence time",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Sparging with H2 or vacuum degassing of liquid stream",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Liquid feed pump (HPLC or syringe)",
+      "contents": [
+        "N-Diphenylmethylazetidin-3-ol (0.1 M)",
+        "Acetic acid (0.1 M)"
+      ],
+      "solvent": "Methanol",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Substrate, solvent, and additive pre-mixed. Flow rate derived from Engineering Design Calculations Step 3 (Q_total = 0.500 mL/min)."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Gas feed (Mass Flow Controller)",
+      "contents": [
+        "Hydrogen"
+      ],
+      "solvent": "",
+      "concentration_M": null,
+      "flow_rate_mL_min": null,
+      "phase": "",
+      "gas_flow_sccm": 1.12,
+      "gas_flow_actual_mL_min": 1.367,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: H2 is gaseous reductant. Flow rate derived from Engineering Design Calculations Step 9 (H2 MFC = 1.12 sccm)."
+    }
+  ],
+  "mixer_type": "Static mixer or T-mixer with gas-liquid contactor",
+  "mixing_order_reasoning": "From Chemistry Plan: Substrate, solvent, and additive are pre-mixed before contacting catalyst and H2. Gas-liquid mixing occurs immediately before or at the reactor inlet to maximize interfacial area.",
+  "pre_reactor_steps": [
+    "Degas liquid stream A via sparging with H2 or vacuum degassing to remove O2 (Chemistry Plan: deoxygenation_required = true).",
+    "Load Pd(OH)2/Al2O3 catalyst into a packed bed reactor or use a slurry loop with in-line filtration (Chemistry Plan: Heterogeneous Catalysis)."
+  ],
+  "post_reactor_steps": [
+    "Separate catalyst from product stream via in-line filter or centrifugal separator (Chemistry Plan: Heterogeneous catalyst requires separation).",
+    "Quench not required; reaction stops upon H2 removal/catalyst separation."
+  ],
+  "chemistry_notes": "Reaction is a catalytic hydrogenation (debenzylation) using Pd(OH)2/Al2O3. Batch yield is low (38.1%) likely due to mass transfer limitations. Flow chemistry enhances gas-liquid mass transfer (kLa) via segmented flow or packed bed design. Acetic acid is included to enhance rate. Oxygen must be excluded to prevent catalyst poisoning. No photochemistry involved. Packed bed reactor preferred for heterogeneous catalyst to avoid clogging and enable continuous operation.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Engineering Design Calculations Step 2: tau = 10.0 min. Analogy 1 used 30 min for oxidation, but hydrogenation is faster. Calculation based on 30x intensification factor from batch 5h.",
+    "residence_time_basis": "Gas-liquid system. Using inlet/STP basis as per universal physics rules for gas-liquid designs where historical evidence suggests inlet/STP residence time. V = t_inlet * (Q_liquid + Q_gas_STP).",
+    "temperature_C": "Same as batch (60 C) as per Chemistry Plan and Engineering Design Calculations Step 1.",
+    "BPR_bar": "Engineering Design Calculations Step 8: BPR REQUIRED 3.0 bar to maintain gas solubility and prevent degassing. Analogy 1 used 70 bar, but 3 bar is sufficient for methanol at 60 C and H2 solubility.",
+    "tubing_material": "Stainless Steel preferred for high-pressure gas-liquid hydrogenation and packed bed compatibility. Analogy 1 used SS. FEP not suitable for packed bed or high pressure H2.",
+    "concentration_M": "Engineering Design Calculations Step 1: C0 = 0.1 M. Consistent with typical hydrogenation concentrations.",
+    "reactor_volume_mL": "Engineering Design Calculations Step 3: V_R = 18.67 mL. Derived from tau and flow rate.",
+    "tubing_ID_mm": "Engineering Design Calculations Step 3: d = 1.00 mm. Consistent with Analogy 1 (1.0 mm).",
+    "flow_rate_mL_min": "Engineering Design Calculations Step 3: Q_total = 0.500 mL/min. Derived from V_R and tau.",
+    "deoxygenation_method": "Chemistry Plan: deoxygenation_required = true. O2 competes for active sites. Sparging with H2 is standard for hydrogenation."
+  },
+  "literature_analogies": [
+    "Analogy 1: Catalytic oxidation in SS microchannel reactor. Similar: Heterogeneous catalysis, high pressure, gas-liquid mass transfer. Difference: Oxidation vs Hydrogenation. Adjustment: Lower BPR (3 bar vs 70 bar) as H2 is less hazardous and solubility requirements differ. Residence time adjusted based on calculation (10 min vs 30 min).",
+    "Analogy 2: Photodecarboxylation. Similar: Flow chemistry intensification. Difference: Photochemistry vs Thermal/Hydrogenation. Adjustment: No light source used. Tubing material changed to SS for pressure/catalyst compatibility.",
+    "Analogy 3: Photoredox catalysis. Similar: Methanol solvent, 60 C. Difference: Photochemistry vs Thermal/Hydrogenation. Adjustment: No light source used. Residence time much longer (10 min vs 2 min) due to heterogeneous catalysis kinetics."
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "HIGH"
+}

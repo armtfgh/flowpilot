@@ -22,6 +22,7 @@ from typing import Any, Optional
 
 import flora_translate.config as cfg
 from flora_translate.config import FLOW_MAX_TAU_TO_BATCH_RATIO, FLOW_TRANSLATION_POLICY
+from flora_translate.design_calculator import GAS_LIQUID_MIN_BPR_BAR
 from flora_translate.engine.flow_value import compute_pvs_for_candidates, mandate_dict
 
 logger = logging.getLogger("flora.engine.council_v4.skeptic")
@@ -306,7 +307,7 @@ def _verify_bpr_adequacy(
     """Verify BPR adequacy from first principles.
 
     Two distinct thresholds:
-      - HARD FLOOR: Pvap(T) + ΔP for liquid-only systems, or max(5 bar, Pvap+ΔP)
+      - HARD FLOOR: Pvap(T) + ΔP for liquid-only systems, or max(3 bar, Pvap+ΔP)
                     for gas-liquid systems. Going below this is a physical-safety
                     violation (boiling in tubing, or gas leg can't be maintained).
                     -> CRITICAL.
@@ -316,7 +317,7 @@ def _verify_bpr_adequacy(
                      -> MEDIUM warning.
 
     The Skeptic must NOT CRITICAL-fail a candidate at the hard gas-liquid floor
-    (5 bar) just because the recommended setting is 7 bar with margin. That
+    (3 bar) just because the recommended setting is 5 bar with margin. That
     would short-circuit the council and is what triggered the THQ
     "all candidates disqualified before Chief selection" fallback.
     """
@@ -343,9 +344,9 @@ def _verify_bpr_adequacy(
             # to get the true hard floor.
             BPR_recommended = float(recomp.get("P_min_bar", 0.0))
             BPR_floor = max(0.0, BPR_recommended - safety_margin)
-            # Gas-liquid hard floor is 5 bar (without margin) per protocol.
+            # Gas-liquid hard floor is applied without the recommended margin.
             if is_gas_liquid:
-                BPR_floor = max(BPR_floor, 5.0)
+                BPR_floor = max(BPR_floor, GAS_LIQUID_MIN_BPR_BAR)
         except Exception:
             continue
         # CRITICAL only when below the actual hard floor (boiling risk or
@@ -357,8 +358,7 @@ def _verify_bpr_adequacy(
                 "error_type": "BPR_BELOW_HARD_FLOOR",
                 "description": (
                     f"BPR_current={BPR_current:.1f} bar < hard floor={BPR_floor:.1f} bar "
-                    f"(Pvap+ΔP={BPR_floor - (5.0 if is_gas_liquid and BPR_floor == 5.0 else 0.0):.2f} bar, "
-                    f"gas_liquid_floor={5.0 if is_gas_liquid else 'N/A'}). "
+                    f"(gas_liquid_floor={GAS_LIQUID_MIN_BPR_BAR if is_gas_liquid else 'N/A'}). "
                     f"Boiling/phase-separation risk — council MUST raise BPR or reduce ΔP."
                 ),
                 "severity": "CRITICAL",
@@ -545,21 +545,25 @@ def _check_bpr_gas_liquid(
     safety_scores: list[dict],
     is_gas_liquid: bool,
 ) -> list[dict]:
-    """Verify BPR >= 5.0 bar for all gas-liquid candidates."""
+    """Verify the gas-liquid BPR hard floor for all candidates."""
     errors: list[dict] = []
     if not is_gas_liquid:
         return errors
     for entry in safety_scores:
         bpr_current = entry.get("BPR_current_bar", 0.0)
-        if float(bpr_current) < 5.0 and str(entry.get("verdict", "")).upper() != "BLOCK":
+        if (
+            float(bpr_current) < GAS_LIQUID_MIN_BPR_BAR
+            and str(entry.get("verdict", "")).upper() != "BLOCK"
+        ):
             errors.append({
                 "agent": "DR. SAFETY",
                 "candidate_id": entry.get("candidate_id"),
                 "error_type": "GAS_LIQUID_BPR_FLOOR",
                 "description": (
-                    f"Gas-liquid system: BPR_current={bpr_current} bar < 5.0 bar "
+                    f"Gas-liquid system: BPR_current={bpr_current} bar < "
+                    f"{GAS_LIQUID_MIN_BPR_BAR:.1f} bar "
                     "mandatory floor but verdict is not BLOCK. "
-                    "Gas-liquid designs must have BPR >= 5.0 bar (spec: never reduce below 5 bar)."
+                    f"Gas-liquid designs must have BPR >= {GAS_LIQUID_MIN_BPR_BAR:.1f} bar."
                 ),
                 "severity": "CRITICAL",
             })

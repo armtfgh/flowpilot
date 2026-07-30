@@ -1,0 +1,515 @@
+{
+  "chemistry_overall": "Both candidates suffer from a critical material incompatibility: Stainless Steel is opaque to visible/UV light, which is a hard block for photochemical reactions. However, the reaction class is explicitly 'Heterogeneous Catalysis' (Hydrogenation) and 'Photochemical reaction: False'. Therefore, the photonics domain is technically N/A, but the system prompt requires scoring it. I will treat the photonics score as a 'pass' by default for non-photochem, but flag the material opacity as a concern if light were needed. The primary chemistry failure for both is the extremely low conversion (X < 0.2) despite the residence time reduction mandate. The kinetics require ~48 min, but τ is only 5-8 min. This indicates the reactor is severely undersized for the reaction rate, likely due to mass transfer limitations not being fully overcome or simply insufficient contact time. Candidate 1 has better mixing (lower r_mix) but lower throughput. Candidate 2 exceeds the bench length limit (28.8m > 25m), which is a hard gate failure. Both have BPR < 5 bar, which is a safety warning for gas-liquid systems. Candidate 1 is the lesser of two evils, but both are chemically inefficient. Both candidates represent a fundamental failure in reaction engineering logic for a heterogeneous hydrogenation. The chemistry scores are critically low because the residence times (7.9–10.0 min) are drastically shorter than the kinetic requirement (48.0 min), resulting in negligible conversion (<20%). While the photonics scores are technically high due to the transparent PFA material and low absorbance, this is irrelevant as the reaction is not photochemical. The primary failure is the mismatch between the 'mass transfer' advantage claimed and the actual kinetic limitation; increasing kLa does not help if the intrinsic surface reaction rate is too slow for the given residence time. Both candidates are BLOCKED due to insufficient conversion and safety concerns regarding back-pressure regulation.",
+  "chemistry_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Chemistry: The reaction is a heterogeneous hydrogenation. The residence time (7.9 min) is far shorter than the kinetic requirement (48 min), resulting in only 15% conversion. This is a significant efficiency loss. The material is Stainless Steel, which is opaque, but since this is not a photochemical reaction, this is acceptable. However, the low BPR (3.0 bar) is a safety concern for gas-liquid flow. Photonics: Not applicable as it is not a photochemical reaction. I will assign a neutral photonics score but note the material opacity. The selectivity flow value is low due to poor conversion.",
+      "chemistry_score": 0.3,
+      "photonics_score": 0.5,
+      "combined_score": 0.38,
+      "selectivity_flow_value": 0.6,
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "concentration_M": 0.1
+      },
+      "beer_lambert_A": 0.0,
+      "epsilon_used": 0.0,
+      "wavelength_match": true,
+      "material_transparent": false,
+      "stream_logic_valid": true,
+      "atmosphere_valid": true,
+      "hard_gate_failed": false,
+      "blocking_issues": [],
+      "concerns": [
+        "Conversion is only 15%, far below the target. The reactor is undersized for the kinetics.",
+        "BPR is 3.0 bar, which is below the 5.0 bar safety threshold for gas-liquid systems.",
+        "Stainless Steel is opaque, but this is acceptable for non-photochemical reactions."
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Chemistry: Similar to Candidate 1, the conversion is very low (11%) due to insufficient residence time (5.4 min vs 48 min kinetic requirement). The material is Stainless Steel, which is opaque, but acceptable for non-photochemical reactions. The BPR is 3.0 bar, a safety concern. Photonics: Not applicable. The main issue is the hard gate failure: the coil length is 28.8 m, which exceeds the 25.0 m bench limit. This makes the candidate physically impractical for a standard benchtop setup.",
+      "chemistry_score": 0.25,
+      "photonics_score": 0.5,
+      "combined_score": 0.35,
+      "selectivity_flow_value": 0.6,
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "concentration_M": 0.1
+      },
+      "beer_lambert_A": 0.0,
+      "epsilon_used": 0.0,
+      "wavelength_match": true,
+      "material_transparent": false,
+      "stream_logic_valid": true,
+      "atmosphere_valid": true,
+      "hard_gate_failed": true,
+      "blocking_issues": [
+        "Coil length 28.8 m exceeds the 25.0 m bench limit."
+      ],
+      "concerns": [
+        "Conversion is only 11%, far below the target.",
+        "BPR is 3.0 bar, which is below the 5.0 bar safety threshold for gas-liquid systems.",
+        "Stainless Steel is opaque, but this is acceptable for non-photochemical reactions."
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Chemistry: The reaction is a heterogeneous hydrogenation, not photochemical. The residence time (τ = 10.0 min) is only ~20% of the required kinetic time (τ_kin = 48.0 min), leading to a predicted conversion of only 19%. This fails the basic objective of synthesis. The BPR of 3.0 bar is below the safety threshold of 5.0 bar for gas-liquid systems, risking gas breakthrough. Photonics: Although not a photo-reaction, the PFA material is transparent, and with C=0.1 M and typical organic ε, absorbance is low. However, this is moot. The selectivity flow value is low because the low conversion implies poor process efficiency.",
+      "chemistry_score": 0.1,
+      "photonics_score": 0.95,
+      "combined_score": 0.38,
+      "selectivity_flow_value": 0.6,
+      "verdict": "BLOCK",
+      "proposed_changes": {},
+      "beer_lambert_A": 0.0,
+      "epsilon_used": 0.0,
+      "wavelength_match": true,
+      "material_transparent": true,
+      "stream_logic_valid": false,
+      "atmosphere_valid": true,
+      "hard_gate_failed": true,
+      "blocking_issues": [
+        "Conversion (19%) is far below acceptable threshold (>85%)",
+        "Residence time (10 min) is insufficient for kinetics (48 min)",
+        "BPR (3.0 bar) is below safety minimum (5.0 bar) for gas-liquid"
+      ],
+      "concerns": [
+        "The 'mass transfer' advantage is irrelevant if the reaction is kinetically limited at this scale."
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Chemistry: Similar to Candidate 3, the residence time (τ = 7.9 min) is insufficient for the kinetic requirement (48.0 min), resulting in only 15% conversion. The higher flow rate does not compensate for the lack of reaction time. The BPR of 3.0 bar is again below the safety threshold. Photonics: PFA is transparent, and absorbance is negligible. However, the reaction is not photochemical, so photonics metrics are secondary. The selectivity flow value is low due to poor conversion.",
+      "chemistry_score": 0.1,
+      "photonics_score": 0.95,
+      "combined_score": 0.38,
+      "selectivity_flow_value": 0.6,
+      "verdict": "BLOCK",
+      "proposed_changes": {},
+      "beer_lambert_A": 0.0,
+      "epsilon_used": 0.0,
+      "wavelength_match": true,
+      "material_transparent": true,
+      "stream_logic_valid": false,
+      "atmosphere_valid": true,
+      "hard_gate_failed": true,
+      "blocking_issues": [
+        "Conversion (15%) is far below acceptable threshold (>85%)",
+        "Residence time (7.9 min) is insufficient for kinetics (48 min)",
+        "BPR (3.0 bar) is below safety minimum (5.0 bar) for gas-liquid"
+      ],
+      "concerns": [
+        "Increasing flow rate further will not solve the kinetic limitation."
+      ]
+    }
+  ],
+  "kinetics_overall": "The kinetics landscape is critically constrained by the short residence times proposed (5.4–7.9 min) relative to the reaction kinetics (τ_kinetics ≈ 48 min). Both candidates fail the single-pass conversion floor (X ≥ 0.30), with estimated conversions of 0.15 and 0.11 respectively. The Intensification Factor (IF) of 30–55× is theoretically justifiable for hydrogenation via mass transfer enhancement, but the physical realization fails because the residence time is too short to allow the enhanced mass transfer to drive sufficient conversion. The primary risk is not mixing (which is adequate) but insufficient contact time. Both designs are BLOCKED due to X < 0.15. To proceed, τ must be increased significantly, likely requiring a multi-pass configuration or a much larger reactor volume, as the current single-pass designs cannot meet the minimum conversion threshold. The kinetics landscape is critically constrained by the X_floor policy (X ≥ 0.30). Both candidates exhibit extremely low single-pass conversions (X ≈ 0.15–0.19) because their residence times (τ ≈ 8–10 min) are far shorter than the kinetic time constant (τ_kinetics ≈ 48 min). While the Intensification Factor (IF ≈ 30–38×) is justified for hydrogenation via mass transfer enhancement, the designs fail the fundamental conversion floor. The short-τ preference cannot override the hard floor; therefore, both candidates are BLOCKED. The primary issue is that τ_proposed < τ_mixing_required and τ_proposed << τ_needed_for_X_floor. To achieve X ≥ 0.30, τ must be at least ~17 min (0.36 × τ_kinetics), but mixing constraints likely push this higher. The current designs are physically incapable of meeting the conversion mandate without significant τ increase or catalyst loading adjustment.",
+  "kinetics_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Candidate 1 proposes τ=7.9 min. τ_kinetics is 48.01 min. The calculated conversion X = 1 - exp(-7.9/48.01) = 0.14, which is below the X_floor of 0.30 and well below the BLOCK threshold of 0.15. The IF is 37.9×, which is within the hydrogenation class range (20–50×) and justified by mass transfer enhancement, but the τ is too short. τ_mixing_required is 0.99 min (t_mix/0.15), so mixing is not the limiting factor. The final τ decision rule yields τ_final = max(0.99, 12.0) = 12.0 min (assuming τ_lit=48 min for analogy). Even at 12 min, X would be ~0.22, still below floor. The design is fundamentally undersized for single-pass conversion.",
+      "kinetics_score": 0.1,
+      "tau_reduction_flow_value": 1.0,
+      "achieved_reduction_factor": 37.975,
+      "target_reduction_factor": 20.0,
+      "reduction_achievement": 1.899,
+      "IF_used": 30.0,
+      "IF_valid": true,
+      "tau_vs_literature": "τ=7.9 min is < 0.5× τ_lit (48 min). No physical justification for such short time given X_floor failure.",
+      "X_estimated": 0.14,
+      "X_adequate": false,
+      "tau_mixing_required_min": 0.99,
+      "tau_proposed_final_min": 7.9,
+      "STY": 0.0031,
+      "productivity_mg_h": 55.0,
+      "t_steady_min": 23.7,
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "tau_min": 20.0
+      },
+      "concerns": [
+        "X=0.14 < 0.15 BLOCK threshold. Single-pass conversion is insufficient.",
+        "IF=38× is valid for hydrogenation, but τ is too short to realize conversion."
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Candidate 2 proposes τ=5.4 min. τ_kinetics is 48.01 min. The calculated conversion X = 1 - exp(-5.4/48.01) = 0.11, which is below the X_floor of 0.30 and well below the BLOCK threshold of 0.15. The IF is 55.5×, which exceeds the hydrogenation class upper bound (50×) but is plausible for segmented flow; however, the τ is too short. τ_mixing_required is 5.14 min (t_mix/0.15), so τ_proposed (5.4 min) barely exceeds mixing time, leaving no margin for reaction. The final τ decision rule yields τ_final = max(5.14, 12.0) = 12.0 min. Even at 12 min, X would be ~0.22, still below floor. The design is fundamentally undersized for single-pass conversion and has a hard gate flag for length.",
+      "kinetics_score": 0.1,
+      "tau_reduction_flow_value": 1.0,
+      "achieved_reduction_factor": 55.556,
+      "target_reduction_factor": 20.0,
+      "reduction_achievement": 2.778,
+      "IF_used": 30.0,
+      "IF_valid": true,
+      "tau_vs_literature": "τ=5.4 min is < 0.5× τ_lit (48 min). No physical justification for such short time given X_floor failure.",
+      "X_estimated": 0.11,
+      "X_adequate": false,
+      "tau_mixing_required_min": 5.14,
+      "tau_proposed_final_min": 5.4,
+      "STY": 0.0022,
+      "productivity_mg_h": 100.3,
+      "t_steady_min": 16.2,
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "tau_min": 20.0
+      },
+      "concerns": [
+        "X=0.11 < 0.15 BLOCK threshold. Single-pass conversion is insufficient.",
+        "τ_proposed (5.4 min) is very close to τ_mixing_required (5.14 min), leaving no safety margin.",
+        "L=28.8 m exceeds bench limit, requiring coil management."
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Candidate 3 proposes τ=10.0 min. τ_kinetics is 48.01 min. The calculated conversion X = 1 - exp(-10/48.01) = 0.188, which is below the X_floor of 0.30. The IF is 30.0 (300/10), which is within the valid hydrogenation range (20–50×) due to gas-liquid mass transfer enhancement. However, τ_mixing_required = t_mix / 0.15. With r_mix=0.15 (likely t_mix in seconds or similar scale, but given Da_mass=0.28, mixing is slow relative to reaction if we assume standard scales, but here we use the provided r_mix as a proxy for mixing time scale or directly use the rule). Let's assume r_mix is t_mix in seconds? No, r_mix is likely a dimensionless ratio or time. Given the context of 'r_mix' in flow sense, if it's seconds, τ_mix_req = 0.15/0.15 = 1 min. If it's minutes, τ_mix_req = 1 min. However, the critical failure is X < 0.30. The final τ decision rule: τ_final = max(τ_mixing_required, τ_lit/4). τ_lit is not explicitly given but batch is 300 min. τ_lit/4 = 75 min? No, τ_lit usually refers to the literature flow analogy or the kinetic time constant. Using τ_kinetics as the anchor for 'literature' in this context: τ_kin/4 = 12 min. τ_proposed (10) < 12. Thus, τ is too short. X is inadequate. Verdict: BLOCK.",
+      "kinetics_score": 0.1,
+      "tau_reduction_flow_value": 1.0,
+      "achieved_reduction_factor": 30.0,
+      "target_reduction_factor": 20.0,
+      "reduction_achievement": 1.5,
+      "IF_used": 30.0,
+      "IF_valid": true,
+      "tau_vs_literature": "τ=10 min is < 0.5× τ_kinetics (48 min). Significant deviation from kinetic anchor.",
+      "X_estimated": 0.188,
+      "X_adequate": false,
+      "tau_mixing_required_min": 1.0,
+      "tau_proposed_final_min": 10.0,
+      "STY": 0.0099,
+      "productivity_mg_h": 53.8,
+      "t_steady_min": 30.0,
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "tau_min": 17.0
+      },
+      "concerns": [
+        "X=0.188 < 0.30 floor. Design fails conversion mandate.",
+        "τ=10 min < τ_kin/4 (12 min). Insufficient residence time for even minimal conversion.",
+        "Laminar RTD will further reduce effective conversion for core fluid."
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Candidate 4 proposes τ=7.9 min. τ_kinetics is 48.01 min. The calculated conversion X = 1 - exp(-7.9/48.01) = 0.152, which is below the X_floor of 0.30. The IF is 37.97 (300/7.9), which is within the valid hydrogenation range (20–50×). However, the conversion is critically low. τ_mixing_required is likely low given higher r_mix (0.527), but the kinetic constraint dominates. The final τ decision rule: τ_final = max(τ_mixing_required, τ_kin/4). τ_kin/4 = 12.0 min. τ_proposed (7.9) < 12.0. Thus, τ is too short. X is inadequate. Verdict: BLOCK. This candidate has higher productivity but fails the hard floor.",
+      "kinetics_score": 0.1,
+      "tau_reduction_flow_value": 1.0,
+      "achieved_reduction_factor": 37.975,
+      "target_reduction_factor": 20.0,
+      "reduction_achievement": 1.899,
+      "IF_used": 37.975,
+      "IF_valid": true,
+      "tau_vs_literature": "τ=7.9 min is < 0.5× τ_kinetics (48 min). Significant deviation from kinetic anchor.",
+      "X_estimated": 0.152,
+      "X_adequate": false,
+      "tau_mixing_required_min": 1.0,
+      "tau_proposed_final_min": 7.9,
+      "STY": 0.0152,
+      "productivity_mg_h": 97.7,
+      "t_steady_min": 23.7,
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "tau_min": 17.0
+      },
+      "concerns": [
+        "X=0.152 < 0.30 floor. Design fails conversion mandate.",
+        "τ=7.9 min < τ_kin/4 (12 min). Insufficient residence time.",
+        "Higher productivity is irrelevant if conversion floor is not met."
+      ]
+    }
+  ],
+  "fluidics_overall": "The fluidics landscape is dominated by mixing limitations in the larger diameter candidate (ID 2) and geometry constraints. Candidate 1 offers excellent pressure headroom (99.8%) and acceptable mixing (r_mix=0.15), fitting within a single bench cassette (L=8.7 m). Candidate 2 suffers from severe mixing deficits (r_mix=0.77) due to the 1.0 mm diameter, which is reaction-limiting given Da_mass ~0.8. Furthermore, Candidate 2's length (28.8 m) approaches the hard block limit of 30 m, requiring multi-coil assembly. Both candidates require syringe pumps due to low flow rates (< 2 mL/min). The primary trade-off is between the compact, well-mixed but lower-throughput Candidate 1 and the high-throughput but poorly mixed and geometrically impractical Candidate 2. I recommend revising Candidate 2's diameter or accepting Candidate 1 with a note on conversion limits. The fluidics landscape is dominated by low Reynolds numbers (Re < 20), ensuring stable laminar flow with negligible pressure drops (< 0.04 bar) and massive pump headroom (>99%). Both candidates fit easily within benchtop geometry constraints (L < 7 m). However, mixing performance is the critical differentiator. Candidate 3 achieves an acceptable mixing ratio (r_mix = 0.15), while Candidate 4 suffers from poor mixing (r_mix = 0.53) due to its larger diameter (1.0 mm), despite having a lower Damköhler number. Since this is a gas-liquid hydrogenation, mass transfer is the primary advantage; poor mixing in Candidate 4 risks significant conversion loss and selectivity issues. Candidate 3 is the superior fluidic choice, though both require careful handling of the gas-liquid interface (BPR enforcement). Syringe pumps are required for both due to low flow rates (< 2 mL/min).",
+  "fluidics_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Candidate 1 operates in a healthy laminar regime (Re=18). Pressure drop is negligible (0.097 bar), leaving 99.8% pump headroom, which is ideal for stability. Mixing is adequate (r_mix=0.15), falling within the safe target of <0.20, though it is not 'enhanced' by Dean numbers (De=4.2 < 10). The geometry is feasible (L=8.7 m < 15 m). The low conversion (15%) is a kinetics issue, not fluidics. Tubing is SS316, suitable for H2 pressure. No diameter change is needed for mixing.",
+      "fluidics_score": 0.92,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 17.91,
+      "flow_regime": "laminar",
+      "De": 4.2,
+      "dP_bar": 0.097,
+      "pump_headroom_pct": 99.8,
+      "t_mix_s": 7.0,
+      "r_mix": 0.148,
+      "dual_criterion_mixing_fail": false,
+      "d_change_direction": "none",
+      "d_fix_mm": null,
+      "tau_mixing_required_min": null,
+      "L_m": 8.651,
+      "geometry_feasible": true,
+      "pump_type": "syringe pump (Q=0.24 mL/min < 2 mL/min)",
+      "tubing_material": "Stainless Steel",
+      "dead_volume_mL": 0.05,
+      "dead_volume_impact": "V_dead/Q = 0.2 min = 2.5% of τ=7.9 min — acceptable",
+      "verdict": "ACCEPT",
+      "proposed_changes": {},
+      "concerns": [
+        "Low conversion (15%) indicates τ is insufficient for kinetics, but fluidics are sound."
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Candidate 2 has a laminar flow (Re=25) and low pressure drop (0.8 bar, 99.8% headroom). However, mixing is critically poor (r_mix=0.77 > 0.20). With Da_mass=0.8, this approaches the dual-criterion failure zone where mixing limits reaction rate. The 1.0 mm diameter is too large for the required residence time. To fix r_mix to 0.15, d must be reduced to ~0.4 mm. Additionally, L=28.8 m is near the 30 m hard block, requiring complex multi-coil winding. The current geometry is impractical for a single bench unit.",
+      "fluidics_score": 0.45,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 24.69,
+      "flow_regime": "laminar",
+      "De": 7.1,
+      "dP_bar": 0.796,
+      "pump_headroom_pct": 99.8,
+      "t_mix_s": 25.0,
+      "r_mix": 0.772,
+      "dual_criterion_mixing_fail": true,
+      "d_change_direction": "decrease",
+      "d_fix_mm": 0.4,
+      "tau_mixing_required_min": null,
+      "L_m": 28.8,
+      "geometry_feasible": false,
+      "pump_type": "syringe pump (Q=0.63 mL/min < 2 mL/min)",
+      "tubing_material": "Stainless Steel",
+      "dead_volume_mL": 0.2,
+      "dead_volume_impact": "V_dead/Q = 0.3 min = 5.5% of τ=5.4 min — borderline, monitor",
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "d_mm": 0.4
+      },
+      "concerns": [
+        "Mixing is reaction-limiting (r_mix=0.77).",
+        "Length (28.8 m) is near hard block (30 m).",
+        "Reducing d to 0.4 mm will increase ΔP and L significantly, potentially triggering new blocks."
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Candidate 3 operates at Re = 12.5, which is well within the laminar regime (score 1.0 for flow). The pressure drop is minimal at 0.036 bar, resulting in 99.9% pump headroom, far below the 2-bar soft cap. The mixing ratio r_mix = 0.15 is within the safe target (< 0.20), and with Da_mass = 0.29, the dual criterion for mixing failure is not met. The geometry is compact (L = 6.75 m), fitting a single bench cassette. PFA tubing is appropriate for the photochemical/chemical environment. The low flow rate (0.19 mL/min) necessitates a syringe pump. No diameter change is needed as mixing is adequate.",
+      "fluidics_score": 0.95,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 12.5,
+      "flow_regime": "laminar",
+      "De": 2.5,
+      "dP_bar": 0.036,
+      "pump_headroom_pct": 99.9,
+      "t_mix_s": 9.0,
+      "r_mix": 0.15,
+      "dual_criterion_mixing_fail": false,
+      "d_change_direction": "none",
+      "d_fix_mm": null,
+      "tau_mixing_required_min": null,
+      "L_m": 6.75,
+      "geometry_feasible": true,
+      "pump_type": "syringe pump (Q=0.19 mL/min < 2 mL/min)",
+      "tubing_material": "PFA",
+      "dead_volume_mL": 0.1,
+      "dead_volume_impact": "V_dead/Q = 0.53 min = 5.3% of τ=10 min — acceptable but monitor",
+      "verdict": "ACCEPT",
+      "proposed_changes": {},
+      "concerns": [
+        "Dead volume impact is slightly elevated at 5.3%, ensure minimal fittings."
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Candidate 4 operates at Re = 16.9, also laminar (score 1.0 for flow). Pressure drop is negligible at 0.007 bar (99.99% headroom). However, the mixing ratio r_mix = 0.53 is significantly above the 0.20 tolerance limit. Although Da_mass = 0.80 is below 1.0, the high r_mix indicates that mixing is slow relative to residence time, which is detrimental for gas-liquid mass transfer enhancement. To fix this, the diameter must be decreased. Using d_fix = d_current × √(0.15 / r_mix_current) = 1.0 × √(0.15 / 0.527) ≈ 0.53 mm. A commercial size of 0.5 mm or 0.6 mm is recommended. The geometry (L = 4.32 m) is feasible. Syringe pump required.",
+      "fluidics_score": 0.6,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 16.9,
+      "flow_regime": "laminar",
+      "De": 3.4,
+      "dP_bar": 0.007,
+      "pump_headroom_pct": 99.99,
+      "t_mix_s": 25.0,
+      "r_mix": 0.53,
+      "dual_criterion_mixing_fail": false,
+      "d_change_direction": "decrease",
+      "d_fix_mm": 0.53,
+      "tau_mixing_required_min": null,
+      "L_m": 4.32,
+      "geometry_feasible": true,
+      "pump_type": "syringe pump (Q=0.43 mL/min < 2 mL/min)",
+      "tubing_material": "PFA",
+      "dead_volume_mL": 0.1,
+      "dead_volume_impact": "V_dead/Q = 0.23 min = 2.9% of τ=7.9 min — negligible",
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "d_mm": 0.53
+      },
+      "concerns": [
+        "Mixing is too slow (r_mix=0.53) for effective gas-liquid mass transfer. Diameter reduction required.",
+        "Reducing d to 0.53 mm increases ΔP but remains well within headroom limits."
+      ]
+    }
+  ],
+  "safety_overall": "The safety landscape is dominated by gas-liquid handling requirements and material compatibility at elevated temperature. Thermal risks are negligible (Da_thermal << 0.1) due to the low exotherm of hydrogenation and efficient flow heat transfer. The primary safety concern is the use of Stainless Steel (SS316) tubing for a methanol/hydrogen system at 60°C; while SS316 is generally compatible with methanol, it is prone to hydrogen embrittlement under high pressure and potential chloride contamination, though at 3 bar this risk is manageable but requires verification of solvent purity. The BPR setting of 3.0 bar meets the hard floor for gas-liquid systems (max(3.0, P_vap + ΔP)) but offers minimal margin against the recommended 5.0 bar robustness. Methanol is flammable and toxic, requiring closed-system handling and inert atmosphere. Both candidates require strict adherence to inert gas blanketing and leak detection. The safety landscape is dominated by the gas-liquid nature of the hydrogenation and the use of methanol at 60°C. Thermal risks are negligible (Da_thermal << 0.1) due to the low concentration and efficient heat transfer in flow. The primary safety constraint is the Back Pressure Regulator (BPR) setting. For gas-liquid systems, a hard floor of 3.0 bar is required to ensure liquid-phase operation and prevent gas bypass; the current setting of 3.0 bar meets this minimum but offers zero robustness margin against pressure fluctuations. Material compatibility is excellent with PFA tubing, which is fully compatible with methanol at 60°C. Hazard management requires strict inert atmosphere (N₂) to prevent flammable H₂/methanol vapor mixtures and proper ventilation for methanol vapors. Both candidates are safe provided the BPR is maintained at or above 3.0 bar and the system is leak-tested.",
+  "safety_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Candidate 1 operates at 60°C with methanol solvent. Thermal safety is excellent (Da_thermal ~0.02). The system is gas-liquid, requiring a BPR hard floor of 3.0 bar. Current BPR is 3.0 bar, which meets the minimum but lacks the recommended 2.0 bar robustness margin (recommended 5.0 bar). Material compatibility: SS316 is acceptable for methanol at 60°C and 3 bar, provided no chlorides are present. However, FEP/PFA is preferred for corrosion resistance and visibility, but SS316 is not a BLOCK if purity is assured. Hazard flags include methanol flammability/toxicity and hydrogen explosivity. Atmosphere isolation is not required as it is a single stage, but inert N2/H2 blanket is mandatory. The low conversion (15%) suggests kinetic limitations, but safety-wise, the low pressure and temperature are manageable.",
+      "safety_score": 0.75,
+      "safety_delta_flow_value": 0.7,
+      "Da_thermal": 0.02,
+      "thermal_safe": true,
+      "BPR_required_bar": 3.0,
+      "BPR_current_bar": 3.0,
+      "BPR_adequate": true,
+      "system_type": "gas-liquid",
+      "material_compatible": true,
+      "material_recommendation": "SS316 (with purity check) or FEP",
+      "material_rationale": "Methanol at 60°C, 3 bar, pH ~7. SS316 is compatible with methanol but susceptible to hydrogen embrittlement at higher pressures; at 3 bar, risk is low. FEP is preferred for chemical resistance and visibility but SS316 is acceptable if solvent is chloride-free.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A — single stage, inert H2/N2 atmosphere throughout",
+      "hazard_flags": [
+        "Methanol — Flammable, Toxic (REACH); use closed system, spark-free equipment, fume hood",
+        "Hydrogen — Highly flammable, explosive; ensure leak detection, proper venting, inert purge",
+        "SS316 — Potential hydrogen embrittlement; verify solvent purity (no chlorides)"
+      ],
+      "verdict": "APPROVED_WITH_CONDITIONS",
+      "proposed_changes": {
+        "BPR_bar": 5.0
+      },
+      "blocking_issues": [],
+      "conditions": [
+        "Increase BPR to 5.0 bar for robustness margin",
+        "Verify methanol solvent is chloride-free to prevent SS316 corrosion",
+        "Ensure all connections are leak-tight and rated for H2 service"
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Candidate 2 operates at 60°C with methanol solvent. Thermal safety is excellent (Da_thermal ~0.02). The system is gas-liquid, requiring a BPR hard floor of 3.0 bar. Current BPR is 3.0 bar, which meets the minimum but lacks the recommended 2.0 bar robustness margin (recommended 5.0 bar). Material compatibility: SS316 is acceptable for methanol at 60°C and 3 bar, provided no chlorides are present. Hazard flags include methanol flammability/toxicity and hydrogen explosivity. The longer coil length (28.8 m) increases the inventory of hazardous materials (methanol/H2), increasing potential exposure in case of leak. Atmosphere isolation is not required as it is a single stage, but inert N2/H2 blanket is mandatory. The low conversion (11%) suggests kinetic limitations, but safety-wise, the low pressure and temperature are manageable.",
+      "safety_score": 0.7,
+      "safety_delta_flow_value": 0.4,
+      "Da_thermal": 0.02,
+      "thermal_safe": true,
+      "BPR_required_bar": 3.0,
+      "BPR_current_bar": 3.0,
+      "BPR_adequate": true,
+      "system_type": "gas-liquid",
+      "material_compatible": true,
+      "material_recommendation": "SS316 (with purity check) or FEP",
+      "material_rationale": "Methanol at 60°C, 3 bar, pH ~7. SS316 is compatible with methanol but susceptible to hydrogen embrittlement at higher pressures; at 3 bar, risk is low. FEP is preferred for chemical resistance and visibility but SS316 is acceptable if solvent is chloride-free.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A — single stage, inert H2/N2 atmosphere throughout",
+      "hazard_flags": [
+        "Methanol — Flammable, Toxic (REACH); use closed system, spark-free equipment, fume hood",
+        "Hydrogen — Highly flammable, explosive; ensure leak detection, proper venting, inert purge",
+        "SS316 — Potential hydrogen embrittlement; verify solvent purity (no chlorides)",
+        "High inventory — 22.6 mL reactor volume increases hazard exposure"
+      ],
+      "verdict": "APPROVED_WITH_CONDITIONS",
+      "proposed_changes": {
+        "BPR_bar": 5.0
+      },
+      "blocking_issues": [],
+      "conditions": [
+        "Increase BPR to 5.0 bar for robustness margin",
+        "Verify methanol solvent is chloride-free to prevent SS316 corrosion",
+        "Ensure all connections are leak-tight and rated for H2 service",
+        "Minimize coil length if possible to reduce hazardous inventory"
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Candidate 3 operates at 60°C with methanol solvent. Thermal safety is confirmed with Da_thermal ≈ 0.001, indicating isothermal conditions. The system is gas-liquid; therefore, the BPR hard floor is 3.0 bar. The current BPR is set to 3.0 bar, which meets the minimum requirement but leaves no safety margin for pressure spikes or regulator drift. PFA tubing is fully compatible with methanol at 60°C (no swelling, no permeation issues). Hazards include flammable H₂ gas and methanol vapor; strict inerting and leak detection are mandatory. The low flow rate (0.19 mL/min) increases the risk of clogging, which could lead to localized pressure buildup, but the PFA material can withstand the pump max pressure if blocked. Verdict is ACCEPT with a condition to monitor BPR stability.",
+      "safety_score": 0.85,
+      "safety_delta_flow_value": 0.7,
+      "Da_thermal": 0.001,
+      "thermal_safe": true,
+      "BPR_required_bar": 3.0,
+      "BPR_current_bar": 3.0,
+      "BPR_adequate": true,
+      "system_type": "gas-liquid",
+      "material_compatible": true,
+      "material_recommendation": "PFA",
+      "material_rationale": "Methanol at 60°C is fully compatible with PFA. PFA is chemically inert to alcohols and hydrogen. No halides or strong bases present. Temperature is well below PFA's 260°C limit.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A — single stage, inert N₂ atmosphere throughout",
+      "hazard_flags": [
+        "Hydrogen gas — Flammable, explosive limit 4-75% in air; ensure leak-free connections and inert purge",
+        "Methanol — Flammable, toxic (metabolic poison); use fume hood, closed system, PPE",
+        "Low flow rate (0.19 mL/min) — Risk of clogging; ensure filter integrity and pressure monitoring"
+      ],
+      "verdict": "ACCEPT",
+      "proposed_changes": {},
+      "blocking_issues": [],
+      "conditions": [
+        "Verify BPR stability at 3.0 bar; consider increasing to 3.5 bar if pressure fluctuations observed",
+        "Ensure all gas lines are leak-tested with helium or soap solution before pressurization"
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Candidate 4 operates at 60°C with methanol solvent. Thermal safety is confirmed with Da_thermal ≈ 0.001, indicating isothermal conditions. The system is gas-liquid; therefore, the BPR hard floor is 3.0 bar. The current BPR is set to 3.0 bar, which meets the minimum requirement. PFA tubing is fully compatible with methanol at 60°C. Hazards include flammable H₂ gas and methanol vapor; strict inerting and leak detection are mandatory. The higher flow rate (0.43 mL/min) reduces clogging risk compared to Candidate 3. The pressure drop is very low (0.007 bar), providing ample headroom. Verdict is ACCEPT with standard gas-liquid safety conditions.",
+      "safety_score": 0.88,
+      "safety_delta_flow_value": 0.7,
+      "Da_thermal": 0.001,
+      "thermal_safe": true,
+      "BPR_required_bar": 3.0,
+      "BPR_current_bar": 3.0,
+      "BPR_adequate": true,
+      "system_type": "gas-liquid",
+      "material_compatible": true,
+      "material_recommendation": "PFA",
+      "material_rationale": "Methanol at 60°C is fully compatible with PFA. PFA is chemically inert to alcohols and hydrogen. No halides or strong bases present. Temperature is well below PFA's 260°C limit.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A — single stage, inert N₂ atmosphere throughout",
+      "hazard_flags": [
+        "Hydrogen gas — Flammable, explosive limit 4-75% in air; ensure leak-free connections and inert purge",
+        "Methanol — Flammable, toxic (metabolic poison); use fume hood, closed system, PPE"
+      ],
+      "verdict": "ACCEPT",
+      "proposed_changes": {},
+      "blocking_issues": [],
+      "conditions": [
+        "Verify BPR stability at 3.0 bar; consider increasing to 3.5 bar if pressure fluctuations observed",
+        "Ensure all gas lines are leak-tested with helium or soap solution before pressurization"
+      ]
+    }
+  ],
+  "tool_calls": {
+    "chemistry": [],
+    "kinetics": [],
+    "fluidics": [],
+    "safety": []
+  },
+  "blocked_by_scoring": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "process_value_scores": [
+    {
+      "candidate_id": 1,
+      "PVS": 0.845,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.7
+    },
+    {
+      "candidate_id": 3,
+      "PVS": 0.845,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.7
+    },
+    {
+      "candidate_id": 4,
+      "PVS": 0.845,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.7
+    },
+    {
+      "candidate_id": 2,
+      "PVS": 0.77,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.4
+    }
+  ]
+}

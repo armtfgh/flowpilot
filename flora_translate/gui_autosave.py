@@ -71,6 +71,11 @@ def _summary(result: dict[str, Any], source: str) -> dict[str, Any]:
     return {
         "source": source,
         "confidence": result.get("confidence"),
+        "recommended_disposition": result.get("recommended_disposition"),
+        "disposition_rationale": result.get("disposition_rationale"),
+        "hard_failures": (
+            (result.get("design_disposition") or {}).get("hard_failures") or []
+        ),
         "reaction": (result.get("chemistry_plan") or {}).get("reaction_name"),
         "residence_time_min": proposal.get("residence_time_min"),
         "residence_time_inlet_min": proposal.get("residence_time_inlet_min"),

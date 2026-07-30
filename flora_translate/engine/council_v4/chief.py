@@ -49,7 +49,8 @@ from flora_translate.engine.council_v4.scoring import (
 )
 from flora_translate.engine.council_v4.skeptic import run_skeptic_audit
 from flora_translate.engine.sampling import compute_metrics, format_candidate_table, hard_filter
-from flora_translate.intake_agent import intake_context_block
+from flora_translate.intake_agent import historical_text_from_package, intake_context_block
+from flora_translate.inventory_constraints import enforce_reactor_inventory
 from flora_translate.schemas import (
     BatchRecord, ChemistryPlan, DesignInputPackage, FlowProposal, LabInventory,
     DesignCandidate, CouncilMessage, DeliberationLog,
@@ -2612,6 +2613,50 @@ class CouncilV4:
         current = proposal.model_copy(deep=True)
         log = DeliberationLog()
 
+        evidence_calibration = None
+        if intake_package is not None:
+            try:
+                from flora_translate.experiment_loop import (
+                    extract_experiments_from_text,
+                    refine_from_experimental_campaign,
+                )
+
+                evidence_experiments = extract_experiments_from_text(
+                    historical_text_from_package(intake_package)
+                )
+                if len(evidence_experiments) >= 2:
+                    evidence_result = refine_from_experimental_campaign(
+                        {"proposal": current.model_dump()},
+                        evidence_experiments,
+                        target_yield_pct=75.0,
+                        target_conversion_pct=75.0,
+                        target_selectivity_pct=85.0,
+                    )
+                    current = FlowProposal(**evidence_result.refined_result["proposal"])
+                    current, evidence_inventory_report = enforce_reactor_inventory(
+                        current,
+                        inventory,
+                    )
+                    evidence_calibration = current.evidence_calibration or {}
+                    calculations = None
+                    logger.info(
+                        "  Council v4 — measured-evidence initialization: "
+                        "best tau=%.3f min, requested next tau=%.3f min, "
+                        "inventory-feasible tau=%.3f min%s",
+                        float(evidence_calibration.get("best_tau_min") or 0.0),
+                        float(evidence_calibration.get("recommended_tau_min") or 0.0),
+                        float(current.residence_time_min or 0.0),
+                        " (pump constrained)"
+                        if (
+                            (current.inventory_constraints or {})
+                            .get("flow_recalculation", {})
+                            .get("pump_flow_clamped")
+                        )
+                        else "",
+                    )
+            except Exception as exc:
+                logger.warning("Council measured-evidence initialization skipped: %s", exc)
+
         # ── Ensure calculator center-point ──────────────────────────────────
         if calculations is None:
             calculations = DesignCalculator().run(
@@ -2689,6 +2734,11 @@ class CouncilV4:
         IF_used = calc.intensification_factor or 6.0
         assumed_MW = getattr(batch_record, "product_MW", None) or 250.0
         pump_max = calc.pump_max_bar or 20.0
+        selected_pump = (current.inventory_constraints or {}).get("selected_pump") or {}
+        pump_min_flow = _positive_float(
+            selected_pump.get("min_flow_rate_mL_min"),
+            0.05,
+        )
         ext_coeff = _extract_extinction_coeff(batch_record, chemistry_plan)
         chem_brief = _build_chemistry_brief(batch_record, chemistry_plan, current)
         intake_block = intake_context_block(intake_package) if intake_package is not None else ""
@@ -2705,14 +2755,17 @@ class CouncilV4:
                 "\nintensification_mandate: "
                 + json.dumps(intensification_mandate, ensure_ascii=False)
             )
-        feasibility_diagnostic = _intensification_feasibility_precheck(
-            batch_time_min=batch_time_min,
-            tau_kinetics_min=tau_kinetics,
-            intensification_mandate=intensification_mandate,
-            translation_policy=translation_policy,
-            calc=calc,
-            candidate_tau_min=current.residence_time_min,
-        )
+        if evidence_calibration:
+            feasibility_diagnostic = None
+        else:
+            feasibility_diagnostic = _intensification_feasibility_precheck(
+                batch_time_min=batch_time_min,
+                tau_kinetics_min=tau_kinetics,
+                intensification_mandate=intensification_mandate,
+                translation_policy=translation_policy,
+                calc=calc,
+                candidate_tau_min=current.residence_time_min,
+            )
 
         # ═══════════════════════════════════════════════════════════════════
         #  STAGE 0 — Problem Framing
@@ -2791,6 +2844,19 @@ class CouncilV4:
                 ),
                 "target_reduction_factor": target,
             }
+        elif evidence_calibration:
+            evidence_floor = _positive_float(
+                evidence_calibration.get("best_tau_min")
+            )
+            uncertain_redesign_instructions = {
+                "tau_floor": evidence_floor,
+                "measured_evidence_override": True,
+                "note": (
+                    "Measured campaign evidence is authoritative. Do not generate "
+                    "or select a residence time below the best measured anchor while "
+                    "the measured response remains below target."
+                ),
+            }
         _bench_stage_start(
             benchmark_recorder,
             "council_stage_1_designer",
@@ -2833,6 +2899,7 @@ class CouncilV4:
                 concentration_M=current.concentration_M,
                 assumed_MW=assumed_MW, IF_used=IF_used,
                 pump_max_bar=pump_max,
+                pump_min_flow_mL_min=pump_min_flow,
                 BPR_bar=current.BPR_bar or 0.0,
                 batch_time_min=batch_time_min,
                 translation_policy=translation_policy,
@@ -2851,6 +2918,39 @@ class CouncilV4:
                 designer_result["feasibility_diagnostic"] = feasibility_diagnostic
 
         survivors = designer_result["survivors"]
+        if evidence_calibration:
+            evidence_floor = _positive_float(evidence_calibration.get("best_tau_min"))
+            if evidence_floor > 0:
+                evidence_rejected = []
+                evidence_eligible = []
+                for candidate in survivors:
+                    candidate_tau = _positive_float(candidate.get("tau_min"))
+                    if candidate_tau + 1e-9 < evidence_floor:
+                        reason = (
+                            "measured-evidence residence-time floor: "
+                            f"tau={candidate_tau:.3f} < {evidence_floor:.3f} min"
+                        )
+                        candidate.setdefault("hard_gate_flags", []).append(reason)
+                        candidate["hard_gate_status"] = "BLOCKED: " + reason
+                        evidence_rejected.append({"candidate": candidate, "reason": reason})
+                    else:
+                        evidence_eligible.append(candidate)
+                if evidence_eligible:
+                    survivors = evidence_eligible
+                    designer_result["survivors"] = survivors
+                    designer_result.setdefault("disqualified", []).extend(evidence_rejected)
+                    logger.info(
+                        "    Evidence floor %.3f min: %d candidates retained, %d blocked",
+                        evidence_floor,
+                        len(evidence_eligible),
+                        len(evidence_rejected),
+                    )
+                else:
+                    logger.warning(
+                        "Council Designer produced no candidate at/above the %.3f min "
+                        "measured-evidence floor",
+                        evidence_floor,
+                    )
         if uncertain_kinetics_screen:
             _downgrade_uncertain_kinetic_hard_gates(survivors)
             _downgrade_uncertain_kinetic_hard_gates(designer_result.get("disqualified", []))
@@ -2884,6 +2984,13 @@ class CouncilV4:
             # genuine alternates — they just landed outside the LLM's chosen
             # sampling envelope.
             seed_pool: list[dict] = list(design_space_seed_candidates or [])
+            if evidence_calibration:
+                evidence_floor = _positive_float(evidence_calibration.get("best_tau_min"))
+                seed_pool = [
+                    candidate
+                    for candidate in seed_pool
+                    if _positive_float(candidate.get("tau_min")) + 1e-9 >= evidence_floor
+                ]
             if seed_pool:
                 logger.warning(
                     "Council v4: Designer sampling returned 0 survivors — seeding from "
@@ -3073,7 +3180,7 @@ class CouncilV4:
                 cfg.MAX_WEAK_POOL_CYCLES,
                 "; ".join(report.get("specific_failures", []))[:180],
             )
-            designer_result = run_designer_v4(
+            redesigned_result = run_designer_v4(
                 reaction_class=reaction_class,
                 is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,
                 is_O2_sensitive=is_O2_sensitive,
@@ -3095,10 +3202,31 @@ class CouncilV4:
                 intensification_mandate=intensification_mandate,
                 redesign_instructions=report.get("regeneration_instructions") or {},
             )
-            survivors = designer_result["survivors"]
-            table_markdown = designer_result["table_markdown"]
-            if not survivors:
+            redesigned_survivors = redesigned_result["survivors"]
+            if not redesigned_survivors:
+                # A failed regeneration must not erase the last viable pool.
+                # Preserve the prior candidates/scoring/audit and let the Chief
+                # make a bounded SCREEN_REQUIRED decision from real options.
+                initial_audit["weak_pool_redesign_exhausted"] = True
+                initial_audit.setdefault("all_errors", []).append({
+                    "agent": "SKEPTIC",
+                    "candidate_id": None,
+                    "error_type": "WEAK_POOL_REDESIGN_EMPTY",
+                    "description": (
+                        "Weak-pool regeneration produced no feasible candidates; "
+                        "the previous viable pool was retained for selection."
+                    ),
+                    "severity": "HIGH",
+                })
+                logger.warning(
+                    "  Council v4 — weak-pool redesign returned no candidates; "
+                    "retaining the previous %d-candidate pool",
+                    len(survivors),
+                )
                 break
+            designer_result = redesigned_result
+            survivors = redesigned_survivors
+            table_markdown = designer_result["table_markdown"]
             initial_scoring = run_domain_scoring(
                 candidates=survivors,
                 table_markdown=table_markdown,
@@ -3130,7 +3258,11 @@ class CouncilV4:
                 process_value_scores=initial_scoring.get("process_value_scores", []),
                 has_photocatalyst=has_photocatalyst,
             )
-        if initial_audit.get("verdict") == "WEAK_POOL" and weak_pool_cycles >= cfg.MAX_WEAK_POOL_CYCLES:
+        weak_pool_exhausted = (
+            initial_audit.get("verdict") == "WEAK_POOL"
+            and weak_pool_cycles >= cfg.MAX_WEAK_POOL_CYCLES
+        )
+        if weak_pool_exhausted:
             initial_audit["council_may_proceed"] = False
             initial_audit["audit_summary"] += (
                 " Maximum WEAK_POOL cycles reached; manual review required."
@@ -3172,6 +3304,42 @@ class CouncilV4:
                 "error_count": len(initial_audit.get("all_errors", [])),
             },
         )
+        if weak_pool_exhausted:
+            screen_payload = _build_screen_required_payload(
+                current=current,
+                calc=calc,
+                batch_time_min=batch_time_min,
+                intensification_mandate=intensification_mandate,
+                solvent=solvent,
+                reason="maximum weak-pool redesign cycles exhausted",
+                feasibility_diagnostic=designer_result.get(
+                    "feasibility_diagnostic"
+                ),
+            )
+            designer_result["screen_required_report"] = screen_payload
+            _bench_snapshot(
+                benchmark_recorder,
+                "stage3_screen_required_weak_pool_exhausted",
+                {
+                    **screen_payload,
+                    "weak_pool_cycles": weak_pool_cycles,
+                    "weak_pool_history": weak_pool_history,
+                },
+            )
+            return self._fallback(
+                current,
+                chemistry_plan,
+                calc,
+                log,
+                designer_result,
+                reason=(
+                    "screen required: maximum weak-pool redesign cycles "
+                    "exhausted"
+                ),
+                batch_record=batch_record,
+                inventory=inventory,
+                analogies=analogies,
+            )
 
         # ═══════════════════════════════════════════════════════════════════
         #  STAGE 3.5 — Pre-selection expert refinement + rescoring

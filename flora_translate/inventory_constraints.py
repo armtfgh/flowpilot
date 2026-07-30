@@ -21,7 +21,7 @@ from flora_translate.residence_time_basis import (
     stp_gas_flow_from_actual,
     stp_gas_flow_for_equiv,
 )
-from flora_translate.schemas import FlowProposal, LabInventory, ReactorSpec
+from flora_translate.schemas import FlowProposal, LabInventory, PumpSpec, ReactorSpec
 
 
 P_STP_BAR = 1.01325
@@ -55,6 +55,19 @@ def inventory_prompt_block(inventory: LabInventory | None) -> str:
             lines.append(f"- {label}" + (f" ({'; '.join(constraints)})" if constraints else ""))
     if inventory.BPR_available:
         lines.append(f"Available BPR/pressure settings: {inventory.BPR_available} bar")
+    if inventory.pumps:
+        lines.append("Available pumps. Final liquid flow must remain within the selected pump range:")
+        for pump in inventory.pumps:
+            systems = (
+                f"; systems: {', '.join(pump.compatible_systems)}"
+                if pump.compatible_systems
+                else ""
+            )
+            lines.append(
+                f"- {pump.name}: {pump.min_flow_rate_mL_min:g}-"
+                f"{pump.max_flow_rate_mL_min:g} mL/min, max "
+                f"{pump.max_pressure_bar:g} bar{systems}"
+            )
     if inventory.light_sources:
         lines.append("Available light sources:")
         for src in inventory.light_sources:
@@ -62,6 +75,22 @@ def inventory_prompt_block(inventory: LabInventory | None) -> str:
             if src.intensity_mW_cm2:
                 detail += f", {src.intensity_mW_cm2:g} mW/cm2"
             lines.append(f"- {detail}")
+    if inventory.gas_hardware:
+        lines.append("Available gas hardware:")
+        for item in inventory.gas_hardware:
+            details = []
+            if item.gas:
+                details.append(f"gas: {item.gas}")
+            if item.min_flow_sccm is not None or item.max_flow_sccm is not None:
+                details.append(
+                    f"flow: {item.min_flow_sccm or 0:g}-"
+                    f"{item.max_flow_sccm or 0:g} sccm"
+                )
+            if item.max_pressure_bar is not None:
+                details.append(f"max pressure: {item.max_pressure_bar:g} bar")
+            details.append(f"service: {item.service_status}")
+            label = item.name + (f" ({item.type})" if item.type else "")
+            lines.append(f"- {label}: " + "; ".join(details))
     return "\n".join(lines)
 
 
@@ -114,6 +143,7 @@ def enforce_reactor_inventory(
             10.0,
         )
     volume = float(selected.volume_mL)
+    selected_pump = _pump_for_reactor(selected, inventory)
     temperature = _snap_temperature(_num(data.get("temperature_C"), 25.0), selected)
     concentration = _clamp(
         _num(data.get("concentration_M"), 0.1),
@@ -143,12 +173,13 @@ def enforce_reactor_inventory(
     # volume remains closed after recalculation.
     gas_actual_ratio = min(gas_actual_ratio, 0.85 / 0.15)
     target_gas_equiv = _target_gas_equiv_inlet(data)
-    if target_gas_equiv > 0 and _proposal_has_o2(data):
+    gas_species, gas_reagent_fraction = _gas_species_and_fraction(data)
+    if target_gas_equiv > 0 and _proposal_has_gas(data):
         gas_stp_ratio = stp_gas_flow_for_equiv(
             1.0,
             max(concentration, 1e-9),
             target_gas_equiv,
-            1.0,
+            gas_reagent_fraction,
         )
         gas_actual_ratio = actual_gas_flow_from_stp(gas_stp_ratio, temperature, bpr)
 
@@ -178,6 +209,36 @@ def enforce_reactor_inventory(
         data["residence_time_in_channel_min"] = round(tau, 3)
         data["residence_time_inlet_min"] = round(tau, 3)
 
+    requested_tau = tau
+    pump_flow_clamped = False
+    if selected_pump is not None:
+        clamped_liquid_q = _clamp(
+            liquid_q,
+            selected_pump.min_flow_rate_mL_min,
+            selected_pump.max_flow_rate_mL_min,
+        )
+        pump_flow_clamped = abs(clamped_liquid_q - liquid_q) > 1e-12
+        if pump_flow_clamped:
+            liquid_q = clamped_liquid_q
+            if basis == INLET_STP_BASIS and gas_stp_ratio > 0:
+                gas_sccm = liquid_q * gas_stp_ratio
+                gas_actual = actual_gas_flow_from_stp(gas_sccm, temperature, bpr)
+                tau = volume / max(liquid_q + gas_sccm, 1e-9)
+                residence_time_in_channel = volume / max(liquid_q + gas_actual, 1e-9)
+                data["residence_time_inlet_min"] = round(tau, 3)
+                data["residence_time_in_channel_min"] = round(residence_time_in_channel, 3)
+            elif gas_actual_ratio > 0:
+                gas_actual = liquid_q * gas_actual_ratio
+                gas_sccm = stp_gas_flow_from_actual(gas_actual, temperature, bpr)
+                tau = volume / max(liquid_q + gas_actual, 1e-9)
+                residence_time_inlet = volume / max(liquid_q + gas_sccm, 1e-9)
+                data["residence_time_in_channel_min"] = round(tau, 3)
+                data["residence_time_inlet_min"] = round(residence_time_inlet, 3)
+            else:
+                tau = volume / max(liquid_q, 1e-9)
+                data["residence_time_in_channel_min"] = round(tau, 3)
+                data["residence_time_inlet_min"] = round(tau, 3)
+
     data["residence_time_min"] = round(tau, 3)
     data["flow_rate_mL_min"] = round(liquid_q, 5)
     data["reactor_volume_mL"] = round(volume, 4)
@@ -199,7 +260,12 @@ def enforce_reactor_inventory(
 
     _scale_liquid_streams(data, liquid_q, concentration)
     if gas_actual_ratio > 0:
-        _sync_gas_streams(data, gas_actual, gas_sccm)
+        _sync_gas_streams(
+            data,
+            gas_actual,
+            gas_sccm,
+            species=gas_species,
+        )
         if target_gas_equiv > 0:
             for stream in data.get("streams") or []:
                 if _is_gas_stream(stream):
@@ -213,15 +279,50 @@ def enforce_reactor_inventory(
         "allowed_reactor_volumes_mL": sorted({float(r.volume_mL) for r in inventory.reactors}),
         "allowed_reactor_IDs_mm": sorted({float(r.ID_mm) for r in inventory.reactors}),
         "selected_reactor": selected_payload,
+        "selected_pump": _pump_payload(selected_pump),
         "flow_recalculation": {
             "residence_time_basis": data["residence_time_basis"],
+            "requested_residence_time_min": round(requested_tau, 3),
+            "pump_flow_clamped": pump_flow_clamped,
+            "pump_min_flow_rate_mL_min": (
+                selected_pump.min_flow_rate_mL_min if selected_pump else None
+            ),
+            "pump_max_flow_rate_mL_min": (
+                selected_pump.max_flow_rate_mL_min if selected_pump else None
+            ),
             "liquid_flow_rate_mL_min": data["flow_rate_mL_min"],
             "gas_flow_actual_mL_min": round(gas_actual, 5) if gas_actual_ratio > 0 else None,
             "gas_flow_sccm": round(gas_sccm, 5) if gas_actual_ratio > 0 else None,
             "target_gas_equiv_inlet": round(target_gas_equiv, 4) if target_gas_equiv > 0 else None,
-            "o2_equiv_supplied": (
-                round(gas_equiv_from_stp_flow(gas_sccm, liquid_q, concentration, 1.0), 4)
+            "gas_equiv_supplied": (
+                round(
+                    gas_equiv_from_stp_flow(
+                        gas_sccm,
+                        liquid_q,
+                        concentration,
+                        gas_reagent_fraction,
+                    ),
+                    4,
+                )
                 if target_gas_equiv > 0 and gas_sccm > 0 and liquid_q > 0
+                else None
+            ),
+            "o2_equiv_supplied": (
+                round(
+                    gas_equiv_from_stp_flow(
+                        gas_sccm,
+                        liquid_q,
+                        concentration,
+                        gas_reagent_fraction,
+                    ),
+                    4,
+                )
+                if (
+                    gas_species in {"O2", "air"}
+                    and target_gas_equiv > 0
+                    and gas_sccm > 0
+                    and liquid_q > 0
+                )
                 else None
             ),
         },
@@ -229,7 +330,12 @@ def enforce_reactor_inventory(
     reasoning = data.setdefault("reasoning_per_field", {})
     reasoning["inventory_selection"] = (
         f"Forced to available inventory reactor: {_reactor_label(selected)}. "
-        "Flow rates recalculated from selected volume and target residence time."
+        "Flow rates recalculated from selected volume and target residence time. "
+        + (
+            f"Liquid flow was clamped to the operating range of {selected_pump.name}."
+            if pump_flow_clamped and selected_pump
+            else "Selected pump flow range was satisfied."
+        )
     )
     data["chemistry_notes"] = _append_note(
         data.get("chemistry_notes", ""),
@@ -273,6 +379,15 @@ def select_reactor_for_proposal(
     desired_conc = _num(proposal.concentration_M, 0.1)
     desired_pressure = _num(proposal.BPR_bar, 0.0)
     desired_wavelength = _num(proposal.wavelength_nm, 0.0)
+    desired_tau = _first_positive(
+        proposal.residence_time_min,
+        proposal.residence_time_inlet_min,
+        proposal.residence_time_in_channel_min,
+    )
+    basis = normalize_residence_time_basis(proposal.residence_time_basis)
+    proposal_data = proposal.model_dump()
+    target_gas_equiv = _target_gas_equiv_inlet(proposal_data)
+    desired_system = _desired_reactor_system(proposal, inventory)
 
     def score(r: ReactorSpec) -> tuple[float, float]:
         s = abs(float(r.volume_mL) - desired_volume) / max(desired_volume, 1.0)
@@ -282,11 +397,111 @@ def select_reactor_for_proposal(
         s += _range_penalty(desired_pressure, r.min_pressure_bar, r.max_pressure_bar, [])
         if desired_wavelength > 0 and r.wavelength_nm:
             s += abs(float(r.wavelength_nm) - desired_wavelength) / 1000.0
+        if desired_system and r.system and r.system != desired_system:
+            s += 2.0
+
+        pump = _pump_for_reactor(r, inventory)
+        required_liquid_q = _required_liquid_flow_for_reactor(
+            r,
+            tau_min=desired_tau,
+            residence_time_basis=basis,
+            concentration_M=desired_conc,
+            temperature_C=desired_temp,
+            pressure_bar=desired_pressure,
+            target_gas_equiv=target_gas_equiv,
+            proposal_data=proposal_data,
+        )
+        if pump is not None and required_liquid_q > 0:
+            if required_liquid_q < pump.min_flow_rate_mL_min - 1e-12:
+                s += 100.0 + (
+                    pump.min_flow_rate_mL_min - required_liquid_q
+                ) / max(pump.min_flow_rate_mL_min, 1e-9)
+            elif required_liquid_q > pump.max_flow_rate_mL_min + 1e-12:
+                s += 100.0 + (
+                    required_liquid_q - pump.max_flow_rate_mL_min
+                ) / max(pump.max_flow_rate_mL_min, 1e-9)
         # Tie-break toward higher irradiance for photochemical reactors.
         intensity = float(r.intensity_mW_cm2 or 0.0)
         return (s, -intensity)
 
     return min(inventory.reactors, key=score)
+
+
+def _desired_reactor_system(
+    proposal: FlowProposal,
+    inventory: LabInventory,
+) -> str:
+    for payload in (
+        proposal.inventory_selection or {},
+        (proposal.inventory_constraints or {}).get("selected_reactor") or {},
+    ):
+        system = str(payload.get("system") or "").strip()
+        if system:
+            return system
+
+    calibration = proposal.evidence_calibration or {}
+    anchor = calibration.get("anchor_conditions") or {}
+    anchor_volume = _num(anchor.get("reactor_volume_mL"), 0.0)
+    if anchor_volume > 0:
+        matching = [
+            reactor
+            for reactor in inventory.reactors
+            if abs(float(reactor.volume_mL) - anchor_volume) < 1e-6
+        ]
+        systems = {reactor.system for reactor in matching if reactor.system}
+        if len(systems) == 1:
+            return next(iter(systems))
+    return ""
+
+
+def _required_liquid_flow_for_reactor(
+    reactor: ReactorSpec,
+    *,
+    tau_min: float,
+    residence_time_basis: str,
+    concentration_M: float,
+    temperature_C: float,
+    pressure_bar: float,
+    target_gas_equiv: float,
+    proposal_data: dict[str, Any],
+) -> float:
+    if tau_min <= 0:
+        return 0.0
+
+    if (
+        residence_time_basis == INLET_STP_BASIS
+        and target_gas_equiv > 0
+        and _proposal_has_gas(proposal_data)
+    ):
+        _, reagent_fraction = _gas_species_and_fraction(proposal_data)
+        gas_stp_ratio = stp_gas_flow_for_equiv(
+            1.0,
+            max(concentration_M, 1e-9),
+            target_gas_equiv,
+            reagent_fraction,
+        )
+        return float(reactor.volume_mL) / tau_min / (1.0 + gas_stp_ratio)
+
+    liquid_q, gas_actual, _ = _current_flow_basis(proposal_data)
+    gas_actual_ratio = gas_actual / liquid_q if liquid_q > 0 and gas_actual > 0 else 0.0
+    if (
+        gas_actual_ratio <= 0
+        and target_gas_equiv > 0
+        and _proposal_has_gas(proposal_data)
+    ):
+        _, reagent_fraction = _gas_species_and_fraction(proposal_data)
+        gas_stp_ratio = stp_gas_flow_for_equiv(
+            1.0,
+            max(concentration_M, 1e-9),
+            target_gas_equiv,
+            reagent_fraction,
+        )
+        gas_actual_ratio = actual_gas_flow_from_stp(
+            gas_stp_ratio,
+            temperature_C,
+            pressure_bar,
+        )
+    return float(reactor.volume_mL) / tau_min / (1.0 + gas_actual_ratio)
 
 
 def reactor_is_compatible(
@@ -333,22 +548,47 @@ def _target_gas_equiv_inlet(data: dict[str, Any]) -> float:
         if not _is_gas_stream(stream):
             continue
         value = _num(stream.get("molar_equiv"), 0.0)
+        # StreamAssignment defaults to 1.0, so only treat a non-default stream
+        # value as explicit. Calculator-produced targets are carried above in
+        # multiphase_metrics and may legitimately equal 1.0.
         if value > 0 and abs(value - 1.0) > 1e-9:
             return value
     return 0.0
 
 
-def _proposal_has_o2(data: dict[str, Any]) -> bool:
-    text_parts = [
-        str((data.get("multiphase_metrics") or {}).get("gas_species") or ""),
-    ]
+def _gas_species_and_fraction(data: dict[str, Any]) -> tuple[str, float]:
+    metrics = data.get("multiphase_metrics") or {}
+    species = str(metrics.get("gas_species") or "").strip()
+    fraction = _num(metrics.get("gas_reagent_fraction"), 0.0)
+    if species and fraction > 0:
+        return species, fraction
+
+    text_parts = [species]
     for stream in data.get("streams") or []:
         if not _is_gas_stream(stream):
             continue
         text_parts.append(str(stream.get("pump_role") or ""))
         text_parts.extend(str(c) for c in (stream.get("contents") or []))
     text = " ".join(text_parts).lower()
-    return bool(re.search(r"\b(o2|oxygen)\b|o₂", text))
+    if re.search(r"\bair\b", text):
+        return "air", 0.21
+    species_patterns = (
+        ("O2", r"\b(o2|oxygen)\b|o₂"),
+        ("H2", r"\b(h2|hydrogen)\b|h₂"),
+        ("CO2", r"\b(co2|carbon dioxide)\b|co₂"),
+        ("CO", r"\bcarbon monoxide\b"),
+        ("O3", r"\b(o3|ozone)\b|o₃"),
+        ("Cl2", r"\b(cl2|chlorine)\b|cl₂"),
+        ("NH3", r"\b(nh3|ammonia)\b|nh₃"),
+        ("HCl", r"\b(hcl gas|hydrogen chloride)\b"),
+        ("SO2", r"\b(so2|sulfur dioxide)\b|so₂"),
+    )
+    for label, pattern in species_patterns:
+        if re.search(pattern, text):
+            return label, 1.0
+    if "syngas" in text:
+        return "syngas", 0.5
+    return species or "gas", fraction or 1.0
 
 
 def _current_flow_basis(data: dict[str, Any]) -> tuple[float, float, float]:
@@ -397,7 +637,13 @@ def _scale_liquid_streams(data: dict[str, Any], liquid_q: float, concentration: 
             stream["concentration_M"] = round(concentration, 4)
 
 
-def _sync_gas_streams(data: dict[str, Any], gas_actual: float, gas_sccm: float) -> None:
+def _sync_gas_streams(
+    data: dict[str, Any],
+    gas_actual: float,
+    gas_sccm: float,
+    *,
+    species: str = "gas",
+) -> None:
     streams = data.setdefault("streams", [])
     for stream in streams:
         if _is_gas_stream(stream):
@@ -408,8 +654,8 @@ def _sync_gas_streams(data: dict[str, Any], gas_actual: float, gas_sccm: float) 
             return
     streams.append({
         "stream_label": "G",
-        "pump_role": "O2 gas feed",
-        "contents": ["O2"],
+        "pump_role": f"{species} gas feed",
+        "contents": [species],
         "phase": "gas",
         "gas_flow_actual_mL_min": round(gas_actual, 5),
         "gas_flow_sccm": round(gas_sccm, 5),
@@ -454,7 +700,9 @@ def _snap_pressure(
 ) -> float:
     min_pressure = reactor.min_pressure_bar if reactor.min_pressure_bar is not None else 0.0
     if is_gas_liquid:
-        min_pressure = max(min_pressure, 5.0)
+        positive_bprs = [float(p) for p in (inventory.BPR_available or []) if float(p) > 0]
+        if positive_bprs:
+            min_pressure = max(min_pressure, min(positive_bprs))
     max_pressure = reactor.max_pressure_bar
     value = _clamp(max(value, min_pressure), min_pressure, max_pressure)
     choices = [
@@ -464,6 +712,28 @@ def _snap_pressure(
     if choices:
         value = min(choices, key=lambda p: abs(p - value))
     return value
+
+
+def _pump_for_reactor(reactor: ReactorSpec, inventory: LabInventory) -> PumpSpec | None:
+    if not inventory.pumps:
+        return None
+
+    system = (reactor.system or "").strip().lower()
+    if system:
+        for pump in inventory.pumps:
+            if any(system == candidate.strip().lower() for candidate in pump.compatible_systems):
+                return pump
+
+        system_token = system.split()[0]
+        for pump in inventory.pumps:
+            if system_token and system_token in pump.name.lower():
+                return pump
+
+    return inventory.pumps[0]
+
+
+def _pump_payload(pump: PumpSpec | None) -> dict[str, Any] | None:
+    return pump.model_dump() if pump is not None else None
 
 
 def _actual_to_sccm(gas_actual_mL_min: float, temperature_C: float, pressure_bar: float) -> float:
@@ -477,7 +747,11 @@ def _actual_to_sccm(gas_actual_mL_min: float, temperature_C: float, pressure_bar
 def _reactor_label(r: ReactorSpec) -> str:
     prefix = f"{r.system} " if r.system else ""
     name = r.name or f"{r.type} reactor"
-    return f"{prefix}{name}: {r.volume_mL:g} mL, {r.ID_mm:g} mm ID, {r.material}"
+    configuration = f", {r.configuration}" if r.configuration else ""
+    return (
+        f"{prefix}{name}: {r.volume_mL:g} mL, {r.ID_mm:g} mm ID, "
+        f"{r.material}{configuration}"
+    )
 
 
 def _reactor_payload(r: ReactorSpec) -> dict[str, Any]:
@@ -496,6 +770,9 @@ def _reactor_payload(r: ReactorSpec) -> dict[str, Any]:
         "allowed_temperatures_C": r.allowed_temperatures_C,
         "concentration_range_M": [r.min_concentration_M, r.max_concentration_M],
         "pressure_range_bar": [r.min_pressure_bar, r.max_pressure_bar],
+        "configuration": r.configuration,
+        "component_volumes_mL": r.component_volumes_mL,
+        "notes": r.notes,
     }
 
 

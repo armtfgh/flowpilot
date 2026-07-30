@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from flora_translate.engine.design_space import DesignSpaceSearch
-from flora_translate.inventory_constraints import enforce_reactor_inventory
+from flora_translate.inventory_constraints import enforce_reactor_inventory, inventory_prompt_block
 from flora_translate.residence_time_basis import gas_equiv_from_stp_flow
 from flora_translate.schemas import BatchRecord, ChemistryPlan, FlowProposal, LabInventory, StreamAssignment
 
@@ -56,7 +56,7 @@ def test_design_space_uses_only_inventory_reactor_volumes_for_thq():
 
     assert candidates
     volumes = {round(c.V_R_mL) for c in candidates}
-    assert volumes <= {10, 15, 20}
+    assert volumes <= {10, 15, 20, 30}
     assert {round(c.d_mm, 3) for c in candidates} == {1.0}
     assert all(c.inventory_reactor_name for c in candidates)
 
@@ -218,3 +218,132 @@ def test_inventory_enforcement_recomputes_o2_from_target_equiv():
     assert abs(supplied_equiv - 2.0) < 0.02
     assert gas.gas_flow_sccm > gas.gas_flow_actual_mL_min
     assert gas.molar_equiv == 2.0
+
+
+def test_manual_reactor_enforces_ten_microliter_pump_minimum_and_preserves_three_bar():
+    inventory = LabInventory.from_json(str(THQ_INVENTORY))
+    inventory.reactors = [
+        reactor
+        for reactor in inventory.reactors
+        if reactor.system == "Manual Setup" and reactor.volume_mL <= 20
+    ]
+    proposal = FlowProposal(
+        residence_time_min=98.9,
+        residence_time_inlet_min=98.9,
+        residence_time_basis="inlet/STP apparent residence time",
+        flow_rate_mL_min=0.0086,
+        reactor_volume_mL=20.0,
+        temperature_C=40,
+        concentration_M=0.5,
+        BPR_bar=3,
+        tubing_ID_mm=1.0,
+        tubing_material="FEP",
+        wavelength_nm=448,
+        evidence_calibration={
+            "recommended_conditions": {
+                "residence_time_inlet_min": 98.9,
+                "gas_equiv_inlet": 2.0,
+            },
+        },
+        streams=[
+            StreamAssignment(
+                stream_label="A",
+                pump_role="substrate solution",
+                contents=["6-methyl-THQ"],
+                solvent="DMSO",
+                concentration_M=0.5,
+                flow_rate_mL_min=0.0086,
+            ),
+            StreamAssignment(
+                stream_label="G",
+                pump_role="O2 gas feed",
+                contents=["O2"],
+                phase="gas",
+                molar_equiv=2.0,
+                gas_flow_actual_mL_min=0.06,
+                gas_flow_sccm=0.19,
+            ),
+        ],
+    )
+
+    revised, report = enforce_reactor_inventory(proposal, inventory)
+    flow_report = revised.inventory_constraints["flow_recalculation"]
+
+    assert report["applied"]
+    assert revised.inventory_selection["system"] == "Manual Setup"
+    assert revised.flow_rate_mL_min == 0.01
+    assert revised.BPR_bar == 3.0
+    assert revised.residence_time_inlet_min < 98.9
+    assert revised.residence_time_inlet_min > 68.9
+    assert flow_report["pump_flow_clamped"] is True
+    assert flow_report["pump_min_flow_rate_mL_min"] == 0.01
+    assert flow_report["o2_equiv_supplied"] == 2.0
+
+
+def test_serial_30_ml_manual_reactor_makes_evidence_screen_pump_feasible():
+    inventory = LabInventory.from_json(str(THQ_INVENTORY))
+    proposal = FlowProposal(
+        residence_time_min=98.9,
+        residence_time_inlet_min=98.9,
+        residence_time_basis="inlet/STP apparent residence time",
+        flow_rate_mL_min=0.00782,
+        reactor_volume_mL=20.0,
+        temperature_C=40,
+        concentration_M=0.5,
+        BPR_bar=3,
+        tubing_ID_mm=1.0,
+        tubing_material="FEP",
+        wavelength_nm=448,
+        evidence_calibration={
+            "best_tau_min": 68.9,
+            "anchor_conditions": {
+                "reactor_volume_mL": 20.0,
+                "gas_equiv_inlet": 2.0,
+            },
+            "recommended_conditions": {
+                "residence_time_inlet_min": 98.9,
+                "gas_equiv_inlet": 2.0,
+            },
+        },
+        streams=[
+            StreamAssignment(
+                stream_label="A",
+                pump_role="substrate solution",
+                contents=["6-methyl-THQ"],
+                solvent="DMSO",
+                concentration_M=0.5,
+                flow_rate_mL_min=0.00782,
+            ),
+            StreamAssignment(
+                stream_label="G",
+                pump_role="O2 gas feed",
+                contents=["O2"],
+                phase="gas",
+                molar_equiv=2.0,
+                gas_flow_actual_mL_min=0.05,
+                gas_flow_sccm=0.175,
+            ),
+        ],
+    )
+
+    revised, report = enforce_reactor_inventory(proposal, inventory)
+    flow_report = revised.inventory_constraints["flow_recalculation"]
+
+    assert report["applied"]
+    assert revised.reactor_volume_mL == 30.0
+    assert revised.inventory_selection["system"] == "Manual Setup"
+    assert revised.inventory_selection["component_volumes_mL"] == [20.0, 10.0]
+    assert revised.residence_time_inlet_min == 98.9
+    assert revised.flow_rate_mL_min > 0.01
+    assert revised.BPR_bar == 3.0
+    assert flow_report["pump_flow_clamped"] is False
+    assert flow_report["o2_equiv_supplied"] == 2.0
+
+
+def test_inventory_prompt_exposes_pump_flow_limits():
+    inventory = LabInventory.from_json(str(THQ_INVENTORY))
+
+    prompt = inventory_prompt_block(inventory)
+
+    assert "Manual syringe/HPLC pump setup: 0.01-5 mL/min" in prompt
+    assert "systems: Manual Setup" in prompt

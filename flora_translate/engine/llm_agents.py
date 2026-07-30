@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import ssl
 import time
 from dataclasses import dataclass
 
@@ -73,6 +75,47 @@ def get_llm_runtime_overrides() -> dict:
     return dict(_RUNTIME_OVERRIDES)
 
 
+def _supports_explicit_temperature(model: str) -> bool:
+    """Return whether the provider model accepts a non-default temperature."""
+    normalized = (model or "").lower()
+    if normalized.startswith("gpt-5"):
+        return False
+    if re.match(r"^claude-[a-z]+-5(?:$|-)", normalized):
+        return False
+    return True
+
+
+def _runtime_kwargs(provider: str, model: str) -> dict:
+    """Translate benchmark sampling controls into provider-compatible kwargs."""
+    kwargs: dict = {}
+    if (
+        "temperature" in _RUNTIME_OVERRIDES
+        and _supports_explicit_temperature(model)
+    ):
+        kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
+    if provider in {"openai", "ollama"} and "seed" in _RUNTIME_OVERRIDES:
+        kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
+    return kwargs
+
+
+def _openai_token_limit(model: str, max_tokens: int) -> dict:
+    """Use the token-limit parameter required by the selected OpenAI model."""
+    if (model or "").lower().startswith("gpt-5"):
+        return {"max_completion_tokens": max_tokens}
+    return {"max_tokens": max_tokens}
+
+
+def _anthropic_text(content: list) -> str:
+    """Extract final text while ignoring adaptive-thinking and tool blocks."""
+    return "\n".join(
+        block.text.strip()
+        for block in content
+        if getattr(block, "type", "") == "text"
+        and isinstance(getattr(block, "text", None), str)
+        and block.text.strip()
+    ).strip()
+
+
 def _emit_llm_event(event: dict) -> None:
     if _LLM_OBSERVER is None:
         return
@@ -124,7 +167,26 @@ def _base_event(
         event["temperature"] = _RUNTIME_OVERRIDES["temperature"]
     if "seed" in _RUNTIME_OVERRIDES:
         event["seed"] = _RUNTIME_OVERRIDES["seed"]
+    if _RUNTIME_OVERRIDES.get("capture_content"):
+        event["system_prompt"] = system
+        event["user_prompt"] = user_content
     return event
+
+
+def _content_event(text: str | None, raw_text: str | None = None) -> dict:
+    """Return raw model content only for explicitly instrumented benchmark runs."""
+    if not _RUNTIME_OVERRIDES.get("capture_content"):
+        return {}
+    event = {"response_text": text or ""}
+    if raw_text is not None and raw_text != text:
+        event["raw_response_text"] = raw_text
+    return event
+
+
+def _strip_thinking(text: str) -> str:
+    """Remove local-model reasoning blocks while preserving the final answer."""
+    cleaned = re.sub(r"<think>[\s\S]*?</think>", "", text or "", flags=re.IGNORECASE)
+    return cleaned.strip()
 
 
 def emit_component_llm_event(
@@ -159,15 +221,41 @@ def emit_component_llm_event(
 def _get_anthropic_client() -> anthropic.Anthropic:
     global _ANTHROPIC_CLIENT
     if _ANTHROPIC_CLIENT is None:
-        _ANTHROPIC_CLIENT = anthropic.Anthropic()
+        import certifi
+        import httpx
+
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
+        # Python 3.13/OpenSSL may enable X509_STRICT, which rejects otherwise
+        # valid enterprise proxy chains lacking an Authority Key Identifier.
+        # Keep CA and hostname verification enabled; relax only that strict flag.
+        strict_flag = getattr(ssl, "VERIFY_X509_STRICT", 0)
+        if strict_flag:
+            ssl_context.verify_flags &= ~strict_flag
+        _ANTHROPIC_CLIENT = anthropic.Anthropic(
+            http_client=httpx.Client(verify=ssl_context),
+        )
     return _ANTHROPIC_CLIENT
+
+
+def build_verified_httpx_client():
+    """Build an HTTP client compatible with strict Python 3.13 TLS defaults."""
+    import certifi
+    import httpx
+
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
+    # Preserve certificate and hostname verification. Some enterprise proxy
+    # chains omit AKI, which Python 3.13's optional strict flag rejects.
+    strict_flag = getattr(ssl, "VERIFY_X509_STRICT", 0)
+    if strict_flag:
+        ssl_context.verify_flags &= ~strict_flag
+    return httpx.Client(verify=ssl_context)
 
 
 def _get_openai_client():
     global _OPENAI_CLIENT
     if _OPENAI_CLIENT is None:
         import openai
-        _OPENAI_CLIENT = openai.OpenAI()
+        _OPENAI_CLIENT = openai.OpenAI(http_client=build_verified_httpx_client())
     return _OPENAI_CLIENT
 
 
@@ -274,16 +362,24 @@ def call_model_messages(
     user_content = _stringify_messages(messages)
 
     if resolved_provider == "openai":
-        kwargs = {}
-        if "temperature" in _RUNTIME_OVERRIDES:
-            kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
-        if "seed" in _RUNTIME_OVERRIDES:
-            kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
+        kwargs = _runtime_kwargs("openai", model)
+        json_schema = _RUNTIME_OVERRIDES.get("json_schema")
+        if json_schema:
+            kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "flowpilot_benchmark_output",
+                    "strict": False,
+                    "schema": json_schema,
+                },
+            }
+        elif _RUNTIME_OVERRIDES.get("json_mode"):
+            kwargs["response_format"] = {"type": "json_object"}
         started = time.perf_counter()
         resp = _retry_llm_request(
             lambda: _get_openai_client().chat.completions.create(
                 model=model,
-                max_tokens=max_tokens,
+                **_openai_token_limit(model, max_tokens),
                 messages=[{"role": "system", "content": system}, *messages],
                 **kwargs,
             ),
@@ -307,6 +403,7 @@ def call_model_messages(
             "usage": usage,
             "response_chars": len(content),
             "finish_reason": finish_reason,
+            **_content_event(content),
         })
         return TextGenerationResult(
             text=content,
@@ -323,6 +420,18 @@ def call_model_messages(
             kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
         if "seed" in _RUNTIME_OVERRIDES:
             kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
+        json_schema = _RUNTIME_OVERRIDES.get("json_schema")
+        if json_schema:
+            kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "flowpilot_benchmark_output",
+                    "strict": False,
+                    "schema": json_schema,
+                },
+            }
+        elif _RUNTIME_OVERRIDES.get("json_mode"):
+            kwargs["response_format"] = {"type": "json_object"}
 
         started = time.perf_counter()
         resp = _retry_llm_request(
@@ -337,7 +446,10 @@ def call_model_messages(
                     }
                     for idx, msg in enumerate(messages)
                 ]],
-                extra_body={"think": False},
+                extra_body={
+                    "think": False,
+                    "chat_template_kwargs": {"enable_thinking": False},
+                },
                 **kwargs,
             ),
             provider="ollama",
@@ -354,7 +466,8 @@ def call_model_messages(
                 content = reasoning
         if not content:
             content = ""
-        content = content.strip()
+        raw_content = content.strip()
+        content = _strip_thinking(raw_content)
         usage = _usage_to_dict(resp)
         finish_reason = getattr(choice, "finish_reason", None) if choice else None
         _emit_llm_event({
@@ -371,6 +484,7 @@ def call_model_messages(
             "response_chars": len(content),
             "finish_reason": finish_reason,
             "empty_content": not bool(content),
+            **_content_event(content, raw_content),
         })
         return TextGenerationResult(
             text=content,
@@ -380,9 +494,15 @@ def call_model_messages(
             finish_reason=finish_reason,
         )
 
-    kwargs = {}
-    if "temperature" in _RUNTIME_OVERRIDES:
-        kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
+    kwargs = _runtime_kwargs("anthropic", model)
+    json_schema = _RUNTIME_OVERRIDES.get("json_schema")
+    if json_schema:
+        kwargs["output_config"] = {
+            "format": {
+                "type": "json_schema",
+                "schema": json_schema,
+            }
+        }
     started = time.perf_counter()
     resp = _retry_llm_request(
         lambda: _get_anthropic_client().messages.create(
@@ -396,7 +516,7 @@ def call_model_messages(
         model=model,
         api_name=api_name,
     )
-    content = resp.content[0].text.strip()
+    content = _anthropic_text(resp.content)
     usage = _usage_to_dict(resp)
     stop_reason = getattr(resp, "stop_reason", None)
     _emit_llm_event({
@@ -412,6 +532,7 @@ def call_model_messages(
         "usage": usage,
         "response_chars": len(content),
         "stop_reason": stop_reason,
+        **_content_event(content),
     })
     return TextGenerationResult(
         text=content,
@@ -450,16 +571,12 @@ def call_llm(system: str, user_content: str, max_tokens: int) -> str:
       "ollama"    → local model at OLLAMA_BASE_URL
     """
     if ENGINE_PROVIDER in ("openai",):
-        kwargs = {}
-        if "temperature" in _RUNTIME_OVERRIDES:
-            kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
-        if "seed" in _RUNTIME_OVERRIDES:
-            kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
+        kwargs = _runtime_kwargs("openai", ENGINE_MODEL_OPENAI)
         started = time.perf_counter()
         resp = _retry_llm_request(
             lambda: _get_openai_client().chat.completions.create(
                 model=ENGINE_MODEL_OPENAI,
-                max_tokens=max_tokens,
+                **_openai_token_limit(ENGINE_MODEL_OPENAI, max_tokens),
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user",   "content": user_content},
@@ -483,12 +600,16 @@ def call_llm(system: str, user_content: str, max_tokens: int) -> str:
             "duration_ms": round((time.perf_counter() - started) * 1000, 2),
             "usage": _usage_to_dict(resp),
             "response_chars": len(content),
+            **_content_event(content),
         })
         return content
 
     elif ENGINE_PROVIDER == "ollama":
         client = _get_ollama_client()
-        extra_body = {"think": False}
+        extra_body = {
+            "think": False,
+            "chat_template_kwargs": {"enable_thinking": False},
+        }
         kwargs = {}
         if "temperature" in _RUNTIME_OVERRIDES:
             kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
@@ -548,10 +669,12 @@ def call_llm(system: str, user_content: str, max_tokens: int) -> str:
                 "response_chars": 0,
                 "finish_reason": choice.finish_reason if choice else None,
                 "empty_content": True,
+                **_content_event(""),
             })
             return ""
 
-        content = content.strip()
+        raw_content = content.strip()
+        content = _strip_thinking(raw_content)
         _emit_llm_event({
             **_base_event(
                 api_name="call_llm",
@@ -565,13 +688,12 @@ def call_llm(system: str, user_content: str, max_tokens: int) -> str:
             "usage": _usage_to_dict(resp),
             "response_chars": len(content),
             "finish_reason": choice.finish_reason if choice else None,
+            **_content_event(content, raw_content),
         })
         return content
 
     else:  # "anthropic" (default)
-        kwargs = {}
-        if "temperature" in _RUNTIME_OVERRIDES:
-            kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
+        kwargs = _runtime_kwargs("anthropic", ENGINE_MODEL_ANTHROPIC)
         started = time.perf_counter()
         resp = _retry_llm_request(
             lambda: _get_anthropic_client().messages.create(
@@ -599,6 +721,7 @@ def call_llm(system: str, user_content: str, max_tokens: int) -> str:
             "usage": _usage_to_dict(resp),
             "response_chars": len(content),
             "stop_reason": getattr(resp, "stop_reason", None),
+            **_content_event(content),
         })
         return content
 
@@ -637,9 +760,7 @@ def call_llm_with_tools(
             client = _get_anthropic_client()
             messages = [{"role": "user", "content": user_content}]
             for _ in range(max_tool_turns):
-                kwargs = {}
-                if "temperature" in _RUNTIME_OVERRIDES:
-                    kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
+                kwargs = _runtime_kwargs("anthropic", ENGINE_MODEL_ANTHROPIC)
                 started = time.perf_counter()
                 resp = client.messages.create(
                     model=ENGINE_MODEL_ANTHROPIC,
@@ -749,15 +870,11 @@ def call_llm_with_tools(
             {"role": "user", "content": user_content},
         ]
         for _ in range(max_tool_turns):
-            kwargs = {}
-            if "temperature" in _RUNTIME_OVERRIDES:
-                kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
-            if "seed" in _RUNTIME_OVERRIDES:
-                kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
+            kwargs = _runtime_kwargs("openai", ENGINE_MODEL_OPENAI)
             started = time.perf_counter()
             resp = client.chat.completions.create(
                 model=ENGINE_MODEL_OPENAI,
-                max_tokens=max_tokens,
+                **_openai_token_limit(ENGINE_MODEL_OPENAI, max_tokens),
                 tools=openai_tools,
                 tool_choice="auto",
                 messages=messages,

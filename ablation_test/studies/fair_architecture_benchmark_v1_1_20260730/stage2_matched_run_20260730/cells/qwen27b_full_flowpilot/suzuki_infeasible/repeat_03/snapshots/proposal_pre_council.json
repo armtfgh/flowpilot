@@ -1,0 +1,81 @@
+{
+  "residence_time_min": 0.6,
+  "flow_rate_mL_min": 0.5,
+  "temperature_C": 50.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 0.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 0.29,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Sparging with inert gas (N2/Ar) prior to pumping",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Substrate feed",
+      "contents": [
+        "Aromatic Bromide (1.0 equiv)",
+        "Phenylboronic Acid Derivative (1.0 equiv)"
+      ],
+      "solvent": "DMF",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Substrates dissolved in solvent. Split total flow equally for mixing."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Catalyst/Base feed",
+      "contents": [
+        "Palladium Catalyst (loading)",
+        "Base (equiv)"
+      ],
+      "solvent": "DMF",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Catalyst and base kept separate to prevent premature deactivation. Split total flow equally."
+    }
+  ],
+  "mixer_type": "T-mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Base and catalyst mixed separately from boronic acid to avoid precipitation, then combined. T-mixer provides rapid mixing for laminar flow.",
+  "pre_reactor_steps": [
+    "Saturate DMF streams with Nitrogen or Argon to remove oxygen (Chemistry Plan: deoxygenation_required=true to prevent Pd(0) oxidation)."
+  ],
+  "post_reactor_steps": [
+    "Collect product. No quench required per Chemistry Plan."
+  ],
+  "chemistry_notes": "CRITICAL SAFETY VIOLATION: The batch protocol requires 50°C, but the available inventory (PFA tubing/reactors) has a maximum temperature rating of 40°C. Operating at 50°C will degrade the PFA tubing, leading to potential leaks and failure. The design below uses the calculated parameters for 50°C but MUST NOT be executed with the listed inventory. A reactor/tubing rated for >50°C (e.g., Stainless Steel or high-temp PTFE) is required. The reaction is a thermal Suzuki-Miyaura coupling, not photochemical, so no light source is used despite analogies suggesting LEDs. Residence time is set to 0.6 min based on kinetic calculations and analogy-blended intensification.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 estimated 0.6 min (range 0.3-1.0 min) based on kinetic intensification. Analogy 1 used 12 min but was photochemical; Analogy 2 used 40 min (photochemical). Thermal Suzuki couplings are faster. Using calculated 0.6 min.",
+    "residence_time_basis": "Liquid-only system. No gas reagents involved.",
+    "temperature_C": "Fixed at 50°C per batch protocol and hard constraints. NOTE: This exceeds the 40°C max rating of the available PFA inventory.",
+    "BPR_bar": "Calculation Step 8: BPR not required. DMF bp (153°C) is well above operating temp (50°C).",
+    "tubing_material": "PFA selected from inventory. NOTE: PFA is typically rated to 200°C, but the specific inventory item lists max 40°C. This is a critical constraint violation.",
+    "concentration_M": "Calculation Step 1: Batch C0 = 0.1 M. Maintained for flow to match kinetics.",
+    "reactor_volume_mL": "Calculated as V = Q * t = 0.5 mL/min * 0.6 min = 0.3 mL. Rounded to 0.29 mL from Calculation Step 3. Note: Inventory reactors are 5 mL and 10 mL. A custom coil of 0.29 mL (approx 36 cm of 1.0 mm ID tubing) is required, or the 5 mL reactor must be used with a much lower flow rate (0.083 mL/min) to achieve 0.6 min residence time. The output specifies the calculated volume for accuracy.",
+    "light_setup": "Null. Reaction is thermal (microwave in batch), not photochemical. Analogies 1-3 were photochemical and thus not directly applicable for light setup.",
+    "deoxygenation_method": "Chemistry Plan requires deoxygenation to protect Pd(0). Sparging is standard for liquid feeds."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "LOW"
+}

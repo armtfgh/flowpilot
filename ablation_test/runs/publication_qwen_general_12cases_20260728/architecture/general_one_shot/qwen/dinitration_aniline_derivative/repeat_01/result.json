@@ -1,0 +1,92 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 15,
+    "flow_rate_mL_min": 2.0,
+    "temperature_C": 60,
+    "concentration_M": 0.5,
+    "BPR_bar": 20,
+    "reactor_type": "Coiled PFA Tubing",
+    "tubing_material": "PFA",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 30.0,
+    "residence_time_basis": "Total liquid flow rate",
+    "residence_time_inlet_min": 15,
+    "residence_time_in_channel_min": 15,
+    "light_setup": "None",
+    "wavelength_nm": 0,
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Main Reactant",
+        "contents": "Aniline Derivative",
+        "solvent": "Acetic Acid",
+        "phase": "Liquid",
+        "flow_rate_mL_min": 1.0,
+        "concentration_M": 0.5,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": 0,
+        "gas_flow_actual_mL_min": 0
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "Nitrating Agent",
+        "contents": "Nitric Acid (70%)",
+        "solvent": "Water/Acetic Acid",
+        "phase": "Liquid",
+        "flow_rate_mL_min": 1.0,
+        "concentration_M": 14.0,
+        "molar_equiv": 2.5,
+        "gas_flow_sccm": 0,
+        "gas_flow_actual_mL_min": 0
+      }
+    ],
+    "mixer_type": "Static Mixer (Kenics)",
+    "mixing_order_reasoning": "Simultaneous mixing of substrate and nitrating agent to ensure rapid homogenization and control exotherm. Acetic acid acts as both solvent and moderating agent to prevent over-oxidation.",
+    "pre_reactor_steps": [
+      "Dissolve aniline derivative in glacial acetic acid to 0.5 M.",
+      "Prepare 70% nitric acid solution.",
+      "Purge system with nitrogen to remove oxygen."
+    ],
+    "post_reactor_steps": [
+      "Quench effluent into ice-water bath.",
+      "Neutralize with sodium bicarbonate solution.",
+      "Extract product with ethyl acetate.",
+      "Dry organic layer and concentrate."
+    ],
+    "chemistry_notes": "Nitration of aniline derivatives is highly exothermic. In batch, 4 hours at 60°C suggests a kinetically controlled or diffusion-limited process, or potentially a slow second nitration step. In flow, heat transfer is superior, allowing for faster kinetics. However, to match the 'dinitrated' outcome and avoid mono-nitration or oxidation byproducts, a residence time of 15 min is chosen as a conservative start, scalable based on conversion analysis. Acetic acid is used as the solvent to mimic the 'industrial batch solvent' often used in nitration (acetic anhydride/acetic acid mixtures) while being compatible with PFA.",
+    "stage_parameters": {
+      "mixer_length_mm": 50,
+      "reactor_coil_length_m": 38.2,
+      "pressure_drop_bar": 5.0
+    },
+    "reasoning_per_field": {
+      "residence_time_min": "Reduced from 4h batch to 15 min due to enhanced heat/mass transfer in flow. Batch time includes heating/cooling and diffusion limitations.",
+      "flow_rate_mL_min": "2.0 mL/min total flow allows for manageable pressure drop in 1mm ID tubing while providing sufficient throughput for analytical scale-up.",
+      "temperature_C": "Maintained at 60°C to match batch conditions, ensuring similar selectivity for dinitration.",
+      "concentration_M": "0.5 M substrate concentration balances reaction rate with heat generation density.",
+      "BPR_bar": "20 bar backpressure prevents boiling of acetic acid/water mixture at 60°C and ensures single-phase flow.",
+      "reactor_type": "Coiled PFA tubing is standard for corrosive nitration reactions.",
+      "tubing_material": "PFA is resistant to nitric acid and organic solvents.",
+      "tubing_ID_mm": "1.0 mm ID provides high surface-to-volume ratio for efficient heat exchange.",
+      "reactor_volume_mL": "Calculated as (Flow Rate * Residence Time) = 2.0 mL/min * 15 min = 30 mL. Length = Volume / (pi * r^2) = 30 / (3.14159 * 0.05^2) ≈ 3820 cm = 38.2 m.",
+      "streams": "Stream A: Substrate. Stream B: Nitrating agent. Excess nitric acid (2.5 equiv) ensures complete dinitration.",
+      "mixer_type": "Static mixer ensures rapid mixing to control local hot spots.",
+      "safety_flags": [
+        "Exothermic reaction: Monitor temperature closely.",
+        "Corrosive reagents: Use PFA/PTFE only.",
+        "Potential for runaway: Implement emergency quench valve.",
+        "Nitric acid fumes: Ensure proper ventilation."
+      ]
+    },
+    "literature_analogies": "Continuous flow nitration of aromatics using HNO3/AcOH is well-documented (e.g., see papers by Hessel, Noël, or Ley groups). Typical residence times range from seconds to minutes, significantly shorter than batch.",
+    "engine_validated": false,
+    "safety_flags": [
+      "Exothermic",
+      "Corrosive",
+      "Oxidizer"
+    ],
+    "confidence": 0.85
+  },
+  "schema_valid": false
+}

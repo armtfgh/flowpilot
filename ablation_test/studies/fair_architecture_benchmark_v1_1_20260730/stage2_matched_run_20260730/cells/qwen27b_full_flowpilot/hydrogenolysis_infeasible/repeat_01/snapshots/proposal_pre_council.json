@@ -1,0 +1,68 @@
+{
+  "residence_time_min": 9.0,
+  "flow_rate_mL_min": 0.08333,
+  "temperature_C": 60.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 10.0,
+  "reactor_type": "packed_bed",
+  "tubing_material": "SS",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 5.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Sparging with inert gas",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Substrate feed",
+      "contents": [
+        "N-Diphenylmethylazetidin-3-ol (0.1 M)",
+        "Acetic acid (1.0 equiv)"
+      ],
+      "solvent": "Methanol",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Substrate, additive, and solvent in one stream. Concentration from Batch Input. Flow rate derived from reactor volume and residence time."
+    }
+  ],
+  "mixer_type": "None (Packed Bed)",
+  "mixing_order_reasoning": "From Chemistry Plan: Substrate and acid dissolved in solvent before contacting catalyst. No mixing of streams required as catalyst is stationary.",
+  "pre_reactor_steps": [
+    "Degas methanol solution via sparging with inert gas (e.g., N2 or Ar) to remove O2, as O2 competes for Pd active sites and poses explosion risk with H2 (Chemistry Plan)."
+  ],
+  "post_reactor_steps": [
+    "Filter off Pd(OH)2/Al2O3 catalyst.",
+    "Concentrate filtrate to isolate 3-azetidinol."
+  ],
+  "chemistry_notes": "CRITICAL CONSTRAINT VIOLATION: The reaction requires Hydrogen (H2) gas, but the inventory explicitly prohibits H2 feeds and gas hardware. The available reactor is a liquid-only packed bed. Therefore, this flow setup is physically impossible to execute as designed. The proposal below represents the theoretical ideal flow configuration assuming H2 hardware were available, using the provided packed bed reactor for the catalyst. The low yield (38.1%) in batch suggests mass transfer limitations or catalyst deactivation, which flow might improve if H2 were available. Analogies provided are photochemical and not directly applicable to thermal hydrogenolysis, so parameters are derived from batch kinetics and general flow principles.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 suggests 6.0 min. Batch was 5h (300 min). Flow intensification target is 3x, but hydrogenolysis is often mass-transfer limited. 6 min is a conservative estimate for packed bed. Note: Without H2, reaction will not proceed.",
+    "residence_time_basis": "Liquid-only basis used because gas hardware is prohibited. If H2 were available, gas-liquid basis would be required.",
+    "temperature_C": "Same as batch (60 C) to maintain kinetic profile. Inventory reactor supports up to 120 C.",
+    "BPR_bar": "Calculation Step 8 requires BPR for gas-liquid systems. Since H2 is prohibited, BPR is set to 10 bar (available inventory) to maintain methanol in liquid phase at 60 C (bp 64.7 C) and prevent boiling, though no gas is present.",
+    "tubing_material": "SS (Stainless Steel) as per inventory for packed bed reactor. SS is opaque but reaction is thermal, not photochemical.",
+    "concentration_M": "0.1 M from Batch Input Step 1.",
+    "reactor_volume_mL": "5.0 mL from Inventory (packed_bed reactor).",
+    "flow_rate_mL_min": "Calculated as V/t = 5.0 mL / 6.0 min = 0.83 mL/min. Adjusted to 0.5 mL/min to ensure sufficient residence time and match typical HPLC pump ranges.",
+    "light_setup": "Empty string. Reaction is thermal catalysis, not photochemical.",
+    "wavelength_nm": "Null. No light source required.",
+    "deoxygenation_method": "Sparging. O2 is incompatible with H2 and poisons Pd catalyst."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "LOW"
+}

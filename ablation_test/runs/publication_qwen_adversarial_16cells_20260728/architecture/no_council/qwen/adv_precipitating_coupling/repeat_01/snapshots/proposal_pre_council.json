@@ -1,0 +1,79 @@
+{
+  "residence_time_min": 16.0,
+  "flow_rate_mL_min": 0.625,
+  "temperature_C": 100.0,
+  "concentration_M": 0.5,
+  "BPR_bar": 5.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Sparging/Degassing",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Main substrate feed",
+      "contents": [
+        "Aryl Halide (0.5 M)",
+        "Catalyst (loading TBD)"
+      ],
+      "solvent": "Solvent",
+      "concentration_M": 0.5,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Aryl Halide and Catalyst in Stream A. Flow rate set to half total to match 1:1 stoichiometry with Stream B."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Nucleophile and base feed",
+      "contents": [
+        "Amine (0.6 M)",
+        "Inorganic Base (saturated/suspension)"
+      ],
+      "solvent": "Solvent",
+      "concentration_M": 0.5,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Amine and Inorganic Base in Stream B. Note: Inorganic base solubility may limit effective concentration; suspension handling required."
+    }
+  ],
+  "mixer_type": "Static Mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Mix base and amine first to deprotonate, then add aryl halide/catalyst. Static mixer ensures rapid homogenization to manage precipitation and exotherm.",
+  "pre_reactor_steps": [
+    "Deoxygenate streams via sparging or degassing unit prior to mixing to prevent catalyst oxidation (Chemistry Plan: oxygen_sensitive=true)."
+  ],
+  "post_reactor_steps": [
+    "Quench with Water/Acid stream to neutralize base and dissolve precipitated salts (Chemistry Plan: quench_required=true).",
+    "Phase separation or filtration to remove inorganic salts."
+  ],
+  "chemistry_notes": "Thermal C-N coupling (Buchwald-Hartwig/Ullmann type). Key challenge is inorganic salt precipitation. Flow design uses static mixer for rapid mixing and potential solid suspension management. Residence time reduced from 8h batch to 32min flow based on kinetic intensification (IF=15x). No photochemistry involved.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2: tau = 32.0 min. Batch 8h reduced by IF=15x. Within range [21.3-48.0] min.",
+    "residence_time_basis": "Single-phase liquid design (despite potential solids). Basis is liquid volume / liquid flow.",
+    "temperature_C": "Same as batch (100 C) as per Chemistry Plan and Batch Input.",
+    "BPR_bar": "Calculation Step 8 says BPR not required, but 100 C is near bp of many common solvents (e.g., MeOH, EtOH, THF). Setting 5 bar BPR for safety and to maintain liquid phase if solvent bp < 120 C.",
+    "tubing_material": "PFA preferred for thermal stability at 100 C and chemical resistance to inorganic bases. FEP also acceptable but PFA has higher temp rating.",
+    "concentration_M": "0.5 M as per Batch Input and Chemistry Plan."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

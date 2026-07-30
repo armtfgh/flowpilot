@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from flora_translate.design_calculator import DesignCalculator
+from flora_translate.chemistry_agent import _normalize_plan_data
 from flora_translate.engine.sampling import L_MAX_BENCH_M, compute_metrics, generate_candidates, hard_filter
 from flora_translate.engine.council_v4.chief import _intensification_feasibility_precheck
 from flora_translate.engine.council_v4.skeptic import _verify_v_r_equals_tau_q
@@ -134,6 +135,153 @@ def test_o2_mfc_is_recomputed_from_target_equivalents_not_llm_stream_guess():
     assert calc.gas_flow_actual_mL_min > 0.2
     assert proposal.streams[1].gas_flow_sccm > 1.3
     assert proposal.streams[1].molar_equiv == 2.0
+
+
+def test_exposed_to_air_protocol_triggers_stp_gas_bookkeeping():
+    batch = BatchRecord(
+        reaction_description="Methionine oxidation to methionine sulfoxide.",
+        raw_text="The methionine solution was exposed to air and stirred for 2 h.",
+        solvent="water",
+        temperature_C=25,
+        reaction_time_h=2,
+        concentration_M=0.1,
+    )
+    plan = ChemistryPlan(
+        reaction_class="aerobic oxidation",
+        mechanism_type="oxidation",
+    )
+    proposal = FlowProposal(
+        residence_time_min=20,
+        residence_time_basis="inlet/STP apparent residence time",
+        flow_rate_mL_min=0.1,
+        concentration_M=0.1,
+        temperature_C=25,
+        BPR_bar=5,
+        tubing_ID_mm=1.0,
+        streams=[
+            StreamAssignment(
+                stream_label="A",
+                pump_role="substrate solution",
+                contents=["methionine"],
+                solvent="water",
+                concentration_M=0.1,
+                flow_rate_mL_min=0.1,
+            )
+        ],
+    )
+
+    calc = DesignCalculator().run(batch, chemistry_plan=plan, proposal=proposal)
+    annotated = DesignCalculator.annotate_proposal_with_calculations(proposal, calc)
+
+    assert calc.is_gas_liquid
+    assert calc.gas_species == "air"
+    assert calc.target_gas_equiv_inlet > 0
+    assert calc.gas_equiv_supplied > 0
+    gas = next(stream for stream in annotated.streams if stream.phase == "gas")
+    assert gas.contents == ["air"]
+    assert gas.gas_flow_sccm > 0
+    assert gas.gas_flow_actual_mL_min > 0
+
+
+def test_hydrogen_reagent_has_nonzero_generic_gas_equivalents():
+    batch = BatchRecord(
+        reaction_description="Hydrogenolysis under H2 at 5 bar for 4 h.",
+        solvent="EtOH",
+        temperature_C=30,
+        reaction_time_h=4,
+        concentration_M=0.2,
+        atmosphere="H2",
+    )
+    plan = ChemistryPlan(
+        reaction_class="hydrogenolysis",
+        mechanism_type="gas-liquid hydrogenation",
+        stream_logic=[
+            StreamLogic(
+                stream_label="G",
+                reagents=["H2"],
+                phase="gas",
+                molar_equiv=1.5,
+            )
+        ],
+    )
+    proposal = FlowProposal(
+        residence_time_min=15,
+        residence_time_basis="inlet/STP apparent residence time",
+        flow_rate_mL_min=0.1,
+        concentration_M=0.2,
+        temperature_C=30,
+        BPR_bar=5,
+        tubing_ID_mm=1.0,
+        streams=[
+            StreamAssignment(
+                stream_label="A",
+                pump_role="substrate solution",
+                solvent="EtOH",
+                concentration_M=0.2,
+                flow_rate_mL_min=0.1,
+            ),
+            StreamAssignment(
+                stream_label="G",
+                pump_role="H2 gas feed",
+                contents=["H2"],
+                phase="gas",
+            ),
+        ],
+    )
+
+    calc = DesignCalculator().run(batch, chemistry_plan=plan, proposal=proposal)
+
+    assert calc.is_gas_liquid
+    assert calc.gas_species == "H2"
+    assert abs(calc.target_gas_equiv_inlet - 1.5) < 0.02
+    assert abs(calc.gas_equiv_supplied - 1.5) < 0.02
+    assert calc.gas_flow_sccm > 0
+    assert calc.gas_flow_actual_mL_min > 0
+
+
+def test_under_air_is_not_a_gas_feed_for_nonoxidative_snar():
+    batch = BatchRecord(
+        reaction_description="4-Fluoronitrobenzene reacts with piperazine.",
+        raw_text=(
+            "The mixture was heated at 120 C under air for 6 h and then "
+            "worked up."
+        ),
+        solvent="DMF",
+        temperature_C=120,
+        reaction_time_h=6,
+        concentration_M=0.3,
+        atmosphere="air",
+    )
+    plan = ChemistryPlan(
+        reaction_class="Nucleophilic Aromatic Substitution (SNAr)",
+        mechanism_type="nucleophilic substitution",
+        stream_logic=[
+            StreamLogic(
+                stream_label="A",
+                reagents=["4-fluoronitrobenzene"],
+                phase="liquid",
+            ),
+            StreamLogic(
+                stream_label="B",
+                reagents=["piperazine"],
+                phase="liquid",
+            ),
+        ],
+    )
+    proposal = FlowProposal(
+        residence_time_min=30,
+        flow_rate_mL_min=0.1,
+        concentration_M=0.3,
+        temperature_C=120,
+        BPR_bar=5,
+        tubing_ID_mm=1.0,
+    )
+
+    calc = DesignCalculator().run(batch, chemistry_plan=plan, proposal=proposal)
+
+    assert not calc.is_gas_liquid
+    assert calc.gas_flow_sccm == 0
+    assert calc.target_gas_equiv_inlet == 0
 
 
 def test_n2_blanket_does_not_trigger_multiphase_and_quench_is_not_reactor():
@@ -438,6 +586,82 @@ def test_gas_liquid_candidate_generation_uses_total_tube_volume_basis():
     assert all(c["L_m"] <= L_MAX_BENCH_M for c in feasible)
     assert all(c["required_bpr_bar"] <= 10.0 for c in feasible)
     assert all(c["violations"] for c in infeasible)
+
+
+def test_candidate_generation_honors_measured_residence_time_floor():
+    feasible, _ = generate_candidates(
+        tau_center_min=85.4,
+        tau_lit_min=None,
+        solvent="DMSO",
+        temperature_C=40,
+        concentration_M=0.5,
+        assumed_MW=143.19,
+        IF_used=6.0,
+        tau_kinetics_min=85.4,
+        pump_max_bar=8.0,
+        is_photochem=True,
+        is_gas_liquid=True,
+        BPR_bar=3.0,
+        tau_low_factor=0.3,
+        tau_high_factor=2.0,
+        n_tau=5,
+        d_exclude_above_mm=1.0,
+        L_fractions=[0.4, 0.6, 0.8],
+        N_target=12,
+        min_tau_min=68.9,
+        min_flow_rate_mL_min=0.01,
+    )
+
+    assert feasible
+    assert all(candidate["tau_min"] >= 68.9 for candidate in feasible)
+
+
+def test_chemistry_plan_normalization_drops_null_mandate_values():
+    normalized = _normalize_plan_data({
+        "intensification_mandate": {
+            "tau_reduction_target": None,
+            "minimum_flow_advantage": None,
+        },
+    })
+
+    plan = ChemistryPlan(**normalized)
+
+    assert plan.intensification_mandate.tau_reduction_target == 2.0
+    assert plan.intensification_mandate.minimum_flow_advantage == "productivity"
+
+
+def test_chemistry_plan_normalization_repairs_nested_stream_numbers():
+    normalized = _normalize_plan_data({
+        "incompatible_pairs": ["TBHP + sulfuric acid"],
+        "stream_logic": [
+            {
+                "stream_label": "B",
+                "reagents": "heterogeneous catalyst",
+                "molar_equiv": "heterogeneous",
+                "concentration_M": "0.25",
+            }
+        ],
+        "stages": [
+            {
+                "stage_id": 1,
+                "feed_streams": [
+                    {
+                        "stream_label": "A",
+                        "reagents": [{"name": "substrate"}],
+                        "molar_equiv": "1.0",
+                        "gas_flow_sccm": "not applicable",
+                    }
+                ],
+            }
+        ],
+    })
+
+    assert normalized["stream_logic"][0]["reagents"] == ["heterogeneous catalyst"]
+    assert normalized["incompatible_pairs"] == [["TBHP", "sulfuric acid"]]
+    assert normalized["stream_logic"][0]["molar_equiv"] == 1.0
+    assert normalized["stream_logic"][0]["concentration_M"] == 0.25
+    assert normalized["stages"][0]["feed_streams"][0]["reagents"] == ["substrate"]
+    assert normalized["stages"][0]["feed_streams"][0]["gas_flow_sccm"] is None
 
 
 def test_skeptic_volume_audit_uses_liquid_holdup_for_gas_liquid():

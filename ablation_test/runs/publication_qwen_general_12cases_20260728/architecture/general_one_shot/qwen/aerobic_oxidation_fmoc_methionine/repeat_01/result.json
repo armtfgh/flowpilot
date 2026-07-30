@@ -1,0 +1,80 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 5.0,
+    "flow_rate_mL_min": 0.5,
+    "temperature_C": 21,
+    "concentration_M": 0.1,
+    "BPR_bar": 1.0,
+    "reactor_type": "Coiled PTFE tubing in LED array",
+    "tubing_material": "PTFE",
+    "tubing_ID_mm": 1.57,
+    "reactor_volume_mL": 2.5,
+    "residence_time_basis": "liquid_phase",
+    "residence_time_inlet_min": 5.0,
+    "residence_time_in_channel_min": 5.0,
+    "light_setup": "Immersion or external wrap-around LED array (420 nm) with cooling fan",
+    "wavelength_nm": 420,
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Main Liquid Pump",
+        "contents": "Fmoc-L-methionine (3.7 mmol equiv), 4,7-diphenyl-2,1,3-benzothiadiazole (0.37 mmol equiv)",
+        "solvent": "Acetonitrile",
+        "phase": "liquid",
+        "flow_rate_mL_min": 0.5,
+        "concentration_M": 0.1,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": 0,
+        "gas_flow_actual_mL_min": 0
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "Gas Pump (Optional for saturation)",
+        "contents": "Air",
+        "solvent": "N/A",
+        "phase": "gas",
+        "flow_rate_mL_min": 0,
+        "concentration_M": 0,
+        "molar_equiv": 0,
+        "gas_flow_sccm": 50,
+        "gas_flow_actual_mL_min": 50
+      }
+    ],
+    "mixer_type": "T-mixer (if gas introduced) or Single Stream (if pre-saturated)",
+    "mixing_order_reasoning": "The batch protocol states the solution was 'exposed to air'. In flow, this implies the liquid must be saturated with oxygen. To ensure consistent O2 concentration, Stream A should be pre-saturated with air using a gas-liquid membrane contactor or a static mixer with Stream B (Air) prior to the photo-reactor. If pre-saturation is assumed, a single stream is used. Here, we assume a single stream pre-saturated with air to simplify pressure drop calculations, as the reaction is fast (5 min) and homogeneous.",
+    "pre_reactor_steps": [
+      "Dissolve Fmoc-L-methionine and photocatalyst in Acetonitrile to 0.10 M.",
+      "Saturate the solution with air using a gas-liquid membrane contactor or by sparging air through the reservoir for 10 minutes prior to pumping.",
+      "Filter solution (0.22 um) to prevent clogging."
+    ],
+    "post_reactor_steps": [
+      "Collect effluent in a flask.",
+      "Concentrate under reduced pressure.",
+      "Purify by flash chromatography if necessary (though 99% yield suggests minimal purification needed)."
+    ],
+    "chemistry_notes": "The reaction is a photo-oxidation of methionine to methionine sulfoxide. The photocatalyst (4,7-diphenyl-2,1,3-benzothiadiazole) absorbs blue light (420 nm) and transfers energy to oxygen or the substrate. PTFE tubing is chosen for its high transparency to 420 nm light and chemical resistance to acetonitrile. The short residence time (5 min) suggests high efficiency, but light penetration depth is critical. A small ID (1.57 mm) ensures the entire volume is illuminated.",
+    "stage_parameters": {
+      "reactor_length_m": 12.8,
+      "light_intensity_mW_cm2": 10,
+      "pressure_drop_bar": 0.5
+    },
+    "reasoning_per_field": {
+      "residence_time_min": "Directly taken from batch protocol (5 min).",
+      "flow_rate_mL_min": "Chosen arbitrarily for a small-scale continuous process. 0.5 mL/min is manageable for lab-scale flow chemistry.",
+      "reactor_volume_mL": "Calculated as Flow Rate * Residence Time = 0.5 mL/min * 5 min = 2.5 mL.",
+      "tubing_ID_mm": "1.57 mm ID corresponds to 1/16 inch tubing, standard for flow chemistry. Volume check: V = pi * r^2 * L. 2.5 mL = pi * (0.0785 cm)^2 * L -> L ~ 128 cm = 1.28 m. Wait, 1.57 mm ID is 0.157 cm diameter, radius 0.0785 cm. Area = 0.0193 cm^2. Length = 2.5 / 0.0193 = 129.5 cm = 1.3 m. This is a reasonable coil length.",
+      "light_setup": "PTFE is transparent to 420 nm. External LEDs are sufficient. Cooling is required to maintain 21 C as LEDs generate heat.",
+      "streams": "Single liquid stream is sufficient if pre-saturated with air. Gas stream included as optional for in-line saturation if pre-saturation is not feasible."
+    },
+    "literature_analogies": "Photo-oxidations in flow often use PTFE or FEP tubing due to light transparency. Similar protocols for amino acid oxidation exist in literature using LED arrays.",
+    "engine_validated": true,
+    "safety_flags": [
+      "Acetonitrile is toxic and flammable. Use in a fume hood.",
+      "UV/Blue light can damage eyes. Use appropriate shielding.",
+      "Pressurized system. Ensure fittings are rated for >1 bar."
+    ],
+    "confidence": 0.95
+  },
+  "schema_valid": false
+}

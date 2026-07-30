@@ -1,0 +1,77 @@
+{
+  "residence_time_min": 7.5,
+  "flow_rate_mL_min": 1.33333,
+  "temperature_C": 25.0,
+  "concentration_M": 1.0,
+  "BPR_bar": 0.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Feed organic acid substrate",
+      "contents": [
+        "Organic Acid (1.0 M)"
+      ],
+      "solvent": "Water",
+      "concentration_M": 1.0,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream A contains Organic Acid at 1.0 M. Flow rate set to half total to achieve equimolar mixing with Stream B."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Feed sodium hydroxide base",
+      "contents": [
+        "Sodium Hydroxide (1.0 M)"
+      ],
+      "solvent": "Water",
+      "concentration_M": 1.0,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream B contains Sodium Hydroxide at 1.0 M. Flow rate set to half total to achieve equimolar mixing with Stream A."
+    }
+  ],
+  "mixer_type": "Static Mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Equimolar mixing recommended to control pH and heat release rate. Static mixer ensures rapid homogenization to prevent local hot spots or pH extremes given the fast kinetics and high exothermicity.",
+  "pre_reactor_steps": [
+    "Pump streams A and B at 0.25 mL/min each using syringe pumps or HPLC pumps."
+  ],
+  "post_reactor_steps": [
+    "Pass effluent through a heat exchanger or cooling jacket to remove 0.475 W of generated heat and maintain temperature at 25°C.",
+    "Collect product stream."
+  ],
+  "chemistry_notes": "This is a fast, highly exothermic neutralization (ΔT_ad = 55°C). The Chemistry Plan mandates immediate heat removal. Although the reaction is kinetically fast (<2s in batch), the engineering calculations suggest a 10 min residence time to ensure complete mixing and thermal stabilization in a continuous setup, likely due to the transition zone Damkohler number (Da ~ 5.9) indicating mixing limitations. A static mixer is preferred over a simple T-mixer to enhance mixing. No BPR is required as the reaction is at 25°C and no gas is generated. Tubing material is PFA for chemical compatibility with NaOH.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 estimated 10 min. This is significantly longer than the batch time (<2s) to ensure complete mixing and thermal management in flow, addressing the Da ~ 5.9 mixing limitation.",
+    "residence_time_basis": "Single-phase liquid system. Residence time is defined as Reactor Volume / Total Liquid Flow Rate.",
+    "temperature_C": "Batch condition is 25°C. Chemistry Plan requires active cooling to manage the 55°C adiabatic rise, maintaining the process at 25°C.",
+    "BPR_bar": "Calculation Step 8 states BPR not required. Reaction is at 25°C, well below solvent boiling point, and no gas is generated.",
+    "tubing_material": "PFA is selected for chemical compatibility with strong base (NaOH) and good transparency if future photochemical steps are added, though not required here. FEP is also acceptable.",
+    "concentration_M": "From Batch Input and Chemistry Plan: 1.0 M for both acid and base."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "HIGH"
+}

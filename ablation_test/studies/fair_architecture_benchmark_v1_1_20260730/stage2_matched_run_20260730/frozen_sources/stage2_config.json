@@ -1,0 +1,70 @@
+{
+  "schema_version": "flowpilot_fair_architecture_stage2_v1.0",
+  "study_id": "fair_architecture_benchmark_v1_1_20260730",
+  "stage": 2,
+  "random_seed": 20260730,
+  "temperature": 0.0,
+  "candidate_budget": 2,
+  "repeats": 3,
+  "scenario_file": "protocol_scenarios.json",
+  "scenario_ids": [
+    "suzuki_feasible",
+    "suzuki_infeasible",
+    "photo_oxidation_feasible",
+    "photo_oxidation_infeasible",
+    "hydrogenolysis_feasible",
+    "hydrogenolysis_infeasible",
+    "dinitration_feasible",
+    "dinitration_infeasible",
+    "multistep_feasible",
+    "multistep_infeasible"
+  ],
+  "conditions": {
+    "qwen27b_one_shot": {
+      "label": "Qwen 27B one-shot",
+      "variant": "general_one_shot",
+      "bundle": "qwen"
+    },
+    "qwen27b_full_flowpilot": {
+      "label": "Qwen 27B + Full FlowPilot",
+      "variant": "full",
+      "bundle": "qwen"
+    },
+    "claude_sonnet5_one_shot": {
+      "label": "Claude Sonnet 5 one-shot",
+      "variant": "general_one_shot",
+      "bundle": "claude_sonnet5"
+    },
+    "gpt56_terra_one_shot": {
+      "label": "GPT-5.6 Terra one-shot",
+      "variant": "general_one_shot",
+      "bundle": "gpt56_terra"
+    }
+  },
+  "primary_comparisons": [
+    {
+      "comparison_id": "architecture_gain_qwen27b",
+      "treatment": "qwen27b_full_flowpilot",
+      "comparator": "qwen27b_one_shot"
+    },
+    {
+      "comparison_id": "flowpilot_qwen27b_vs_claude_sonnet5",
+      "treatment": "qwen27b_full_flowpilot",
+      "comparator": "claude_sonnet5_one_shot"
+    },
+    {
+      "comparison_id": "flowpilot_qwen27b_vs_gpt56_terra",
+      "treatment": "qwen27b_full_flowpilot",
+      "comparator": "gpt56_terra_one_shot"
+    }
+  ],
+  "completion_gate": {
+    "planned_cells": 120,
+    "required_cells_per_condition": 30,
+    "require_all_cells_accounted": true,
+    "require_all_successful_or_preserved_failure": true,
+    "require_complete_provenance": true,
+    "require_identical_public_inputs_per_scenario": true,
+    "scientific_performance_is_a_gate": false
+  }
+}

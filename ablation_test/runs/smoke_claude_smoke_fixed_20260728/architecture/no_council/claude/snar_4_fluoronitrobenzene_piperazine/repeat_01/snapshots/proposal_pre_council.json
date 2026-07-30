@@ -1,0 +1,85 @@
+{
+  "residence_time_min": 18.0,
+  "flow_rate_mL_min": 0.16667,
+  "temperature_C": 120.0,
+  "concentration_M": 0.3,
+  "BPR_bar": 6.7,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.5,
+  "reactor_volume_mL": 20.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Electrophilic substrate feed",
+      "contents": [
+        "4-fluoronitrobenzene (1.0 equiv)"
+      ],
+      "solvent": "DMF",
+      "concentration_M": 0.3,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: 4-fluoronitrobenzene dissolved in DMF at 0.30 M; pumped at 0.25 mL/min (half of total 0.50 mL/min) to T-mixer. After mixing with equal-volume stream B, reactor concentration is 0.15 M substrate."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Nucleophile feed",
+      "contents": [
+        "piperazine (1.2 equiv)"
+      ],
+      "solvent": "DMF",
+      "concentration_M": 0.36,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: piperazine dissolved in DMF at 0.36 M (1.2x substrate concentration) so that after 1:1 volumetric mixing with stream A, piperazine is present at 1.2 equiv relative to substrate. Flow rate 0.25 mL/min matches stream A for equal dilution."
+    }
+  ],
+  "mixer_type": "T-mixer or Y-junction",
+  "mixing_order_reasoning": "From Chemistry Plan: streams A (substrate) and B (nucleophile) are combined at a T-mixer or Y-junction at the reactor inlet. No special mixing order required; neither species is hazardous at room temperature and no significant exotherm on mixing. Combined stream enters heated coil immediately.",
+  "pre_reactor_steps": [
+    "No deoxygenation required — Chemistry Plan confirms reaction is not O2/moisture sensitive and proceeds under air in batch."
+  ],
+  "post_reactor_steps": [
+    "Collect reactor effluent; standard aqueous workup to remove DMF and piperazinium fluoride salt. No inline quench required per Chemistry Plan."
+  ],
+  "chemistry_notes": "SNAr via Meisenheimer complex pathway: para-nitro group activates ipso carbon toward nucleophilic attack by piperazine NH; fluoride is the best SNAr leaving group. Rate-limiting step is Meisenheimer complex formation (addition). Flow advantage: precise temperature control at 120 °C and high surface-to-volume ratio (~1000 m-1) dramatically accelerate kinetics vs batch (6 h). Engineering calculations give τ = 36 min (10x intensification factor vs batch). Piperazine at 1.2 equiv limits bis-arylation at the second NH. DMF stable at 120 °C over short residence times. BPR required: DMF bp = 153 °C, operating at 120 °C — within 33 °C of bp, and engineering calculation flags gas-liquid system (air atmosphere) requiring BPR at 6.7 bar to maintain pressure and prevent degassing. No light source needed (thermal mechanism). No analogies available; all parameters from pre-computed engineering calculations and first principles.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "No analogies available. Calculation (Step 2) gives τ = 36.0 min (range 24–54 min) based on 10x kinetic intensification factor from batch 6 h. Using 36 min as central estimate. Verified: V_R / Q_total = 18 mL / 0.5 mL/min = 36 min.",
+    "residence_time_basis": "Single-phase liquid system (both streams are DMF solutions); no gas co-feed in reactor. Basis is liquid-only reactor volume divided by total liquid flow rate.",
+    "residence_time_inlet_min": "Not applicable — single-phase liquid design, no gas MFC feed.",
+    "residence_time_in_channel_min": "Not applicable — single-phase liquid design.",
+    "flow_rate_mL_min": "Calculation (Step 3/4): Q_total = 0.500 mL/min (0.25 + 0.25 mL/min from two pumps). Re = 10.9 (laminar, well below 2300). Verified plug flow Pe = 415.",
+    "temperature_C": "Same as batch (120 °C) per Chemistry Plan. Flow provides superior heat transfer so same temperature achieves faster kinetics. Above 150 °C risks bis-arylation side product.",
+    "concentration_M": "Chemistry Plan specifies 0.30 M substrate after mixing. Stream A at 0.30 M + stream B at 0.36 M, each at 0.25 mL/min, gives 0.15 M substrate and 0.18 M piperazine in reactor (1.2 equiv). Reported concentration_M = 0.30 M refers to pre-mix stream A concentration per Chemistry Plan.",
+    "BPR_bar": "Calculation (Step 8): BPR required at 6.7 bar. DMF bp = 153 °C, operating at 120 °C (33 °C margin, below 20 °C threshold triggers BPR). Engineering calculation also flags gas-liquid system. Setting BPR = 6.7 bar.",
+    "reactor_type": "Coil reactor per Chemistry Plan stage 1 specification and standard for thermal SNAr in flow.",
+    "tubing_material": "PFA preferred for thermal applications >80 °C (chemical resistance to DMF, rated to >200 °C). FEP not needed (no photochemistry). SS avoided to prevent potential catalytic effects on amine.",
+    "tubing_ID_mm": "1.0 mm per engineering calculation (Step 3): d = 1.00 mm gives L = 152.79 m for V_R = 120 mL. Note: reactor volume scaled to 18 mL for practical lab scale at 0.5 mL/min; ID kept at 1.0 mm.",
+    "reactor_volume_mL": "Calculated from τ × Q_total = 36 min × 0.5 mL/min = 18.0 mL. Engineering Step 3 gives 120 mL at higher throughput; scaled to 18 mL for 1 mmol-scale lab run consistent with batch scale input. L = V/(π r²) = 18 mL / (π × 0.025 cm²) ≈ 22.9 m of 1 mm ID tubing.",
+    "light_setup": "Thermal SNAr — no light source required. Chemistry Plan: requires_light = false.",
+    "wavelength_nm": "Null — thermal reaction, no photocatalyst.",
+    "deoxygenation_method": "None required. Chemistry Plan: deoxygenation_required = false; reaction proceeds under air."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

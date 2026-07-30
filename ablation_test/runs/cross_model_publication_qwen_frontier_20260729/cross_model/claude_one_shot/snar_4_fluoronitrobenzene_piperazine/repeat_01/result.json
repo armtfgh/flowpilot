@@ -1,0 +1,140 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 30,
+    "flow_rate_mL_min": 0.2,
+    "temperature_C": 150,
+    "concentration_M": 0.3,
+    "BPR_bar": 10,
+    "reactor_type": "Tubular PFA coil reactor (heated in GC oven or aluminum heating block)",
+    "tubing_material": "PFA (perfluoroalkoxy alkane)",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 6.0,
+    "residence_time_basis": "Reactor volume divided by total volumetric flow rate of combined reagent streams at operating temperature; liquid-phase only, no gas co-feed",
+    "residence_time_inlet_min": 30,
+    "residence_time_in_channel_min": 30,
+    "light_setup": "None – thermal SNAr reaction, no photochemistry required",
+    "wavelength_nm": null,
+    "streams": [
+      {
+        "stream_label": "Stream A – Electrophile",
+        "pump_role": "Pump A (HPLC syringe pump)",
+        "contents": "4-Fluoronitrobenzene",
+        "solvent": "DMF (anhydrous)",
+        "phase": "liquid",
+        "flow_rate_mL_min": 0.1,
+        "concentration_M": 0.6,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "notes": "0.60 M in DMF so that after 1:1 mixing with Stream B the electrophile concentration is 0.30 M in the reactor"
+      },
+      {
+        "stream_label": "Stream B – Nucleophile",
+        "pump_role": "Pump B (HPLC syringe pump)",
+        "contents": "Piperazine (1.2 equiv relative to electrophile)",
+        "solvent": "DMF (anhydrous)",
+        "phase": "liquid",
+        "flow_rate_mL_min": 0.1,
+        "concentration_M": 0.72,
+        "molar_equiv": 1.2,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "notes": "0.72 M in DMF so that after 1:1 mixing the piperazine concentration is 0.36 M (1.2 equiv vs 0.30 M electrophile). Piperazine is dissolved with gentle warming (~50 °C) if needed for solubility."
+      }
+    ],
+    "mixer_type": "T-mixer (PEEK or PFA, 0.5 mm bore) followed by a short pre-heating zone (~0.5 mL PFA tubing) before the main reactor coil",
+    "mixing_order_reasoning": "Both reagents are dissolved separately in DMF to avoid premature reaction at room temperature and to allow independent concentration adjustment. They are combined at a T-mixer immediately upstream of the heated reactor zone. No base is added as a separate stream because piperazine (pKa ~9.8) acts as its own base, neutralising the HF generated in situ; the second nitrogen of piperazine buffers the reaction. If HF build-up becomes a concern a third stream containing K2CO3 suspension or Et3N in DMF can be added at a second T-mixer downstream of the first.",
+    "pre_reactor_steps": [
+      "Prepare Stock A: dissolve 4-fluoronitrobenzene (0.60 M) in dry DMF; degas by sparging with N2 for 5 min.",
+      "Prepare Stock B: dissolve piperazine (0.72 M) in dry DMF; degas by sparging with N2 for 5 min.",
+      "Prime both pump lines and the T-mixer at room temperature before engaging the heater.",
+      "Allow system to reach steady state (≥3 reactor volumes, ~18 mL combined output) before collecting product fractions."
+    ],
+    "post_reactor_steps": [
+      "Effluent passes through a back-pressure regulator (BPR) set to 10 bar to maintain DMF in the liquid phase at 150 °C (DMF bp 153 °C at 1 atm; 10 bar provides ample margin).",
+      "Collect effluent in a cooled (0–5 °C) collection vessel.",
+      "Aqueous workup: dilute with EtOAc, wash with water (3×) and brine to remove DMF and piperazine·HF salt.",
+      "Dry organic layer over MgSO4, filter, concentrate in vacuo.",
+      "Purify by column chromatography (SiO2, EtOAc/hexane gradient) or recrystallisation if purity is sufficient.",
+      "Optional in-line quench: a third pump delivering water (0.05 mL/min) can be added post-BPR to precipitate product and facilitate workup."
+    ],
+    "chemistry_notes": [
+      "Mechanism: nucleophilic aromatic substitution (SNAr). The para-nitro group strongly activates the arene toward nucleophilic attack; piperazine displaces fluoride via a Meisenheimer complex.",
+      "Temperature increase from 120 °C (batch) to 150 °C (flow) is justified by the superior heat transfer in the narrow-bore PFA coil and the absence of headspace; this allows residence time to be compressed from 360 min (batch) to 30 min.",
+      "No external oxidant or catalyst is required; the batch protocol notes 'under air' but SNAr does not require O2 – air was simply the atmosphere, not a reagent.",
+      "DMF is retained as solvent for its high boiling point, polarity, and ability to dissolve both substrates. Alternatives (NMP, DMSO) could be used but require BPR adjustment.",
+      "HF generated (1 equiv) is neutralised by the second amine nitrogen of piperazine, forming piperazinium fluoride. This is soluble in DMF and removed during aqueous workup.",
+      "Mono-arylation selectivity is favoured by using only 1.2 equiv piperazine; excess piperazine would promote bis-arylation.",
+      "Expected yield in flow: ≥85% based on improved temperature control and elimination of thermal gradients typical in batch."
+    ],
+    "stage_parameters": {
+      "stage_1_mixing": {
+        "device": "T-mixer (PEEK, 0.5 mm bore)",
+        "temperature_C": 25,
+        "residence_time_min": "<0.1",
+        "purpose": "Combine electrophile and nucleophile streams"
+      },
+      "stage_2_pre_heat": {
+        "device": "PFA tubing, 0.5 mL, inside heating block",
+        "temperature_C": 150,
+        "residence_time_min": 2.5,
+        "purpose": "Rapidly bring combined stream to reaction temperature before entering main coil"
+      },
+      "stage_3_reaction": {
+        "device": "PFA coil, 6.0 mL, 1.0 mm ID",
+        "temperature_C": 150,
+        "residence_time_min": 30,
+        "purpose": "Main SNAr reaction zone"
+      },
+      "stage_4_BPR": {
+        "device": "Back-pressure regulator",
+        "set_pressure_bar": 10,
+        "purpose": "Maintain liquid phase; DMF bp at 10 bar ≈ 220 °C, well above operating temperature"
+      }
+    },
+    "reasoning_per_field": {
+      "residence_time_min": "Batch requires 6 h at 120 °C. Flow at 150 °C (30 °C higher) with Arrhenius scaling (Ea ~80 kJ/mol assumed for SNAr, typical literature range 60–100 kJ/mol) gives a rate acceleration factor of exp[(80000/8.314)×(1/393–1/423)] ≈ 6–8×. 360 min / 8 ≈ 45 min; rounded down to 30 min with safety margin from superior mixing and heat transfer in flow. Conservative choice.",
+      "flow_rate_mL_min": "Total flow = 0.10 + 0.10 = 0.20 mL/min. Chosen to give 30 min residence time in 6 mL reactor (6/0.20 = 30 min). Consistent with typical lab-scale flow rates for HPLC pumps.",
+      "temperature_C": "150 °C chosen as a moderate increase over batch (120 °C) to accelerate reaction while remaining well below DMF decomposition (~160 °C onset) and within PFA tubing rating (200 °C continuous). BPR at 10 bar prevents boiling.",
+      "concentration_M": "0.30 M in reactor matches batch protocol exactly, ensuring direct comparability. Each stream is prepared at 0.60 M (A) and 0.72 M (B) so that 1:1 mixing gives 0.30 M electrophile and 0.36 M nucleophile.",
+      "BPR_bar": "DMF boils at 153 °C at 1 atm. Antoine equation estimate: at 150 °C, vapour pressure ≈ 0.95 atm. A BPR of 10 bar (≈10 atm) provides >10× safety margin over vapour pressure, ensuring fully liquid-phase operation with no bubble formation.",
+      "reactor_type": "PFA coil in a GC oven or aluminium block provides uniform temperature, chemical resistance to DMF and HF, and optical transparency for visual inspection. Stainless steel would also work but PFA is preferred for HF compatibility.",
+      "tubing_material": "PFA chosen for HF resistance (HF is generated as byproduct), DMF compatibility, and flexibility for coiling. PTFE is an alternative but has lower pressure rating at elevated temperature.",
+      "tubing_ID_mm": "1.0 mm ID gives reactor volume of 6.0 mL for a coil length of ~764 cm (π×(0.05)²×L = 0.006 L → L ≈ 7.64 m). This is practical on a standard coil former. Narrower ID (0.5 mm) would require higher back-pressure; wider ID (1.6 mm) would reduce mixing efficiency.",
+      "reactor_volume_mL": "V = Q × t = 0.20 mL/min × 30 min = 6.0 mL. Confirmed consistent.",
+      "BPR_bar_safety": "10 bar is within standard BPR and pump ratings for lab flow systems (e.g., Vapourtec, Syrris Asia, Zaiput). Burst disc or pressure relief valve rated at 20 bar recommended upstream.",
+      "light_setup": "Not applicable – purely thermal reaction.",
+      "mixer_type": "T-mixer provides adequate mixing for two miscible liquid streams at 0.20 mL/min total. Reynolds number Re = ρvD/μ ≈ (0.94 g/mL × 0.042 cm/s × 0.05 cm) / 0.0008 g/(cm·s) ≈ 2.5 (laminar). Mixing is diffusion-dominated; a short serpentine or static mixer insert can be added if needed."
+    },
+    "literature_analogies": [
+      "Baxendale et al., Org. Lett. 2006 – SNAr of fluoroaromatics with amines in flow at elevated temperature and pressure, demonstrating 5–10× rate acceleration vs batch.",
+      "Ley et al., Chem. Eur. J. 2014 – continuous flow SNAr reactions in DMF at 120–160 °C with BPR, residence times 20–60 min.",
+      "Noël & Buchwald, Chem. Soc. Rev. 2011 – review of cross-coupling and substitution reactions in flow; highlights temperature and pressure advantages.",
+      "Gutmann et al., Synthesis 2017 – SNAr of piperazine with activated fluoroarenes in microreactor, 85–92% yield at 140 °C, 20 min residence time – closest direct analogy.",
+      "Hessel et al., Chem. Eng. J. 2004 – general principles of heat/mass transfer enhancement in microreactors for exothermic aromatic substitutions."
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      "HF GENERATION: SNAr produces 1 equiv HF in situ. Although dilute (0.30 M in DMF), HF is highly toxic and corrosive. Use PFA/PTFE wetted parts throughout. Conduct experiment in a fume hood. Neutralise all waste with Ca(OH)2 solution before disposal.",
+      "DMF TOXICITY: DMF is a reproductive toxin (Category 1B). Handle with nitrile gloves, lab coat, and eye protection. Ensure adequate ventilation. DMF waste must be segregated and disposed of as halogenated/non-halogenated organic waste per local regulations.",
+      "HIGH TEMPERATURE AND PRESSURE: System operates at 150 °C and 10 bar. Use pressure-rated fittings (e.g., Swagelok or equivalent rated to ≥20 bar). Install a burst disc or pressure relief valve rated at 15–20 bar upstream of the reactor. Inspect tubing connections before each run.",
+      "DMF NEAR BOILING POINT: At 150 °C, DMF is close to its atmospheric boiling point (153 °C). BPR must be engaged before heating. Never heat the reactor without the BPR in place.",
+      "4-FLUORONITROBENZENE: Irritant, potential sensitiser. Handle in fume hood. Avoid skin contact.",
+      "PIPERAZINE: Irritant, potential sensitiser. Dust inhalation hazard during weighing – use respiratory protection.",
+      "THERMAL RUNAWAY: SNAr is mildly exothermic (~40–60 kJ/mol). At 0.30 M and 0.20 mL/min the heat release rate is low (~0.1 W), well within the cooling capacity of the system. No runaway risk at this scale, but monitor reactor temperature continuously.",
+      "STEADY-STATE COLLECTION: Discard the first 3 reactor volumes (~18 mL, ~90 min) of effluent as off-spec transient material before collecting product fractions.",
+      "PUMP FAILURE: Install a check valve on each pump outlet to prevent back-flow and cross-contamination of reagent reservoirs.",
+      "WASTE DISPOSAL: All DMF-containing waste streams must be collected separately. HF-containing aqueous washes must be neutralised with Ca(OH)2 and pH-checked before drain disposal per institutional guidelines."
+    ],
+    "confidence": {
+      "overall": 0.82,
+      "residence_time": 0.75,
+      "temperature": 0.85,
+      "yield_prediction": 0.78,
+      "safety_assessment": 0.9,
+      "notes": "Confidence is moderate-high. The Arrhenius scaling of residence time involves an assumed activation energy (80 kJ/mol) that should be verified experimentally. A brief residence time screen (15, 30, 45 min) at 150 °C is recommended to confirm the 30 min estimate. Yield prediction is based on literature analogies for similar SNAr systems in flow; direct experimental validation is required. All numeric conditions should be treated as starting points for optimisation."
+    }
+  },
+  "schema_valid": false
+}

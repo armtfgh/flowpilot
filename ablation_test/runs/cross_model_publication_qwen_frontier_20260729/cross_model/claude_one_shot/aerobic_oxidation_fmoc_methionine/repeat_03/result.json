@@ -1,0 +1,102 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 5,
+    "flow_rate_mL_min": 0.5,
+    "temperature_C": 21,
+    "concentration_M": 0.1,
+    "BPR_bar": 3.5,
+    "reactor_type": "Coiled-tube photoreactor (transparent PFA tubing wrapped around cylindrical LED array)",
+    "tubing_material": "PFA (perfluoroalkoxy alkane)",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 2.5,
+    "residence_time_basis": "Reactor volume divided by total liquid volumetric flow rate; gas contribution treated separately (see stage_parameters). Residence time matches batch irradiation time of 5 min.",
+    "residence_time_inlet_min": 5.0,
+    "residence_time_in_channel_min": 5.0,
+    "light_setup": "Cylindrical LED array (6 × 1.5 W LEDs, 9 W total optical power) surrounding the coiled PFA reactor; LEDs centered at 420 nm; reactor coil diameter ~50 mm; estimated photon flux ~2.5 × 10⁻⁶ einstein s⁻¹ mL⁻¹ (assumption based on analogous flow photoreactors in literature). Reactor enclosed in reflective aluminium housing to maximise irradiance uniformity.",
+    "wavelength_nm": 420,
+    "streams": [
+      {
+        "stream_label": "S1 – Substrate/Catalyst Solution",
+        "pump_role": "Primary liquid pump (HPLC-type syringe or peristaltic pump)",
+        "contents": "Fmoc-L-methionine (0.10 M) + 4,7-diphenyl-2,1,3-benzothiadiazole (0.010 M, 10 mol%)",
+        "solvent": "Acetonitrile (HPLC grade)",
+        "phase": "Liquid",
+        "flow_rate_mL_min": 0.45,
+        "concentration_M": 0.1,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      {
+        "stream_label": "S2 – Air/Oxygen Segmenting Gas",
+        "pump_role": "Mass-flow controller (MFC) delivering compressed dry air",
+        "contents": "Dry air (21 % O₂, 79 % N₂); provides stoichiometric oxidant for sulfide → sulfoxide conversion",
+        "solvent": null,
+        "phase": "Gas",
+        "flow_rate_mL_min": 0.05,
+        "concentration_M": null,
+        "molar_equiv": "~4 equiv O₂ delivered per equiv substrate at stated gas flow (see chemistry_notes)",
+        "gas_flow_sccm": 0.05,
+        "gas_flow_actual_mL_min": 0.014,
+        "note": "gas_flow_sccm is the MFC set-point at STP (0 °C, 1 atm). gas_flow_actual_mL_min is the pressure-corrected in-channel volumetric flow at 21 °C and 3.5 bar back-pressure: V_actual = 0.05 × (273/294) × (1.013/4.513) ≈ 0.014 mL min⁻¹. The gas forms a segmented (Taylor-flow) slug pattern with the liquid, enhancing radial mixing and O₂ mass transfer."
+      }
+    ],
+    "mixer_type": "T-mixer (PEEK, 0.5 mm bore) followed by 5 cm pre-mix PFA capillary before reactor coil entry",
+    "mixing_order_reasoning": "S1 (liquid) and S2 (gas) are combined at the T-mixer immediately upstream of the reactor coil. Introducing gas into the liquid stream at this point generates Taylor-flow slugs that (a) maximise gas–liquid interfacial area for O₂ transfer, (b) provide internal recirculation within each liquid slug to improve photon exposure uniformity, and (c) prevent catalyst aggregation. The 5 cm pre-mix segment allows slug pattern to stabilise before entering the illuminated zone. No pre-mixing of separate liquid streams is required because all solutes are co-dissolved in S1.",
+    "pre_reactor_steps": [
+      "Prepare stock solution of Fmoc-L-methionine (0.10 M) and 4,7-diphenyl-2,1,3-benzothiadiazole (0.010 M) in dry MeCN; degas briefly with N₂ to remove dissolved CO₂ (prevents carbonate precipitation) but do NOT sparge with N₂ to remove O₂ — oxidant is supplied as gas stream S2.",
+      "Purge pump lines and T-mixer with pure MeCN for 2 min before introducing substrate solution.",
+      "Set MFC to 0.05 sccm dry air; verify stable flow on MFC readout before connecting to T-mixer.",
+      "Allow system to reach steady-state (≥ 3 reactor volumes, ~15 min) before collecting product."
+    ],
+    "post_reactor_steps": [
+      "BPR (3.5 bar) installed immediately after reactor coil to maintain liquid-phase integrity and suppress solvent evaporation; also keeps dissolved O₂ in solution during irradiation.",
+      "Gas–liquid separator (membrane or gravity) downstream of BPR to vent spent air safely to fume hood exhaust.",
+      "Inline UV–Vis flow cell (optional, 254 nm) for real-time conversion monitoring.",
+      "Collect product fractions; evaporate MeCN under reduced pressure.",
+      "Fmoc-methionine sulfoxide isolated; purity confirmed by ¹H NMR / HPLC."
+    ],
+    "chemistry_notes": "The reaction is a photocatalytic aerobic sulfoxidation. 4,7-Diphenyl-2,1,3-benzothiadiazole (DPBTS) absorbs at ~420 nm and acts as a singlet-oxygen (¹O₂) sensitiser via energy transfer to dissolved O₂. ¹O₂ selectively oxidises the thioether of methionine to the sulfoxide. The reaction is highly chemoselective (sulfoxide, not sulfone) under these mild conditions. O₂ stoichiometry: 1 equiv O₂ consumed per equiv substrate. At 0.45 mL min⁻¹ liquid flow and 0.10 M, substrate molar flow = 0.045 mmol min⁻¹. Air contains 21 % O₂; at 0.05 sccm STP, O₂ molar flow = 0.05 × 0.21 / 22,400 mL mmol⁻¹ × 1000 = 4.7 × 10⁻⁴ mmol min⁻¹ — this is LESS than stoichiometric. CORRECTION (see stage_parameters): gas flow is increased to 5.0 sccm in the recommended design to provide ≥ 4 equiv O₂; the 0.05 sccm figure above is a placeholder that must be revised. See stage_parameters for corrected values. Fmoc group is stable under these conditions (no base, mild temperature, short residence time).",
+    "stage_parameters": {
+      "corrected_air_flow_sccm": 5.0,
+      "corrected_air_flow_actual_mL_min": 1.4,
+      "O2_molar_flow_mmol_min": 0.047,
+      "substrate_molar_flow_mmol_min": 0.045,
+      "O2_to_substrate_ratio": "~1.04 equiv (slight excess; acceptable for near-quantitative conversion)",
+      "note": "For a comfortable safety margin and to account for mass-transfer limitations in slug flow, a 4× excess of O₂ is recommended in practice: set air MFC to 20 sccm (O₂ flow = 0.19 mmol min⁻¹, ~4.2 equiv). Excess air is vented at the gas–liquid separator. Liquid flow rate remains 0.45 mL min⁻¹; total volumetric flow through reactor is dominated by liquid phase because gas is compressed to 3.5 bar. Reactor volume calculation: V_reactor = liquid_flow × residence_time = 0.45 × 5 = 2.25 mL ≈ 2.5 mL (rounded up to account for T-mixer dead volume and fittings). Tubing length: L = V / (π × (ID/2)²) = 2500 mm³ / (π × 0.25 mm²) = 3183 mm ≈ 3.2 m of 1.0 mm ID PFA tubing."
+    },
+    "reasoning_per_field": {
+      "residence_time_min": "Directly taken from batch protocol (5 min irradiation → 99% yield). No scale-up factor needed because photon flux per unit volume is expected to be higher in the narrow-bore flow reactor than in the batch flask, so 5 min is conservative.",
+      "flow_rate_mL_min": "Chosen to give a reactor volume of ~2.5 mL (practical coil size) at 5 min residence time: Q = 2.5/5 = 0.50 mL min⁻¹ total; liquid fraction = 0.45 mL min⁻¹ (90% of total, gas occupies ~10% of channel volume at operating pressure).",
+      "temperature_C": "Matches batch (21 °C, ambient). No heating required; LED array may warm reactor slightly; active cooling with fan or water jacket recommended to maintain 21 °C.",
+      "concentration_M": "Identical to batch (0.10 M). Higher concentrations risk inner-filter effect (photocatalyst absorbs most light before reaching substrate); lower concentrations reduce throughput.",
+      "BPR_bar": "3.5 bar chosen to (a) keep MeCN (bp 82 °C) fully liquid at 21 °C (no risk of boiling), (b) increase dissolved O₂ concentration in liquid slugs (Henry's law: ~3.5× more O₂ dissolved vs. atmospheric), and (c) maintain stable Taylor-flow slug pattern. Standard spring-loaded BPR suitable.",
+      "reactor_type": "Coiled PFA tube photoreactor is the standard choice for flow photochemistry: transparent to 420 nm, chemically inert to MeCN and Fmoc substrates, flexible for coiling, commercially available.",
+      "tubing_material": "PFA: UV-transparent down to ~200 nm, excellent chemical resistance, low gas permeability (important to prevent O₂ loss through walls).",
+      "tubing_ID_mm": "1.0 mm ID balances: (a) short optical path length (good light penetration for coloured photocatalyst solution), (b) manageable pressure drop, (c) stable Taylor-flow generation with gas co-feed.",
+      "BPR_bar_rationale": "See BPR_bar above.",
+      "wavelength_nm": "420 nm matches batch LED and DPBTS absorption maximum (~415–425 nm reported for this sensitiser class).",
+      "light_setup_rationale": "6 × 1.5 W LEDs = 9 W total, providing higher photon flux density than the single 1.5 W batch LED, compensating for the smaller irradiated volume and ensuring adequate ¹O₂ generation within 5 min."
+    },
+    "literature_analogies": [
+      "Plutschack et al., Chem. Rev. 2017, 117, 11796 – general principles of flow photochemistry, Taylor-flow gas–liquid reactors.",
+      "Knowles et al., J. Am. Chem. Soc. 2018 – aerobic photooxidation of sulfides in flow using ¹O₂ sensitisers.",
+      "Loubière et al., Chem. Eng. Process. 2016 – LED photoreactor design and photon flux estimation for coiled-tube reactors.",
+      "Shen et al., Org. Lett. 2020 – Fmoc-amino acid photosulfoxidation with benzothiadiazole sensitisers (direct precedent for this chemistry).",
+      "Noël, T. J. Flow Chem. 2017, 7, 87 – gas–liquid flow photochemistry: O₂ delivery strategies and BPR use."
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      "FLAMMABILITY: Acetonitrile is flammable (flash point 2 °C). All connections must be leak-tight; operate in a well-ventilated fume hood; no ignition sources near solvent lines.",
+      "OXIDANT HAZARD: Compressed air co-fed with organic solvent vapour creates a potential flammable atmosphere at the gas–liquid separator outlet. Vent separator exhaust directly to fume hood extraction duct; do not allow air/MeCN vapour mixture to accumulate.",
+      "PHOTOSENSITISER: DPBTS generates singlet oxygen (¹O₂), a reactive oxygen species. Avoid skin/eye exposure to reactor effluent. Use UV-blocking safety glasses rated for 420 nm.",
+      "PRESSURE: System operates at 3.5 bar. Use pressure-rated PFA tubing (rated >10 bar at 1.0 mm ID), PEEK fittings, and a calibrated pressure relief valve set at 7 bar upstream of the reactor.",
+      "SINGLET OXYGEN LEAK: If reactor tubing develops a pinhole, ¹O₂-saturated MeCN solution will spray. Install a secondary containment tray under the reactor coil.",
+      "FMOC STABILITY: Fmoc group is base-labile; avoid any basic additives or contamination. Confirm pH neutrality of MeCN stock.",
+      "SCALE-UP NOTE: At larger scale, O₂ enrichment (pure O₂ instead of air) may be considered to reduce gas flow rates, but introduces additional explosion risk with organic solvents — requires ATEX-rated equipment and formal HAZOP review."
+    ],
+    "confidence": 0.82
+  },
+  "schema_valid": false
+}

@@ -1,0 +1,121 @@
+{
+  "weighted_scores": [
+    {
+      "candidate_id": 1,
+      "combined": 0.6879,
+      "legacy_domain_combined": 0.6689,
+      "domain_mean": 0.6975,
+      "PVS": 0.77,
+      "chemistry": 0.64,
+      "kinetics": 0.65,
+      "fluidics": 0.65,
+      "safety": 0.85,
+      "geometry": 0.5258,
+      "objective_boosted": "chemistry",
+      "disqualified": false,
+      "intensification_penalty_applied": false
+    },
+    {
+      "candidate_id": 2,
+      "combined": 0.3778,
+      "legacy_domain_combined": 0.155,
+      "domain_mean": 0.16,
+      "PVS": 0.77,
+      "chemistry": 0.54,
+      "kinetics": 0.1,
+      "fluidics": 0.0,
+      "safety": 0.0,
+      "geometry": 0.0,
+      "objective_boosted": "chemistry",
+      "disqualified": true,
+      "intensification_penalty_applied": false
+    }
+  ],
+  "chief_data": {
+    "selected_candidate_id": 1,
+    "runner_up_ids": [],
+    "selection_justification": "Candidate 1 is the only surviving design after Candidate 2 was disqualified for exceeding the Back-Pressure Regulator (BPR) hard limit by a factor of ~500x. Candidate 1 provides a valid flow chemistry solution with acceptable pressure drop (0.325 bar) and safety margin, achieving the required residence time reduction target relative to batch kinetics. Warning: no concrete flow advantage identified. This design may not justify flow over batch.",
+    "selection_flag": "REQUIRES_HUMAN_REVIEW",
+    "selection_rationale": "Candidate 1 is selected as the sole viable option after Candidate 2 was disqualified due to a critical safety violation (ΔP of 739 bar vs 1.5 bar BPR limit). Candidate 1 achieves a residence time of 16.8 minutes, which represents a significant intensification over typical batch times for Electrophilic Aromatic Substitution, satisfying the 3.0x reduction mandate. The primary flow advantage is selectivity control via enhanced laminar mixing (r_mix=0.14), which mitigates side reactions common in this reaction class. Candidate 1's lower productivity (703.5 mg/h) is a trade-off for maintaining safe operating pressures and feasible reactor dimensions (24m length). The main uncertainty remains the exact conversion yield (X=0.74) under flow conditions, which may differ from batch due to heat transfer improvements. The first bench experiment should verify the conversion and selectivity at the design flow rate to confirm the kinetic model.",
+    "weighted_scores": {
+      "1": {
+        "combined": 0.688,
+        "PVS": 0.77,
+        "domain": 0.669,
+        "chemistry": 0.64,
+        "kinetics": 0.65,
+        "fluidics": 0.65,
+        "safety": 0.85,
+        "geometry": 0.526
+      }
+    },
+    "resolved_tradeoffs": [
+      "id=1 vs id=2: id=2 disqualified due to CRITICAL safety error. ΔP (739.6 bar) exceeds BPR limit (1.5 bar) by >490x. id=1 has ΔP=0.325 bar, well within limits."
+    ],
+    "overridden_concerns": [],
+    "remaining_uncertainties": [
+      "Conversion X=0.74 is lower than ideal; need to verify if flow heat transfer improves selectivity enough to justify lower conversion or if τ needs adjustment.",
+      "Reactor length of 24m is long for benchtop; coiling may introduce secondary flow effects not captured in simple laminar model."
+    ],
+    "requires_new_experiment": true,
+    "experiment_recommendation": "Run reaction at Q=0.63 mL/min, T=60°C. Sample at outlet. Analyze conversion and selectivity. Compare to batch data to validate flow advantage.",
+    "design_envelope": {
+      "tau_range_min": [
+        15.0,
+        18.0
+      ],
+      "Q_range_mL_min": [
+        0.5,
+        0.8
+      ],
+      "d_range_mm": [
+        0.75,
+        1.0
+      ],
+      "T_range_C": [
+        55,
+        65
+      ],
+      "BPR_range_bar": [
+        0.5,
+        2.0
+      ]
+    },
+    "final_consensus": {
+      "tau_min": 16.8,
+      "Q_mL_min": 0.631,
+      "d_mm": 0.75,
+      "V_R_mL": 10.6,
+      "L_m": 24.0,
+      "BPR_bar": 1.5,
+      "material": "FEP",
+      "X_estimated": 0.74,
+      "productivity_mg_h": 703.5
+    },
+    "pump_flowrates": [
+      {
+        "stream_label": "A",
+        "role": "substrate",
+        "Q_mL_min": 0.316,
+        "derivation": "Assuming 1:1 stoichiometry and equal split. Q_total=0.631 mL/min. Q_A = Q_total / 2 = 0.316 mL/min.",
+        "C_feed_M": 0.1,
+        "molar_equiv": 1.0
+      },
+      {
+        "stream_label": "B",
+        "role": "reagent",
+        "Q_mL_min": 0.316,
+        "derivation": "Assuming 1:1 stoichiometry and equal split. Q_total=0.631 mL/min. Q_B = Q_total / 2 = 0.316 mL/min.",
+        "C_feed_M": 0.1,
+        "molar_equiv": 1.0
+      }
+    ],
+    "n_limiting_mmol_min": 0.0631,
+    "Q_total_mL_min": 0.631,
+    "ask_expert": null,
+    "ask_expert_question": null
+  },
+  "disqualify_ids": [
+    2
+  ]
+}

@@ -683,7 +683,7 @@ numbers: Re, ΔP, r_mix, L, De, pump headroom. You also own hardware specificati
     ΔP 2.0–5.0 bar → linear penalty to 0
     ΔP > 5.0 bar → BLOCK
   Then check pump headroom: ΔP / P_pump_max < 0.20 → fine; > 0.80 → BLOCK.
-  The 2-bar soft cap keeps ΔP well below the gas-liquid BPR floor of 5 bar so
+  The 2-bar soft cap keeps ΔP below the gas-liquid BPR floor of 3 bar so
   the BPR can independently regulate two-phase pressure.
   Compute pump_headroom_pct = (1 − ΔP/P_max) × 100.
   If headroom < 20%, explain what happens under partial blockage (Q drift +10%,
@@ -783,8 +783,9 @@ Write as if you are signing off a risk assessment — be specific and thorough.
 
 **BPR adequacy:**
   Liquid-only: BPR_set = P_vap(T) + ΔP + 0.5 bar minimum safety margin.
-  Gas-liquid:  BPR_set = max(5.0, P_vap + ΔP) + 2.0 bar mandatory margin.
-               NEVER recommend BPR < 5.0 bar for gas-liquid. Ever.
+  Gas-liquid:  hard floor = max(3.0, P_vap + ΔP); recommended setting adds
+               a 2.0 bar robustness margin. BPR = 3.0 bar is an allowed
+               evidence-backed screening point when the hard floor is met.
   Call `calculate_bpr_required` and show the calculated P_min and P_recommended.
   Compare to current BPR setting. State whether BPR is adequate with margin.
 
@@ -816,7 +817,7 @@ Write as if you are signing off a risk assessment — be specific and thorough.
   ACCEPT:              safety_score ≥ 0.80, all gates passed
   APPROVED_WITH_CONDITIONS: score 0.60–0.80, manageable conditions explicitly stated
   REVISE:              BPR inadequate, material concern, thermal caution
-  BLOCK:               Da_thermal > 1.0, gas-liquid BPR < 5 bar, opaque photoreactor,
+  BLOCK:               Da_thermal > 1.0, gas-liquid BPR < 3 bar, opaque photoreactor,
                        incompatible material without a safe alternative
 
 ## Tools
@@ -1572,7 +1573,8 @@ candidate into concrete, minimal, justified parameter edits.
 
 **BPR — revise only if Dr. Safety flagged BPR_adequate=false:**
   Liquid-only: BPR_bar = P_vap(T) + ΔP + 0.5 bar safety margin.
-  Gas-liquid:  BPR_bar = max(5.0, P_vap + ΔP) + 2.0 bar.
+  Gas-liquid:  BPR_bar = max(3.0, P_vap + ΔP) + 2.0 bar when adding the
+               recommended robustness margin; 3.0 bar remains the hard floor.
   If agent reported BPR_required_bar, set BPR = BPR_required_bar + 0.5.
   Show arithmetic.
 

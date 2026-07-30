@@ -1,0 +1,582 @@
+2026-07-28 13:34:04,037 INFO flowpilot.ablation.run cell 1/4 arm=architecture variant=general_one_shot model=claude case=snar_4_fluoronitrobenzene_piperazine
+2026-07-28 13:34:04,100 INFO anthropic._base_client Retrying request to /v1/messages in 0.499732 seconds
+2026-07-28 13:34:04,646 INFO anthropic._base_client Retrying request to /v1/messages in 0.996417 seconds
+2026-07-28 13:34:05,686 WARNING flora.engine.llm_agents LLM request failed during ablation_general_one_shot (anthropic/claude-sonnet-4-6), retry 2/3 in 1s: Connection error.
+2026-07-28 13:34:06,732 INFO anthropic._base_client Retrying request to /v1/messages in 0.468046 seconds
+2026-07-28 13:34:07,246 INFO anthropic._base_client Retrying request to /v1/messages in 0.974933 seconds
+2026-07-28 13:34:08,268 WARNING flora.engine.llm_agents LLM request failed during ablation_general_one_shot (anthropic/claude-sonnet-4-6), retry 3/3 in 2s: Connection error.
+2026-07-28 13:34:10,316 INFO anthropic._base_client Retrying request to /v1/messages in 0.426870 seconds
+2026-07-28 13:34:10,785 INFO anthropic._base_client Retrying request to /v1/messages in 0.935553 seconds
+2026-07-28 13:34:11,766 ERROR flowpilot.ablation Ablation cell failed: general_one_shot/claude/snar_4_fluoronitrobenzene_piperazine
+Traceback (most recent call last):
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 250, in handle_request
+    resp = self._pool.handle_request(req)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
+    raise exc from None
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
+    response = connection.handle_request(
+        pool_request.request
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection.py", line 101, in handle_request
+    raise exc
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection.py", line 78, in handle_request
+    stream = self._connect(request)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection.py", line 156, in _connect
+    stream = stream.start_tls(**kwargs)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_backends/sync.py", line 154, in start_tls
+    with map_exceptions(exc_map):
+         ~~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Missing Authority Key Identifier (_ssl.c:1028)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_base_client.py", line 1072, in request
+    response = self._client.send(
+        request,
+        stream=stream or self._should_stream_response_body(request=request),
+        **kwargs,
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 914, in send
+    response = self._send_handling_auth(
+        request,
+    ...<2 lines>...
+        history=[],
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+    response = self._send_handling_redirects(
+        request,
+        follow_redirects=follow_redirects,
+        history=history,
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+    response = self._send_single_request(request)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 1014, in _send_single_request
+    response = transport.handle_request(request)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 249, in handle_request
+    with map_httpcore_exceptions():
+         ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/amirreza/anaconda3/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Missing Authority Key Identifier (_ssl.c:1028)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 212, in _retry_llm_request
+    return fn()
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 414, in <lambda>
+    lambda: _get_anthropic_client().messages.create(
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        model=model,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        **kwargs,
+        ^^^^^^^^^
+    ),
+    ^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_utils/_utils.py", line 282, in wrapper
+    return func(*args, **kwargs)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/resources/messages/messages.py", line 996, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/v1/messages",
+        ^^^^^^^^^^^^^^^
+    ...<30 lines>...
+        stream_cls=Stream[RawMessageStreamEvent],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_base_client.py", line 1364, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_base_client.py", line 1104, in request
+    raise APIConnectionError(request=request) from err
+anthropic.APIConnectionError: Connection error.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/amirreza/Documents/codes/Flow Agent/ablation_test/src/runner.py", line 387, in execute_cell
+    result = _general_one_shot(
+        case,
+    ...<4 lines>...
+        seed,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/ablation_test/src/runner.py", line 103, in _general_one_shot
+    result = call_model_text(
+        model=model,
+    ...<4 lines>...
+        user_content=user,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 461, in call_model_text
+    return call_model_messages(
+        model=model,
+    ...<4 lines>...
+        api_name=api_name,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 413, in call_model_messages
+    resp = _retry_llm_request(
+        lambda: _get_anthropic_client().messages.create(
+    ...<8 lines>...
+        api_name=api_name,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 243, in _retry_llm_request
+    raise RuntimeError(
+    ...<2 lines>...
+    ) from last_exc
+RuntimeError: LLM request failed during ablation_general_one_shot (anthropic/claude-sonnet-4-6) after 3 attempts: Connection error.
+2026-07-28 13:34:11,771 INFO flowpilot.ablation.run cell 2/4 arm=architecture variant=structured_single_agent model=claude case=snar_4_fluoronitrobenzene_piperazine
+2026-07-28 13:34:11,832 INFO anthropic._base_client Retrying request to /v1/messages in 0.457254 seconds
+2026-07-28 13:34:12,333 INFO anthropic._base_client Retrying request to /v1/messages in 0.872783 seconds
+2026-07-28 13:34:13,253 WARNING flora.engine.llm_agents LLM request failed during ablation_structured_single_agent (anthropic/claude-sonnet-4-6), retry 2/3 in 1s: Connection error.
+2026-07-28 13:34:14,299 INFO anthropic._base_client Retrying request to /v1/messages in 0.430194 seconds
+2026-07-28 13:34:14,774 INFO anthropic._base_client Retrying request to /v1/messages in 0.969376 seconds
+2026-07-28 13:34:15,790 WARNING flora.engine.llm_agents LLM request failed during ablation_structured_single_agent (anthropic/claude-sonnet-4-6), retry 3/3 in 2s: Connection error.
+2026-07-28 13:34:17,835 INFO anthropic._base_client Retrying request to /v1/messages in 0.412838 seconds
+2026-07-28 13:34:18,303 INFO anthropic._base_client Retrying request to /v1/messages in 0.774875 seconds
+2026-07-28 13:34:19,136 ERROR flowpilot.ablation Ablation cell failed: structured_single_agent/claude/snar_4_fluoronitrobenzene_piperazine
+Traceback (most recent call last):
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 250, in handle_request
+    resp = self._pool.handle_request(req)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
+    raise exc from None
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
+    response = connection.handle_request(
+        pool_request.request
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection.py", line 101, in handle_request
+    raise exc
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection.py", line 78, in handle_request
+    stream = self._connect(request)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection.py", line 156, in _connect
+    stream = stream.start_tls(**kwargs)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_backends/sync.py", line 154, in start_tls
+    with map_exceptions(exc_map):
+         ~~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Missing Authority Key Identifier (_ssl.c:1028)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_base_client.py", line 1072, in request
+    response = self._client.send(
+        request,
+        stream=stream or self._should_stream_response_body(request=request),
+        **kwargs,
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 914, in send
+    response = self._send_handling_auth(
+        request,
+    ...<2 lines>...
+        history=[],
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+    response = self._send_handling_redirects(
+        request,
+        follow_redirects=follow_redirects,
+        history=history,
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+    response = self._send_single_request(request)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 1014, in _send_single_request
+    response = transport.handle_request(request)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 249, in handle_request
+    with map_httpcore_exceptions():
+         ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/amirreza/anaconda3/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Missing Authority Key Identifier (_ssl.c:1028)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 212, in _retry_llm_request
+    return fn()
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 414, in <lambda>
+    lambda: _get_anthropic_client().messages.create(
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        model=model,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        **kwargs,
+        ^^^^^^^^^
+    ),
+    ^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_utils/_utils.py", line 282, in wrapper
+    return func(*args, **kwargs)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/resources/messages/messages.py", line 996, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/v1/messages",
+        ^^^^^^^^^^^^^^^
+    ...<30 lines>...
+        stream_cls=Stream[RawMessageStreamEvent],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_base_client.py", line 1364, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_base_client.py", line 1104, in request
+    raise APIConnectionError(request=request) from err
+anthropic.APIConnectionError: Connection error.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/amirreza/Documents/codes/Flow Agent/ablation_test/src/runner.py", line 396, in execute_cell
+    result = _structured_single_agent(
+        case,
+    ...<4 lines>...
+        seed,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/ablation_test/src/runner.py", line 158, in _structured_single_agent
+    result = call_model_text(
+        model=model,
+    ...<4 lines>...
+        user_content=user,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 461, in call_model_text
+    return call_model_messages(
+        model=model,
+    ...<4 lines>...
+        api_name=api_name,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 413, in call_model_messages
+    resp = _retry_llm_request(
+        lambda: _get_anthropic_client().messages.create(
+    ...<8 lines>...
+        api_name=api_name,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 243, in _retry_llm_request
+    raise RuntimeError(
+    ...<2 lines>...
+    ) from last_exc
+RuntimeError: LLM request failed during ablation_structured_single_agent (anthropic/claude-sonnet-4-6) after 3 attempts: Connection error.
+2026-07-28 13:34:19,138 INFO flowpilot.ablation.run cell 3/4 arm=architecture variant=no_council model=claude case=snar_4_fluoronitrobenzene_piperazine
+2026-07-28 13:34:19,139 INFO flora.input_parser Parsing free-text batch protocol via LLM
+2026-07-28 13:34:19,210 INFO anthropic._base_client Retrying request to /v1/messages in 0.456779 seconds
+2026-07-28 13:34:19,717 INFO anthropic._base_client Retrying request to /v1/messages in 0.867462 seconds
+2026-07-28 13:34:20,633 WARNING flora.engine.llm_agents LLM request failed during input_parser (anthropic/claude-sonnet-4-6), retry 2/3 in 1s: Connection error.
+2026-07-28 13:34:21,680 INFO anthropic._base_client Retrying request to /v1/messages in 0.461369 seconds
+2026-07-28 13:34:22,185 INFO anthropic._base_client Retrying request to /v1/messages in 0.779755 seconds
+2026-07-28 13:34:23,008 WARNING flora.engine.llm_agents LLM request failed during input_parser (anthropic/claude-sonnet-4-6), retry 3/3 in 2s: Connection error.
+2026-07-28 13:34:25,051 INFO anthropic._base_client Retrying request to /v1/messages in 0.380578 seconds
+2026-07-28 13:34:25,475 INFO anthropic._base_client Retrying request to /v1/messages in 0.887367 seconds
+2026-07-28 13:34:26,406 ERROR flowpilot.ablation Ablation cell failed: no_council/claude/snar_4_fluoronitrobenzene_piperazine
+Traceback (most recent call last):
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 250, in handle_request
+    resp = self._pool.handle_request(req)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
+    raise exc from None
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
+    response = connection.handle_request(
+        pool_request.request
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection.py", line 101, in handle_request
+    raise exc
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection.py", line 78, in handle_request
+    stream = self._connect(request)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection.py", line 156, in _connect
+    stream = stream.start_tls(**kwargs)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_backends/sync.py", line 154, in start_tls
+    with map_exceptions(exc_map):
+         ~~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Missing Authority Key Identifier (_ssl.c:1028)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_base_client.py", line 1072, in request
+    response = self._client.send(
+        request,
+        stream=stream or self._should_stream_response_body(request=request),
+        **kwargs,
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 914, in send
+    response = self._send_handling_auth(
+        request,
+    ...<2 lines>...
+        history=[],
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+    response = self._send_handling_redirects(
+        request,
+        follow_redirects=follow_redirects,
+        history=history,
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+    response = self._send_single_request(request)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 1014, in _send_single_request
+    response = transport.handle_request(request)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 249, in handle_request
+    with map_httpcore_exceptions():
+         ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/amirreza/anaconda3/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Missing Authority Key Identifier (_ssl.c:1028)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 212, in _retry_llm_request
+    return fn()
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 414, in <lambda>
+    lambda: _get_anthropic_client().messages.create(
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        model=model,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        **kwargs,
+        ^^^^^^^^^
+    ),
+    ^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_utils/_utils.py", line 282, in wrapper
+    return func(*args, **kwargs)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/resources/messages/messages.py", line 996, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/v1/messages",
+        ^^^^^^^^^^^^^^^
+    ...<30 lines>...
+        stream_cls=Stream[RawMessageStreamEvent],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_base_client.py", line 1364, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_base_client.py", line 1104, in request
+    raise APIConnectionError(request=request) from err
+anthropic.APIConnectionError: Connection error.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/amirreza/Documents/codes/Flow Agent/ablation_test/src/runner.py", line 407, in execute_cell
+    result = _core_variant(
+        case,
+    ...<4 lines>...
+        seed,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/ablation_test/src/runner.py", line 256, in _core_variant
+    context = prepare_case_context(
+        _benchmark_case(case),
+    ...<5 lines>...
+        capture_llm_content=True,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/benchmark/pipeline.py", line 109, in prepare_case_context
+    batch_record = parse_batch_input(case.protocol)
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/lightweight_upstream.py", line 322, in parse_batch_input
+    return InputParser().parse(batch_input)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/input_parser.py", line 67, in parse
+    return self._llm_parse(batch_input)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/input_parser.py", line 71, in _llm_parse
+    result = call_model_text(
+        model=cfg.MODEL_INPUT_PARSER,
+    ...<3 lines>...
+        user_content=PARSE_PROMPT.format(input_text=text),
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 461, in call_model_text
+    return call_model_messages(
+        model=model,
+    ...<4 lines>...
+        api_name=api_name,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 413, in call_model_messages
+    resp = _retry_llm_request(
+        lambda: _get_anthropic_client().messages.create(
+    ...<8 lines>...
+        api_name=api_name,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 243, in _retry_llm_request
+    raise RuntimeError(
+    ...<2 lines>...
+    ) from last_exc
+RuntimeError: LLM request failed during input_parser (anthropic/claude-sonnet-4-6) after 3 attempts: Connection error.
+2026-07-28 13:34:26,408 INFO flowpilot.ablation.run cell 4/4 arm=portability variant=full model=claude case=snar_4_fluoronitrobenzene_piperazine
+2026-07-28 13:34:26,409 INFO flora.input_parser Parsing free-text batch protocol via LLM
+2026-07-28 13:34:26,465 INFO anthropic._base_client Retrying request to /v1/messages in 0.477580 seconds
+2026-07-28 13:34:26,990 INFO anthropic._base_client Retrying request to /v1/messages in 0.911214 seconds
+2026-07-28 13:34:27,946 WARNING flora.engine.llm_agents LLM request failed during input_parser (anthropic/claude-sonnet-4-6), retry 2/3 in 1s: Connection error.
+2026-07-28 13:34:28,993 INFO anthropic._base_client Retrying request to /v1/messages in 0.468350 seconds
+2026-07-28 13:34:29,508 INFO anthropic._base_client Retrying request to /v1/messages in 0.805746 seconds
+2026-07-28 13:34:30,365 WARNING flora.engine.llm_agents LLM request failed during input_parser (anthropic/claude-sonnet-4-6), retry 3/3 in 2s: Connection error.
+2026-07-28 13:34:32,412 INFO anthropic._base_client Retrying request to /v1/messages in 0.376042 seconds
+2026-07-28 13:34:32,832 INFO anthropic._base_client Retrying request to /v1/messages in 0.981088 seconds
+2026-07-28 13:34:33,856 ERROR flowpilot.ablation Ablation cell failed: full/claude/snar_4_fluoronitrobenzene_piperazine
+Traceback (most recent call last):
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 250, in handle_request
+    resp = self._pool.handle_request(req)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
+    raise exc from None
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
+    response = connection.handle_request(
+        pool_request.request
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection.py", line 101, in handle_request
+    raise exc
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection.py", line 78, in handle_request
+    stream = self._connect(request)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_sync/connection.py", line 156, in _connect
+    stream = stream.start_tls(**kwargs)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_backends/sync.py", line 154, in start_tls
+    with map_exceptions(exc_map):
+         ~~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Missing Authority Key Identifier (_ssl.c:1028)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_base_client.py", line 1072, in request
+    response = self._client.send(
+        request,
+        stream=stream or self._should_stream_response_body(request=request),
+        **kwargs,
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 914, in send
+    response = self._send_handling_auth(
+        request,
+    ...<2 lines>...
+        history=[],
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+    response = self._send_handling_redirects(
+        request,
+        follow_redirects=follow_redirects,
+        history=history,
+    )
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+    response = self._send_single_request(request)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_client.py", line 1014, in _send_single_request
+    response = transport.handle_request(request)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 249, in handle_request
+    with map_httpcore_exceptions():
+         ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/amirreza/anaconda3/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Missing Authority Key Identifier (_ssl.c:1028)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 212, in _retry_llm_request
+    return fn()
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 414, in <lambda>
+    lambda: _get_anthropic_client().messages.create(
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        model=model,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        **kwargs,
+        ^^^^^^^^^
+    ),
+    ^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_utils/_utils.py", line 282, in wrapper
+    return func(*args, **kwargs)
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/resources/messages/messages.py", line 996, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/v1/messages",
+        ^^^^^^^^^^^^^^^
+    ...<30 lines>...
+        stream_cls=Stream[RawMessageStreamEvent],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_base_client.py", line 1364, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/amirreza/anaconda3/lib/python3.13/site-packages/anthropic/_base_client.py", line 1104, in request
+    raise APIConnectionError(request=request) from err
+anthropic.APIConnectionError: Connection error.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/amirreza/Documents/codes/Flow Agent/ablation_test/src/runner.py", line 407, in execute_cell
+    result = _core_variant(
+        case,
+    ...<4 lines>...
+        seed,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/ablation_test/src/runner.py", line 256, in _core_variant
+    context = prepare_case_context(
+        _benchmark_case(case),
+    ...<5 lines>...
+        capture_llm_content=True,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/benchmark/pipeline.py", line 109, in prepare_case_context
+    batch_record = parse_batch_input(case.protocol)
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/lightweight_upstream.py", line 322, in parse_batch_input
+    return InputParser().parse(batch_input)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/input_parser.py", line 67, in parse
+    return self._llm_parse(batch_input)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/input_parser.py", line 71, in _llm_parse
+    result = call_model_text(
+        model=cfg.MODEL_INPUT_PARSER,
+    ...<3 lines>...
+        user_content=PARSE_PROMPT.format(input_text=text),
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 461, in call_model_text
+    return call_model_messages(
+        model=model,
+    ...<4 lines>...
+        api_name=api_name,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 413, in call_model_messages
+    resp = _retry_llm_request(
+        lambda: _get_anthropic_client().messages.create(
+    ...<8 lines>...
+        api_name=api_name,
+    )
+  File "/home/amirreza/Documents/codes/Flow Agent/flora_translate/engine/llm_agents.py", line 243, in _retry_llm_request
+    raise RuntimeError(
+    ...<2 lines>...
+    ) from last_exc
+RuntimeError: LLM request failed during input_parser (anthropic/claude-sonnet-4-6) after 3 attempts: Connection error.

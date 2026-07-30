@@ -1,0 +1,105 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 30,
+    "flow_rate_mL_min": 2.0,
+    "temperature_C": 60,
+    "concentration_M": 0.5,
+    "BPR_bar": 10,
+    "reactor_type": "PFA capillary coil reactor (with in-line PEEK static mixer at inlet), immersed in a thermostatted oil/water bath; optional SiC plate reactor as scale-up alternative",
+    "tubing_material": "PFA (perfluoroalkoxy) - chemically inert to HNO3/acetic acid, rated to 150-200 C",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 60,
+    "residence_time_basis": "reactor_volume_mL / total_flow_rate_mL_min (60 mL / 2.0 mL/min = 30 min)",
+    "residence_time_inlet_min": 0.1,
+    "residence_time_in_channel_min": 30,
+    "light_setup": "none - thermally driven electrophilic aromatic substitution, no photochemical activation required",
+    "wavelength_nm": null,
+    "streams": [
+      {
+        "stream_label": "Stream A",
+        "pump_role": "substrate feed",
+        "contents": "aniline derivative (assumed protected/acetylated or protonated form to survive strong HNO3, as per original batch chemistry)",
+        "solvent": "glacial acetic acid (assumed 'industrial batch solvent' - common for aromatic nitration; state as explicit assumption since original text did not name it)",
+        "phase": "liquid",
+        "flow_rate_mL_min": 1.0,
+        "concentration_M": 0.5,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      {
+        "stream_label": "Stream B",
+        "pump_role": "nitrating agent feed",
+        "contents": "concentrated/fuming nitric acid (assumed 90% HNO3, delivering ~4.5 M effective concentration)",
+        "solvent": "neat (self-solvating)",
+        "phase": "liquid",
+        "flow_rate_mL_min": 1.0,
+        "concentration_M": 4.5,
+        "molar_equiv": 4.5,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      }
+    ],
+    "mixer_type": "Low-dead-volume PEEK T-mixer or slit-plate micromixer, followed by short pre-cooled mixing zone before entering heated coil",
+    "mixing_order_reasoning": "Substrate stream is introduced into the nitric acid stream (rather than the reverse) through a T-mixer to ensure the aromatic substrate is never locally exposed to large excess neat HNO3 pockets, which would promote oxidative side reactions and runaway exotherm. Premixing occurs at 0-5 C before the combined stream enters the heated 60 C reaction coil, decoupling fast micromixing from thermal initiation.",
+    "pre_reactor_steps": [
+      "Chill both feed reservoirs and feed lines to 0-5 C using a jacketed pump head or ice bath to suppress premature reaction at the mixer",
+      "In-line 2 micron filtration of both streams to prevent clogging of the micromixer/capillary",
+      "Degassing of nitric acid stream to remove dissolved NOx that could nucleate bubbles and disrupt flow"
+    ],
+    "post_reactor_steps": [
+      "In-line quench into a stirred vessel of ice-water/aqueous NaHCO3 (or Na2CO3) immediately after the BPR to neutralize residual HNO3 and stop over-nitration",
+      "Continuous liquid-liquid phase separation (membrane separator or settling coil) to isolate the organic dinitro product",
+      "Aqueous acid stream directed to neutralization/waste treatment (NOx scrubbing) before disposal"
+    ],
+    "chemistry_notes": "This is a classic electrophilic aromatic dinitration. The exotherm from mono- then di-nitration is substantial and difficult to control in a stirred batch reactor over 4 h at 60 C, risking thermal runaway, over-oxidation, and inconsistent regioselectivity. In flow, the high surface-area-to-volume ratio of a narrow-bore PFA coil or SiC plate reactor allows rapid heat removal, permitting the same 60 C setpoint to be held uniformly, which should allow residence time compression from 240 min (batch) to an estimated 20-40 min while maintaining or improving the reported 89% yield. Excess HNO3 (assumed 4-5 equiv total) drives full dinitration; large excess also helps suppress mononitro intermediate accumulation.",
+    "stage_parameters": {
+      "stage_1_precool_mix": {
+        "temperature_C": 5,
+        "residence_time_min": 0.1,
+        "purpose": "fast micromixing, minimize premature reaction before controlled thermal zone"
+      },
+      "stage_2_reaction_coil": {
+        "temperature_C": 60,
+        "residence_time_min": 30,
+        "purpose": "bulk dinitration reaction, controlled via bath temperature and BPR-set pressure"
+      },
+      "stage_3_quench": {
+        "temperature_C": 0,
+        "residence_time_min": "<1 (near-instantaneous mixing with quench stream)",
+        "purpose": "stop reaction, neutralize acid, prevent further nitration/decomposition"
+      }
+    },
+    "reasoning_per_field": {
+      "residence_time_min": "Batch used 4 h; flow intensification (fast/efficient mixing and heat transfer) typically allows 5-10x reduction. 30 min chosen as a conservative first estimate pending empirical optimization.",
+      "flow_rate_mL_min": "Total 2.0 mL/min (1:1 stream ratio) selected as a lab-scale value compatible with standard syringe/HPLC pumps and capillary tubing; can be scaled linearly by numbering-up.",
+      "temperature_C": "Held at 60 C to match the batch protocol's proven reaction temperature; flow reactor's superior heat transfer makes this setpoint safer to maintain than in batch.",
+      "concentration_M": "0.5 M substrate assumed as a typical practical loading for nitration chemistry balancing solubility and reaction rate; not specified in original protocol, so treated as an assumption.",
+      "BPR_bar": "10 bar back-pressure regulator maintains single liquid phase, suppresses NOx off-gassing/bubble formation at 60 C, and allows safe operation above the atmospheric boiling point of dissolved gases without solvent-specific superheating.",
+      "reactor_type": "PFA coil selected for chemical compatibility with strong HNO3/acetic acid media and ease of immersion in a thermostatted bath at lab scale; SiC plate reactor (e.g., Corning AFR) noted as an industrial scale-up option for superior heat exchange.",
+      "tubing_material": "PFA chosen over stainless steel or FEP because concentrated HNO3 is corrosive to metals and FEP has lower thermal/chemical durability at 60 C over extended runs.",
+      "tubing_ID_mm": "1.0 mm ID balances adequate heat transfer surface-to-volume ratio with acceptable pressure drop and reduced clogging risk from any precipitated nitro-product.",
+      "reactor_volume_mL": "Calculated directly from residence_time_min x flow_rate_mL_min (30 min x 2.0 mL/min = 60 mL) to ensure internal consistency.",
+      "streams": "Two-stream design mirrors the batch two-component system (substrate + HNO3); concentrations and equivalents are assumptions since the original protocol did not specify stoichiometry or solvent identity.",
+      "mixer_type": "Low-dead-volume mixer needed to achieve rapid, uniform contacting of two liquids of different viscosity/density before the thermal zone, minimizing hot-spot formation.",
+      "BPR_bar_alt": "n/a"
+    },
+    "literature_analogies": [
+      "Continuous nitration of aromatic substrates using Corning Advanced-Flow (SiC) reactors, demonstrating improved safety and yield versus batch nitration (Ducry & Roberge, Org. Process Res. Dev. 2005; Braune et al., 2008)",
+      "DSM/Corning continuous nitric acid nitration case studies showing residence time reduction from hours (batch) to minutes (flow) with comparable or improved yield",
+      "General flow-chemistry exothermic nitration literature emphasizing PFA/PTFE or SiC reactors with in-line quench for HNO3-mediated reactions"
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      "Highly exothermic electrophilic nitration - risk of thermal runaway if cooling fails; continuous online temperature monitoring at multiple coil points recommended",
+      "Concentrated/fuming HNO3 is strongly corrosive and oxidizing; use PFA/PTFE wetted parts only, avoid stainless steel contact with neat HNO3",
+      "Potential NOx gas evolution - reactor must be operated under back-pressure to remain liquid-phase; downstream NOx scrubbing required at vent/quench stage",
+      "Dinitroaromatic products may be shock-sensitive/explosive on concentration or drying - handle post-quench stream with care, avoid evaporation to dryness in-line",
+      "Blast shield and remote operation recommended during initial residence-time and stoichiometry optimization runs",
+      "Assumed solvent (acetic acid) and stoichiometry are not confirmed from the original protocol - verify experimentally before scale-up"
+    ],
+    "confidence": 0.55
+  },
+  "schema_valid": false
+}

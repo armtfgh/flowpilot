@@ -128,6 +128,7 @@ class VectorRetriever:
         batch_record: BatchRecord,
         top_k: int = TOP_K_ANALOGIES,
         chemistry_plan: ChemistryPlan | None = None,
+        exclude_record_ids: set[str] | None = None,
     ) -> list[dict]:
         """Retrieve top-k analogies for a batch record.
 
@@ -236,6 +237,16 @@ class VectorRetriever:
                     "final_score": round(final_score, 4),
                 }
             )
+
+        # Leave-one-source-out evaluation can exclude the record that supplied
+        # the hidden reference answer. Normal application calls omit this.
+        excluded = {str(value).strip().lower() for value in (exclude_record_ids or set())}
+        if excluded:
+            candidates = [
+                candidate
+                for candidate in candidates
+                if str(candidate.get("record_id", "")).strip().lower() not in excluded
+            ]
 
         # Sort by final score descending
         candidates.sort(key=lambda x: x["final_score"], reverse=True)

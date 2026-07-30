@@ -11,6 +11,8 @@ from benchmark.recorder import BenchmarkRecorder, _safe
 from flora_translate.analogy_selector import AnalogySelector
 from flora_translate.config import LAB_INVENTORY_PATH, RECORDS_DIR
 from flora_translate.design_calculator import DesignCalculator
+from flora_translate.design_disposition import apply_design_disposition_gate
+from flora_translate.final_design_validator import finalize_design
 from flora_translate.engine.council_v4 import CouncilV4
 from flora_translate.engine.design_space import (
     DesignSpaceSearch,
@@ -65,9 +67,15 @@ def prepare_case_context(
     *,
     inventory_path: str = str(LAB_INVENTORY_PATH),
     temperature: float | None = None,
+    enable_retrieval: bool = True,
+    exclude_record_ids: set[str] | None = None,
+    capture_llm_content: bool = False,
 ) -> PreparedContext:
     set_llm_observer(recorder.observe_llm)
-    set_llm_runtime_overrides(temperature=temperature)
+    set_llm_runtime_overrides(
+        temperature=temperature,
+        capture_content=capture_llm_content,
+    )
     inventory = LabInventory.from_json(inventory_path)
     try:
         if case.cached_result_path and Path(case.cached_result_path).exists():
@@ -121,13 +129,22 @@ def prepare_case_context(
         )
 
         recorder.start_stage("prepare_retrieval")
-        if os.getenv("OPENAI_API_KEY"):
+        if enable_retrieval and os.getenv("OPENAI_API_KEY"):
             store = VectorStore()
             retriever = VectorRetriever(store=store)
-            raw_analogies = retriever.retrieve(batch_record, top_k=3, chemistry_plan=chemistry_plan)
+            raw_analogies = retriever.retrieve(
+                batch_record,
+                top_k=3,
+                chemistry_plan=chemistry_plan,
+                exclude_record_ids=exclude_record_ids,
+            )
             analogies = AnalogySelector(records_dir=RECORDS_DIR).select(raw_analogies)
             retrieval_status = "completed"
             retrieval_note = f"selected {len(analogies)} analogies"
+        elif not enable_retrieval:
+            analogies = []
+            retrieval_status = "disabled"
+            retrieval_note = "retrieval disabled by benchmark variant"
         else:
             analogies = []
             retrieval_status = "skipped"
@@ -139,6 +156,7 @@ def prepare_case_context(
                 "status": retrieval_status,
                 "analogy_count": len(analogies),
                 "note": retrieval_note,
+                "excluded_record_ids": sorted(exclude_record_ids or set()),
             },
             status=retrieval_status,
         )
@@ -238,9 +256,14 @@ def run_council_from_context(
     benchmark_branching_revision_mode: bool = False,
     benchmark_max_descendants_per_candidate: int = 2,
     benchmark_max_total_revised_candidates: int | None = None,
+    capture_llm_content: bool = False,
 ) -> dict:
     set_llm_observer(recorder.observe_llm)
-    set_llm_runtime_overrides(temperature=temperature, seed=seed)
+    set_llm_runtime_overrides(
+        temperature=temperature,
+        seed=seed,
+        capture_content=capture_llm_content,
+    )
 
     try:
         recorder.start_stage(
@@ -259,11 +282,12 @@ def run_council_from_context(
             },
         )
 
+        inventory = LabInventory.from_json(context.inventory_path)
         design_candidate, final_calc = CouncilV4().run(
             proposal=context.proposal.model_copy(deep=True),
             batch_record=copy.deepcopy(context.batch_record),
             analogies=copy.deepcopy(context.analogies),
-            inventory=LabInventory.from_json(context.inventory_path),
+            inventory=inventory,
             chemistry_plan=copy.deepcopy(context.chemistry_plan),
             calculations=copy.deepcopy(context.calculations),
             objectives=objectives,
@@ -277,6 +301,29 @@ def run_council_from_context(
             benchmark_branching_revision_mode=benchmark_branching_revision_mode,
             benchmark_max_descendants_per_candidate=benchmark_max_descendants_per_candidate,
             benchmark_max_total_revised_candidates=benchmark_max_total_revised_candidates,
+        )
+
+        recorder.start_stage("post_council_final_validation")
+        final_proposal, final_calc, final_validation = finalize_design(
+            design_candidate.proposal,
+            batch_record=context.batch_record,
+            chemistry_plan=context.chemistry_plan,
+            analogies=context.analogies,
+            inventory=inventory,
+        )
+        design_candidate.proposal = final_proposal
+        recorder.save_snapshot("final_validation", final_validation)
+        recorder.end_stage(
+            "post_council_final_validation",
+            {
+                "status": final_validation["status"],
+                "unresolved_reasons": final_validation["unresolved_reasons"],
+            },
+            status=(
+                "completed"
+                if final_validation["status"] == "ready"
+                else "screen_required"
+            ),
         )
 
         formatted = OutputFormatter().format(design_candidate, context.analogies)
@@ -293,9 +340,23 @@ def run_council_from_context(
             "pre_council_proposal": _safe(context.pre_council_proposal),
             "final_design_candidate": _safe(design_candidate),
             "final_calculations": _safe(asdict(final_calc)),
+            "final_validation": _safe(final_validation),
             "formatted_result": _safe(formatted),
             "frozen_context": context.snapshot(),
         }
+        decision = apply_design_disposition_gate(
+            result,
+            proposal=final_proposal,
+            final_validation=final_validation,
+            inventory=inventory,
+            batch_record=context.batch_record,
+            chemistry_plan=context.chemistry_plan,
+            objective=context.case.objective,
+            hard_constraints=context.case.hard_constraints,
+            council_safety_report=design_candidate.safety_report,
+        )
+        result["final_design_candidate"]["proposal"] = result["proposal"]
+        recorder.save_snapshot("design_disposition", decision.to_dict())
         recorder.write_json("result.json", result)
         recorder.end_stage(
             "run_council",

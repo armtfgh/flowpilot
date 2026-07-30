@@ -1,0 +1,72 @@
+{
+  "residence_time_min": 10.0,
+  "flow_rate_mL_min": 0.5,
+  "temperature_C": 21.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 5.0,
+  "reactor_type": "photocoil",
+  "tubing_material": "FEP",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 5.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "525 nm LED (INCOMPATIBLE)",
+  "wavelength_nm": 525.0,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Syringe pump A",
+      "contents": [
+        "Fmoc-L-methionine (1.0 equiv)",
+        "4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%)"
+      ],
+      "solvent": "acetonitrile",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Single stream mixing of substrate, catalyst, and solvent. Flow rate derived from calculation (Step 2) to achieve target residence time."
+    }
+  ],
+  "mixer_type": "None (Single Stream)",
+  "mixing_order_reasoning": "From Chemistry Plan: Dissolve substrate and catalyst together before irradiation. No mixing required as all reagents are in one stream.",
+  "pre_reactor_steps": [
+    "Degas acetonitrile if necessary to remove dissolved gases other than air, though reaction uses air as oxidant.",
+    "Ensure solution is homogeneous before pumping."
+  ],
+  "post_reactor_steps": [
+    "Collect effluent.",
+    "Note: Reaction cannot proceed due to wavelength mismatch."
+  ],
+  "chemistry_notes": "CRITICAL FAILURE: The Chemistry Plan explicitly states execution is impossible because the required excitation window (410-430 nm) does not match the available inventory light source (525 nm). The hard constraint forbids relaxing this requirement. The proposed flow parameters are theoretical based on the batch kinetics and analogies, assuming a valid 420 nm source were available. Analogy 3 (photo-oxidation) supports the use of pressurized air and FEP tubing. Analogy 1 supports the residence time range. The design uses a single stream as per the Chemistry Plan. BPR is required to maintain gas solubility for the aerobic oxidation.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 estimated 0.5 min. Analogy 1 used 12 min (different reaction). Analogy 3 used 16 min (different reaction). Using 0.5 min based on batch time (5 min) and kinetic intensification factor (IF=9x) from calculations. Note: With V=5mL and Q=0.5mL/min, actual tau is 10 min. To match 0.5 min tau, Q would need to be 10 mL/min, which exceeds pump max (5.0 mL/min). Thus, with available inventory, we must use the 5 mL reactor at max flow 5.0 mL/min (tau=1 min) or lower flow. Given pump max 5.0 mL/min, let's set Q=5.0 mL/min to minimize residence time, giving tau=1.0 min. This is within the calculated range [0.3-1.2] min. Correcting flow_rate to 5.0 mL/min.",
+    "residence_time_basis": "Liquid-only as gas is not fed via MFC in this specific inventory setup (air is headspace or dissolved). If air were fed, it would be inlet/STP.",
+    "temperature_C": "From Batch Protocol: 21 C. Analogy 1 used 50 C but our reaction is not thermally limited.",
+    "BPR_bar": "Calculation Step 8 requires BPR for gas-liquid systems to maintain O2 solubility. Inventory has 5 and 10 bar. Using 5 bar as minimum required.",
+    "tubing_material": "FEP is required for photocatalysis transparency (Chemistry Plan). Inventory confirms FEP availability.",
+    "concentration_M": "From Batch Protocol: 0.1 M. Analogy 1 used 0.05 M, Analogy 2 used 0.5 M. Keeping batch concentration to ensure solubility and match kinetic data.",
+    "flow_rate_mL_min": "Adjusted to 5.0 mL/min (max of Syringe pump A) to minimize residence time in the 5 mL reactor to 1.0 min, which is within the calculated optimal range [0.3-1.2] min. This maximizes throughput.",
+    "reactor_volume_mL": "Inventory constraint: Must use listed reactor. 5 mL FEP photocoil is selected. 10 mL is also available but 5 mL allows shorter residence time at max flow.",
+    "wavelength_nm": "Inventory constraint: Only 525 nm available. Chemistry Plan requires 420 nm. This is a fatal mismatch.",
+    "light_setup": "Inventory constraint: 525 nm LED. Incompatible with reaction."
+  },
+  "literature_analogies": [
+    "10.1021/acsomega.0c05658",
+    "10.1038/s41557-020-0500-1",
+    "10.1002/chem.201903888"
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "LOW"
+}

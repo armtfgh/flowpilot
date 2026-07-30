@@ -1,0 +1,96 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 3.0,
+  "temperature_C": 80.0,
+  "concentration_M": 0.667,
+  "BPR_bar": 5.0,
+  "reactor_type": "two_stage_coil_train",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 15.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Pump A",
+      "contents": [
+        "benzyl alcohol (0.667 M)",
+        "NaBr (1.0 equiv)",
+        "sulfuric acid (catalytic)"
+      ],
+      "solvent": "dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Substrate and oxidation promoters. Split total flow 50/50 to maintain 0.667 M final concentration when mixed with Stream B."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Pump B",
+      "contents": [
+        "TBHP (1.0 equiv)"
+      ],
+      "solvent": "dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Oxidant. Segregated from morpholine. Mixed with Stream A at Stage 1 inlet."
+    },
+    {
+      "stream_label": "C",
+      "pump_role": "Interstage pump",
+      "contents": [
+        "morpholine (1.0 equiv)"
+      ],
+      "solvent": "dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Nucleophile. Added at interstage port to avoid oxidation by TBHP. Flow rate matches combined A+B to maintain concentration."
+    }
+  ],
+  "mixer_type": "T-mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: TBHP/NaBr/H2SO4 mixed with alcohol first to form acyl intermediate; morpholine added downstream to avoid oxidation of amine.",
+  "pre_reactor_steps": [
+    "No deoxygenation required (Chemistry Plan: TBHP is oxidant, O2 exclusion not required)."
+  ],
+  "post_reactor_steps": [
+    "No quench specified (Chemistry Plan: Not specified in batch record)."
+  ],
+  "chemistry_notes": "Two-stage oxidative amidation. Stage 1 (5 mL coil): Oxidation of benzyl alcohol to benzoyl bromide/acid intermediate using TBHP/NaBr/H2SO4. Stage 2 (10 mL coil): Amidation with morpholine. TBHP and morpholine are incompatible (oxidant vs amine) and must be segregated. Acidic conditions promote both steps. Thermal reaction at 80°C. No light source used. BPR recommended precautionarily due to operating temperature (80°C) being within 30°C of dioxane boiling point (101°C), despite calculation indicating it is not strictly required.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation estimated 3.0 min (range 2.0-6.5 min) based on 10x intensification factor. Batch time was 30 min. 3.0 min is within calculated range and provides sufficient time for oxidation and amidation.",
+    "residence_time_basis": "Liquid-only system. No gas reagents. Residence time = Reactor Volume / Total Liquid Flow.",
+    "temperature_C": "Same as batch (80°C). Chemistry Plan specifies 80°C. Analogy 1 also used 80°C for a thermal/photo reaction, supporting this temperature for flow.",
+    "BPR_bar": "Calculation indicated BPR not strictly required (bp 101°C, op 80°C). However, warning noted operating within 30°C of bp. Inventory has 5 bar BPR. Using 5 bar for safety and to prevent solvent boiling/evaporation in the heated coil.",
+    "tubing_material": "PFA. From Inventory. Suitable for 80°C and chemical resistance. Not photochemical, so FEP transparency not required, but PFA is standard for thermal flow.",
+    "concentration_M": "0.667 M. From Batch Protocol and Chemistry Plan. Maintained to match batch conditions.",
+    "reactor_volume_mL": "15 mL. From Inventory: 'two_stage_coil_train' with 5 mL (Stage 1) and 10 mL (Stage 2) components. Total volume 15 mL. Flow rate 0.5 mL/min gives 30 min residence time in the full train. However, calculation suggests 3 min is sufficient. To match calculation, we should use a smaller volume or higher flow. But Inventory mandates using the listed reactor. Re-evaluating: The inventory reactor is 15 mL total. If we use 0.5 mL/min, tau = 30 min. This is 1x batch time, not 10x. To achieve 3 min tau with 15 mL reactor, flow rate must be 5 mL/min. But pumps max at 3.0 mL/min. Conflict. Resolution: The 'Engineering Design Calculations' assumed a 1.5 mL reactor. The Inventory provides a 15 mL reactor. We must use the Inventory. With 15 mL reactor and max pump flow 3.0 mL/min (total), min tau = 5 min. This is still a 6x intensification (30/5). We will set flow rate to 3.0 mL/min to minimize residence time and maximize throughput, achieving tau = 5 min. This is within the calculated range [2.0-6.5] min. Adjusting flow rates: Stream A 1.5, Stream B 1.5, Stream C 1.5. Total 4.5? No, pumps max 3.0. Stream A 1.0, Stream B 1.0, Stream C 1.0. Total 3.0 mL/min. Tau = 15 mL / 3.0 mL/min = 5 min. This is valid.",
+    "flow_rate_mL_min": "3.0 mL/min. Max pump capacity. Required to achieve residence time of 5 min with 15 mL reactor volume. 5 min is within calculated range [2.0-6.5] min and provides 6x intensification.",
+    "streams_flow_rates": "Stream A: 1.0 mL/min, Stream B: 1.0 mL/min, Stream C: 1.0 mL/min. Total 3.0 mL/min. Maintains 0.667 M concentration."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

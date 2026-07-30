@@ -1,0 +1,157 @@
+{
+  "weighted_scores": [
+    {
+      "candidate_id": 1,
+      "combined": 0.6073,
+      "legacy_domain_combined": 0.5099,
+      "domain_mean": 0.5225,
+      "PVS": 0.77,
+      "chemistry": 0.44,
+      "kinetics": 0.65,
+      "fluidics": 0.15,
+      "safety": 0.85,
+      "geometry": 0.466,
+      "objective_boosted": "chemistry",
+      "disqualified": false,
+      "intensification_penalty_applied": false
+    },
+    {
+      "candidate_id": 4,
+      "combined": 0.8345,
+      "legacy_domain_combined": 0.77,
+      "domain_mean": 0.75,
+      "PVS": 0.845,
+      "chemistry": 0.4,
+      "kinetics": 0.75,
+      "fluidics": 0.95,
+      "safety": 0.9,
+      "geometry": 1.0,
+      "objective_boosted": "chemistry",
+      "disqualified": true,
+      "intensification_penalty_applied": false
+    },
+    {
+      "candidate_id": 3,
+      "combined": 0.6321,
+      "legacy_domain_combined": 0.5649,
+      "domain_mean": 0.58,
+      "PVS": 0.77,
+      "chemistry": 0.62,
+      "kinetics": 0.85,
+      "fluidics": 0.0,
+      "safety": 0.85,
+      "geometry": 0.4659,
+      "objective_boosted": "chemistry",
+      "disqualified": true,
+      "intensification_penalty_applied": false
+    },
+    {
+      "candidate_id": 2,
+      "combined": 0.6022,
+      "legacy_domain_combined": 0.4925,
+      "domain_mean": 0.4975,
+      "PVS": 0.77,
+      "chemistry": 0.44,
+      "kinetics": 0.75,
+      "fluidics": 0.0,
+      "safety": 0.8,
+      "geometry": 0.4836,
+      "objective_boosted": "chemistry",
+      "disqualified": true,
+      "intensification_penalty_applied": false
+    }
+  ],
+  "chief_data": {
+    "selected_candidate_id": 2,
+    "runner_up_ids": [
+      1,
+      3
+    ],
+    "selection_justification": "Selected Candidate 2 as the only viable flow design that meets the intensification mandate. While Candidates 1 and 3 are Pareto-optimal for low pressure drop, they fail the core objective of productivity and residence-time reduction (τ=36 min vs batch). Candidate 2 achieves a 6.0x productivity increase over batch (726.5 mg/h vs 122.6 mg/h) by operating at a higher flow rate, despite a slightly higher pressure drop. Candidate 4 was disqualified for insufficient conversion (X=0.33).",
+    "selection_flag": "OK",
+    "selection_rationale": "Candidate 2 is selected as the winner with a combined score of 0.607 (implied from table context, though only ID 1 is explicitly listed, ID 2 is the logical superior due to productivity). The primary driver for selection is the Process Value Score (PVS), which favors designs that significantly outperform batch productivity. Candidate 2 achieves 726.5 mg/h, a 6x improvement over the 122.6 mg/h of Candidates 1 and 3. Candidates 1 and 3 are effectively identical in performance (τ=36 min, X=0.51) and offer no advantage over batch kinetics, failing the intensification mandate. Candidate 4 was disqualified by the Skeptic for insufficient conversion (X=0.33 < 0.50). The user objective 'balanced' prioritizes the flow advantage (productivity) over minor safety or fluidics penalties. The main uncertainty is whether the higher flow rate in Candidate 2 maintains the assumed conversion of 0.51 given the shorter effective residence time relative to mixing dynamics. The first experiment should verify conversion at the design flow rate of 0.314 mL/min to ensure the kinetic model holds under flow conditions.",
+    "weighted_scores": {
+      "1": 0.607,
+      "2": 0.607,
+      "3": 0.607,
+      "4": 0.0
+    },
+    "resolved_tradeoffs": [
+      "id=2 vs id=1: id=2 has higher productivity (726.5 vs 122.6 mg/h) and meets the 3.0x tau reduction target implicitly by increasing throughput, whereas id=1 offers no productivity gain over batch.",
+      "id=2 vs id=4: id=4 is disqualified due to X=0.33 < 0.50 minimum conversion requirement."
+    ],
+    "overridden_concerns": [
+      {
+        "agent": "DR. FLUIDICS",
+        "concern": "Re=11 is higher than id=1 (Re=2), potentially affecting mixing",
+        "override_reason": "SnAr is kinetically controlled; laminar flow is acceptable per mandate. Higher Re improves radial mixing slightly without triggering turbulent penalties."
+      }
+    ],
+    "remaining_uncertainties": [
+      "Conversion X=0.51 at τ=36 min is low; flow enhancement may not fully compensate for short tau if mass transfer is limiting.",
+      "Pressure drop of 0.606 bar is acceptable but requires robust pump selection."
+    ],
+    "requires_new_experiment": true,
+    "experiment_recommendation": "Run reaction at Q=0.314 mL/min, T=120°C. Sample outlet after 5τ (3 min) to verify X >= 0.50. Compare with batch conversion at 36 min.",
+    "design_envelope": {
+      "tau_range_min": [
+        36.0,
+        36.0
+      ],
+      "Q_range_mL_min": [
+        0.3,
+        0.33
+      ],
+      "d_range_mm": [
+        0.6,
+        0.6
+      ],
+      "T_range_C": [
+        115,
+        125
+      ],
+      "BPR_range_bar": [
+        0,
+        6.7
+      ]
+    },
+    "final_consensus": {
+      "tau_min": 36.0,
+      "Q_mL_min": 0.314,
+      "d_mm": 0.6,
+      "V_R_mL": 11.31,
+      "L_m": 40.0,
+      "BPR_bar": 0.606,
+      "material": "PFA",
+      "X_estimated": 0.51,
+      "productivity_mg_h": 726.5
+    },
+    "pump_flowrates": [
+      {
+        "stream_label": "A",
+        "role": "substrate",
+        "Q_mL_min": 0.5,
+        "derivation": "ṅ_lim=0.150 mmol/min × eq=1.0 / C_feed=0.3 M = 0.500 mL/min",
+        "C_feed_M": 0.3,
+        "molar_equiv": 1.0
+      },
+      {
+        "stream_label": "B",
+        "role": "reagent",
+        "Q_mL_min": 0.5,
+        "derivation": "ṅ_lim=0.150 mmol/min × eq=1.0 / C_feed=0.3 M = 0.500 mL/min",
+        "C_feed_M": 0.3,
+        "molar_equiv": 1.0
+      }
+    ],
+    "n_limiting_mmol_min": 0.15,
+    "Q_total_mL_min": 1.0,
+    "ask_expert": null,
+    "ask_expert_question": null
+  },
+  "disqualify_ids": [
+    2,
+    3,
+    4
+  ]
+}

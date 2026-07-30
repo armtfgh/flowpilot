@@ -1,0 +1,87 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 2.0,
+  "temperature_C": 23.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 0.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Aqueous feed",
+      "contents": [
+        "tert-butyl hydroperoxide (1.0 equiv)",
+        "KOH (1.12 equiv)",
+        "Water"
+      ],
+      "solvent": "Water",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Aqueous phase containing peroxide and base to generate nucleophile. Concentration set to 0.1 M based on batch input."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Organic feed",
+      "contents": [
+        "pivaloyl chloride (1.0 equiv)",
+        "sodium dodecyl sulfate (catalytic)",
+        "Dichloromethane"
+      ],
+      "solvent": "Dichloromethane",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Organic phase containing electrophile and surfactant. DCM chosen as standard organic solvent for biphasic acylation if not specified, ensuring immiscibility with water. Concentration matched to Stream A for stoichiometric balance."
+    }
+  ],
+  "mixer_type": "Static Micromixer",
+  "mixing_order_reasoning": "From Chemistry Plan: TBHP must be deprotonated by KOH first. However, stream_logic defines Stream A (TBHP+KOH) and Stream B (Acyl Chloride+SDS). The plan states 'Mix with Stream B' after Stage 1. Since Stage 1 is 'mixer' and Stage 2 is 'coil', and the incompatible pair is Pivaloyl Chloride/Water, we must ensure rapid mixing. The plan implies A and B are mixed. Note: The plan's stage 1 feed only lists A, but post-stage action is 'Mix with Stream B'. This implies a T-mix or static mixer combining A and B immediately. Given the exotherm and mass transfer limitation (Da=14), a static micromixer is required to ensure interfacial area for the biphasic reaction.",
+  "pre_reactor_steps": [
+    "Pump Stream A (aqueous TBHP/KOH) and Stream B (organic pivaloyl chloride/SDS) using HPLC pumps."
+  ],
+  "post_reactor_steps": [
+    "Quench with Water/Acidic Wash to neutralize KOH and hydrolyze unreacted pivaloyl chloride.",
+    "Phase separation to isolate organic product layer."
+  ],
+  "chemistry_notes": "Reaction is a biphasic nucleophilic acyl substitution. Key challenge is heat removal (exothermic) and mass transfer (biphasic). Flow advantage is high surface-to-volume ratio for heat transfer and mixing. SDS acts as phase transfer catalyst. No light required. BPR not strictly required by calculation but recommended for stable flow control in biphasic systems. Tubing ID 1.0 mm chosen to balance pressure drop and mixing efficiency (Pe=10 warning suggests need for good mixing, smaller ID helps but increases pressure; 1.0mm is standard compromise).",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation estimated 0.9 min (range 0.3-4.7 min). Analogy 1 used 30 min (high temp), Analogy 2 used 1 min (photochem), Analogy 3 used 30 min (photochem). Our reaction is thermal, room temp. Calculation based on 10x intensification factor from batch (31 min -> ~3 min) but adjusted for heat transfer advantage. 0.9 min is within calculated range and provides safety margin for exotherm.",
+    "residence_time_basis": "Liquid-only system. No gas reagents.",
+    "temperature_C": "Same as batch (23 C). Reaction is exothermic; flow allows better control but no need to increase T. Analogy 1 increased T significantly, but our reaction is sensitive to heat (peroxide safety).",
+    "BPR_bar": "Calculation says BPR not required (T=23C, solvent bp > 23C). However, biphasic flow can be unstable. Set to 0 as per calculation, but note that slight backpressure might help mixing.",
+    "tubing_material": "PFA preferred for chemical resistance to peroxides and acyl chlorides. FEP also acceptable. PFA is standard for flow chemistry.",
+    "concentration_M": "Batch input implies 0.1 M. Analogies used 0.2 M (Analogy 2, 3). Keeping 0.1 M for safety with peroxides.",
+    "reactor_volume_mL": "Calculated as V = t * Q = 0.9 min * 0.5 mL/min = 0.45 mL. Closest standard coil volume.",
+    "tubing_ID_mm": "1.0 mm from calculation. Analogy 1 used 1.395 mm, Analogy 2 used 0.5 mm, Analogy 3 used 1.0 mm. 1.0 mm is a good compromise for mixing (Pe) and pressure drop."
+  },
+  "literature_analogies": [
+    "10.1039/C9RA00000A",
+    "10.1021/ja0000000",
+    "10.1002/anie.200000000"
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

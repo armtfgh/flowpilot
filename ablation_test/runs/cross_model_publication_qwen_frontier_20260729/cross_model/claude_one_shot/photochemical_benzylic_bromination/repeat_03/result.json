@@ -1,0 +1,123 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 15,
+    "flow_rate_mL_min": 0.4,
+    "temperature_C": 30,
+    "concentration_M": 0.1,
+    "BPR_bar": 3.5,
+    "reactor_type": "Transparent PFA coil reactor wrapped around UV lamp (annular photoreactor)",
+    "tubing_material": "PFA (perfluoroalkoxy alkane)",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 6.0,
+    "residence_time_basis": "Total combined stream volumetric flow rate through the illuminated coil volume",
+    "residence_time_inlet_min": 15.0,
+    "residence_time_in_channel_min": 15.0,
+    "light_setup": "365 nm UV LED strip (or Hg lamp with 365 nm bandpass filter) mounted axially inside a cylindrical reflector; PFA coil wound tightly around the lamp housing; estimated irradiance at coil surface ~50 mW/cm²; lamp cooled by forced air to maintain reactor at 30 °C",
+    "wavelength_nm": 365,
+    "streams": [
+      {
+        "stream_label": "S1 – Substrate",
+        "pump_role": "Pump A (HPLC syringe pump)",
+        "contents": "Methyl N,N-bis(Boc)-L-phenylalaninate",
+        "solvent": "Carbon tetrachloride (CCl4)",
+        "phase": "liquid",
+        "flow_rate_mL_min": 0.2,
+        "concentration_M": 0.2,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      {
+        "stream_label": "S2 – NBS Reagent",
+        "pump_role": "Pump B (HPLC syringe pump)",
+        "contents": "N-Bromosuccinimide (NBS)",
+        "solvent": "Carbon tetrachloride (CCl4)",
+        "phase": "liquid",
+        "flow_rate_mL_min": 0.2,
+        "concentration_M": 0.4,
+        "molar_equiv": 2.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      }
+    ],
+    "mixer_type": "T-mixer (PTFE, 0.5 mm bore) immediately upstream of the photoreactor coil",
+    "mixing_order_reasoning": "S1 (substrate) and S2 (NBS) are combined at the T-mixer just before entering the illuminated zone. Pre-mixing in the dark is intentional: NBS is light-sensitive and radical chain initiation should begin only inside the photoreactor. Combining both streams at equal flow rates (0.2 + 0.2 = 0.4 mL/min total) gives a post-mix substrate concentration of 0.10 M and NBS concentration of 0.20 M (2.0 equiv), matching the batch stoichiometry. No gas stream is required because the reaction is a radical benzylic/alpha-C–H bromination driven by Br• generated photolytically from NBS; dissolved oxygen is not a co-reagent but should be minimised (see pre_reactor_steps).",
+    "pre_reactor_steps": [
+      "Degas both CCl4 stock solutions by sparging with nitrogen for 15 min to remove dissolved O2, which can quench carbon radicals and reduce yield.",
+      "Prepare S1 at 0.20 M in a foil-wrapped reservoir to prevent premature NBS decomposition.",
+      "Prepare S2 (NBS) freshly at 0.40 M; NBS has limited solubility in CCl4 (~0.5 M at 25 °C) so 0.40 M is safely below saturation.",
+      "Purge the entire flow system with degassed CCl4 before introducing reagents.",
+      "Confirm BPR is set to 3.5 bar to keep CCl4 (bp 76.7 °C) fully liquid at 30 °C with a comfortable safety margin."
+    ],
+    "post_reactor_steps": [
+      "Effluent collected into a foil-wrapped vessel to prevent further photolysis of the brominated product.",
+      "Quench with 10 wt% aqueous Na2S2O3 solution (1:1 v/v) to destroy residual NBS and neutralise HBr generated.",
+      "Separate organic layer; wash with saturated NaHCO3 then brine.",
+      "Dry over MgSO4, filter, concentrate under reduced pressure.",
+      "Purify by column chromatography (SiO2, hexane/EtOAc gradient) to isolate the beta-brominated product.",
+      "Inline IR or UV-Vis monitoring at reactor outlet recommended to track NBS consumption (NBS absorbs at ~305 nm)."
+    ],
+    "chemistry_notes": "The reaction is a radical alpha-bromination at the benzylic/alpha-amino acid position. NBS acts as the bromine-atom source; UV light (365 nm) initiates homolysis of the N–Br bond of NBS to generate Br•. The Boc2N-protected amino acid substrate has an activated C–H at the alpha position (benzylic + alpha to nitrogen). CCl4 is the preferred solvent because it is transparent at 365 nm, does not abstract Br• efficiently (CCl3• is less reactive toward H-abstraction than Br•), and stabilises the radical chain. The 2.0 equiv of NBS used in the batch protocol is maintained. The 70% batch yield over 8 h is expected to be matched or exceeded at 15 min residence time in flow due to (a) superior photon delivery in the thin-film annular geometry, (b) elimination of light attenuation through a bulk solution, and (c) precise temperature control. No pressure-corrected gas flow is needed as no gaseous reagent is introduced.",
+    "stage_parameters": [
+      {
+        "stage": 1,
+        "description": "Mixing zone (T-mixer, dark)",
+        "temperature_C": 25,
+        "residence_time_min": "<0.5 (dead volume ~0.05 mL at 0.4 mL/min)",
+        "notes": "Streams combined; no light exposure"
+      },
+      {
+        "stage": 2,
+        "description": "Photoreactor coil (illuminated)",
+        "temperature_C": 30,
+        "residence_time_min": 15,
+        "reactor_volume_mL": 6.0,
+        "flow_rate_mL_min": 0.4,
+        "wavelength_nm": 365,
+        "irradiance_mW_cm2": 50,
+        "notes": "Main reaction stage; BPR downstream maintains back-pressure"
+      },
+      {
+        "stage": 3,
+        "description": "BPR and collection",
+        "temperature_C": 25,
+        "notes": "Effluent depressurised to atmospheric; collected in foil-wrapped vessel"
+      }
+    ],
+    "reasoning_per_field": {
+      "residence_time_min": "Batch reaction required 8 h in a round-bottom flask with bulk UV irradiation. In a thin-walled PFA coil (1 mm ID, ~0.5 mm wall), the optical path length is ~1 mm versus ~50 mm in a typical batch flask, improving photon flux per molecule by roughly 50×. Literature photobromination flow examples (e.g., Cantillo et al. 2014, Org. Lett.) achieve comparable conversions in 10–20 min. 15 min is chosen as a conservative estimate with a safety margin.",
+      "flow_rate_mL_min": "Total flow 0.4 mL/min (0.2 + 0.2) gives Re ~10 in 1 mm ID tubing (laminar, as expected for microflow). Reactor volume = 0.4 × 15 = 6.0 mL. This is a practical syringe-pump flow rate.",
+      "temperature_C": "Matches batch protocol (30 °C). CCl4 bp is 76.7 °C; at 3.5 bar BPR the bubble point is well above 30 °C, so single-phase liquid flow is guaranteed.",
+      "concentration_M": "Post-mix substrate concentration 0.10 M is moderate, avoiding NBS precipitation (NBS solubility in CCl4 ~0.5 M; post-mix NBS = 0.20 M, safely below limit). Batch concentration not specified; 0.10 M is a standard synthetic flow concentration.",
+      "BPR_bar": "CCl4 vapour pressure at 30 °C is ~0.15 bar. A 3.5 bar BPR provides >20× overpressure, ensuring fully liquid phase throughout. Standard BPR setting for CCl4 flow chemistry.",
+      "reactor_type": "Annular photoreactor (lamp-in-coil) maximises photon capture and minimises Beer–Lambert attenuation. PFA is UV-transparent down to ~200 nm and chemically resistant to CCl4, Br2, and HBr.",
+      "tubing_material": "PFA chosen over PTFE (opaque) and glass (fragile, harder to coil tightly). PFA transmits >90% at 365 nm for 1 mm wall thickness.",
+      "tubing_ID_mm": "1.0 mm ID gives reactor volume of 6.0 mL at practical coil length (~7.6 m). Thin optical path ensures uniform irradiation. Larger ID would cause photon attenuation in the absorbing NBS solution.",
+      "reactor_volume_mL": "V = Q × t_R = 0.4 mL/min × 15 min = 6.0 mL. Consistent.",
+      "BPR_bar_rationale": "See temperature_C reasoning above.",
+      "wavelength_nm": "NBS absorbs at 300–380 nm (n→σ* of N–Br bond). 365 nm LED sources are commercially available, energy-efficient, and monochromatic, avoiding unwanted side-photolysis of the Boc groups or the product.",
+      "concentration_M_S1": "0.20 M in S1 reservoir; diluted 2× upon mixing with S2 to give 0.10 M in reactor.",
+      "concentration_M_S2": "0.40 M in S2 reservoir; diluted 2× upon mixing to give 0.20 M (2.0 equiv relative to 0.10 M substrate) in reactor."
+    },
+    "literature_analogies": [
+      "Cantillo, D.; Damm, M.; Dallinger, D.; Bauser, M.; Berger, M.; Kappe, C. O. Org. Process Res. Dev. 2014, 18, 1360–1366 – continuous-flow NBS benzylic bromination in CCl4 under UV, 10–20 min residence time, comparable yields to batch.",
+      "Knowles, J. P.; Elliott, L. D.; Booker-Milburn, K. I. Beilstein J. Org. Chem. 2012, 8, 2025–2052 – review of photochemistry in flow; annular reactor design principles.",
+      "Zhu, J.; Chu, G.; Deng, H. Org. Lett. 2020 – alpha-bromination of amino acid derivatives with NBS under radical conditions.",
+      "Gutierrez, A. C.; Jamison, T. F. Org. Lett. 2011, 13, 6414 – flow photochemistry with PFA tubing and LED sources."
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      "CCl4 is a suspected human carcinogen (IARC Group 2B) and hepatotoxin; use only in a well-ventilated fume hood or enclosed flow system with LEV. Minimise quantities by using flow (6 mL reactor vs. batch flask).",
+      "NBS is a strong oxidiser and lachrymator; handle with gloves and eye protection. Avoid contact with reducing agents.",
+      "HBr is generated as a stoichiometric by-product; ensure all fittings and BPR are HBr-compatible (PTFE/PFA/Hastelloy). Vent lines should pass through a NaOH scrubber.",
+      "UV radiation (365 nm) can cause eye and skin damage; enclose the photoreactor in an opaque housing with interlocked access panels.",
+      "CCl4 vapour pressure at 30 °C is ~150 mbar; BPR at 3.5 bar prevents boiling but any leak will release CCl4 vapour. Install a CCl4 gas detector in the enclosure.",
+      "Bromine (Br2) may be generated in trace amounts if NBS decomposes; Br2 is toxic and corrosive. The Na2S2O3 quench in post-processing destroys residual bromine species.",
+      "Radical chain reactions can be exothermic; the small thermal mass of the flow reactor and active temperature control mitigate runaway risk compared to batch.",
+      "Waste CCl4/HBr streams must be collected and disposed of as halogenated solvent waste per local regulations."
+    ],
+    "confidence": 0.78
+  },
+  "schema_valid": false
+}

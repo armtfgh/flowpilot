@@ -1,0 +1,98 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 1.0,
+  "temperature_C": 80.0,
+  "concentration_M": 0.667,
+  "BPR_bar": 5.0,
+  "reactor_type": "single_coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 5.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Substrate and catalyst feed",
+      "contents": [
+        "Benzyl Alcohol (0.667 M)",
+        "NaBr (catalytic)",
+        "Sulfuric Acid (catalytic)",
+        "Dioxane"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream A contains substrate and oxidation catalysts. Flow rate set to half total to allow 1:1 mixing with Stream B."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Oxidant feed",
+      "contents": [
+        "TBHP (1.5 equiv)",
+        "Dioxane"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 1.0,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream B contains TBHP. Must be mixed with Stream A for Stage 1. Concentration adjusted to match stoichiometry."
+    },
+    {
+      "stream_label": "C",
+      "pump_role": "Nucleophile feed (Interstage)",
+      "contents": [
+        "Morpholine (1.0 equiv)",
+        "Dioxane"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.0,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream C contains Morpholine. MUST be added after Stage 1. HARD CONSTRAINT: No interstage addition port available. Flow rate set to 0 to indicate this stream cannot be implemented in the proposed single-reactor setup without violating safety constraints (TBHP/Morpholine incompatibility). This highlights the design impossibility."
+    }
+  ],
+  "mixer_type": "T-mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Oxidation must precede amidation. Morpholine must not contact TBHP/NaBr/H2SO4 mixture before oxidation is complete. Due to hardware constraints, only Stream A and B can be mixed. Stream C cannot be added.",
+  "pre_reactor_steps": [
+    "Mix Stream A and Stream B in T-mixer.",
+    "Note: Stream C (Morpholine) cannot be added due to lack of interstage port. Reaction will proceed as oxidation only, or require batch workup if amidation is essential."
+  ],
+  "post_reactor_steps": [
+    "Quench with Water / Base to neutralize sulfuric acid and hydrolyze intermediates.",
+    "Note: If Morpholine was not added, product will be benzoic acid/benzoyl bromide, not benzoyl morpholine."
+  ],
+  "chemistry_notes": "The Chemistry Plan identifies a two-stage process: Oxidation (Stage 1) followed by Amidation (Stage 2). The hardware constraints explicitly forbid interstage addition or telescoping incompatible feeds (TBHP and Morpholine). Therefore, a true flow implementation of the full transformation is impossible with the provided inventory. The proposed setup only allows Stage 1 (Oxidation). Stream C (Morpholine) is defined but has 0 flow rate to reflect this constraint. If the user insists on a single-pass flow, they must accept that Morpholine cannot be added safely. Alternatively, the oxidation product must be collected and morpholine added in a separate batch step. The residence time and reactor sizing are based on the oxidation step (Stage 1) which takes 0.25 h in batch. The calculation suggests a residence time of 3.0 min for the oxidation step. The reactor volume is limited to 5 mL by inventory. With a total flow of 0.5 mL/min (A+B), a 5 mL reactor provides 10 min residence time, which is sufficient for the 3 min target. The tubing ID is 1.0 mm as per inventory. The temperature is 80 C. No light is required. BPR is not strictly required by calculation (bp 101 C vs 80 C) but recommended for safety with TBHP.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation estimated 3.0 min for oxidation. Inventory reactor is 5 mL. Total flow 0.5 mL/min. Residence time = 5/0.5 = 10 min. This is within the safe range and ensures complete oxidation.",
+    "residence_time_basis": "Liquid-only system. No gas feeds.",
+    "temperature_C": "From Batch Protocol and Chemistry Plan: 80 C.",
+    "BPR_bar": "Calculation says not required (bp 101 C > 80 C + 20 C). However, TBHP is hazardous and pressure control is recommended. Using 5 bar BPR from inventory.",
+    "tubing_material": "From Inventory: PFA. Suitable for 80 C and chemical resistance.",
+    "concentration_M": "From Batch Protocol: 0.667 M."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "LOW"
+}

@@ -1,0 +1,81 @@
+{
+  "residence_time_min": 9.0,
+  "flow_rate_mL_min": 0.08333,
+  "temperature_C": 60.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 20.0,
+  "reactor_type": "packed_bed",
+  "tubing_material": "SS",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 5.0,
+  "residence_time_inlet_min": 6.0,
+  "residence_time_in_channel_min": 2.6,
+  "residence_time_basis": "inlet/STP apparent residence time",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Hydrogen atmosphere",
+  "streams": [
+    {
+      "stream_label": "Liquid Feed",
+      "pump_role": "HPLC pump delivering substrate solution",
+      "contents": [
+        "N-Diphenylmethylazetidin-3-ol (0.1 M)",
+        "Acetic acid (additive)"
+      ],
+      "solvent": "Methanol",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Substrate and additive dissolved in solvent. Flow rate derived from calculation (Q_total = 0.5 mL/min) to achieve target residence time."
+    },
+    {
+      "stream_label": "Gas Feed",
+      "pump_role": "Mass flow controller delivering hydrogen",
+      "contents": [
+        "Hydrogen"
+      ],
+      "solvent": "",
+      "concentration_M": null,
+      "flow_rate_mL_min": null,
+      "phase": "",
+      "gas_flow_sccm": 1.12,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: H2 supplied as gas. Flow rate from calculation (1.12 sccm) to ensure stoichiometric excess and mass transfer."
+    }
+  ],
+  "mixer_type": "Certified gas-liquid mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Substrate and additive dissolved in solvent; mixed with H2 gas before entering packed bed. Inventory specifies 'Certified gas-liquid mixer'.",
+  "pre_reactor_steps": [
+    "Mix liquid feed (Substrate/AcOH/MeOH) and H2 gas using certified gas-liquid mixer.",
+    "Heat mixture to 60 C before entering reactor."
+  ],
+  "post_reactor_steps": [
+    "Pass through Back Pressure Regulator (BPR) set to 20 bar.",
+    "Collect effluent."
+  ],
+  "chemistry_notes": "Hydrogenolysis of benzylic C-N bond using Pd(OH)2/Al2O3 packed bed. Acetic acid additive enhances rate. Gas-liquid mass transfer is the limiting factor in batch; flow enhances kLa. Packed bed reactor used from inventory. No light source required. BPR required to maintain H2 solubility and pressure.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation estimated 6.0 min. Analogy 2 (photoredox, 60C) used 2 min but different mechanism. Analogy 1 (photochem) used 1.25 min. Given gas-liquid mass transfer limitation and packed bed, 6.0 min is conservative. Note: Inventory reactor is 5 mL. At 0.5 mL/min liquid + 1.12 sccm gas, inlet residence time is ~6 min. This exceeds the 5 mL volume slightly if strictly liquid-only, but gas volume contributes. Using 6 min as target, actual volume 5 mL implies slightly higher flow or shorter time. Adjusting flow to 0.83 mL/min would give 6 min in 5 mL? No, V=Q*t. 5 mL / 0.5 mL/min = 10 min liquid residence. Calculation said 6 min. Let's stick to calculation's 6 min target. If V=5mL and t=6min, Q=0.83 mL/min. But calculation said Q=0.5. There is a discrepancy. Calculation Step 3 says V_R=11.20 mL. Inventory only has 5 mL. I must use inventory. So I will use the 5 mL reactor. With Q=0.5 mL/min, t = 10 min. This is within the range [2.2-45.0] min. I will set residence_time_min to 10.0 to match inventory volume and flow.",
+    "residence_time_basis": "Gas-liquid system. Using inlet/STP basis for consistency with MFC settings.",
+    "temperature_C": "Same as batch (60 C) and Analogy 2 (60 C).",
+    "BPR_bar": "Calculation Step 8 requires BPR. Inventory max is 20 bar. Batch used H2 pressure. Setting to 20 bar to maximize H2 solubility and ensure safety margin.",
+    "tubing_material": "SS from inventory for packed bed reactor. SS is standard for hydrogenation.",
+    "concentration_M": "0.1 M from batch calculation Step 1.",
+    "reactor_volume_mL": "5.0 mL from inventory. Calculation suggested 11.2 mL, but inventory constraint overrides. This increases residence time to 10 min (liquid basis) or ~6 min (gas-corrected), which is acceptable.",
+    "flow_rate_mL_min": "0.5 mL/min from calculation Step 3. Minimum flow constraint 0.01 mL/min satisfied."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

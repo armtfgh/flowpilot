@@ -1,0 +1,70 @@
+{
+  "residence_time_min": 1.0,
+  "flow_rate_mL_min": 5.0,
+  "temperature_C": 50.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 0.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 5.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Sparging with inert gas",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Single feed stream containing all reagents",
+      "contents": [
+        "Aromatic Bromide (1.0 equiv)",
+        "Phenylboronic Acid Derivative (1.0 equiv)",
+        "Base (1.0 equiv)",
+        "Palladium Catalyst (loading)",
+        "DMF (solvent)"
+      ],
+      "solvent": "DMF",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "Chemistry Plan specifies single stream for homogeneous mixture. Concentration 0.1 M from Engineering Calculations Step 1. Flow rate 0.5 mL/min derived from residence time and reactor volume constraints."
+    }
+  ],
+  "mixer_type": "None (Single Stream)",
+  "mixing_order_reasoning": "Chemistry Plan stream_logic indicates all reagents combined in batch; single feed stream simplifies flow setup. No mixing required before reactor.",
+  "pre_reactor_steps": [
+    "Degas DMF solution via sparging with inert gas (N2 or Ar) to remove O2, as Pd(0) is oxygen-sensitive (Chemistry Plan)."
+  ],
+  "post_reactor_steps": [
+    "Collect product directly. No quench required (Chemistry Plan)."
+  ],
+  "chemistry_notes": "CRITICAL SAFETY WARNING: The required reaction temperature (50°C) exceeds the maximum rated temperature of all available hardware (40°C). Execution at 50°C risks tubing failure and leakage. The design below uses the 10 mL PFA coil (max 40°C) but sets the target temperature to 50°C as per the hard constraint, noting this violation. The reaction is a thermal Suzuki-Miyaura coupling, not photochemical; thus, no light source is used. Analogies provided were photochemical and thus not directly applicable for hardware/lighting, but their residence times and flow rates in DMF were used as proxies for thermal cross-couplings in similar solvents. The Engineering Calculations indicate a residence time of 0.6 min is sufficient, but the available reactor volumes (5 mL and 10 mL) are large relative to the optimal flow rate, leading to longer residence times if flow is kept low, or high flow rates if residence time is kept short. We select the 10 mL reactor to allow for lower flow rates and better mixing, accepting a longer residence time than the theoretical minimum, or adjust flow to match the 0.6 min target if possible. However, with 10 mL volume and 0.6 min residence time, flow rate would be 16.6 mL/min, which exceeds the pump max (5.0 mL/min). Therefore, we must use the 5 mL reactor or accept a longer residence time. Using 5 mL reactor: V=5 mL, t=0.6 min -> Q=8.3 mL/min (exceeds pump). Using 10 mL reactor: V=10 mL, t=0.6 min -> Q=16.6 mL/min (exceeds pump). We must increase residence time to fit pump constraints. Max Q=5 mL/min. With 5 mL reactor, t=1 min. With 10 mL reactor, t=2 min. We select the 5 mL reactor for smaller volume and t=1 min (Q=5 mL/min) to stay within pump limits and closer to the calculated 0.6 min. Note: Pe=7 indicates significant axial dispersion, so conversion may be lower than PFR prediction.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Engineering Calculation Step 2 suggests 0.6 min. However, pump max is 5.0 mL/min. Using 5 mL reactor (Inventory), Q=5 mL/min gives t=1.0 min. This is within the acceptable range [0.3-1.0] min from calculations.",
+    "residence_time_basis": "Single-phase liquid system. Basis is liquid volume / liquid flow.",
+    "temperature_C": "Hard constraint from Batch Input: 50°C. Note: This exceeds hardware limit of 40°C.",
+    "BPR_bar": "Engineering Calculation Step 8: BPR not required. DMF bp (153°C) >> 50°C. No gas generation.",
+    "tubing_material": "PFA from Inventory. Selected 5 mL PFA coil.",
+    "concentration_M": "0.1 M from Engineering Calculation Step 1.",
+    "reactor_volume_mL": "5 mL from Inventory. Selected to allow residence time closer to calculated 0.6 min while staying within pump max flow rate (5 mL/min). 10 mL reactor would require t=2 min at max flow.",
+    "flow_rate_mL_min": "5.0 mL/min. Max flow rate of Syringe Pump A (Inventory). Required to achieve 1.0 min residence time in 5 mL reactor.",
+    "light_setup": "Empty. Reaction is thermal, not photochemical. Chemistry Plan confirms no light source required.",
+    "wavelength_nm": "Null. No light source.",
+    "deoxygenation_method": "Sparging. Chemistry Plan requires deoxygenation for Pd(0) stability."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "LOW"
+}

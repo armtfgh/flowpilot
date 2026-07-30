@@ -1,0 +1,76 @@
+{
+  "residence_time_min": 12.0,
+  "flow_rate_mL_min": 0.83333,
+  "temperature_C": 60.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 0.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Substrate feed",
+      "contents": [
+        "Aniline Derivative (0.1 M)"
+      ],
+      "solvent": "Industrial Batch Solvent",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream A contains substrate and solvent. Flow rate set to half of total to allow 1:1 volumetric mixing with Stream B for optimal heat/mass transfer."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Nitrating agent feed",
+      "contents": [
+        "Nitric Acid (2.0 equiv)"
+      ],
+      "solvent": "Industrial Batch Solvent",
+      "concentration_M": 0.2,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream B contains Nitric Acid. Concentration adjusted to provide 2.0 equiv relative to Stream A at equal flow rates. Nitric acid is the nitrating reagent and catalyst."
+    }
+  ],
+  "mixer_type": "Static Mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Add nitric acid to substrate to control exotherm and prevent over-nitration. Static mixer chosen due to Da > 1 (mixing limitation) identified in engineering calculations.",
+  "pre_reactor_steps": [
+    "Degas streams if solvent is volatile to prevent cavitation, though deoxygenation is not chemically required."
+  ],
+  "post_reactor_steps": [
+    "Quench with Water or Base to neutralize excess acid and stop reaction, as per Chemistry Plan quench_required: true."
+  ],
+  "chemistry_notes": "Electrophilic aromatic nitration of aniline derivative. Exothermic reaction requires precise thermal management. Dinitration implies high reactivity; flow chemistry provides superior selectivity control via residence time. No photochemistry involved. BPR not strictly required by calculation but recommended for safety with nitric acid.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 estimated 24.0 min (range 16-36 min) based on 10x intensification factor for kinetic limitation. No analogies available.",
+    "residence_time_basis": "Single-phase liquid reaction. Basis is liquid volume divided by total liquid flow rate.",
+    "temperature_C": "Same as batch (60 C) as per Chemistry Plan and Batch Input. No heat advantage needed for conversion, but flow allows better control.",
+    "BPR_bar": "Calculation Step 8 states BPR not required (T=60C, safe margin). Set to 0. However, in practice, a low BPR (e.g., 1-2 bar) might be used for safety with nitric acid, but strictly following calculation: 0.",
+    "tubing_material": "PFA selected for thermal stability at 60 C and chemical resistance to nitric acid. FEP is also acceptable but PFA is preferred for higher temp/pressure margins.",
+    "concentration_M": "From Batch Input C0 = 0.1 M. Maintained for direct comparison and safety with exothermic nitration."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

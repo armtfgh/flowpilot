@@ -1,0 +1,267 @@
+{
+  "chemistry_overall": "Both candidates suffer from severe kinetic undersizing, failing to achieve the minimum 50% conversion threshold required for a viable process (X < 0.50). While the residence times (10.3 min and 5.9 min) represent a massive reduction from the 240 min batch time, they are insufficient to drive the electrophilic aromatic substitution to completion, resulting in poor selectivity flow values due to unreacted starting material. Candidate 1 is marginally better chemically but fails the bench-length hard gate. Candidate 2 is physically impossible due to excessive pressure drop (33 bar > 20 bar pump max) and extreme coil length. Neither candidate is acceptable without significant redesign of residence time or catalyst loading.",
+  "chemistry_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Chemically, the reaction is an Electrophilic Aromatic Substitution (EAS) at 60°C. The residence time of 10.3 min is too short for the observed kinetics (tau_kinetics = 12.36 min), resulting in only 57% conversion. This low conversion compromises selectivity, as unreacted substrate may undergo side reactions or require difficult separation. The concentration of 0.1 M is ideal for EAS to minimize poly-substitution. However, the candidate fails the hard gate for coil length (37.5 m > 25 m bench limit). Photonics are not applicable as this is a thermal reaction, but the FEP material is compatible with the solvent and temperature. The pressure drop (2.02 bar) is acceptable.",
+      "chemistry_score": 0.4,
+      "photonics_score": 1.0,
+      "combined_score": 0.44,
+      "selectivity_flow_value": 0.6,
+      "verdict": "BLOCK",
+      "proposed_changes": {},
+      "beer_lambert_A": 0.0,
+      "epsilon_used": 0.0,
+      "wavelength_match": true,
+      "material_transparent": true,
+      "stream_logic_valid": true,
+      "atmosphere_valid": true,
+      "hard_gate_failed": true,
+      "blocking_issues": [
+        "L=37.5 m > 25.0 m bench limit",
+        "X=0.57 < 0.85 — undersized τ for kinetics"
+      ],
+      "concerns": [
+        "Conversion is too low for practical utility; residence time must be increased or catalyst activity improved."
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "This candidate is physically unfeasible. The pressure drop of 33.3 bar exceeds the pump maximum of 20.0 bar, causing a hard gate failure. Additionally, the coil length of 96.0 m is far beyond the 25.0 m bench limit. Chemically, the residence time of 5.9 min is even shorter than Candidate 1, resulting in only 38% conversion, which is below the minimum 50% threshold. The high flow rate (3.19 mL/min) in a narrow 0.5 mm tube creates excessive friction. The selectivity flow value is low due to poor conversion. FEP material is compatible, but the hydraulic design is flawed.",
+      "chemistry_score": 0.2,
+      "photonics_score": 1.0,
+      "combined_score": 0.28,
+      "selectivity_flow_value": 0.6,
+      "verdict": "BLOCK",
+      "proposed_changes": {},
+      "beer_lambert_A": 0.0,
+      "epsilon_used": 0.0,
+      "wavelength_match": true,
+      "material_transparent": true,
+      "stream_logic_valid": true,
+      "atmosphere_valid": true,
+      "hard_gate_failed": true,
+      "blocking_issues": [
+        "dP=33.323 bar > 80% of pump_max=20.0 bar",
+        "L=96.0 m > 25.0 m bench limit",
+        "X=0.38 < X_minimum=0.50 (insufficient conversion)"
+      ],
+      "concerns": [
+        "Pressure drop is unsustainable; coil length is impractical; conversion is insufficient."
+      ]
+    }
+  ],
+  "kinetics_overall": "The kinetics landscape is dominated by a severe mismatch between the proposed residence times and the reaction class norms for Electrophilic Aromatic Substitution (EAS). Both candidates claim an Intensification Factor (IF) of ~20x, which is physically unjustified for a thermal EAS reaction (typical IF 8–15x) without specific heat-transfer analogies. Candidate 1 achieves X=0.57, clearing the X_floor=0.30, but operates with a thin safety margin (τ/τ_k ≈ 0.83). Candidate 2 achieves X=0.38, barely clearing the floor, but suffers from extreme pressure drop (33 bar > 20 bar pump limit) and laminar RTD risks. The primary kinetic risk is the over-optimistic IF assumption; reducing IF to 10x would require doubling τ, significantly impacting productivity. Candidate 1 is the only viable option kinetically, provided the IF is validated or τ is increased to ensure robust conversion.",
+  "kinetics_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Candidate 1 proposes τ=10.3 min with τ_kinetics=12.36 min. The calculated conversion X=0.57 clears the X_floor=0.30, but the margin is thin. The IF=20.2 is flagged as WARNING for EAS (class range 8–15x); if IF is capped at 15x, τ would need to be 16 min, reducing X to ~0.75. τ_mixing_required is 0.97 min, so τ_proposed >> τ_mixing, ensuring kinetics control. However, laminar flow (Re=36) implies RTD broadening; the centerline fluid sees ~5.15 min, which is below τ_kinetics, risking unreacted core. Despite this, it clears the floor. The τ_reduction_flow_value is high due to achieving the target reduction, but the IF validity is questionable.",
+      "kinetics_score": 0.65,
+      "tau_reduction_flow_value": 1.0,
+      "achieved_reduction_factor": 23.301,
+      "target_reduction_factor": 3.0,
+      "reduction_achievement": 7.767,
+      "IF_used": 20.2,
+      "IF_valid": false,
+      "tau_vs_literature": "τ=10.3 min is < 0.5×τ_lit (assuming τ_lit=240 min batch). This is a 23x reduction. For EAS, 8-15x is typical. 23x is unjustified without specific heat transfer data. WARNING.",
+      "X_estimated": 0.57,
+      "X_adequate": true,
+      "tau_mixing_required_min": 0.97,
+      "tau_proposed_final_min": 10.3,
+      "STY": 0.082,
+      "productivity_mg_h": 873.0,
+      "t_steady_min": 30.9,
+      "verdict": "WARNING",
+      "proposed_changes": {
+        "tau_min": 12.0
+      },
+      "concerns": [
+        "IF=20.2 exceeds EAS class upper bound (15x). Justification required.",
+        "Laminar RTD: Centerline τ=5.15 min < τ_kinetics=12.36 min. Core may be unreacted.",
+        "X=0.57 is adequate but leaves little room for error."
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Candidate 2 proposes τ=5.9 min with τ_kinetics=12.36 min. The calculated conversion X=0.38 barely clears the X_floor=0.30. The IF=20.2 is again unjustified for EAS. τ_mixing_required is 1.18 min, so τ_proposed > τ_mixing. However, the RTD risk is severe: laminar flow (Re=136) means centerline fluid sees ~2.95 min, which is far below τ_kinetics, leading to significant unreacted material in the core. The pressure drop (33 bar) exceeds the pump limit (20 bar), making this design physically impossible. Even if pressure were resolved, the conversion is too close to the floor to be robust.",
+      "kinetics_score": 0.3,
+      "tau_reduction_flow_value": 1.0,
+      "achieved_reduction_factor": 40.678,
+      "target_reduction_factor": 3.0,
+      "reduction_achievement": 13.559,
+      "IF_used": 20.2,
+      "IF_valid": false,
+      "tau_vs_literature": "τ=5.9 min is < 0.5×τ_lit. 40x reduction is extreme for EAS. Unjustified.",
+      "X_estimated": 0.38,
+      "X_adequate": true,
+      "tau_mixing_required_min": 1.18,
+      "tau_proposed_final_min": 5.9,
+      "STY": 0.096,
+      "productivity_mg_h": 1819.0,
+      "t_steady_min": 17.7,
+      "verdict": "BLOCK",
+      "proposed_changes": {},
+      "concerns": [
+        "ΔP=33.3 bar > Pump Max 20 bar. Physically impossible.",
+        "X=0.38 is barely above X_floor=0.30. High risk of failure.",
+        "Laminar RTD: Centerline τ=2.95 min << τ_kinetics=12.36 min. Significant unreacted core.",
+        "IF=20.2 is unjustified for EAS."
+      ]
+    }
+  ],
+  "fluidics_overall": "The fluidics landscape is dominated by severe geometry and pressure violations in both candidates. Candidate 1 is blocked primarily by its excessive length (37.5 m), which exceeds the 30 m hard limit for bench-top feasibility, despite having acceptable pressure and mixing metrics. Candidate 2 is catastrophically blocked by a pressure drop of 33.3 bar, which exceeds the pump's maximum capacity of 20.0 bar, in addition to an impractical length of 96.0 m. Neither candidate is viable in its current form. The primary risk across the set is the trade-off between achieving high residence time reduction (which drives high L) and maintaining manageable pressure drops. To fix Candidate 1, the length must be drastically reduced, likely requiring a larger diameter or higher flow rate, which will impact mixing. Candidate 2 requires a fundamental redesign to reduce pressure drop, likely by increasing diameter significantly, which will worsen mixing and require even longer coils, creating a conflicting design space. No pump can operate Candidate 2. Candidate 1 could use a syringe pump if the length were reduced.",
+  "fluidics_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Candidate 1 operates in a laminar flow regime with Re = 36.4, which is ideal for mixing control. The pressure drop is 2.02 bar, which is just above the 2.0 bar soft cap but well within the 5.0 bar hard limit and the pump's 20.0 bar capacity (pump_headroom_pct = 89.9%). Mixing is adequate with r_mix = 0.146, which is below the 0.20 tolerance limit, and the dual criterion for mixing failure is not met (Da_mass = 1.118, but r_mix < 0.20). However, the reactor length is 37.5 m, which exceeds the 30 m hard limit for bench-top feasibility, resulting in a BLOCK verdict. The tubing material is FEP, suitable for the non-photochemical reaction. The pump type is a syringe pump due to the low flow rate of 1.03 mL/min. The dead volume impact is negligible. To fix the length issue, the diameter would need to be increased to reduce L for the same volume, but this would worsen mixing. Alternatively, the flow rate could be increased, but this would increase pressure drop. A proposed change to d_mm is not straightforward without violating other constraints, but the length is the primary blocker.",
+      "fluidics_score": 0.0,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 36.41,
+      "flow_regime": "laminar",
+      "De": 4.2,
+      "dP_bar": 2.023,
+      "pump_headroom_pct": 89.9,
+      "t_mix_s": 22.5,
+      "r_mix": 0.146,
+      "dual_criterion_mixing_fail": false,
+      "d_change_direction": "none",
+      "d_fix_mm": null,
+      "tau_mixing_required_min": null,
+      "L_m": 37.5,
+      "geometry_feasible": false,
+      "pump_type": "syringe pump (Q=1.03 mL/min < 2 mL/min)",
+      "tubing_material": "FEP",
+      "dead_volume_mL": 0.1,
+      "dead_volume_impact": "V_dead/Q = 0.1 min = 1.0% of τ=10.3 min — negligible",
+      "verdict": "BLOCK",
+      "proposed_changes": {},
+      "concerns": [
+        "L=37.5 m > 30 m hard limit",
+        "ΔP=2.02 bar > 2.0 bar soft cap"
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Candidate 2 operates in a laminar flow regime with Re = 135.6, which is acceptable. However, the pressure drop is 33.32 bar, which exceeds the pump's maximum capacity of 20.0 bar, resulting in a pump stall and a BLOCK verdict. The pump headroom is negative (pump_headroom_pct = -66.6%), indicating the pump cannot deliver the required flow. The reactor length is 96.0 m, which far exceeds the 30 m hard limit for bench-top feasibility. Mixing is adequate with r_mix = 0.177, which is below the 0.20 tolerance limit, and the dual criterion for mixing failure is not met (Da_mass = 0.776). The tubing material is FEP. The pump type would be an HPLC piston pump due to the flow rate of 3.19 mL/min, but it cannot handle the pressure. The dead volume impact is negligible. To fix the pressure drop, the diameter would need to be increased significantly, which would worsen mixing and require an even longer coil, creating a conflicting design space. A proposed change to d_mm is not straightforward without violating other constraints, but the pressure drop is the primary blocker.",
+      "fluidics_score": 0.0,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 135.59,
+      "flow_regime": "laminar",
+      "De": 14.2,
+      "dP_bar": 33.323,
+      "pump_headroom_pct": -66.6,
+      "t_mix_s": 15.6,
+      "r_mix": 0.177,
+      "dual_criterion_mixing_fail": false,
+      "d_change_direction": "none",
+      "d_fix_mm": null,
+      "tau_mixing_required_min": null,
+      "L_m": 96.0,
+      "geometry_feasible": false,
+      "pump_type": "HPLC piston pump (Q=3.19 mL/min, but ΔP > P_max)",
+      "tubing_material": "FEP",
+      "dead_volume_mL": 0.1,
+      "dead_volume_impact": "V_dead/Q = 0.03 min = 0.5% of τ=5.9 min — negligible",
+      "verdict": "BLOCK",
+      "proposed_changes": {},
+      "concerns": [
+        "ΔP=33.32 bar > 20.0 bar pump max",
+        "L=96.0 m > 30 m hard limit",
+        "Pump headroom negative"
+      ]
+    }
+  ],
+  "safety_overall": "The safety landscape is dominated by severe pressure integrity failures in both candidates. Candidate 2 presents an immediate BLOCK due to a calculated pressure drop (33.3 bar) that exceeds the pump's maximum rating (20.0 bar) and the BPR setting (1.5 bar), creating a high risk of catastrophic tubing failure or pump damage. Candidate 1 is mechanically feasible regarding pressure (ΔP ~2.0 bar) but fails the BPR adequacy gate: the current BPR setting of 1.5 bar is lower than the operating pressure drop, meaning the back-pressure regulator cannot maintain the required residence time or pressure profile, leading to flow instability. Thermal risks are low (Da_thermal << 0.1) for both, as the reaction is not photoredox and operates at moderate T. Material compatibility for FEP at 60°C is acceptable for most industrial solvents, but the specific solvent identity is needed for final confirmation. The primary safety mandate is to increase BPR settings to > ΔP + margin and reject any design exceeding pump limits.",
+  "safety_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Candidate 1 has a manageable pressure drop of 2.02 bar, which is within the pump's 20 bar limit. However, the current BPR setting of 1.5 bar is inadequate because it is lower than the system's pressure drop (ΔP). A BPR must be set higher than the downstream pressure drop to function correctly; otherwise, the system cannot maintain the target residence time or pressure. The required BPR is calculated as P_vap (negligible at 60°C for most organics, assume ~0.5 bar) + ΔP (2.02) + 0.5 bar margin = ~3.0 bar. The current 1.5 bar setting is a REVISE condition. Thermal safety is excellent (Da_thermal ~0.02). Material FEP is compatible at 60°C. The long coil length (37.5 m) is a bench-space constraint but not a direct safety hazard if supported properly.",
+      "safety_score": 0.65,
+      "safety_delta_flow_value": 0.4,
+      "Da_thermal": 0.02,
+      "thermal_safe": true,
+      "BPR_required_bar": 3.0,
+      "BPR_current_bar": 1.5,
+      "BPR_adequate": false,
+      "system_type": "liquid",
+      "material_compatible": true,
+      "material_recommendation": "FEP",
+      "material_rationale": "FEP is compatible with most organic solvents at 60°C. Ensure the specific 'Industrial batch solvent' does not contain strong oxidizers or halides that attack FEP at elevated T. If solvent is unknown, assume standard organic compatibility.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A — single stage",
+      "hazard_flags": [
+        "Industrial batch solvent — unknown composition; verify flammability and toxicity before scaling",
+        "Electrophilic Aromatic Substitution — potential for exothermic runaway if mixing is poor, but Da_thermal is low",
+        "Quench required — ensure downstream quench is inline and robust to handle unreacted electrophile"
+      ],
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "BPR_bar": 3.0
+      },
+      "blocking_issues": [],
+      "conditions": [
+        "Increase BPR to 3.0 bar to ensure it exceeds ΔP (2.02 bar) by a safe margin",
+        "Verify solvent compatibility with FEP at 60°C",
+        "Implement inline quench for unreacted electrophile"
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Candidate 2 is a BLOCK due to critical pressure safety violations. The calculated pressure drop is 33.32 bar, which exceeds the pump's maximum pressure rating of 20.0 bar. This will likely cause pump failure, seal blowout, or tubing rupture. Additionally, the BPR setting of 1.5 bar is grossly inadequate for a system requiring >33 bar. Even if the pump could handle it, the BPR must be set to at least P_vap + ΔP + margin, which would be >35 bar, far exceeding standard benchtop BPR ratings (typically 10-20 bar). The long coil (96 m) exacerbates the pressure drop. This design is physically unsafe and must be rejected.",
+      "safety_score": 0.1,
+      "safety_delta_flow_value": 0.4,
+      "Da_thermal": 0.02,
+      "thermal_safe": true,
+      "BPR_required_bar": 35.0,
+      "BPR_current_bar": 1.5,
+      "BPR_adequate": false,
+      "system_type": "liquid",
+      "material_compatible": true,
+      "material_recommendation": "FEP",
+      "material_rationale": "FEP is compatible, but the pressure rating of the tubing and fittings must be verified for >33 bar. Standard FEP tubing may not withstand this pressure without reinforcement or smaller ID.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A — single stage",
+      "hazard_flags": [
+        "CRITICAL: ΔP (33.3 bar) > Pump Max (20.0 bar) — Risk of pump failure and high-pressure fluid release",
+        "CRITICAL: BPR (1.5 bar) << ΔP (33.3 bar) — System cannot maintain pressure; flow instability",
+        "Long coil (96 m) — High risk of blockage and pressure surge if clogged",
+        "Quench required — ensure downstream quench is inline and robust"
+      ],
+      "verdict": "BLOCK",
+      "proposed_changes": {},
+      "blocking_issues": [
+        "Pressure drop exceeds pump maximum rating",
+        "BPR setting is inadequate for the pressure drop"
+      ],
+      "conditions": []
+    }
+  ],
+  "tool_calls": {
+    "chemistry": [],
+    "kinetics": [],
+    "fluidics": [],
+    "safety": []
+  },
+  "blocked_by_scoring": [
+    1,
+    2
+  ],
+  "process_value_scores": [
+    {
+      "candidate_id": 1,
+      "PVS": 0.77,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.4
+    },
+    {
+      "candidate_id": 2,
+      "PVS": 0.77,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.4
+    }
+  ]
+}

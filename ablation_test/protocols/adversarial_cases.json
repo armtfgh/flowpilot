@@ -1,0 +1,94 @@
+{
+  "schema_version": "flowpilot_cases_v1.0",
+  "suite_id": "adversarial_engineering_non_thq",
+  "cases": [
+    {
+      "case_id": "adv_oxygen_photochemistry",
+      "title": "Oxygen-fed photochemical oxidation",
+      "protocol": "A 0.20 M acetonitrile solution of substrate and 1 mol% photocatalyst is irradiated at 450 nm under 2.0 equivalents of oxygen at 40 C for 2 h in batch. Convert this to flow and report oxygen flow at inlet/STP and pressure-corrected in-channel conditions separately.",
+      "category": "gas_liquid_bookkeeping",
+      "expected_features": {
+        "phase_regime": "gas_liquid",
+        "topology": ["liquid_pump", "oxygen_mass_flow_controller", "gas_liquid_mixer", "photoreactor", "back_pressure_regulator"],
+        "hazards": ["oxygen_organic_solvent"]
+      }
+    },
+    {
+      "case_id": "adv_hydrogen_packed_bed",
+      "title": "Hydrogenation over a packed bed",
+      "protocol": "A 0.10 M ethanol solution of an alkene is hydrogenated over 5 wt% Pd/C at 50 C and 10 bar hydrogen for 4 h in batch. Design a continuous packed-bed process with gas-liquid mixing, catalyst retention, pressure control, and startup/shutdown safeguards.",
+      "category": "gas_liquid_solid",
+      "expected_features": {
+        "phase_regime": "gas_liquid_solid",
+        "topology": ["liquid_pump", "hydrogen_mass_flow_controller", "gas_liquid_mixer", "packed_bed", "back_pressure_regulator"],
+        "hazards": ["hydrogen", "pyrophoric_catalyst"]
+      }
+    },
+    {
+      "case_id": "adv_ozonolysis",
+      "title": "Ozonolysis with immediate reductive quench",
+      "protocol": "A 0.05 M solution of an alkene in dichloromethane is treated with ozone at -20 C until consumption, followed immediately by dimethyl sulfide quench. Propose a continuous process that minimizes ozone and ozonide inventory.",
+      "category": "high_hazard_reactive_gas",
+      "expected_features": {
+        "phase_regime": "gas_liquid_multistage",
+        "topology": ["liquid_pump", "ozone_generator", "gas_liquid_mixer", "cooled_reactor", "immediate_quench", "off_gas_destruct"],
+        "hazards": ["ozone", "ozonide", "toxic_offgas", "cryogenic_operation"]
+      }
+    },
+    {
+      "case_id": "adv_chlorination_quench",
+      "title": "Chlorine addition with inline quench",
+      "protocol": "An alkene solution at 0.20 M is exposed to 1.05 equivalents of chlorine gas at 0 C for 30 min in batch, then quenched with aqueous sodium thiosulfate. Translate to flow with explicit gas dosing and off-gas handling.",
+      "category": "toxic_gas",
+      "expected_features": {
+        "phase_regime": "gas_liquid_multistage",
+        "topology": ["liquid_pump", "chlorine_mass_flow_controller", "gas_liquid_mixer", "cooled_reactor", "inline_thiosulfate_quench", "scrubber"],
+        "hazards": ["chlorine", "exotherm", "corrosion"]
+      }
+    },
+    {
+      "case_id": "adv_co_carbonylation",
+      "title": "Carbon monoxide carbonylation",
+      "protocol": "An aryl halide at 0.10 M is carbonylated using palladium catalyst, base, and carbon monoxide at 15 bar and 100 C for 3 h in batch. Design a continuous gas-liquid process with explicit CO containment and monitoring.",
+      "category": "toxic_pressurized_gas",
+      "expected_features": {
+        "phase_regime": "gas_liquid",
+        "topology": ["liquid_pump", "CO_mass_flow_controller", "gas_liquid_mixer", "heated_reactor", "back_pressure_regulator", "CO_detector", "scrubber_or_vent"],
+        "hazards": ["carbon_monoxide", "high_pressure", "hot_solvent"]
+      }
+    },
+    {
+      "case_id": "adv_fast_exothermic_neutralization",
+      "title": "Fast exothermic neutralization",
+      "protocol": "A 1.0 M organic acid stream and a 1.0 M sodium hydroxide stream are mixed at equal molar flow. Batch calorimetry indicates an adiabatic temperature rise of 55 C and completion in less than 2 s. Design a temperature-controlled continuous process.",
+      "category": "heat_transfer",
+      "expected_features": {
+        "phase_regime": "liquid_liquid",
+        "topology": ["separate_feed_pumps", "micromixer", "cooled_microreactor", "temperature_monitoring"],
+        "hazards": ["rapid_exotherm", "caustic"]
+      }
+    },
+    {
+      "case_id": "adv_precipitating_coupling",
+      "title": "Salt-forming coupling with precipitation risk",
+      "protocol": "An aryl halide and amine are coupled in the presence of inorganic base in a 0.50 M solvent system at 100 C for 8 h. Substantial inorganic salt precipitation is observed during batch operation. Design a robust continuous process.",
+      "category": "solids_and_clogging",
+      "expected_features": {
+        "phase_regime": "slurry_or_biphasic",
+        "topology": ["solids_compatible_feeding", "large_bore_or_CSTR", "pressure_monitoring", "flush_strategy"],
+        "hazards": ["clogging", "overpressure", "hot_solvent"]
+      }
+    },
+    {
+      "case_id": "adv_two_stage_delayed_addition",
+      "title": "Two-stage sequence with incompatible feeds",
+      "protocol": "Stage 1 oxidizes an alcohol with an organic peroxide at 40 C for 20 min. The resulting aldehyde must then be mixed with an amine, but direct contact of the amine with the peroxide feed is prohibited. Stage 2 proceeds at 80 C for 45 min. Design a continuous sequence with explicit delayed addition and residence time for each stage.",
+      "category": "multistep_incompatibility",
+      "expected_features": {
+        "phase_regime": "multistage_liquid",
+        "topology": ["stage_1_feed_pumps", "stage_1_reactor", "peroxide_conditioning_or_quench", "delayed_amine_addition", "stage_2_reactor"],
+        "hazards": ["organic_peroxide", "incompatible_feeds", "two_temperature_zones"]
+      }
+    }
+  ]
+}

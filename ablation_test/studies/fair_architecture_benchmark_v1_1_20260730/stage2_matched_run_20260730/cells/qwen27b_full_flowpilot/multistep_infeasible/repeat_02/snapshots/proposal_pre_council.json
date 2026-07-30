@@ -1,0 +1,84 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 1.0,
+  "temperature_C": 80.0,
+  "concentration_M": 0.667,
+  "BPR_bar": 5.0,
+  "reactor_type": "single_coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 5.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Nitrogen sparging",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Main feed containing substrate, oxidant, and catalysts",
+      "contents": [
+        "Benzyl Alcohol (0.667 M)",
+        "TBHP (1.0 equiv)",
+        "NaBr (catalytic)",
+        "Sulfuric Acid (catalytic)"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "Chemistry Plan mandates Stream A contains Benzyl Alcohol, TBHP, NaBr, Sulfuric Acid. Morpholine is excluded due to incompatibility. Flow rate derived from reactor volume and residence time."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Nucleophile feed (Morpholine)",
+      "contents": [
+        "Morpholine (1.0 equiv)"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.0,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "Chemistry Plan mandates Stream B contains Morpholine. However, HARD CONSTRAINTS state 'No interstage pump, mixer, addition port, or second reactor is available' and 'TBHP and morpholine must remain segregated'. Since Stream A contains TBHP and no second reactor/port exists to add Stream B after oxidation, Stream B cannot be introduced without violating segregation or hardware constraints. Flow rate set to 0.0 to reflect physical impossibility of safe operation with current inventory. Note: If forced to mix, yield would be near 0% due to TBHP/Morpholine incompatibility."
+    }
+  ],
+  "mixer_type": "T-mixer",
+  "mixing_order_reasoning": "Chemistry Plan requires TBHP to oxidize alcohol before Morpholine addition. Hardware constraints prevent this sequential addition. T-mixer is standard for initial mixing of Stream A components, but Stream B cannot be safely added.",
+  "pre_reactor_steps": [
+    "Degas Dioxane solvent with Nitrogen to remove moisture (Moisture sensitive per Chemistry Plan)",
+    "Prepare Stream A: Dissolve Benzyl Alcohol, NaBr, Sulfuric Acid in Dioxane, then add TBHP immediately before pumping"
+  ],
+  "post_reactor_steps": [
+    "Quench with Sodium Thiosulfate / Water to decompose residual TBHP and neutralize acid",
+    "Extract product with organic solvent"
+  ],
+  "chemistry_notes": "CRITICAL FAILURE: The Chemistry Plan requires a two-stage process (Oxidation then Amidation) with segregated feeds (TBHP vs Morpholine). The available inventory provides only a single reactor coil with no interstage addition port. Mixing TBHP and Morpholine directly (as would be required if both were in Stream A or mixed at inlet) is chemically incompatible and dangerous. Therefore, a safe flow process cannot be designed with the given inventory. The parameters below assume only the oxidation step (Stream A) is run, or that the user accepts the risk of mixing incompatible reagents (not recommended). The residence time and reactor sizing are based on the oxidation step kinetics.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 estimated 3.0 min. Analogy 1 used 78 min (photochem, different mechanism). Analogy 2 used 2 min (photochem). Analogy 3 used 2.5 min (photochem). Thermal oxidation typically faster than photochem but slower than simple mixing. 3.0 min is within calculated range [2.0-6.5] min.",
+    "residence_time_basis": "Liquid-only system. No gas reagents.",
+    "temperature_C": "Batch protocol specifies 80 C. Chemistry Plan confirms 80 C. Analogy 1 used 80 C. Maintained for kinetic consistency.",
+    "BPR_bar": "Calculation Step 8 says BPR not required (bp 101 C vs 80 C). However, precautionary BPR recommended due to proximity to bp (21 C margin). Inventory has 5 bar BPR. Set to 5 bar to ensure solvent remains liquid and prevent cavitation.",
+    "tubing_material": "Inventory specifies PFA tubing. PFA is suitable for 80 C and chemical resistance to TBHP/Acid. FEP preferred for photochem but not needed here.",
+    "concentration_M": "Batch protocol specifies 0.667 M. Maintained for direct comparison.",
+    "reactor_volume_mL": "Calculation Step 3 suggests 1.50 mL. Inventory has 5 mL reactor. Using 1.5 mL of the 5 mL coil (approx 1.91 m length) to achieve 3.0 min residence time at 0.5 mL/min. Note: Inventory reactor is 5 mL total, but we only use 1.5 mL of it.",
+    "flow_rate_mL_min": "Derived from V/t = 1.5 mL / 3.0 min = 0.5 mL/min. Within Pump A max flow (3.0 mL/min).",
+    "tubing_ID_mm": "Inventory specifies 1.0 mm ID. Calculation Step 3 confirms 1.00 mm."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "LOW"
+}

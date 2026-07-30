@@ -1,0 +1,92 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 10.0,
+    "flow_rate_mL_min": 0.5,
+    "temperature_C": 50,
+    "concentration_M": 0.32,
+    "BPR_bar": 1.0,
+    "reactor_type": "Coiled PTFE Tubing with External LED Irradiation",
+    "tubing_material": "PTFE",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 5.0,
+    "residence_time_basis": "Total liquid volume / Total liquid flow rate",
+    "residence_time_inlet_min": 10.0,
+    "residence_time_in_channel_min": 10.0,
+    "light_setup": "External high-power LED array wrapped around reactor coil",
+    "wavelength_nm": 450,
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Main Reactant Pump",
+        "contents": "Aromatic Bromide + Phenylboronic Acid Derivative + Base + Pd Catalyst",
+        "solvent": "DMF",
+        "phase": "Liquid",
+        "flow_rate_mL_min": 0.5,
+        "concentration_M": 0.32,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": 0,
+        "gas_flow_actual_mL_min": 0
+      }
+    ],
+    "mixer_type": "Static Mixer (Tee Junction)",
+    "mixing_order_reasoning": "All reagents are combined in a single stream to ensure homogeneous mixing before entering the heated/irradiated zone. In batch, they are combined in one vessel; in flow, a single pump simplifies stoichiometry control and avoids dead volumes associated with multi-stream mixing if solubility allows. If solubility is an issue, separate streams for catalyst and substrates would be needed, but assuming DMF solvates all components well, a single stream is robust.",
+    "pre_reactor_steps": [
+      "Prepare stock solution of Aromatic Bromide (1.6 mmol scale equivalent), Phenylboronic acid, Base, and Pd Catalyst in DMF.",
+      "Filter solution through 0.45 micron PTFE syringe filter to remove particulates.",
+      "Load into HPLC-grade glass vial for syringe pump."
+    ],
+    "post_reactor_steps": [
+      "Collect effluent in a collection vessel.",
+      "Quench with water if necessary (DMF is water-miscible, but product may precipitate or require extraction).",
+      "Extract with ethyl acetate/water.",
+      "Concentrate and purify by column chromatography."
+    ],
+    "chemistry_notes": "The batch protocol uses microwave irradiation at 50°C. In flow, microwave heating is difficult to implement safely and uniformly. Instead, external heating (oil bath or heating tape) combined with LED irradiation is used. The wavelength of 450 nm is chosen as a representative visible light source often used in photoredox or photocatalytic Pd cycles, though the batch protocol does not specify light. If the reaction is purely thermal, the light setup can be omitted, but the prompt implies a translation of 'irradiated' conditions. If the 'irradiation' in batch was solely for heating (microwave), then flow heating alone suffices. However, 'irradiated' often implies photochemistry in modern contexts. Given the ambiguity, I assume a photocatalytic or photo-assisted Pd cycle. If it is purely thermal, the light setup is redundant but harmless. The concentration is calculated based on 1.6 mmol in a reasonable volume. 1.6 mmol / 0.32 M = 5 mL. This matches the reactor volume for a 10 min residence time at 0.5 mL/min.",
+    "stage_parameters": {
+      "heating_zone_length_cm": 50,
+      "cooling_zone_length_cm": 0,
+      "pressure_regulator_setpoint_bar": 1.0
+    },
+    "reasoning_per_field": {
+      "residence_time_min": "Directly taken from batch protocol (10 min).",
+      "flow_rate_mL_min": "Chosen to achieve a manageable reactor volume (5 mL) for a 10 min residence time. 0.5 mL/min is a standard low-flow rate for syringe pumps.",
+      "temperature_C": "Directly taken from batch protocol (50°C).",
+      "concentration_M": "Calculated to match the batch scale (1.6 mmol) within the reactor volume. 1.6 mmol / 5 mL = 0.32 M.",
+      "BPR_bar": "Set to 1 bar (atmospheric) as no high pressure is indicated in the batch protocol. DMF has a high boiling point, so reflux is not a concern at 50°C.",
+      "reactor_type": "Coiled PTFE is chemically resistant to DMF and bases. External LED allows for photochemical activation if required.",
+      "tubing_material": "PTFE is compatible with DMF, bases, and Pd catalysts.",
+      "tubing_ID_mm": "1.0 mm ID provides a good balance between pressure drop and light penetration depth.",
+      "reactor_volume_mL": "Calculated as Flow Rate * Residence Time = 0.5 mL/min * 10 min = 5.0 mL.",
+      "light_setup": "External LED array is the flow equivalent of microwave irradiation if photochemistry is involved. If purely thermal, this can be removed.",
+      "wavelength_nm": "450 nm is a common blue LED wavelength for photocatalysis. If the reaction is not photochemical, this field is less critical.",
+      "streams": "Single stream simplifies the setup. All reagents are pre-mixed.",
+      "mixer_type": "Tee junction is sufficient for a single stream input.",
+      "pre_reactor_steps": "Standard preparation for flow chemistry.",
+      "post_reactor_steps": "Standard workup for Suzuki coupling.",
+      "chemistry_notes": "Clarifies assumptions about photochemistry vs. thermal heating.",
+      "stage_parameters": "Defines the physical dimensions of the reactor.",
+      "reasoning_per_field": "Explains the derivation of each parameter.",
+      "literature_analogies": "Suzuki couplings in flow are well-documented. Photo-assisted Pd couplings are also common.",
+      "engine_validated": false,
+      "safety_flags": [
+        "DMF is toxic and a reproductive toxin. Use appropriate PPE and fume hood.",
+        "Pd catalysts can be pyrophoric in dry form, but are safe in solution.",
+        "Ensure proper waste disposal for heavy metals."
+      ],
+      "confidence": 0.9
+    },
+    "literature_analogies": [
+      "Suzuki-Miyaura coupling in continuous flow using PTFE tubing.",
+      "Photochemical reactions in flow using LED irradiation."
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      "DMF is toxic and a reproductive toxin. Use appropriate PPE and fume hood.",
+      "Pd catalysts can be pyrophoric in dry form, but are safe in solution.",
+      "Ensure proper waste disposal for heavy metals."
+    ],
+    "confidence": 0.9
+  },
+  "schema_valid": false
+}

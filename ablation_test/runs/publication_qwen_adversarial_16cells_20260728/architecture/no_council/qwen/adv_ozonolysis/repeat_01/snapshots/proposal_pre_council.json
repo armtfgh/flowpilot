@@ -1,0 +1,93 @@
+{
+  "residence_time_min": 7.5,
+  "flow_rate_mL_min": 0.67491,
+  "temperature_C": -20.0,
+  "concentration_M": 0.05,
+  "BPR_bar": 0.0,
+  "reactor_type": "coil",
+  "tubing_material": "FEP",
+  "tubing_ID_mm": 1.5,
+  "reactor_volume_mL": 20.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Substrate feed",
+      "contents": [
+        "Alkene (0.05 M)"
+      ],
+      "solvent": "Dichloromethane",
+      "concentration_M": 0.05,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream A contains Alkene in DCM. Flow rate set to half total to allow 1:1 mixing with Ozone stream."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Oxidant feed",
+      "contents": [
+        "Ozone (in DCM)"
+      ],
+      "solvent": "Dichloromethane",
+      "concentration_M": 0.05,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream B contains Ozone. Ozone is typically generated in situ or bubbled into solvent. Here modeled as a liquid stream of ozone-saturated DCM or gas-liquid mixture. Flow rate matches Stream A for stoichiometric balance."
+    },
+    {
+      "stream_label": "C",
+      "pump_role": "Quench feed",
+      "contents": [
+        "Dimethyl sulfide (0.075 M)"
+      ],
+      "solvent": "Dichloromethane",
+      "concentration_M": 0.075,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream C contains DMS. Added after ozonolysis. Concentration 1.5 equiv relative to alkene (0.05 M * 1.5 = 0.075 M). Flow rate matches others to maintain constant total flow."
+    }
+  ],
+  "mixer_type": "Static Mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Alkene and Ozone mixed first (Stage 1) to form ozonide, then DMS added immediately (Stage 2) to quench. Static mixer ensures rapid mixing to prevent local hotspots and ozonide accumulation.",
+  "pre_reactor_steps": [
+    "Cool all streams to -20 C using pre-cooler or cold bath before mixing.",
+    "Generate Ozone in situ or use ozone generator to saturate DCM for Stream B."
+  ],
+  "post_reactor_steps": [
+    "Warm effluent to room temperature to stabilize products.",
+    "Quench any residual ozone with sodium thiosulfate if necessary (safety precaution)."
+  ],
+  "chemistry_notes": "Ozonolysis is highly exothermic and involves unstable intermediates. Flow chemistry minimizes inventory of ozonides. Strict separation of Ozone and DMS streams is critical to prevent premature quenching or side reactions. Temperature control at -20 C is essential for selectivity and safety. DCM is compatible with FEP/PFA tubing. No light source required as reaction is thermal.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation estimated 10 min. No close analogies found. Using 10 min as default for ozonolysis to ensure complete conversion while minimizing ozonide inventory.",
+    "residence_time_basis": "Liquid-only basis used as Ozone is dissolved in solvent or treated as part of liquid phase for volume calculation. If gas-liquid, inlet/STP would be used, but here we assume saturated solution or efficient mass transfer.",
+    "temperature_C": "From Chemistry Plan and Batch Protocol: -20 C is required for safety and selectivity.",
+    "BPR_bar": "Calculation: BPR not required. T = -20 C, bp DCM = 40 C. Large margin. No gas generation that requires pressure containment beyond ambient.",
+    "tubing_material": "FEP is compatible with DCM and ozone. Transparent to visible light (though not needed here). PFA is also acceptable. FEP chosen for general compatibility.",
+    "concentration_M": "From Batch Protocol: 0.05 M. Maintained for safety and to match calculation assumptions."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

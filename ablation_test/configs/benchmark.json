@@ -1,0 +1,115 @@
+{
+  "schema_version": "flowpilot_ablation_v1.0",
+  "random_seed": 20260728,
+  "temperature": 0.0,
+  "candidate_budget": 4,
+  "repeats": {
+    "smoke": 1,
+    "pilot": 1,
+    "publication": 3
+  },
+  "profiles": {
+    "smoke": {
+      "case_ids": ["snar_4_fluoronitrobenzene_piperazine"],
+      "architecture_variants": ["general_one_shot", "structured_single_agent", "no_council"],
+      "architecture_model": "qwen",
+      "model_bundles": ["qwen"]
+    },
+    "pilot": {
+      "case_ids": [
+        "snar_4_fluoronitrobenzene_piperazine",
+        "knoevenagel_benzaldehyde_malononitrile",
+        "photochemical_benzylic_bromination",
+        "hydrogenolysis_azetidinol",
+        "aerobic_oxidation_fmoc_methionine",
+        "two_step_oxidative_amidation"
+      ],
+      "architecture_variants": [
+        "general_one_shot",
+        "structured_single_agent",
+        "no_retrieval",
+        "no_engineering",
+        "no_council",
+        "no_inventory",
+        "full"
+      ],
+      "architecture_model": "claude",
+      "model_bundles": ["claude", "qwen", "gemma"]
+    },
+    "publication": {
+      "case_ids": ["*"],
+      "architecture_variants": [
+        "general_one_shot",
+        "structured_single_agent",
+        "no_retrieval",
+        "no_engineering",
+        "no_council",
+        "no_inventory",
+        "full"
+      ],
+      "architecture_model": "claude",
+      "model_bundles": ["claude", "qwen", "gemma", "gpt4o"]
+    }
+  },
+  "model_bundles": {
+    "claude": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "base_url": null,
+      "upstream_mode": "never"
+    },
+    "qwen": {
+      "provider": "ollama",
+      "model": "/models/Qwen3.6-27B",
+      "base_url": "http://10.13.24.169:8000/v1",
+      "upstream_mode": "always"
+    },
+    "gemma": {
+      "provider": "ollama",
+      "model": "gemma4-flora:latest",
+      "base_url": "http://10.13.24.45:11434/v1",
+      "upstream_mode": "always"
+    },
+    "gpt4o": {
+      "provider": "openai",
+      "model": "gpt-4o",
+      "base_url": null,
+      "upstream_mode": "never"
+    },
+    "claude_sonnet5": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "base_url": null,
+      "upstream_mode": "never"
+    },
+    "gpt56_terra": {
+      "provider": "openai",
+      "model": "gpt-5.6-terra",
+      "base_url": null,
+      "upstream_mode": "never"
+    }
+  },
+  "architecture_variants": {
+    "general_one_shot": {
+      "description": "Unstructured general-model baseline with no FlowPilot modules."
+    },
+    "structured_single_agent": {
+      "description": "Single schema-constrained model call with no retrieval, council, or deterministic correction."
+    },
+    "no_retrieval": {
+      "description": "FlowPilot engineering and council, but no literature analogies."
+    },
+    "no_engineering": {
+      "description": "Schema-constrained design without deterministic design-space calculation or final correction."
+    },
+    "no_council": {
+      "description": "FlowPilot upstream, deterministic calculator, and design space; pre-council proposal is final."
+    },
+    "no_inventory": {
+      "description": "Complete pipeline against a permissive inventory rather than the laboratory inventory."
+    },
+    "full": {
+      "description": "Complete FlowPilot pipeline with leave-one-source-out retrieval, calculations, inventory, and council."
+    }
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 3.52,
+    "flow_rate_mL_min": 1.62,
+    "temperature_C": 60,
+    "concentration_M": 0.3,
+    "BPR_bar": 15,
+    "reactor_type": "Packed-bed catalytic hydrogenation column (CatCart-style cartridge, 10% Pd(OH)2/Al2O3 pellets, H-Cube-type configuration)",
+    "tubing_material": "316 stainless steel (catalyst cartridge body); PFA/PTFE (transfer lines)",
+    "tubing_ID_mm": 0.75,
+    "reactor_volume_mL": 10,
+    "residence_time_basis": "Total in-reactor volumetric flow (liquid + pressure-corrected H2 gas) at 60 °C / 15 bar operating conditions",
+    "residence_time_inlet_min": 0.6,
+    "residence_time_in_channel_min": 3.52,
+    "light_setup": "Not applicable (thermal/catalytic hydrogenation, no photochemical activation)",
+    "wavelength_nm": null,
+    "streams": [
+      {
+        "stream_label": "A - Substrate/solvent",
+        "pump_role": "Liquid feed (HPLC pump)",
+        "contents": "N-Diphenylmethylazetidin-3-ol (0.3 M) + 5% v/v AcOH (rate enhancer)",
+        "solvent": "Methanol",
+        "phase": "liquid",
+        "flow_rate_mL_min": 0.4,
+        "concentration_M": 0.3,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      {
+        "stream_label": "B - Hydrogen gas",
+        "pump_role": "Gas feed (MFC or in-line H2 generator, e.g., electrolytic H-Cube module)",
+        "contents": "H2 (99.999%)",
+        "solvent": "None (gas phase)",
+        "phase": "gas",
+        "flow_rate_mL_min": 1.22,
+        "concentration_M": null,
+        "molar_equiv": 6.3,
+        "gas_flow_sccm": 15,
+        "gas_flow_actual_mL_min": 1.22
+      }
+    ],
+    "mixer_type": "T-mixer with static mixing insert (gas-liquid CIJ) directly upstream of the packed catalyst bed",
+    "mixing_order_reasoning": "H2 gas is introduced and finely dispersed into the MeOH/AcOH substrate stream immediately before the catalyst bed to maximize gas-liquid-solid contact area; premature separation of phases would reduce hydrogenolysis efficiency and risk catalyst channeling.",
+    "pre_reactor_steps": [
+      "Degas MeOH solvent under N2/vacuum to remove dissolved O2",
+      "Filter substrate solution (0.2 µm) to prevent catalyst bed clogging",
+      "Preheat liquid line to 60 °C via heat exchanger before mixer",
+      "Saturate H2 into liquid stream in a short pre-mixing coil (0.5 mL, 60 °C) before entering catalyst cartridge"
+    ],
+    "post_reactor_steps": [
+      "Back-pressure regulator (15 bar) to maintain H2 dissolution and single-phase flow through the bed",
+      "In-line gas-liquid separator to vent excess H2 safely through a catalytic recombiner/flame arrestor",
+      "Collect liquid effluent; strip MeOH/AcOH by rotary evaporation or in-line falling-film evaporator",
+      "Optional: quench residual AcOH with mild aqueous base wash before isolation of 3-azetidinol"
+    ],
+    "chemistry_notes": "This is a Pd(OH)2/Al2O3-catalyzed hydrogenolytic debenzylation, cleaving the N-CHPh2 bond to release diphenylmethane and regenerate the free azetidine NH, with concomitant consumption of 1 equiv H2. AcOH is used to protonate the azetidine nitrogen, improving substrate solubility/adsorption on the Pd surface and accelerating hydrogenolysis kinetics. Flow processing with a packed catalyst bed increases catalyst surface-to-volume ratio and gas-liquid mass transfer relative to batch slurry hydrogenation, allowing much shorter residence times (minutes vs. hours) for equivalent or improved conversion. Care must be taken to avoid over-reduction or azetidine ring-opening at extended residence times or excessive H2 partial pressure.",
+    "stage_parameters": {
+      "stage_1_gas_liquid_mixing": {
+        "temperature_C": 60,
+        "pressure_bar": 15,
+        "residence_time_min": 0.3,
+        "purpose": "Pre-saturate H2 into MeOH/AcOH substrate stream"
+      },
+      "stage_2_catalytic_hydrogenolysis": {
+        "temperature_C": 60,
+        "pressure_bar": 15,
+        "residence_time_min": 6.2,
+        "purpose": "Hydrogenolytic cleavage of N-CHPh2 bond over Pd(OH)2/Al2O3 packed bed"
+      },
+      "stage_3_depressurization_separation": {
+        "temperature_C": 25,
+        "pressure_bar": 1,
+        "purpose": "Release excess H2, isolate liquid product stream"
+      }
+    },
+    "reasoning_per_field": {
+      "residence_time_min": "Estimated from total in-reactor volumetric flow (liquid + gas, pressure-corrected) through a 10 mL packed bed; flow intensification via increased catalyst surface area justifies major reduction from 5 h batch time.",
+      "flow_rate_mL_min": "Sum of liquid (0.4 mL/min) and in-channel H2 gas (1.22 mL/min) flows at reactor T/P.",
+      "temperature_C": "Matches batch condition (60 °C), sufficient for Pd(OH)2-catalyzed hydrogenolysis without significant azetidine ring strain issues.",
+      "concentration_M": "0.3 M chosen as a practical, non-viscous concentration for stable pumping and full catalyst wetting; original batch concentration not specified, so this is an assumed practical value.",
+      "BPR_bar": "15 bar provides sufficient H2 solubility in MeOH for efficient hydrogenolysis while remaining within standard flow-hydrogenation equipment limits (H-Cube/Vapourtec-type, rated to 100 bar).",
+      "reactor_type": "Packed-bed catalyst cartridge chosen to directly translate Pd(OH)2/Al2O3 heterogeneous catalyst from batch autoclave to continuous flow, analogous to commercial H-Cube CatCart systems.",
+      "tubing_material": "316 SS withstands H2 at pressure/temperature without permeation; PFA/PTFE used for corrosion-resistant, low-swell transfer lines compatible with MeOH/AcOH.",
+      "reactor_volume_mL": "10 mL cartridge size chosen to allow multi-minute residence in a compact, commercially available packed-bed format.",
+      "gas_flow_sccm": "15 sccm inlet flow corresponds to ~6.3 molar equivalents of H2 relative to substrate, providing safety margin above the 1:1 stoichiometric requirement for hydrogenolysis given short flow contact time.",
+      "gas_flow_actual_mL_min": "In-channel gas flow calculated from STP flow using ideal gas correction for 15 bar/60 °C (correction factor ~0.081).",
+      "residence_time_inlet_min": "Reference residence time if only liquid flow (0.4 mL/min) is considered, useful for comparing dosing/metering behavior independent of gas expansion.",
+      "residence_time_in_channel_min": "True packed-bed contact time accounting for combined gas+liquid throughput at reactor operating pressure."
+    },
+    "literature_analogies": [
+      "ThalesNano H-Cube continuous-flow hydrogenation of N-benzyl/N-benzhydryl heterocycles using Pd/C or Pd(OH)2 CatCart cartridges, typically 1 mL/min, 40-80 °C, 10-50 bar H2, full conversion in <10 min residence time (multiple H-Cube application notes, e.g., Org. Process Res. Dev. debenzylation studies).",
+      "Continuous-flow debenzylation of N-Cbz/N-benzhydryl azetidines and pyrrolidines reported in flow chemistry reviews (e.g., Kobayashi group flow hydrogenation with packed Pd columns), demonstrating improved yield and reduced reaction time vs. batch autoclave hydrogenation."
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      "H2 is flammable/explosive; use ATEX-rated pumps, MFCs, and electrical equipment in the flow skid",
+      "Install real-time H2 leak detection sensor near reactor and fittings",
+      "Use N2 purge for system startup/shutdown to avoid air/H2 mixtures",
+      "Pressure relief valve required downstream of BPR to prevent overpressurization",
+      "Vent excess H2 through a catalytic recombiner or well-ventilated fume exhaust, not directly to lab atmosphere",
+      "Avoid catalyst bed dry-out/channeling which can cause localized H2 gas pockets and hot spots",
+      "AcOH is corrosive; ensure PTFE/stainless wetted parts throughout"
+    ],
+    "confidence": 0.6
+  },
+  "schema_valid": false
+}

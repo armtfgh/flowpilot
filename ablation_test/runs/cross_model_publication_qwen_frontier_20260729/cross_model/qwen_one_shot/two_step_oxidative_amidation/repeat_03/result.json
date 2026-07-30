@@ -1,0 +1,91 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 30,
+    "flow_rate_mL_min": 0.5,
+    "temperature_C": 80,
+    "concentration_M": 0.667,
+    "BPR_bar": 15,
+    "reactor_type": "Coiled PTFE Tubing",
+    "tubing_material": "PTFE",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 15.0,
+    "residence_time_basis": "Total liquid volume / Total liquid flow rate",
+    "residence_time_inlet_min": 0,
+    "residence_time_in_channel_min": 30,
+    "light_setup": "None",
+    "wavelength_nm": 0,
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Main Reactant Pump",
+        "contents": "Benzyl alcohol, Morpholine, NaBr, H2SO4 in Dioxane",
+        "solvent": "1,4-Dioxane",
+        "phase": "Liquid",
+        "flow_rate_mL_min": 0.45,
+        "concentration_M": 0.667,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": 0,
+        "gas_flow_actual_mL_min": 0
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "Oxidant Pump",
+        "contents": "TBHP (5.5 M in Decane)",
+        "solvent": "Decane",
+        "phase": "Liquid",
+        "flow_rate_mL_min": 0.05,
+        "concentration_M": 5.5,
+        "molar_equiv": 1.5,
+        "gas_flow_sccm": 0,
+        "gas_flow_actual_mL_min": 0
+      }
+    ],
+    "mixer_type": "T-Mixer (PTFE)",
+    "mixing_order_reasoning": "Stream A contains the substrate, amine, and catalysts. Stream B contains the oxidant. Mixing A and B initiates the radical oxidation. The 1:1 ratio of Benzyl Alcohol:Morpholine is maintained in Stream A. TBHP is added in slight excess (1.5 equiv) to ensure complete oxidation of the alcohol to the acyl intermediate and subsequent amidation.",
+    "pre_reactor_steps": [
+      "Prepare Stream A: Dissolve Benzyl alcohol (1.0 equiv), Morpholine (1.0 equiv), NaBr (0.1 equiv), and H2SO4 (0.1 equiv) in 1,4-Dioxane to achieve 0.667 M concentration of Benzyl alcohol.",
+      "Prepare Stream B: Use commercial 5.5 M TBHP in Decane.",
+      "Purge system with Dioxane to remove air/moisture if sensitive, though this reaction is robust."
+    ],
+    "post_reactor_steps": [
+      "Quench: Mix effluent with saturated NaHCO3 solution to neutralize acid and decompose excess TBHP.",
+      "Separation: Extract with Ethyl Acetate.",
+      "Purification: Dry organic layer, concentrate, and purify by column chromatography or distillation."
+    ],
+    "chemistry_notes": "The reaction proceeds via a radical mechanism initiated by TBHP/NaBr/H2SO4. Benzyl alcohol is oxidized to benzaldehyde/benzoic acid derivatives in situ, which then react with morpholine to form benzoyl morpholine. The continuous flow setup allows for better heat management of the exothermic oxidation step compared to batch.",
+    "stage_parameters": [
+      {
+        "stage": 1,
+        "description": "Mixing and Reaction",
+        "residence_time_min": 30,
+        "temperature_C": 80,
+        "pressure_bar": 15
+      }
+    ],
+    "reasoning_per_field": {
+      "residence_time_min": "Matched to batch protocol (30 min).",
+      "flow_rate_mL_min": "Chosen to achieve reasonable throughput while maintaining laminar flow and heat transfer. Total flow 0.5 mL/min.",
+      "temperature_C": "Matched to batch protocol (80 C).",
+      "concentration_M": "Matched to batch protocol (0.667 M).",
+      "BPR_bar": "Set to 15 bar to keep dioxane (BP 101 C) and decane in liquid phase at 80 C and provide safety margin for pressure drops.",
+      "reactor_type": "Coiled PTFE tubing is chemically resistant to TBHP, H2SO4, and dioxane, and allows for easy scaling of residence time by changing coil length.",
+      "tubing_material": "PTFE is inert to the reagents.",
+      "tubing_ID_mm": "1.0 mm ID provides good surface-to-volume ratio for heat transfer.",
+      "reactor_volume_mL": "Calculated as Flow Rate * Residence Time = 0.5 mL/min * 30 min = 15 mL.",
+      "streams": "Stream A contains all components except oxidant to prevent premature reaction. Stream B is the oxidant.",
+      "mixer_type": "Simple T-mixer is sufficient for liquid-liquid mixing.",
+      "safety_flags": "TBHP is a strong oxidant and can be explosive under certain conditions. H2SO4 is corrosive. Dioxane is flammable and carcinogenic. Ensure proper pressure relief and quenching."
+    },
+    "literature_analogies": "Continuous flow oxidation of alcohols using TBHP and metal halides is a known transformation. The specific amidation step is often done in one pot in batch, but flow allows for precise control of the oxidation intermediate concentration.",
+    "engine_validated": false,
+    "safety_flags": [
+      "TBHP is a strong oxidant; avoid contact with organics in concentrated form without mixing.",
+      "H2SO4 is corrosive.",
+      "Dioxane is flammable and a suspected carcinogen.",
+      "Reaction is exothermic; ensure adequate heat exchange."
+    ],
+    "confidence": 0.85
+  },
+  "schema_valid": false
+}

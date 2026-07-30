@@ -1,0 +1,115 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 10.0,
+    "flow_rate_mL_min": 0.5,
+    "temperature_C": 50,
+    "concentration_M": 0.32,
+    "BPR_bar": 1.0,
+    "reactor_type": "Coiled PTFE Tubing with External LED Irradiation",
+    "tubing_material": "PTFE",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 5.0,
+    "residence_time_basis": "Total liquid volume / Total liquid flow rate",
+    "residence_time_inlet_min": 10.0,
+    "residence_time_in_channel_min": 10.0,
+    "light_setup": "External high-power LED array wrapped around reactor coil",
+    "wavelength_nm": 450,
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Syringe Pump 1",
+        "contents": "Aromatic Bromide",
+        "solvent": "DMF",
+        "phase": "Liquid",
+        "flow_rate_mL_min": 0.25,
+        "concentration_M": 0.64,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "Syringe Pump 2",
+        "contents": "Phenylboronic acid derivative + Base (e.g., K2CO3 or Cs2CO3)",
+        "solvent": "DMF",
+        "phase": "Liquid/Suspension",
+        "flow_rate_mL_min": 0.25,
+        "concentration_M": 0.64,
+        "molar_equiv": 1.2,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      }
+    ],
+    "mixer_type": "T-Mixer (PTFE)",
+    "mixing_order_reasoning": "Simultaneous mixing of all reagents ensures immediate catalyst activation and reaction initiation upon entering the heated/irradiated zone. T-mixers provide sufficient turbulence for homogeneous liquid-phase Suzuki couplings.",
+    "pre_reactor_steps": [
+      "Prepare Stream A: Dissolve aromatic bromide (1.6 mmol scale equivalent) in DMF to 0.64 M.",
+      "Prepare Stream B: Suspend phenylboronic acid derivative and base in DMF to 0.64 M. Filter if necessary to prevent clogging, or use a larger ID tubing if suspension is coarse.",
+      "Prime pumps and tubing with DMF to remove air bubbles."
+    ],
+    "post_reactor_steps": [
+      "Collect effluent in a quench vessel containing water/brine.",
+      "Extract with ethyl acetate.",
+      "Wash organic layer with brine, dry over Na2SO4, filter, and concentrate.",
+      "Purify by column chromatography."
+    ],
+    "chemistry_notes": "The batch protocol uses microwave irradiation at 50°C. In flow, thermal control is superior, but the 'irradiation' aspect suggests a photo-redox or photo-assisted Pd cycle. If the batch microwave was purely thermal, the LED setup can be omitted, but given the explicit 'irradiated' term, a photo-flow setup is proposed. DMF is transparent to visible light, making external irradiation effective. The concentration is halved from the implied batch concentration to ensure laminar flow and prevent clogging from base salts.",
+    "stage_parameters": {
+      "mixing": {
+        "component": "T-Mixer",
+        "material": "PTFE",
+        "volume_mL": 0.05
+      },
+      "reaction": {
+        "component": "Coiled Tubing",
+        "length_m": 6.37,
+        "ID_mm": 1.0,
+        "volume_mL": 5.0,
+        "heating_method": "Oil Bath or Heating Jacket",
+        "cooling_method": "None required at 50C"
+      }
+    },
+    "reasoning_per_field": {
+      "residence_time_min": "Matched to batch time (10 min) as a starting point. Flow often allows faster kinetics, but 10 min ensures conversion comparable to batch.",
+      "flow_rate_mL_min": "Chosen to achieve a reasonable throughput (0.16 mmol/min) while maintaining laminar flow in 1.0 mm ID tubing.",
+      "temperature_C": "Directly translated from batch condition (50°C).",
+      "concentration_M": "Batch concentration is not explicitly given, but 1.6 mmol in a typical microwave vial (e.g., 5 mL) is ~0.32 M. We use 0.32 M total (0.64 M in each stream before mixing) to match batch intensity while ensuring solubility of base.",
+      "BPR_bar": "Atmospheric pressure is sufficient for liquid-phase reactions at 50°C. No gas evolution is expected in standard Suzuki coupling.",
+      "reactor_type": "Coiled PTFE is chemically resistant to DMF and bases, and allows for external light penetration if photo-assisted.",
+      "tubing_ID_mm": "1.0 mm ID provides a good balance between mixing efficiency (via Dean vortices if coiled) and pressure drop/clogging risk with base suspensions.",
+      "reactor_volume_mL": "Calculated as Flow Rate (0.5 mL/min) * Residence Time (10 min) = 5.0 mL.",
+      "light_setup": "Since the batch used 'irradiation', a photo-flow setup is assumed. 450 nm (blue) is common for Pd-photo cycles. If purely thermal, this can be removed.",
+      "wavelength_nm": "450 nm is a standard choice for visible-light-mediated Pd catalysis. If the batch microwave was purely thermal, this field is irrelevant, but included for completeness of the 'irradiation' translation.",
+      "streams": "Split into two streams to allow separate preparation of sensitive reagents or solids (base/boronic acid) and precise stoichiometric control.",
+      "mixer_type": "T-mixer is simple and effective for liquid-liquid mixing.",
+      "pre_reactor_steps": "Standard preparation for flow chemistry, emphasizing degassing and filtration.",
+      "post_reactor_steps": "Standard workup for Suzuki coupling.",
+      "chemistry_notes": "Clarifies the assumption regarding 'irradiation'.",
+      "stage_parameters": "Defines the physical dimensions of the reactor.",
+      "reasoning_per_field": "Explains the derivation of each parameter.",
+      "literature_analogies": "Suzuki couplings in flow are well-documented (e.g., in PTFE or PFA tubing). Photo-assisted Pd couplings are also established.",
+      "engine_validated": false,
+      "safety_flags": [
+        "DMF is toxic and a reproductive toxin. Use closed system and proper PPE.",
+        "Palladium catalysts are expensive and potentially toxic. Ensure proper waste disposal.",
+        "Base suspensions may clog tubing. Monitor pressure drop closely.",
+        "If using LEDs, ensure proper heat dissipation to maintain reactor temperature at 50°C."
+      ],
+      "confidence": 0.85
+    },
+    "literature_analogies": [
+      "Suzuki-Miyaura coupling in continuous flow using PTFE tubing (e.g., J. Flow Chem. 2012, 2, 1, 1-5).",
+      "Photo-assisted Pd-catalyzed cross-couplings in flow (e.g., Chem. Sci., 2015, 6, 2015-2020)."
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      "DMF is toxic and a reproductive toxin. Use closed system and proper PPE.",
+      "Palladium catalysts are expensive and potentially toxic. Ensure proper waste disposal.",
+      "Base suspensions may clog tubing. Monitor pressure drop closely.",
+      "If using LEDs, ensure proper heat dissipation to maintain reactor temperature at 50°C."
+    ],
+    "confidence": 0.85
+  },
+  "schema_valid": false
+}

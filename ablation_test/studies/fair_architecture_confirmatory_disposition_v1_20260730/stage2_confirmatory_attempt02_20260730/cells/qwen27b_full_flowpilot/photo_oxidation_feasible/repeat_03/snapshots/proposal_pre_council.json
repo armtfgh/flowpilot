@@ -1,0 +1,85 @@
+{
+  "residence_time_min": 10.0,
+  "flow_rate_mL_min": 0.5,
+  "temperature_C": 21.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 5.0,
+  "reactor_type": "photocoil",
+  "tubing_material": "FEP",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 5.0,
+  "residence_time_inlet_min": 5.0,
+  "residence_time_in_channel_min": 4.6,
+  "residence_time_basis": "inlet/STP apparent residence time",
+  "light_setup": "420 nm LED, 20 W, 100 mW/cm2",
+  "wavelength_nm": 420.0,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Liquid feed",
+      "contents": [
+        "Fmoc-L-methionine (1.0 equiv)",
+        "4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%)"
+      ],
+      "solvent": "acetonitrile",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream A contains substrate, catalyst, and solvent. Flow rate set to 0.5 mL/min to achieve target residence time with 5 mL reactor."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Gas feed",
+      "contents": [
+        "air"
+      ],
+      "solvent": "",
+      "concentration_M": null,
+      "flow_rate_mL_min": null,
+      "phase": "",
+      "gas_flow_sccm": 5.34,
+      "gas_flow_actual_mL_min": 5.75,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream B is gas phase oxidant. Flow rate calculated from Engineering Design Step 9 (5.34 sccm) to ensure sufficient O2 transfer."
+    }
+  ],
+  "mixer_type": "Certified gas-liquid T-mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Substrate and catalyst must be dissolved before gas introduction to ensure homogeneous photo-oxidation. T-mixer selected from inventory for gas-liquid mixing.",
+  "pre_reactor_steps": [
+    "Degas acetonitrile is NOT required; reaction requires air/O2.",
+    "Pump Stream A (liquid) and Stream B (air) into T-mixer."
+  ],
+  "post_reactor_steps": [
+    "Pass through BPR (5 bar) to maintain pressure and gas solubility.",
+    "Collect product solution."
+  ],
+  "chemistry_notes": "Photo-oxidation of Fmoc-L-methionine using 4,7-diphenyl-2,1,3-benzothiadiazole. Gas-liquid flow design. BPR required for gas solubility. 420 nm LED used. Residence time set to 5 min (conservative vs calculated 0.3 min) to ensure conversion given mass transfer limitations (Da=230).",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculated tau=0.3 min, but mass transfer limited (Da=230). Analogy 2 used 12 min, Analogy 3 used 15 min. Selected 5 min as conservative compromise using 5 mL reactor at 0.5 mL/min to ensure conversion.",
+    "residence_time_basis": "Gas-liquid system. Using inlet/STP basis for simplicity and consistency with MFC settings. In-channel time adjusted for pressure.",
+    "temperature_C": "From Batch Protocol: 21 C. No thermal advantage needed.",
+    "BPR_bar": "Engineering Design Step 8: BPR REQUIRED (3.0 bar). Inventory has 5 bar BPR. Selected 5 bar to ensure gas solubility and prevent degassing.",
+    "tubing_material": "FEP selected from inventory for photochemical transparency (420 nm).",
+    "concentration_M": "From Batch Protocol: 0.1 M. Maintained to match batch conditions.",
+    "reactor_volume_mL": "Selected 5 mL FEP photocoil from inventory. Matches target residence time of 5 min at 0.5 mL/min liquid flow.",
+    "flow_rate_mL_min": "Set to 0.5 mL/min to achieve 5 min residence time in 5 mL reactor. Meets minimum flow constraint (0.01 mL/min).",
+    "gas_flow_sccm": "From Engineering Design Step 9: 5.34 sccm air. Ensures sufficient O2 equivalents."
+  },
+  "literature_analogies": [
+    "Analogy 2: Photoredox cross-coupling, 12 min residence time, FEP tubing. Similar photochemistry, longer residence time suggests 5 min is safe.",
+    "Analogy 3: Photochemical C-H functionalization, 15 min residence time, 0.1 M concentration. Similar concentration and photochemistry."
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "HIGH"
+}

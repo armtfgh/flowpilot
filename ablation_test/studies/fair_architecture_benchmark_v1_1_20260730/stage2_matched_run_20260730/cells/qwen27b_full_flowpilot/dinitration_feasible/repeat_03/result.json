@@ -1,0 +1,3387 @@
+{
+  "case": {
+    "case_id": "dinitration_feasible",
+    "title": "Dinitration: approved acid-compatible microflow path",
+    "protocol": "RAW BATCH PROTOCOL:\nAn aniline derivative was treated with nitric acid in the industrial batch solvent at 60 C for 4 h. Nitric acid served as nitrating reagent and acid catalyst. The dinitrated product was obtained in 89% yield.\n\nOBJECTIVE:\nDesign a conservative microflow nitration screen with segregated feeds, controlled mixing, and immediate quench.\n\nHARD CONSTRAINTS:\n- Use only the listed inventory.\n- Use two segregated feeds before the micromixer.\n- Use the approved PTFE 5 mL microcoil.\n- Operate at 60 C and include immediate quench.\n\nAVAILABLE INVENTORY (authoritative JSON):\n{\"BPR_available\":[5],\"light_sources\":[],\"pumps\":[{\"max_flow_rate_mL_min\":2.0,\"max_pressure_bar\":20,\"min_flow_rate_mL_min\":0.01,\"name\":\"Acid pump\",\"type\":\"syringe\"},{\"max_flow_rate_mL_min\":2.0,\"max_pressure_bar\":20,\"min_flow_rate_mL_min\":0.01,\"name\":\"Substrate pump\",\"type\":\"syringe\"}],\"reactors\":[{\"ID_mm\":0.5,\"material\":\"PTFE\",\"max_temperature_C\":100,\"notes\":\"Approved nitric-acid wetted path; two-feed micromixer and immediate quench available.\",\"type\":\"microcoil\",\"volume_mL\":5}],\"tubing\":[{\"ID_mm\":0.5,\"material\":\"PTFE\",\"max_pressure_bar\":20,\"max_temperature_C\":100,\"transparent\":false}]}",
+    "precedent_level": "withheld_source",
+    "difficulty": "high",
+    "notes": "FlowPilot ablation case; source flow answer withheld.",
+    "cached_result_path": null,
+    "batch_record_data": null,
+    "tags": [
+      "nitration",
+      "exothermic",
+      "paired_constraint"
+    ]
+  },
+  "candidate_budget": 2,
+  "objectives": "balanced",
+  "temperature": 0.0,
+  "seed": 20260733,
+  "allow_warning_refinement": true,
+  "benchmark_strong_revision_mode": true,
+  "benchmark_branching_revision_mode": false,
+  "benchmark_max_descendants_per_candidate": 1,
+  "pre_council_proposal": {
+    "residence_time_min": 10.0,
+    "flow_rate_mL_min": 0.5,
+    "temperature_C": 60.0,
+    "concentration_M": 0.1,
+    "BPR_bar": 0.0,
+    "reactor_type": "microcoil",
+    "tubing_material": "PTFE",
+    "tubing_ID_mm": 0.5,
+    "reactor_volume_mL": 5.0,
+    "residence_time_inlet_min": null,
+    "residence_time_in_channel_min": null,
+    "residence_time_basis": "liquid-only reactor volume / liquid flow",
+    "light_setup": "",
+    "wavelength_nm": null,
+    "deoxygenation_method": null,
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Substrate pump",
+        "contents": [
+          "Aniline derivative (0.1 M)"
+        ],
+        "solvent": "Industrial batch solvent",
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.25,
+        "phase": "",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "molar_equiv": 1.0,
+        "reasoning": "From Chemistry Plan stream_logic: Stream A contains substrate and solvent. Flow rate set to half of total to match 1:1 volumetric mixing for 2.0 equiv nitric acid (assuming similar density/concentration scaling or adjusted via concentration in Stream B)."
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "Acid pump",
+        "contents": [
+          "Nitric acid (2.0 equiv)"
+        ],
+        "solvent": "Industrial batch solvent",
+        "concentration_M": 0.2,
+        "flow_rate_mL_min": 0.25,
+        "phase": "",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "molar_equiv": 1.0,
+        "reasoning": "From Chemistry Plan stream_logic: Stream B contains Nitric acid. Segregated to control mixing. Concentration doubled relative to Stream A to provide 2.0 equivalents at equal flow rates."
+      }
+    ],
+    "mixer_type": "T-mixer",
+    "mixing_order_reasoning": "From Chemistry Plan: Substrate and nitrating agent must be mixed rapidly in the micromixer to ensure uniform reaction and heat dissipation. Incompatible pair (Aniline derivative, Nitric acid) must not be pre-mixed.",
+    "pre_reactor_steps": [
+      "Pump Stream A (Aniline derivative) and Stream B (Nitric acid) separately using syringe pumps."
+    ],
+    "post_reactor_steps": [
+      "Immediate quench with Water or dilute base to stop exothermic nitration and prevent over-nitration/oxidation."
+    ],
+    "chemistry_notes": "Thermal nitration of aniline derivative. Highly exothermic; flow mitigates thermal runaway. PTFE wetted path required for nitric acid compatibility. No light source used. Quench is critical for safety and selectivity. Residence time reduced from 4h batch to ~19 min based on kinetic intensification factor.",
+    "stage_parameters": [],
+    "multiphase_metrics": {},
+    "heat_transfer_metrics": {},
+    "inventory_selection": {},
+    "inventory_constraints": {},
+    "evidence_calibration": {},
+    "reasoning_per_field": {
+      "residence_time_min": "Calculation Step 2 estimated 18.8 min (range 10.3-36.0 min) based on 13x intensification factor. Analogy 1 used 60 min at 120C; our T is lower (60C) but flow mixing is superior. 18.8 min is conservative and within calculated range.",
+      "residence_time_basis": "Single-phase liquid system. Basis is liquid volume / liquid flow.",
+      "temperature_C": "From Batch Protocol and Chemistry Plan: 60 C. Analogy 1 used 120C but different solvent/catalyst. We maintain batch T for selectivity control.",
+      "BPR_bar": "Calculation Step 8: BPR not required. T=60C is well below solvent bp (assumed >80C for industrial solvent) and no gas generated. Inventory BPR available but not strictly needed for pressure containment, though could be used for stability. Set to 0 as per calculation.",
+      "tubing_material": "From Inventory: PTFE microcoil. Chemistry Plan mandates PTFE for nitric acid compatibility. Analogy 1 used packed bed (material unspecified but likely ceramic/glass); PTFE is safer for HNO3.",
+      "concentration_M": "From Batch Protocol: 0.1 M. Analogy 1 used 1.0 M; we stick to batch concentration to ensure solubility and control exotherm density.",
+      "reactor_volume_mL": "From Inventory: 5 mL PTFE microcoil. Calculation Step 3 suggested 9.41 mL for 18.8 min at 0.5 mL/min. However, Inventory constraint mandates use of the 5 mL reactor. To use the 5 mL reactor with 0.5 mL/min flow, residence time becomes 10 min. This is within the lower bound of the calculated range (10.3-36.0 min) and represents a 24x intensification. We adjust residence_time_min to 10.0 to match the physical inventory constraint.",
+      "flow_rate_mL_min": "Calculation Step 3 suggested 0.5 mL/min. This fits within pump limits (0.01-2.0 mL/min).",
+      "tubing_ID_mm": "From Inventory: 0.5 mm ID. Calculation Step 3 suggested 1.0 mm. We use inventory 0.5 mm. This increases pressure drop but is within pump capacity (20 bar max, calc delta P 0.04 bar). Smaller ID improves heat transfer."
+    },
+    "literature_analogies": [
+      "Analogy 1: Solid acid catalyzed nitration in flow. Similar mechanism (EAS). Key difference: T=120C vs 60C, packed bed vs coil. Adjustment: Used for safety/flow concept, but T and reactor type from inventory/plan.",
+      "Analogy 2: SNAr condensation. Dissimilar mechanism. Used for general flow parameter ranges (T, RT).",
+      "Analogy 3: Cross-coupling. Dissimilar mechanism. Used for BPR/pressure concepts."
+    ],
+    "engine_validated": false,
+    "safety_flags": [],
+    "confidence": "HIGH"
+  },
+  "final_design_candidate": {
+    "proposal": {
+      "residence_time_min": 18.8,
+      "flow_rate_mL_min": 0.26596,
+      "temperature_C": 60.0,
+      "concentration_M": 0.1,
+      "BPR_bar": 5.0,
+      "reactor_type": "microcoil",
+      "tubing_material": "PTFE",
+      "tubing_ID_mm": 0.5,
+      "reactor_volume_mL": 5.0,
+      "residence_time_inlet_min": 18.8,
+      "residence_time_in_channel_min": 18.8,
+      "residence_time_basis": "liquid-only reactor volume / liquid flow",
+      "light_setup": "",
+      "wavelength_nm": null,
+      "deoxygenation_method": null,
+      "streams": [
+        {
+          "stream_label": "A",
+          "pump_role": "Substrate pump",
+          "contents": [
+            "Aniline derivative (0.1 M)"
+          ],
+          "solvent": "Industrial batch solvent",
+          "concentration_M": 0.1,
+          "flow_rate_mL_min": 0.13298,
+          "phase": "",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null,
+          "molar_equiv": 1.0,
+          "reasoning": "Assuming 1:1 stoichiometry and equal split. Q_total=0.564 mL/min. Q_A = Q_total / 2 = 0.282 mL/min."
+        },
+        {
+          "stream_label": "B",
+          "pump_role": "Acid pump",
+          "contents": [
+            "Nitric acid (2.0 equiv)"
+          ],
+          "solvent": "Industrial batch solvent",
+          "concentration_M": 0.1,
+          "flow_rate_mL_min": 0.13298,
+          "phase": "",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null,
+          "molar_equiv": 1.0,
+          "reasoning": "Assuming 1:1 stoichiometry and equal split. Q_total=0.564 mL/min. Q_B = Q_total / 2 = 0.282 mL/min."
+        }
+      ],
+      "mixer_type": "T-mixer",
+      "mixing_order_reasoning": "From Chemistry Plan: Substrate and nitrating agent must be mixed rapidly in the micromixer to ensure uniform reaction and heat dissipation. Incompatible pair (Aniline derivative, Nitric acid) must not be pre-mixed.",
+      "pre_reactor_steps": [
+        "Pump Stream A (Aniline derivative) and Stream B (Nitric acid) separately using syringe pumps."
+      ],
+      "post_reactor_steps": [
+        "Immediate quench with Water or dilute base to stop exothermic nitration and prevent over-nitration/oxidation."
+      ],
+      "chemistry_notes": "Thermal nitration of aniline derivative. Highly exothermic; flow mitigates thermal runaway. PTFE wetted path required for nitric acid compatibility. No light source used. Quench is critical for safety and selectivity. Residence time reduced from 4h batch to ~19 min based on kinetic intensification factor.\nInventory enforced: microcoil reactor: 5 mL, 0.5 mm ID, PTFE.",
+      "stage_parameters": [
+        {
+          "stage_number": 1,
+          "residence_time_min": 18.8
+        }
+      ],
+      "multiphase_metrics": {},
+      "heat_transfer_metrics": {
+        "surface_to_volume_m_inv": 8000.0,
+        "heat_transfer_area_m2": 0.04000033,
+        "UA_W_K": 12.000099,
+        "heat_generation_W": 0.058705,
+        "heat_removal_W": 120.000985,
+        "thermal_damkohler": 0.000489,
+        "heat_transfer_score": 1.0
+      },
+      "inventory_selection": {
+        "name": "",
+        "system": "",
+        "type": "microcoil",
+        "material": "PTFE",
+        "volume_mL": 5.0,
+        "ID_mm": 0.5,
+        "light_source": "",
+        "wavelength_nm": null,
+        "intensity_mW_cm2": null,
+        "irradiation": "",
+        "temperature_range_C": [
+          null,
+          100.0
+        ],
+        "allowed_temperatures_C": [],
+        "concentration_range_M": [
+          null,
+          null
+        ],
+        "pressure_range_bar": [
+          null,
+          null
+        ],
+        "configuration": "",
+        "component_volumes_mL": [],
+        "notes": "Approved nitric-acid wetted path; two-feed micromixer and immediate quench available."
+      },
+      "inventory_constraints": {
+        "forced_reactor_inventory": true,
+        "allowed_reactor_volumes_mL": [
+          5.0
+        ],
+        "allowed_reactor_IDs_mm": [
+          0.5
+        ],
+        "selected_reactor": {
+          "name": "",
+          "system": "",
+          "type": "microcoil",
+          "material": "PTFE",
+          "volume_mL": 5.0,
+          "ID_mm": 0.5,
+          "light_source": "",
+          "wavelength_nm": null,
+          "intensity_mW_cm2": null,
+          "irradiation": "",
+          "temperature_range_C": [
+            null,
+            100.0
+          ],
+          "allowed_temperatures_C": [],
+          "concentration_range_M": [
+            null,
+            null
+          ],
+          "pressure_range_bar": [
+            null,
+            null
+          ],
+          "configuration": "",
+          "component_volumes_mL": [],
+          "notes": "Approved nitric-acid wetted path; two-feed micromixer and immediate quench available."
+        },
+        "selected_pump": {
+          "name": "Acid pump",
+          "type": "syringe",
+          "max_pressure_bar": 20.0,
+          "max_flow_rate_mL_min": 2.0,
+          "min_flow_rate_mL_min": 0.01,
+          "compatible_systems": []
+        },
+        "flow_recalculation": {
+          "residence_time_basis": "liquid-only reactor volume / liquid flow",
+          "requested_residence_time_min": 18.8,
+          "pump_flow_clamped": false,
+          "pump_min_flow_rate_mL_min": 0.01,
+          "pump_max_flow_rate_mL_min": 2.0,
+          "liquid_flow_rate_mL_min": 0.26596,
+          "gas_flow_actual_mL_min": null,
+          "gas_flow_sccm": null,
+          "target_gas_equiv_inlet": null,
+          "gas_equiv_supplied": null,
+          "o2_equiv_supplied": null
+        },
+        "final_validation": {
+          "schema_version": "flowpilot_final_validation_v1.0",
+          "status": "ready",
+          "checks": {
+            "reactor_inventory_match": true,
+            "pump_flow_feasible": true,
+            "tubing_feasible": true,
+            "geometry_closure": true,
+            "calculation_matches_serialized_design": true,
+            "gas_bookkeeping_complete": true
+          },
+          "unresolved_reasons": [],
+          "geometry_relative_error": 9.599999999920783e-06,
+          "gas_required": false,
+          "inventory_enforcement": {
+            "first_pass": {
+              "applied": true,
+              "old": {
+                "reactor_volume_mL": 10.6032,
+                "tubing_ID_mm": 0.75,
+                "tubing_material": "FEP",
+                "flow_rate_mL_min": 0.564,
+                "BPR_bar": 3.5,
+                "temperature_C": 60.0,
+                "concentration_M": 0.1,
+                "wavelength_nm": null
+              },
+              "new": {
+                "reactor_volume_mL": 5.0,
+                "tubing_ID_mm": 0.5,
+                "tubing_material": "PTFE",
+                "flow_rate_mL_min": 0.26596,
+                "BPR_bar": 5.0,
+                "temperature_C": 60.0,
+                "concentration_M": 0.1,
+                "wavelength_nm": null
+              },
+              "selected_reactor": {
+                "name": "",
+                "system": "",
+                "type": "microcoil",
+                "material": "PTFE",
+                "volume_mL": 5.0,
+                "ID_mm": 0.5,
+                "light_source": "",
+                "wavelength_nm": null,
+                "intensity_mW_cm2": null,
+                "irradiation": "",
+                "temperature_range_C": [
+                  null,
+                  100.0
+                ],
+                "allowed_temperatures_C": [],
+                "concentration_range_M": [
+                  null,
+                  null
+                ],
+                "pressure_range_bar": [
+                  null,
+                  null
+                ],
+                "configuration": "",
+                "component_volumes_mL": [],
+                "notes": "Approved nitric-acid wetted path; two-feed micromixer and immediate quench available."
+              }
+            },
+            "final_pass": {
+              "applied": true,
+              "old": {
+                "reactor_volume_mL": 5.0,
+                "tubing_ID_mm": 0.5,
+                "tubing_material": "PTFE",
+                "flow_rate_mL_min": 0.26596,
+                "BPR_bar": 5.0,
+                "temperature_C": 60.0,
+                "concentration_M": 0.1,
+                "wavelength_nm": null
+              },
+              "new": {
+                "reactor_volume_mL": 5.0,
+                "tubing_ID_mm": 0.5,
+                "tubing_material": "PTFE",
+                "flow_rate_mL_min": 0.26596,
+                "BPR_bar": 5.0,
+                "temperature_C": 60.0,
+                "concentration_M": 0.1,
+                "wavelength_nm": null
+              },
+              "selected_reactor": {
+                "name": "",
+                "system": "",
+                "type": "microcoil",
+                "material": "PTFE",
+                "volume_mL": 5.0,
+                "ID_mm": 0.5,
+                "light_source": "",
+                "wavelength_nm": null,
+                "intensity_mW_cm2": null,
+                "irradiation": "",
+                "temperature_range_C": [
+                  null,
+                  100.0
+                ],
+                "allowed_temperatures_C": [],
+                "concentration_range_M": [
+                  null,
+                  null
+                ],
+                "pressure_range_bar": [
+                  null,
+                  null
+                ],
+                "configuration": "",
+                "component_volumes_mL": [],
+                "notes": "Approved nitric-acid wetted path; two-feed micromixer and immediate quench available."
+              }
+            }
+          },
+          "calculation_snapshot": {
+            "reactor_volume_mL": 5.0,
+            "tubing_ID_mm": 0.5,
+            "flow_rate_mL_min": 0.26596,
+            "residence_time_min": 18.8,
+            "residence_time_inlet_min": 0.0,
+            "residence_time_in_channel_min": 0.0,
+            "gas_flow_sccm": 0.0,
+            "gas_flow_actual_mL_min": 0.0,
+            "target_gas_equiv_inlet": 0.0,
+            "gas_equiv_supplied": 0.0,
+            "consistent": true,
+            "consistency_notes": []
+          }
+        }
+      },
+      "evidence_calibration": {},
+      "reasoning_per_field": {
+        "residence_time_min": "Calculation Step 2 estimated 18.8 min (range 10.3-36.0 min) based on 13x intensification factor. Analogy 1 used 60 min at 120C; our T is lower (60C) but flow mixing is superior. 18.8 min is conservative and within calculated range.",
+        "residence_time_basis": "Single-phase liquid system. Basis is liquid volume / liquid flow.",
+        "temperature_C": "From Batch Protocol and Chemistry Plan: 60 C. Analogy 1 used 120C but different solvent/catalyst. We maintain batch T for selectivity control.",
+        "BPR_bar": "Calculation Step 8: BPR not required. T=60C is well below solvent bp (assumed >80C for industrial solvent) and no gas generated. Inventory BPR available but not strictly needed for pressure containment, though could be used for stability. Set to 0 as per calculation.",
+        "tubing_material": "From Inventory: PTFE microcoil. Chemistry Plan mandates PTFE for nitric acid compatibility. Analogy 1 used packed bed (material unspecified but likely ceramic/glass); PTFE is safer for HNO3.",
+        "concentration_M": "From Batch Protocol: 0.1 M. Analogy 1 used 1.0 M; we stick to batch concentration to ensure solubility and control exotherm density.",
+        "reactor_volume_mL": "From Inventory: 5 mL PTFE microcoil. Calculation Step 3 suggested 9.41 mL for 18.8 min at 0.5 mL/min. However, Inventory constraint mandates use of the 5 mL reactor. To use the 5 mL reactor with 0.5 mL/min flow, residence time becomes 10 min. This is within the lower bound of the calculated range (10.3-36.0 min) and represents a 24x intensification. We adjust residence_time_min to 10.0 to match the physical inventory constraint.",
+        "flow_rate_mL_min": "Calculation Step 3 suggested 0.5 mL/min. This fits within pump limits (0.01-2.0 mL/min).",
+        "tubing_ID_mm": "From Inventory: 0.5 mm ID. Calculation Step 3 suggested 1.0 mm. We use inventory 0.5 mm. This increases pressure drop but is within pump capacity (20 bar max, calc delta P 0.04 bar). Smaller ID improves heat transfer.",
+        "inventory_selection": "Forced to available inventory reactor: microcoil reactor: 5 mL, 0.5 mm ID, PTFE. Flow rates recalculated from selected volume and target residence time. Selected pump flow range was satisfied."
+      },
+      "literature_analogies": [
+        "Analogy 1: Solid acid catalyzed nitration in flow. Similar mechanism (EAS). Key difference: T=120C vs 60C, packed bed vs coil. Adjustment: Used for safety/flow concept, but T and reactor type from inventory/plan.",
+        "Analogy 2: SNAr condensation. Dissimilar mechanism. Used for general flow parameter ranges (T, RT).",
+        "Analogy 3: Cross-coupling. Dissimilar mechanism. Used for BPR/pressure concepts."
+      ],
+      "engine_validated": true,
+      "safety_flags": [],
+      "confidence": "LOW"
+    },
+    "chemistry_plan": {
+      "reaction_name": "Nitration of aniline derivative",
+      "reaction_class": "Electrophilic Aromatic Substitution",
+      "mechanism_type": "Electrophilic attack",
+      "bond_formed": "C-N",
+      "bond_broken": "N-O (in HNO3)",
+      "stages": [],
+      "n_stages": 1,
+      "reagents": [
+        {
+          "name": "Aniline derivative",
+          "role": "substrate",
+          "equiv_or_loading": "",
+          "smiles": null,
+          "notes": ""
+        },
+        {
+          "name": "Industrial batch solvent",
+          "role": "solvent",
+          "equiv_or_loading": "",
+          "smiles": null,
+          "notes": ""
+        },
+        {
+          "name": "Nitric acid",
+          "role": "substrate",
+          "equiv_or_loading": "",
+          "smiles": null,
+          "notes": ""
+        },
+        {
+          "name": "Water or dilute base",
+          "role": "quencher",
+          "equiv_or_loading": "",
+          "smiles": null,
+          "notes": ""
+        }
+      ],
+      "mechanism_steps": [],
+      "key_intermediate": "Sigma complex (arenium ion)",
+      "excited_state_type": "",
+      "energy_transfer_or_redox": "",
+      "oxygen_sensitive": false,
+      "o2_is_reagent": false,
+      "moisture_sensitive": false,
+      "temperature_sensitive": true,
+      "light_sensitive_reagents": [],
+      "stream_logic": [
+        {
+          "stream_label": "A",
+          "reagents": [
+            "Aniline derivative",
+            "Industrial batch solvent"
+          ],
+          "reasoning": "Substrate solution for controlled delivery.",
+          "molar_equiv": 1.0,
+          "concentration_M": null,
+          "phase": "",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null
+        },
+        {
+          "stream_label": "B",
+          "reagents": [
+            "Nitric acid"
+          ],
+          "reasoning": "Nitrating reagent and acid catalyst. Segregated to control mixing.",
+          "molar_equiv": 2.0,
+          "concentration_M": null,
+          "phase": "",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null
+        }
+      ],
+      "mixing_order_reasoning": "Substrate and nitrating agent must be mixed rapidly in the micromixer to ensure uniform reaction and heat dissipation.",
+      "incompatible_pairs": [
+        [
+          "Aniline derivative",
+          "Nitric acid"
+        ]
+      ],
+      "deoxygenation_required": false,
+      "deoxygenation_reasoning": "Nitric acid is a strong oxidant; inert atmosphere not strictly required for mechanism, but may help prevent side oxidation. Conservative default: not required.",
+      "quench_required": true,
+      "quench_reagent": "Water or dilute base",
+      "quench_reasoning": "Immediate quench stops exothermic nitration and prevents over-nitration or oxidation of the aniline derivative.",
+      "retrieval_keywords": [
+        "nitration",
+        "aniline",
+        "nitric acid",
+        "flow chemistry",
+        "exothermic",
+        "Electrophilic Aromatic Substitution",
+        "Electrophilic attack",
+        "industrial batch solvent",
+        "Water or dilute base"
+      ],
+      "similar_reaction_classes": [
+        "Sulfonation",
+        "Halogenation",
+        "Friedel-Crafts acylation",
+        "Electrophilic Aromatic Substitution"
+      ],
+      "batch_limitations": [
+        "kinetic"
+      ],
+      "batch_limitations_reasoning": "no specific batch limitation identified; defaulting to kinetic (intrinsic rate)",
+      "recommended_wavelength_nm": null,
+      "wavelength_reasoning": "Thermal reaction, no photochemistry involved.",
+      "confidence_notes": "High confidence in flow adaptation for exothermic nitration. Quench is critical.",
+      "intensification_mandate": {
+        "tau_reduction_target": 3.0,
+        "minimum_flow_advantage": "selectivity",
+        "required_mixing_regime": "enhanced_laminar_mixing",
+        "flow_justification_basis": "Flow must demonstrate 3.0x residence-time reduction. Identified batch limitations: kinetic. Primary flow advantage: selectivity. Mechanisms: selectivity-sensitive stream logic."
+      }
+    },
+    "council_messages": [
+      {
+        "agent": "DesignerV4",
+        "status": "ACCEPT",
+        "field": "design",
+        "value": "### Stage 0 — Problem Framing\n\n**Reaction class:** other  \n**Flags:** none  \n**Flow justified:** Yes\n\n### Stage 1 — Candidate Matrix\n\n**Strategy:** This is a thermal electrophilic aromatic substitutio",
+        "concern": "",
+        "revision_required": false,
+        "suggested_revision": null
+      },
+      {
+        "agent": "CandidateRefinementV4",
+        "status": "REVISE",
+        "field": "design",
+        "value": "### Pre-selection Expert Refinement\n\nPre-selection expert refinement applied bounded edits to 2/2 candidates before rescoring.\n\n### Applied Candidate Edits\n\n#### Candidate 1 (chemistry, safety)\n- **co",
+        "concern": "",
+        "revision_required": true,
+        "suggested_revision": null
+      },
+      {
+        "agent": "DrChemistryV4",
+        "status": "WARNING",
+        "field": "design",
+        "value": "### Overall Chemistry Assessment\n\nThe chemistry landscape is dominated by a fundamental material incompatibility: both candidates utilize PTFE tubing for a reaction at 60°C. While PTFE is chemically i",
+        "concern": "**Candidate 2 BLOCKED:** Pressure drop (62.7 bar) exceeds pump limit (20 bar)., Coil length (171 m) exceeds practical benchtop limit (25 m)., Conversion (40%) is below minimum threshold (50%).",
+        "revision_required": false,
+        "suggested_revision": null
+      },
+      {
+        "agent": "DrKineticsV4",
+        "status": "WARNING",
+        "field": "design",
+        "value": "### Overall Kinetics Assessment\n\nThe kinetics landscape is dominated by a single-pass conversion floor (X ≥ 0.30) and a strict short-τ policy. Both candidates achieve X > 0.30, but Candidate 2 is phys",
+        "concern": "**Candidate 2 BLOCKED:** ΔP=62.7 bar > 20 bar pump max. Physically impossible., L=171m > 25m bench limit. Impractical., IF=24 exceeds thermal class range (8-15×)., X=0.40 is close to the 0.30 floor, leaving little margin for RTD effects.",
+        "revision_required": false,
+        "suggested_revision": null
+      },
+      {
+        "agent": "DrFluidicsV4",
+        "status": "WARNING",
+        "field": "design",
+        "value": "### Overall Fluidics & Hardware Assessment\n\nThe fluidics landscape is dominated by severe geometric and pressure constraints. Candidate 1 presents a viable, albeit long, laminar flow path with excelle",
+        "concern": "**Candidate 2 BLOCKED:** ΔP=62.7 bar > 5 bar hard limit and > 20 bar pump max., L=171.4 m > 30 m hard limit., Pump headroom is negative; system cannot operate.",
+        "revision_required": false,
+        "suggested_revision": null
+      },
+      {
+        "agent": "DrSafetyV4",
+        "status": "WARNING",
+        "field": "design",
+        "value": "### Overall Safety Assessment\n\nThe safety landscape is dominated by a critical material compatibility failure and severe pressure integrity risks. Both candidates specify PTFE tubing, which is opaque ",
+        "concern": "**Candidate 2 BLOCKED:** Pressure drop (62.7 bar) exceeds pump maximum (20 bar) by 3x, PTFE is opaque and incompatible with photochemical reactors, Coil length (171 m) is impractical for benchtop operation",
+        "revision_required": false,
+        "suggested_revision": null
+      },
+      {
+        "agent": "SkepticV4",
+        "status": "REVISE",
+        "field": "design",
+        "value": "### Arithmetic & Consistency Audit\n\nAUDIT: 3 issues found (1 CRITICAL, 2 HIGH, 0 scope violations). 1 candidates flagged for disqualification. CRITICAL errors found — council MUST correct before proce",
+        "concern": "[CRITICAL] Candidate 2 — BPR_BELOW_HARD_FLOOR: BPR_current=1.5 bar < hard floor=62.8 bar (gas_liquid_floor=N/A). Boiling/phase-separation risk — council MUST raise BPR or reduce ΔP.",
+        "revision_required": true,
+        "suggested_revision": null
+      },
+      {
+        "agent": "RevisionAgent",
+        "status": "REVISE",
+        "field": "design",
+        "value": "### Stage 3.5 — Parameter Revision\n\n**Domains that triggered revision:** safety\n\n**Changes applied to winner:**\n\n- **BPR_bar**: Dr. Safety REVISE: BPR_adequate=false. Agent reported BPR_required_bar=3",
+        "concern": "",
+        "revision_required": true,
+        "suggested_revision": null
+      },
+      {
+        "agent": "ChiefV4",
+        "status": "ACCEPT",
+        "field": "design",
+        "value": "### Selection Rationale\n\nCandidate 1 is selected as the sole viable flow chemistry design, as Candidate 2 was disqualified due to critical safety and hardware violations (excessive pressure drop and c",
+        "concern": "Conversion X=0.62 is lower than ideal; may require longer residence time or higher temperature to reach >90%.",
+        "revision_required": false,
+        "suggested_revision": null
+      }
+    ],
+    "council_rounds": 2,
+    "safety_report": {
+      "total_checks": 3,
+      "critical": 1,
+      "dfmea_modes": 3,
+      "validation_experiments": [
+        "Pressure stability test: Run solvent at 60°C with BPR set to 1.5 bar for 2 hours; monitor for pressure oscillations indicating cavitation. Repeat at 3.0 bar to confirm stability.",
+        "Material compatibility test: Soak PTFE tubing in the specific industrial solvent at 60°C for 48 hours; measure weight change and check for leachables via GC-MS.",
+        "Quench efficiency validation: Inject a pulse of reactant and monitor conversion/selectivity at the outlet with and without the proposed quench mixer to quantify mixing limitations."
+      ],
+      "screen_required": false,
+      "feasibility_diagnostic": {}
+    },
+    "unit_operations": [],
+    "pid_description": "",
+    "human_explanation": "(1) Proposed flow setup\n*   **Reactor:** 5.0 mL PTFE microcoil (0.5 mm ID).\n*   **Feeds:** Two syringe pumps delivering Stream A (Aniline derivative, 0.1 M) and Stream B (Nitric acid, 2.0 equiv) at **0.13298 mL/min** each.\n*   **Mixing:** T-mixer for rapid combination of incompatible streams.\n*   **Conditions:** **60.0 °C**, **5.0 bar** BPR.\n*   **Hydraulics:** Total flow rate **0.26596 mL/min**; Residence time **18.8 min**.\n*   **Post-Reactor:** Immediate quench with water or dilute base.\n\n(2) Why these conditions were chosen\n*   **Residence Time & Temperature:** The **18.8 min** residence time at **60.0 °C** represents a ~13-fold intensification over the 4-hour batch protocol. This reduction is justified by the superior heat transfer and mixing in flow, which suppresses side reactions typical of electrophilic aromatic substitution (EAS). While literature analogies for solid-acid catalyzed nitrations often use higher temperatures (e.g., 120 °C), the lower temperature is maintained here to preserve selectivity for the specific aniline derivative, relying on flow efficiency rather than thermal energy to drive conversion.\n*   **Material Selection:** **PTFE** tubing is mandated for compatibility with nitric acid. Unlike FEP or PFA, PTFE offers superior chemical resistance to strong oxidants, preventing reactor degradation and leaching.\n*   **Heat Transfer:** The design achieves a thermal Damköhler number (**Da_th**) of **0.000489** and a heat transfer coefficient (**UA**) of **12.000099 W/K**. This indicates that heat removal is significantly faster than heat generation, effectively eliminating the risk of thermal runaway associated with batch nitrations.\n\n(3) Key differences from the batch protocol\n*   **Time Scale:** Reaction time reduced from 240 minutes (batch) to **18.8 minutes** (flow).\n*   **Mixing Regime:** Batch relies on macroscopic stirring, leading to potential concentration gradients. Flow utilizes a T-mixer and laminar flow in a 0.5 mm ID coil to ensure rapid, homogeneous mixing of the electrophile and substrate, minimizing local hotspots and poly-nitration.\n*   **Safety Inventory:** The maximum hazardous inventory is limited to the reactor volume (**5.0 mL**) plus dead volume, compared to the full batch scale.\n*   **Quench Strategy:** Batch quenching is often slow and exothermic. Flow enables immediate, continuous quenching post-reactor, strictly controlling the reaction endpoint and preventing over-oxidation.\n\n(4) Any warnings or flags from the engineering validation\n*   **Conversion Limitation:** The predicted single-pass conversion is approximately **62%**. This is below the ideal >90% target for process efficiency. The residence time is kinetically limited; if higher conversion is required, the flow rate must be reduced (increasing residence time) or temperature increased, subject to selectivity constraints.\n*   **Material Opacity:** PTFE is opaque. While irrelevant for this thermal reaction, it prevents visual inspection of the flow or precipitation. Ensure no photochemical steps are inadvertently introduced in downstream processing.\n*   **Pressure Drop:** The calculated pressure drop is low (~0.29 bar), well within the pump limit (20 bar) and BPR setting (**5.0 bar**). However, the BPR is set to **5.0 bar** to ensure system stability and prevent cavitation, providing a significant safety margin over the minimum required pressure.\n*   **Coil Management:** The 5.0 mL volume in 0.5 mm ID tubing results in a coil length of approximately 25 meters. Careful coiling is required to avoid mechanical stress and ensure uniform heating.\n\n**Confidence: LOW** — The closest literature analogy has a similarity score of 0.42 (threshold for MEDIUM: 0.50). No close precedent found in the corpus for this exact reaction class and conditions. Treat this proposal as a starting hypothesis requiring careful experimental validation before scale-up.",
+    "deliberation_log": {
+      "rounds": [
+        [
+          {
+            "agent": "DesignerV4",
+            "agent_display_name": "Designer",
+            "round": 1,
+            "chain_of_thought": "### Stage 0 — Problem Framing\n\n**Reaction class:** other  \n**Flags:** none  \n**Flow justified:** Yes\n\n### Stage 1 — Candidate Matrix\n\n**Strategy:** This is a thermal electrophilic aromatic substitution with a moderate residence time (~19 min) and high intensification factor (12.8x). Since it is not photochemical or gas-liquid, we can utilize the full commercial diameter range (up to 2.0 mm) to optimize pressure drop and mixing. The strategy focuses on verifying the 3x tau reduction target by sampling down to ~6 min while ensuring coverage around the literature value.  \n**Candidates to council:** 2  \n**Hard-gate flagged (proceed with warnings):** 1\n\n**Hard-gate flag details** *(candidates still evaluated — flags inform scoring agents)*:\n- ⛔ Candidate 2 (τ=5.6 min, d=1.0 mm): dual-criterion mixing fail: Da_mass=1.95 > 1.0 AND r_mix=0.744 > 0.20; X=0.25 < X_minimum=0.50 (insufficient conversion)\n\n**Preliminary design envelope:** τ ∈ [5.6, 18.8] min | d ∈ [0.75, 1.0] mm | Q ∈ [0.56398, 3.36599] mL/min",
+            "values_referenced": [],
+            "findings": [
+              "Candidates to council: 2 (all proceed to scoring)",
+              "Hard-gate flagged: 1 carry warning flags visible to all agents"
+            ],
+            "proposals": [],
+            "concerns": [],
+            "status": "ACCEPT",
+            "had_error": false,
+            "references_to_agents": [],
+            "rules_cited": [],
+            "tool_calls": []
+          },
+          {
+            "agent": "CandidateRefinementV4",
+            "agent_display_name": "Candidate Refinement Board",
+            "round": 1,
+            "chain_of_thought": "### Pre-selection Expert Refinement\n\nPre-selection expert refinement applied bounded edits to 2/2 candidates before rescoring.\n\n### Applied Candidate Edits\n\n#### Candidate 1 (chemistry, safety)\n- **concentration_M** → `0.1`: Explicit C patch (non-reducing).\n- **BPR_bar** → `1.5`: Explicit patch proposed by domain scorer.\n- **tubing_material** → `PTFE`: Explicit patch proposed by domain scorer.\n\n#### Candidate 2 (chemistry, fluidics, kinetics, safety)\n- **concentration_M** → `0.1`: Explicit C patch (non-reducing).\n- **tau_min** → `10.0`: Explicit patch proposed by domain scorer.\n- **d_mm** → `0.5`: Explicit patch proposed by domain scorer.\n- **BPR_bar** → `1.5`: Explicit patch proposed by domain scorer.\n- **tubing_material** → `PTFE`: Explicit patch proposed by domain scorer.\n",
+            "values_referenced": [],
+            "findings": [
+              "Bounded expert edits applied to 2 candidate(s) before the final scoring pass",
+              "All revised candidates were recomputed deterministically before rescoring"
+            ],
+            "proposals": [],
+            "concerns": [],
+            "status": "REVISE",
+            "had_error": false,
+            "references_to_agents": [],
+            "rules_cited": [],
+            "tool_calls": []
+          },
+          {
+            "agent": "DrChemistryV4",
+            "agent_display_name": "Dr. Chemistry",
+            "round": 1,
+            "chain_of_thought": "### Overall Chemistry Assessment\n\nThe chemistry landscape is dominated by a fundamental material incompatibility: both candidates utilize PTFE tubing for a reaction at 60°C. While PTFE is chemically inert, it is opaque to UV/visible light, which is irrelevant for this thermal EAS reaction but indicates a generic 'opaque material' flag in the photonics domain that must be handled carefully. More critically, Candidate 2 fails hard gates due to excessive pressure drop (62.7 bar vs 20 bar limit) and insufficient conversion (40%). Candidate 1 is the only viable option, offering a 12.8x residence time reduction over batch, though it suffers from low conversion (62%) due to kinetic limitations rather than flow issues. The selectivity advantage in flow is driven by enhanced mixing (r_mix ~0.12) preventing local hotspots of electrophile concentration, which is crucial for EAS to avoid poly-substitution.\n\n---\n### Per-Candidate Analysis\n\n#### ⚠️ Candidate 1 — WARNING\n| Domain | Score |\n|---|---|\n| Chemistry | ████████░░ 0.75 |\n| Photonics | ░░░░░░░░░░ 0.00 |\n| **Combined** | **████░░░░░░ 0.45** |\n\nCandidate 1 is chemically viable but kinetically limited. The residence time (18.8 min) is significantly shorter than the batch time (240 min), achieving a 12.8x reduction, which satisfies the intensification mandate. However, the expected conversion is only 62%, indicating that the residence time is still too short for complete conversion given the reaction kinetics (tau_kinetics ~19.6 min). The mixing regime (Re=16, r_mix=0.125) is adequate for enhanced laminar mixing, which helps maintain selectivity by ensuring rapid homogenization of the electrophile. The material (PTFE) is chemically compatible with the solvent and reagents at 60°C, but its opacity is noted (though irrelevant for thermal reactions, it triggers a photonics warning). The pressure drop (0.29 bar) is well within the pump limit (20 bar). The primary concern is the low conversion, which may require a longer coil or lower flow rate to improve yield, but the selectivity benefit is preserved.\n\n- Beer-Lambert A = **0.0000** (ε = 0.0 M⁻¹cm⁻¹)\n- Wavelength match: ✗\n- Material transparent: ✗ (BLOCK)\n\n**⚠️ Concerns:**\n- Conversion (62%) is below the typical target of 85-90% for process efficiency. Consider increasing residence time to ~30 min or using a larger diameter coil to reduce pressure drop while maintaining volume.\n- PTFE is opaque; ensure no photochemical steps are inadvertently introduced later.\n- Long coil length (24 m) may be difficult to manage in a benchtop setup; consider coiling strategy.\n\n---\n\n#### 🚫 Candidate 2 — BLOCK\n| Domain | Score |\n|---|---|\n| Chemistry | ███░░░░░░░ 0.30 |\n| Photonics | ░░░░░░░░░░ 0.00 |\n| **Combined** | **██░░░░░░░░ 0.18** |\n\nCandidate 2 is fundamentally flawed due to severe pressure drop issues. The calculated pressure drop (62.7 bar) exceeds the pump maximum (20 bar) by more than 3x, making it physically impossible to operate with the specified equipment. Additionally, the coil length (171 m) is impractical for a benchtop reactor. The conversion is also very low (40%) due to the short residence time (10 min) relative to the kinetic requirement (~19.6 min). The high Reynolds number (143) indicates turbulent flow, which is good for mixing but does not compensate for the insufficient residence time. The material (PTFE) is chemically compatible but opaque. This candidate fails multiple hard gates and is not viable.\n\n- Beer-Lambert A = **0.0000** (ε = 0.0 M⁻¹cm⁻¹)\n- Wavelength match: ✗\n- Material transparent: ✗ (BLOCK)\n\n**⛔ Blocking issues:**\n- Pressure drop (62.7 bar) exceeds pump limit (20 bar).\n- Coil length (171 m) exceeds practical benchtop limit (25 m).\n- Conversion (40%) is below minimum threshold (50%).\n\n**⚠️ Concerns:**\n- This candidate is not feasible due to equipment limitations and poor conversion.\n\n---\n",
+            "values_referenced": [],
+            "findings": [
+              "Scored 2 candidates across chemistry and photonics domains",
+              "Blocked: 1 | Accepted: 1"
+            ],
+            "proposals": [],
+            "concerns": [
+              "**Candidate 2 BLOCKED:** Pressure drop (62.7 bar) exceeds pump limit (20 bar)., Coil length (171 m) exceeds practical benchtop limit (25 m)., Conversion (40%) is below minimum threshold (50%)."
+            ],
+            "status": "WARNING",
+            "had_error": false,
+            "references_to_agents": [],
+            "rules_cited": [],
+            "tool_calls": []
+          },
+          {
+            "agent": "DrKineticsV4",
+            "agent_display_name": "Dr. Kinetics",
+            "round": 1,
+            "chain_of_thought": "### Overall Kinetics Assessment\n\nThe kinetics landscape is dominated by a single-pass conversion floor (X ≥ 0.30) and a strict short-τ policy. Both candidates achieve X > 0.30, but Candidate 2 is physically impossible due to ΔP exceeding pump limits (62.7 bar vs 20 bar max) and length exceeding bench limits. Candidate 1 is the only viable option, achieving X=0.62 with τ=18.8 min. The Intensification Factor (IF=12.8) is high for Electrophilic Aromatic Substitution (typically thermal class 8–15×), but justified by enhanced mixing/selectivity control. τ_mixing_required is ~0.83 min, which is well below τ_proposed, ensuring kinetics are not mixing-limited. The primary risk is RTD in laminar flow, but the safety margin (τ/τ_k ≈ 0.96) is sufficient for the floor.\n\n---\n### Per-Candidate Analysis\n\n#### ✅ Candidate 1 — ACCEPT\n**Kinetics score:** ████████░░ 0.85\n\nCandidate 1 proposes τ=18.8 min. τ_kinetics (90% conv time) is 19.64 min. X = 1 - exp(-18.8/19.64) = 0.616. This clears the X_floor (0.30) comfortably. IF = 240/18.8 = 12.8. For EAS (thermal class), 8–15× is standard; 12.8 is within range. τ_mixing_required = t_mix/0.15. Assuming t_mix ~0.125 min (from r_mix data context), τ_mix_req ≈ 0.83 min. τ_proposed (18.8) >> τ_mix_req, so kinetics are reaction-rate limited, not mixing limited. RTD risk: Laminar flow means centerline sees τ/2 = 9.4 min. X_center = 1 - exp(-9.4/19.64) = 0.38. Since 0.38 > 0.30, the worst-case fluid element still clears the floor. This is a robust design. ΔP=0.29 bar is well within limits.\n\n- Conversion X = **0.620** ✗\n- Intensification factor IF = **12.8×**  ✓\n- τ vs literature: τ=18.8 min. τ_lit (batch) = 240 min. τ is 0.078×τ_lit. This is a massive reduction, justified by flow intensification. No direct literature τ_flow for this specific EAS, but IF=12.8 is consistent with thermal intensification ranges.\n- τ_mixing_required = 0.8 min\n- τ_final (decision rule) = **18.8 min**\n- Steady-state wait = 56 min (3×τ)\n- Productivity = 521.2 mg/h\n\n**⚠️ Concerns:**\n- Laminar RTD: Centerline conversion is 0.38, which is close to the 0.30 floor. Monitor for channeling or dead zones.\n- Long coil (24m) requires careful coiling to avoid mechanical stress.\n\n---\n\n#### 🚫 Candidate 2 — BLOCK\n**Kinetics score:** ████░░░░░░ 0.40\n\nCandidate 2 proposes τ=10.0 min. X = 1 - exp(-10.0/19.64) = 0.399. This clears the X_floor (0.30) but is low. IF = 240/10 = 24.0. This exceeds the thermal class upper bound (15×) without a specific analogy for such high intensification in EAS, raising a WARNING on IF validity. However, the primary failure is physical: ΔP=62.7 bar exceeds the 20 bar pump limit by 3x. L=171m exceeds bench limits. τ_mixing_required ≈ 0.83 min (similar r_mix). τ_proposed > τ_mix_req. Despite meeting the kinetic floor, the design is BLOCKED due to fluidic constraints. The short-τ preference cannot override hard physical limits.\n\n- Conversion X = **0.400** ✗\n- Intensification factor IF = **24.0×**  ⚠️\n- τ vs literature: τ=10.0 min. τ_lit=240 min. τ is 0.042×τ_lit. IF=24 is outside the 8-15× range for thermal EAS. Requires strong justification for such high intensification, which is not provided.\n- τ_mixing_required = 0.8 min\n- τ_final (decision rule) = **10.0 min**\n- Steady-state wait = 30 min (3×τ)\n- Productivity = 2014.6 mg/h\n\n**⚠️ Concerns:**\n- ΔP=62.7 bar > 20 bar pump max. Physically impossible.\n- L=171m > 25m bench limit. Impractical.\n- IF=24 exceeds thermal class range (8-15×).\n- X=0.40 is close to the 0.30 floor, leaving little margin for RTD effects.\n\n---\n",
+            "values_referenced": [],
+            "findings": [
+              "Scored 2 candidates across kinetics, conversion, and integration domains",
+              "Blocked: 1 | Accepted: 1"
+            ],
+            "proposals": [],
+            "concerns": [
+              "**Candidate 2 BLOCKED:** ΔP=62.7 bar > 20 bar pump max. Physically impossible., L=171m > 25m bench limit. Impractical., IF=24 exceeds thermal class range (8-15×)., X=0.40 is close to the 0.30 floor, leaving little margin for RTD effects."
+            ],
+            "status": "WARNING",
+            "had_error": false,
+            "references_to_agents": [],
+            "rules_cited": [],
+            "tool_calls": []
+          },
+          {
+            "agent": "DrFluidicsV4",
+            "agent_display_name": "Dr. Fluidics",
+            "round": 1,
+            "chain_of_thought": "### Overall Fluidics & Hardware Assessment\n\nThe fluidics landscape is dominated by severe geometric and pressure constraints. Candidate 1 presents a viable, albeit long, laminar flow path with excellent pressure headroom and adequate mixing, though it requires multi-coil assembly due to length. Candidate 2 is physically impossible for benchtop operation, exceeding both the hard length limit (171 m vs 30 m) and the pump pressure limit (62.7 bar vs 20 bar max), resulting in an immediate BLOCK. The primary risk for Candidate 1 is the practical handling of a 24 m coil, but fluidically it is sound. A syringe pump is required for Candidate 1 due to low flow rate. No hardware trade-offs are viable for Candidate 2 without a complete redesign of residence time and diameter.\n\n---\n### Per-Candidate Analysis\n\n#### ⚠️ Candidate 1 — WARNING\n**Fluidics score:** ██████░░░░ 0.65\n\nCandidate 1 operates in a healthy laminar regime with Re = 16.0, well below the turbulent threshold. The pressure drop is minimal at 0.29 bar, providing 98.6% pump headroom, which is excellent for stability. Mixing is adequate with r_mix = 0.125, which is within the tolerated range (< 0.20) and does not trigger the dual criterion fail (Da_mass = 1.10, but r_mix is not > 0.20). The coil length is 24.0 m, which exceeds the single-bench cassette limit of 15 m, incurring a linear geometry penalty, but remains under the 30 m hard block. The Dean number is low (De ≈ 4.2), indicating no secondary flow enhancement, but laminar diffusion is sufficient. Tubing material PTFE is acceptable, though FEP is preferred for photoreactors (not applicable here). Dead volume impact is negligible. Verdict is WARNING due to geometry length, but fluidically acceptable.\n\n- Re = **16** (laminar)\n- ΔP = 0.290 bar | Pump headroom = **98.6%** ✓\n- r_mix = **0.125** ⚠️\n- L = 24.0 m\n- Pump: syringe pump (Q=0.56 mL/min < 2 mL/min)\n- Tubing material: PTFE\n- Dead volume: V_dead/Q = 0.18 min = 1.0% of τ=18.8 min — negligible\n\n**⚠️ Concerns:**\n- L=24.0 m requires multi-coil assembly (e.g., 2x12m or 3x8m) to fit on bench.\n- r_mix=0.125 is acceptable but close to 0.20 limit; ensure no fouling increases effective d.\n\n---\n\n#### 🚫 Candidate 2 — BLOCK\n**Fluidics score:** ░░░░░░░░░░ 0.00\n\nCandidate 2 is BLOCKED due to multiple hard policy violations. First, the pressure drop is 62.7 bar, which exceeds the hard limit of 5 bar and the pump maximum of 20 bar (headroom is negative). Second, the coil length is 171.4 m, which vastly exceeds the hard limit of 30 m, making it bench-impractical. The Reynolds number is 143, which is laminar, but the extreme length and high flow rate (3.37 mL/min) drive the pressure drop to unsustainable levels. Mixing is good (r_mix = 0.104), but irrelevant given the hardware impossibility. The pump would stall or fail immediately. No fluidics adjustment can fix this without drastically increasing diameter (which increases volume/length further) or reducing residence time (which violates kinetics).\n\n- Re = **143** (laminar)\n- r_mix = **0.104** ⚠️\n- L = 171.4 m\n- Pump: HPLC piston (Q=3.37 mL/min)\n- Tubing material: PTFE\n- Dead volume: V_dead/Q = 0.03 min = 0.3% of τ=10.0 min — negligible\n\n**⚠️ Concerns:**\n- ΔP=62.7 bar > 5 bar hard limit and > 20 bar pump max.\n- L=171.4 m > 30 m hard limit.\n- Pump headroom is negative; system cannot operate.\n\n---\n",
+            "values_referenced": [],
+            "findings": [
+              "Scored 2 candidates across fluidics, transport phenomena, and hardware",
+              "Blocked: 1 | Accepted: 1"
+            ],
+            "proposals": [],
+            "concerns": [
+              "**Candidate 2 BLOCKED:** ΔP=62.7 bar > 5 bar hard limit and > 20 bar pump max., L=171.4 m > 30 m hard limit., Pump headroom is negative; system cannot operate."
+            ],
+            "status": "WARNING",
+            "had_error": false,
+            "references_to_agents": [],
+            "rules_cited": [],
+            "tool_calls": []
+          },
+          {
+            "agent": "DrSafetyV4",
+            "agent_display_name": "Dr. Safety",
+            "round": 1,
+            "chain_of_thought": "### Overall Safety Assessment\n\nThe safety landscape is dominated by a critical material compatibility failure and severe pressure integrity risks. Both candidates specify PTFE tubing, which is opaque and therefore BLOCKED for any photochemical application; however, even if this were a thermal reaction, Candidate 2 presents an immediate physical hazard with a calculated pressure drop (62.7 bar) exceeding the pump's maximum rating (20 bar) by 3x, leading to certain equipment failure. Candidate 1 has manageable pressure (0.29 bar) but requires material substitution to FEP/PFA. The reaction involves electrophilic aromatic substitution at 60°C, requiring standard thermal and chemical handling precautions (closed system, inert atmosphere). No thermal runaway risk is identified (Da_thermal << 0.1). The primary safety mandate is to replace PTFE with transparent FEP/PFA and ensure BPR settings are adequate for the operating pressure plus safety margin.\n\n---\n### Per-Candidate Analysis\n\n#### 🔄 Candidate 1 — REVISE\n**Safety score:** ██████░░░░ 0.65\n\nCandidate 1 operates at 60°C with a low pressure drop of 0.29 bar. Thermal safety is excellent (Da_thermal ~0.02). However, the specified material is PTFE, which is opaque and incompatible with photochemical reactors (BLOCK condition). Even for thermal use, PTFE is less chemically resistant than FEP/PFA for many organic solvents. The BPR is set to 1.5 bar. Calculated P_vap for typical organic solvents at 60°C is ~0.2-0.5 bar. P_min = P_vap + ΔP + 0.5 bar ≈ 1.0 bar. P_recommended = P_min + 2.0 bar ≈ 3.0 bar. The current BPR of 1.5 bar is below the recommended robustness margin but above the hard floor. The primary safety action is changing tubing to FEP. Hazard flags include the electrophilic reagent (likely corrosive/irritant) and solvent flammability.\n\n- Da_thermal = **0.0200** ✓\n- BPR required = 3.00 bar | current = 1.50 bar ✗ REVISE\n- Material: **FEP** — PTFE is opaque and blocks light transmission, violating photochemical reactor requirements. FEP is transparent, chemically compatible with organic solvents at 60°C, and suitable for pressures < 20 bar. PFA is an alternative but FEP is standard for photochemistry.\n\n**🔶 Hazard flags:**\n- Electrophilic reagent — likely corrosive/irritant; use closed system and PPE\n- Organic solvent — flammable; ensure no ignition sources, use inert N₂ blanket\n- PTFE tubing — opaque; BLOCK for photochemistry. Must replace with FEP/PFA.\n\n**⛔ Blocking issues:**\n- PTFE is opaque and incompatible with photochemical reactors\n\n**📋 Required conditions:**\n- Replace PTFE with FEP tubing\n- Increase BPR to 3.0 bar for robustness margin\n- Ensure N₂ inerting of all feed lines\n\n---\n\n#### 🚫 Candidate 2 — BLOCK\n**Safety score:** █░░░░░░░░░ 0.10\n\nCandidate 2 is physically unsafe due to extreme pressure drop. The calculated ΔP is 62.7 bar, which exceeds the pump's maximum pressure of 20 bar by 313%. This will cause immediate pump failure, potential tubing rupture, and hazardous release of pressurized chemicals. The BPR is set to 1.5 bar, which is grossly inadequate for a system attempting to operate at 62 bar (though the system cannot reach this pressure safely). The material is PTFE, which is also opaque and blocked for photochemistry. The length of 171 m is impractical for benchtop flow chemistry. This candidate must be BLOCKED due to physical feasibility and safety risks.\n\n- Da_thermal = **0.0200** ✓\n- BPR required = 65.00 bar | current = 1.50 bar ✗ REVISE\n- Material: **FEP** — PTFE is opaque and incompatible with photochemical reactors. Additionally, the pressure drop of 62.7 bar exceeds the rating of standard FEP/PTFE tubing and the pump. A high-pressure rated material (e.g., stainless steel or specialized high-pressure PFA) would be needed if the pressure were feasible, but the pressure itself is the primary blocker.\n\n**🔶 Hazard flags:**\n- ΔP = 62.7 bar > Pump Max 20 bar — EQUIPMENT FAILURE RISK\n- PTFE tubing — opaque; BLOCK for photochemistry\n- High pressure risk — potential for tubing rupture and chemical release\n- Electrophilic reagent — corrosive/irritant\n\n**⛔ Blocking issues:**\n- Pressure drop (62.7 bar) exceeds pump maximum (20 bar) by 3x\n- PTFE is opaque and incompatible with photochemical reactors\n- Coil length (171 m) is impractical for benchtop operation\n\n---\n",
+            "values_referenced": [],
+            "findings": [
+              "Scored 2 candidates across thermal safety, BPR, materials, and hazards",
+              "Blocked: 1 | Accepted/Conditional: 1"
+            ],
+            "proposals": [],
+            "concerns": [
+              "**Candidate 2 BLOCKED:** Pressure drop (62.7 bar) exceeds pump maximum (20 bar) by 3x, PTFE is opaque and incompatible with photochemical reactors, Coil length (171 m) is impractical for benchtop operation"
+            ],
+            "status": "WARNING",
+            "had_error": false,
+            "references_to_agents": [],
+            "rules_cited": [],
+            "tool_calls": []
+          },
+          {
+            "agent": "SkepticV4",
+            "agent_display_name": "Skeptic",
+            "round": 1,
+            "chain_of_thought": "### Arithmetic & Consistency Audit\n\nAUDIT: 3 issues found (1 CRITICAL, 2 HIGH, 0 scope violations). 1 candidates flagged for disqualification. CRITICAL errors found — council MUST correct before proceeding.\n\n\n#### 🔴 CRITICAL severity (1 issues)\n\n**[BPR_BELOW_HARD_FLOOR]** candidate 2 (DR. SAFETY)\n\n> BPR_current=1.5 bar < hard floor=62.8 bar (gas_liquid_floor=N/A). Boiling/phase-separation risk — council MUST raise BPR or reduce ΔP.\n\n\n#### 🟠 HIGH severity (2 issues)\n\n**[INSUFFICIENT_CONVERSION_HARD_GATE]** candidate 2 (SKEPTIC)\n\n> Candidate 2: Designer hard-gate flagged insufficient conversion (dP=62.694 bar > 80% of pump_max=20.0 bar; L=171.4 m > 25.0 m bench limit). This cannot be rescued by batch-like tau inflation under the intensification policy.\n\n**[WEAK_POOL]** candidate None (SKEPTIC)\n\n> No candidate strongly exploits declared primary flow advantage 'selectivity'.\n\n\n#### 🚫 Disqualification Recommendations\n\n- Candidate 2: BPR_current=1.5 bar < hard floor=62.8 bar (gas_liquid_floor=N/A). Boiling/phase-separation risk — council MUST raise BPR or reduce ΔP. | Candidate 2: Designer hard-gate flagged insufficient conversion (dP=62.694 bar > 80% of pump_max=20.0 bar; L=171.4 m > 25.0 m bench limit). This cannot be rescued by batch-like tau inflation under the intensification policy.\n",
+            "values_referenced": [],
+            "findings": [
+              "Audit complete: 3 issues found (1 CRITICAL, 2 HIGH)",
+              "Disqualification recommendations: 1 candidates",
+              "Council may proceed: 🔴 No — CRITICAL errors must be resolved"
+            ],
+            "proposals": [],
+            "concerns": [
+              "[CRITICAL] Candidate 2 — BPR_BELOW_HARD_FLOOR: BPR_current=1.5 bar < hard floor=62.8 bar (gas_liquid_floor=N/A). Boiling/phase-separation risk — council MUST raise BPR or reduce ΔP.",
+              "[HIGH] Candidate 2 — INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 2: Designer hard-gate flagged insufficient conversion (dP=62.694 bar > 80% of pump_max=20.0 bar; L=171.4 m > 25.0 m bench limit). This cannot be rescued by batch-like tau inflation under the",
+              "[HIGH] Candidate None — WEAK_POOL: No candidate strongly exploits declared primary flow advantage 'selectivity'."
+            ],
+            "status": "REVISE",
+            "had_error": false,
+            "references_to_agents": [],
+            "rules_cited": [],
+            "tool_calls": []
+          },
+          {
+            "agent": "RevisionAgent",
+            "agent_display_name": "Revision Engineer",
+            "round": 1,
+            "chain_of_thought": "### Stage 3.5 — Parameter Revision\n\n**Domains that triggered revision:** safety\n\n**Changes applied to winner:**\n\n- **BPR_bar**: Dr. Safety REVISE: BPR_adequate=false. Agent reported BPR_required_bar=3.0. Rule: BPR = BPR_required_bar + 0.5 margin. 3.0 + 0.5 = 3.5 bar.\n- **tubing_material**: Dr. Safety REVISE: PTFE flagged as incompatible (opaque/chemical resistance). Recommendation: FEP for standard thermal/organic solvent use.",
+            "values_referenced": [],
+            "findings": [
+              "Revised 2 parameter(s) on winner id=1: BPR_bar=3.5, tubing_material=FEP"
+            ],
+            "proposals": [],
+            "concerns": [],
+            "status": "REVISE",
+            "had_error": false,
+            "references_to_agents": [],
+            "rules_cited": [],
+            "tool_calls": []
+          }
+        ],
+        [
+          {
+            "agent": "ChiefV4",
+            "agent_display_name": "Chief Engineer",
+            "round": 2,
+            "chain_of_thought": "### Selection Rationale\n\nCandidate 1 is selected as the sole viable flow chemistry design, as Candidate 2 was disqualified due to critical safety and hardware violations (excessive pressure drop and coil length). Candidate 1 achieves a residence time of 18.8 minutes, satisfying the intensification mandate of a 3.0x reduction over typical batch times for this electrophilic aromatic substitution. The primary flow advantage is selectivity control via enhanced laminar mixing (r_mix=0.125), which mitigates side reactions common in batch processes. Although the conversion (X=0.62) is moderate, it is acceptable for a first-pass continuous design, with potential for optimization via temperature or catalyst loading. The main uncertainty remains the exact kinetic enhancement factor in flow versus batch, which affects the predicted conversion. The first bench experiment should verify the conversion and selectivity at the design residence time to confirm the kinetic model.\n\n### Resolved Trade-offs\n\n- id=1 vs id=2: id=2 disqualified due to ΔP=62.7 bar exceeding pump limit (20 bar) and L=171 m exceeding bench limit (25 m). id=1 has ΔP=0.29 bar and L=24 m, well within limits.\n\n### Remaining Uncertainties\n\n- Conversion X=0.62 is lower than ideal; may require longer residence time or higher temperature to reach >90%.\n- Mixing regime r_mix=0.125 is acceptable but close to threshold; verify no local hot spots or concentration gradients.\n\n### Pump Flowrate Derivation\n\n| Stream | Role | Q (mL/min) | Derivation |\n|---|---|---|---|\n| A | substrate | **0.282** | Assuming 1:1 stoichiometry and equal split. Q_total=0.564 mL/min. Q_A = Q_total / 2 = 0.282 mL/min. |\n| B | reagent | **0.282** | Assuming 1:1 stoichiometry and equal split. Q_total=0.564 mL/min. Q_B = Q_total / 2 = 0.282 mL/min. |\n\nṅ_limiting = **0.0564 mmol/min** | Q_total = **0.564 mL/min**\n\n### Recommended First Experiment\n\nRun reaction at τ=18.8 min, T=60°C, Q=0.56 mL/min. Sample outlet to measure conversion and selectivity. Compare with batch data at equivalent residence time.\n\n### DFMEA — Failure Mode Analysis\n\n| Rank | Mode | Cause | Severity | Likelihood | RPN | Mitigation |\n|---|---|---|---|---|---|---|\n| 1 | Solvent cavitation and pump failure | Back Pressure Regulator (BPR) set at 1.5 bar is insufficient to maintain liquid phase for typical organic solvents at 60°C (P_vap ~0.3-0.5 bar) given the safety margin requirement (P_min ~1.0 bar). This leads to vapor formation at the pump inlet or within the reactor, causing flow instability and potential dry-running of the pump. | 9 | 7 | **63** | Increase BPR setting to minimum 3.0 bar to ensure adequate subcooling margin and prevent cavitation. |\n| 2 | Reactor material degradation/leaching | Use of PTFE tubing for electrophilic aromatic substitution at 60°C. PTFE is semi-permeable to small molecules and may swell or leach additives depending on the specific 'Industrial batch solvent', potentially contaminating the product or altering reaction kinetics. PTFE is also opaque, preventing visual inspection of flow or precipitation. | 7 | 5 | **35** | Switch to FEP or PFA tubing which offers better chemical resistance, clarity for inspection, and lower permeability. |\n| 3 | Quench inefficiency leading to runaway | The process requires quenching, but the design candidate focuses on the reaction stage. If the quench mixer is not optimized for the low Reynolds number (Re=16, laminar flow), mixing will be diffusion-limited. Incomplete quenching of the electrophile can lead to post-reactor side reactions or thermal excursions if the quench is exothermic. | 8 | 4 | **32** | Implement a static mixer or T-mixer specifically designed for laminar flow enhancement immediately post-reactor, and validate quench efficiency via inline IR or UV-Vis. |\n\n**Single points of failure:**\n- BPR valve failure (stuck open) leading to pressure drop and cavitation\n- PTFE tubing permeability leading to solvent loss and concentration drift\n\n**Validation experiments:**\n1. Pressure stability test: Run solvent at 60°C with BPR set to 1.5 bar for 2 hours; monitor for pressure oscillations indicating cavitation. Repeat at 3.0 bar to confirm stability.\n1. Material compatibility test: Soak PTFE tubing in the specific industrial solvent at 60°C for 48 hours; measure weight change and check for leachables via GC-MS.\n1. Quench efficiency validation: Inject a pulse of reactant and monitor conversion/selectivity at the outlet with and without the proposed quench mixer to quantify mixing limitations.\n",
+            "values_referenced": [],
+            "findings": [
+              "**Winner: Candidate 1** | Combined score: 0.666",
+              "PVS: 0.770 | Selection flag: REQUIRES_HUMAN_REVIEW",
+              "Runner-ups: []",
+              "Objective boosted: chemistry"
+            ],
+            "proposals": [],
+            "concerns": [
+              "Conversion X=0.62 is lower than ideal; may require longer residence time or higher temperature to reach >90%.",
+              "Mixing regime r_mix=0.125 is acceptable but close to threshold; verify no local hot spots or concentration gradients."
+            ],
+            "status": "ACCEPT",
+            "had_error": false,
+            "references_to_agents": [],
+            "rules_cited": [],
+            "tool_calls": []
+          }
+        ]
+      ],
+      "sanity_checks": [],
+      "total_rounds": 2,
+      "consensus_reached": false,
+      "all_changes_applied": {
+        "residence_time_min": "18.8",
+        "flow_rate_mL_min": "0.564",
+        "tubing_ID_mm": "0.75",
+        "reactor_volume_mL": "10.603",
+        "BPR_bar": "3.5",
+        "tubing_material": "FEP"
+      },
+      "summary": "## Council v4 — Stage-gated Engineering Design Summary\n\n**Objectives**: balanced\n**Designer**: 2 survivors, 1 hard-gate disqualified\n\n### Candidate Shortlist\n| id | τ min | d mm | Q mL/min | C M | V_R mL | L m | Re | ΔP bar | BPR bar | material | r_mix | X | prod mg/h | pareto | flags |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n| 1 | 18.8 | 0.75 | 0.56398 | 0.1 | 10.6028 | 24.0 | 16 | 0.290 | 0.0 | PTFE | 0.125 | 0.62 | 521.2 | ✓ | ★ ⚠2 |\n| 2 | 5.6 | 1.0 | 3.36599 | 0.1 | 18.8495 | 24.0 | 71 | 0.549 | 0.0 | PTFE | 0.744 | 0.25 | 1252.6 | ✓ | ★ ⚠3 ⛔2 |\n\n### Pre-selection Expert Refinement\nPre-selection expert refinement applied bounded edits to 2/2 candidates before rescoring.\n- id 1: concentration_M=0.1, BPR_bar=1.5, tubing_material=PTFE\n- id 2: concentration_M=0.1, tau_min=10.0, d_mm=0.5, BPR_bar=1.5, tubing_material=PTFE\n\n### Weighted Scores (all surviving candidates)\n| id | combined | PVS | chemistry | kinetics | fluidics | safety | geometry | disq |\n|---|---|---|---|---|---|---|---|---|\n| 1 | 0.666 | 0.770 | 0.450 | 0.850 | 0.650 | 0.650 | 0.526 |  |\n| 2 | 0.418 | 0.770 | 0.180 | 0.400 | 0.000 | 0.100 | 0.204 | ✗ |\n\n### Skeptic Audit\nAUDIT: 3 issues found (1 CRITICAL, 2 HIGH, 0 scope violations). 1 candidates flagged for disqualification. CRITICAL errors found — council MUST correct before proceeding.\n- [CRITICAL] id 2: BPR_current=1.5 bar < hard floor=62.8 bar (gas_liquid_floor=N/A). Boiling/phase-separation risk — council MUST raise BPR or reduce ΔP.\n- [HIGH] id 2: Candidate 2: Designer hard-gate flagged insufficient conversion (dP=62.694 bar > 80% of pump_max=20.0 bar; L=171.4 m > 25.0 m bench limit). This cannot be rescued by batch-like tau inflation under the\n- [HIGH] id None: No candidate strongly exploits declared primary flow advantage 'selectivity'.\n\n### Winner — candidate id=1\n- τ=18.8 min, d=0.75 mm, Q=0.56398 mL/min, V_R=10.6028 mL, L=24.0 m\n- Re=16, ΔP=0.290 bar, r_mix=0.125, X=0.62, prod=521.2 mg/h\n- **Rationale**: Candidate 1 is selected as the sole viable flow chemistry design, as Candidate 2 was disqualified due to critical safety and hardware violations (excessive pressure drop and coil length). Candidate 1 achieves a residence time of 18.8 minutes, satisfying the intensification mandate of a 3.0x reduction over typical batch times for this electrophilic aromatic substitution. The primary flow advantage is selectivity control via enhanced laminar mixing (r_mix=0.125), which mitigates side reactions common in batch processes. Although the conversion (X=0.62) is moderate, it is acceptable for a first-pass continuous design, with potential for optimization via temperature or catalyst loading. The main uncertainty remains the exact kinetic enhancement factor in flow versus batch, which affects the predicted conversion. The first bench experiment should verify the conversion and selectivity at the design residence time to confirm the kinetic model.\n- **Flow-value justification**: Selected because it provides selectivity over batch with 0.0x residence-time reduction (tau=18.80 min vs batch=0.00 min), d=0.75 mm, Q=0.564 mL/min, L=24.00 m, delta_P=0.290 bar, and PVS=0.77.\n- **Remaining uncertainties**:\n  - Conversion X=0.62 is lower than ideal; may require longer residence time or higher temperature to reach >90%.\n  - Mixing regime r_mix=0.125 is acceptable but close to threshold; verify no local hot spots or concentration gradients.\n\n### DFMEA — Top Failure Modes\n- [1] Solvent cavitation and pump failure: severity=9, likelihood=7, RPN=63 | mitigation: Increase BPR setting to minimum 3.0 bar to ensure adequate subcooling margin and prevent cavitation.\n- [2] Reactor material degradation/leaching: severity=7, likelihood=5, RPN=35 | mitigation: Switch to FEP or PFA tubing which offers better chemical resistance, clarity for inspection, and lower permeability.\n- [3] Quench inefficiency leading to runaway: severity=8, likelihood=4, RPN=32 | mitigation: Implement a static mixer or T-mixer specifically designed for laminar flow enhancement immediately post-reactor, and validate quench efficiency via inline IR or UV-Vis.\n\n### Validation Experiments\n- Pressure stability test: Run solvent at 60°C with BPR set to 1.5 bar for 2 hours; monitor for pressure oscillations indicating cavitation. Repeat at 3.0 bar to confirm stability.\n- Material compatibility test: Soak PTFE tubing in the specific industrial solvent at 60°C for 48 hours; measure weight change and check for leachables via GC-MS.\n- Quench efficiency validation: Inject a pulse of reactant and monitor conversion/selectivity at the outlet with and without the proposed quench mixer to quantify mixing limitations.",
+      "trade_off_summary": "AUDIT: 3 issues found (1 CRITICAL, 2 HIGH, 0 scope violations). 1 candidates flagged for disqualification. CRITICAL errors found — council MUST correct before proceeding.",
+      "trade_off_matrix": "| id | combined | chemistry | kinetics | fluidics | safety | geometry |\n|---|---|---|---|---|---|---|\n| 1 | 0.666 | 0.450 | 0.850 | 0.650 | 0.650 | 0.526 |\n| 2 | 0.418 | 0.180 | 0.400 | 0.000 | 0.100 | 0.204 |"
+    }
+  },
+  "final_calculations": {
+    "steps": [
+      {
+        "step": 1,
+        "name": "Batch Conditions",
+        "status": "PASS",
+        "summary": "T = 60 °C, C₀ = 0.1 M, t_batch = 4.0 h (14400 s), X = 0.89",
+        "values": {
+          "T_C": 60.0,
+          "T_K": 333.15,
+          "C_M": 0.1,
+          "t_batch_h": 4.0,
+          "t_batch_s": 14400.0,
+          "X": 0.89
+        },
+        "equations": [],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "Concentration not specified → assumed 0.1 M",
+          "Intensification policy active downstream → tau_flow must remain ≤ 240.0 min"
+        ]
+      },
+      {
+        "step": 2,
+        "name": "Kinetics & Residence Time",
+        "status": "PASS",
+        "summary": "τ = 18.8 min (council-approved — not re-derived from kinetics). Implied IF = 13× vs batch.",
+        "values": {
+          "tau_primary_min": 18.8,
+          "method": "council-approved",
+          "IF_implied": 12.8,
+          "IF_class": 10.0,
+          "k_flow": 0.0019568040010547174
+        },
+        "equations": [],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "τ set by ENGINE council — kinetics estimation bypassed"
+        ]
+      },
+      {
+        "step": 3,
+        "name": "Reactor Sizing",
+        "status": "PASS",
+        "summary": "V_R = 5.00 mL, d = 0.50 mm, L = 25.47 m, Pe = 866 (✓ plug flow)",
+        "values": {
+          "V_R_mL": 5.000048,
+          "liquid_holdup_mL": 5.000048,
+          "gas_holdup": 0.0,
+          "d_mm": 0.5,
+          "L_m": 25.465035356695847,
+          "Q_mL_min": 0.26596,
+          "v_m_s": 0.022575385954517593,
+          "residence_time_basis": "liquid-only reactor volume / liquid flow",
+          "residence_time_inlet_min": null,
+          "residence_time_in_channel_min": null,
+          "Pe": 866.3,
+          "Pe_adequate": true
+        },
+        "equations": [
+          "V_R = \\tau \\times Q = 1128.0 \\times 4.433e-09 = 5.000e-06\\;\\mathrm{m^3} = 5.00\\;\\mathrm{mL}",
+          "L = \\frac{4\\,V_R}{\\pi\\,d^2} = \\frac{4 \\times 5.000e-06}{\\pi \\times (0.0005)^2} = 25.47\\;\\mathrm{m}",
+          "Pe = \\frac{192\\,\\tau\\,D_{\\mathrm{mol}}}{d^2} = \\frac{192 \\times 1128.0 \\times 1e-09}{0.0005^2} = 866\\;\\checkmark"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 4,
+        "name": "Fluid Dynamics",
+        "status": "PASS",
+        "summary": "Re = 11.3 (laminar), v = 0.0226 m/s",
+        "values": {
+          "Re": 11.287692977258796,
+          "regime": "laminar",
+          "v_m_s": 0.022575385954517593,
+          "mu_Pa_s": 0.001,
+          "rho_kg_m3": 1000.0,
+          "mu_cP": 1.0,
+          "rho_g_mL": 1.0
+        },
+        "equations": [
+          "v = \\frac{4\\,Q}{\\pi\\,d^2} = \\frac{4 \\times 4.433e-09}{\\pi \\times (0.0005)^2} = 0.0226\\;\\mathrm{m/s}",
+          "Re = \\frac{\\rho\\,v\\,d}{\\mu} = \\frac{1000 \\times 0.0226 \\times 0.0005}{1.0000e-03} = 11.3"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 5,
+        "name": "Pressure Drop",
+        "status": "PASS",
+        "summary": "ΔP = 0.7359 bar (pump max = 20 bar, margin = 96 %)",
+        "values": {
+          "dP_bar": 0.7358502419492419,
+          "dP_Pa": 73585.02419492418,
+          "pump_max_bar": 20.0,
+          "margin_pct": 96.32074879025379
+        },
+        "equations": [
+          "\\Delta P = \\frac{128\\,\\mu\\,L\\,Q}{\\pi\\,d^4} = \\frac{128 \\times 1.0000e-03 \\times 25.47 \\times 4.433e-09}{\\pi \\times (0.0005)^4} \\times \\phi^2_{2p} = 0.7359\\;\\mathrm{bar}"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 6,
+        "name": "Mass Transfer",
+        "status": "PASS",
+        "summary": "t_mix = 25.3 s, Da = 0.489 — Kinetically controlled — mixing is not limiting",
+        "values": {
+          "t_mix_s": 25.330295910584443,
+          "Da_mass": 0.48920100026367935,
+          "D_m2_s": 1e-09,
+          "interpretation": "Kinetically controlled — mixing is not limiting"
+        },
+        "equations": [
+          "t_{\\mathrm{mix}} \\approx \\frac{d^2}{D \\cdot \\pi^2} = \\frac{(0.0005)^2}{1.0e-09 \\times \\pi^2} = 25.3\\;\\mathrm{s}",
+          "Da = \\frac{k \\cdot d^2}{D} = \\frac{1.957e-03 \\times (0.0005)^2}{1.0e-09} = 0.489"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "D = 1e-09 m²/s (typical for small organic molecules in liquid)"
+        ]
+      },
+      {
+        "step": 7,
+        "name": "Heat Transfer",
+        "status": "PASS",
+        "summary": "Q_gen = 0.0587 W, Q_rem = 120.0010 W, Da_th = 0.0005 — Thermally safe",
+        "values": {
+          "Q_gen_W": 0.05870468359119383,
+          "Q_rem_W": 120.00098538549614,
+          "Da_th": 0.0004892016794912848,
+          "S_V_m_inv": 8000.0,
+          "U_W_m2K": 300,
+          "A_wall_m2": 0.040000328461832046,
+          "UA_W_K": 12.000099,
+          "heat_transfer_score": 1.0,
+          "dH_J_mol": -60000,
+          "dT_lm_C": 10.0,
+          "r_mol_m3_s": 0.19568040010547175
+        },
+        "equations": [
+          "\\dot{Q}_{\\mathrm{rxn}} = |\\Delta H_r| \\cdot r \\cdot V_R = 60000 \\times 0.196 \\times 5.000e-06 = 0.0587\\;\\mathrm{W}",
+          "A_{\\mathrm{wall}} = \\pi\\,d\\,L = \\pi \\times 0.0005 \\times 25.46 = 0.04000\\;\\mathrm{m^2}",
+          "\\dot{Q}_{\\mathrm{rem}} = U \\cdot A \\cdot \\Delta T_{\\mathrm{lm}} = 300 \\times 0.04000 \\times 10 = 120.0010\\;\\mathrm{W}",
+          "Da_{\\mathrm{th}} = \\frac{\\dot{Q}_{\\mathrm{rxn}}}{\\dot{Q}_{\\mathrm{rem}}} = \\frac{0.0587}{120.0010} = 0.0005",
+          "\\frac{S}{V} = \\frac{4}{d} = \\frac{4}{0.0005} = 8000\\;\\mathrm{m^{-1}}"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "ΔH_r ≈ -60 kJ/mol (estimated for default)",
+          "U ≈ 300 W/m²·K (coil in temperature-controlled bath)",
+          "ΔT_lm ≈ 10.0 °C (conservative estimate)"
+        ]
+      },
+      {
+        "step": 8,
+        "name": "Back-Pressure Regulator",
+        "status": "PASS",
+        "summary": "BPR not required (T = 60.0 °C, bp = ? °C — safe margin)",
+        "values": {
+          "bpr_required": false,
+          "bpr_bar": 0.0,
+          "P_vapor_bar": 0,
+          "dP_system_bar": 0.73585,
+          "solvent_bp_C": null,
+          "gas_liquid": false,
+          "gas_species": "",
+          "gas_pressure_abs_bar": 1.01325,
+          "gas_flow_sccm": 0.0,
+          "dissolved_o2_mM": 0.0
+        },
+        "equations": [],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 9,
+        "name": "Process Metrics",
+        "status": "PASS",
+        "summary": "STY = 0.2840 mol/(L·h), P = 1.420 mmol/h, startup waste = 15.0 mL, IF = 13×",
+        "values": {
+          "STY_mol_L_h": 0.2840425531914894,
+          "productivity_mmol_h": 1.4202263999999998,
+          "IF": 12.76595744680851,
+          "n_molar_flow_mmol_min": null,
+          "P_batch_mmol_h": null,
+          "P_flow_mmol_h": null,
+          "C_reactor_M": null,
+          "startup_waste_mL": 15.0,
+          "productivity_closure_ok": null,
+          "is_gas_liquid": false,
+          "liquid_flow_rate_mL_min": 0.26596,
+          "gas_flow_sccm": 0.0,
+          "gas_holdup": 0.0,
+          "liquid_holdup_volume_mL": 0.0,
+          "total_reactor_volume_mL": 5.0
+        },
+        "equations": [
+          "STY = \\frac{C_0 \\cdot X \\cdot 60}{\\tau} = \\frac{0.1 \\times 0.89 \\times 60}{18.8} = 0.2840\\;\\mathrm{mol/(L \\cdot h)}",
+          "P = Q \\cdot C_0 \\cdot X \\cdot 60 = 0.266 \\times 0.1 \\times 0.89 \\times 60 = 1.420\\;\\mathrm{mmol/h}",
+          "V_{\\mathrm{startup}} = 3 \\cdot \\tau \\cdot Q = 3 \\times 18.8 \\times 0.266 = 15.0\\;\\mathrm{mL}",
+          "IF = \\frac{t_{\\mathrm{batch}}}{\\tau_{\\mathrm{flow}}} = \\frac{14400}{1128.0} = 12.8\\times"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      }
+    ],
+    "temperature_C": 60.0,
+    "temperature_K": 333.15,
+    "concentration_M": 0.1,
+    "batch_time_s": 14400.0,
+    "target_conversion": 0.89,
+    "rate_constant": 0.0019568040010547174,
+    "reaction_order": 1,
+    "kinetics_method": "council-approved",
+    "residence_time_s": 1128.0,
+    "residence_time_min": 18.8,
+    "residence_time_inlet_min": 0.0,
+    "residence_time_in_channel_min": 0.0,
+    "residence_time_basis": "",
+    "residence_time_range_min": [
+      15.04,
+      22.56
+    ],
+    "intensification_factor": 12.8,
+    "tau_analogy_min": null,
+    "tau_class_min": null,
+    "tau_kinetics_min": null,
+    "if_analogy": 15.5,
+    "if_class": 10.0,
+    "n_analogy_datapoints": 2,
+    "arrhenius_correction": null,
+    "flow_rate_mL_min": 0.26596,
+    "flow_rate_m3_s": 4.4326666666666665e-09,
+    "reactor_volume_mL": 5.0,
+    "reactor_volume_m3": 5.000048e-06,
+    "tubing_ID_mm": 0.5,
+    "tubing_ID_m": 0.0005,
+    "tubing_length_m": 25.465,
+    "velocity_m_s": 0.022575385954517593,
+    "reynolds_number": 11.29,
+    "flow_regime": "laminar",
+    "viscosity_Pa_s": 0.001,
+    "density_kg_m3": 1000.0,
+    "pressure_drop_bar": 0.73585,
+    "pump_max_bar": 20.0,
+    "pump_adequate": true,
+    "is_gas_liquid": false,
+    "gas_species": "",
+    "gas_oxygen_fraction": 0.0,
+    "gas_reagent_fraction": 0.0,
+    "liquid_flow_rate_mL_min": 0.26596,
+    "gas_flow_sccm": 0.0,
+    "gas_sccm_uncapped": 0.0,
+    "gas_flow_actual_mL_min": 0.0,
+    "gas_actual_uncapped_mL_min": 0.0,
+    "gas_flow_capped_by_holdup": false,
+    "gas_pressure_abs_bar": 1.01325,
+    "gas_liquid_ratio": 0.0,
+    "gas_holdup": 0.0,
+    "liquid_holdup_volume_mL": 0.0,
+    "two_phase_multiplier": 1.0,
+    "two_phase_pressure_drop_bar": 0.0,
+    "o2_supply_mmol_min": 0.0,
+    "o2_required_mmol_min": 0.0,
+    "gas_supply_mmol_min": 0.0,
+    "gas_required_mmol_min": 0.0,
+    "target_gas_equiv_inlet": 0.0,
+    "explicit_gas_equiv_inlet": 0.0,
+    "o2_equiv_supplied": 0.0,
+    "gas_equiv_supplied": 0.0,
+    "gas_flow_recomputed_from_equiv": false,
+    "dissolved_o2_mM": 0.0,
+    "kLa_s": 0.0,
+    "o2_transfer_capacity_mmol_min": 0.0,
+    "o2_transfer_sufficiency": 0.0,
+    "mixing_time_s": 25.33,
+    "damkohler_mass": 0.4892,
+    "mass_transfer_limited": false,
+    "heat_generation_W": 0.058705,
+    "heat_removal_W": 120.000985,
+    "thermal_damkohler": 0.000489,
+    "thermal_safe": true,
+    "surface_to_volume": 8000.0,
+    "heat_transfer_area_m2": 0.04000033,
+    "UA_W_K": 12.000099,
+    "heat_transfer_score": 1.0,
+    "bpr_required": false,
+    "bpr_pressure_bar": 0.0,
+    "vapor_pressure_bar": 0.0,
+    "space_time_yield_mol_L_h": 0.284,
+    "productivity_mmol_h": 1.42,
+    "n_molar_flow_mmol_min": null,
+    "P_batch_mmol_h": null,
+    "P_flow_mmol_h": null,
+    "C_reactor_M": null,
+    "startup_waste_mL": 15.0,
+    "productivity_closure_ok": null,
+    "Pe": 866.3,
+    "Pe_adequate": true,
+    "consistent": true,
+    "consistency_notes": [],
+    "material_warnings": []
+  },
+  "final_validation": {
+    "schema_version": "flowpilot_final_validation_v1.0",
+    "status": "ready",
+    "checks": {
+      "reactor_inventory_match": true,
+      "pump_flow_feasible": true,
+      "tubing_feasible": true,
+      "geometry_closure": true,
+      "calculation_matches_serialized_design": true,
+      "gas_bookkeeping_complete": true
+    },
+    "unresolved_reasons": [],
+    "geometry_relative_error": 9.599999999920783e-06,
+    "gas_required": false,
+    "inventory_enforcement": {
+      "first_pass": {
+        "applied": true,
+        "old": {
+          "reactor_volume_mL": 10.6032,
+          "tubing_ID_mm": 0.75,
+          "tubing_material": "FEP",
+          "flow_rate_mL_min": 0.564,
+          "BPR_bar": 3.5,
+          "temperature_C": 60.0,
+          "concentration_M": 0.1,
+          "wavelength_nm": null
+        },
+        "new": {
+          "reactor_volume_mL": 5.0,
+          "tubing_ID_mm": 0.5,
+          "tubing_material": "PTFE",
+          "flow_rate_mL_min": 0.26596,
+          "BPR_bar": 5.0,
+          "temperature_C": 60.0,
+          "concentration_M": 0.1,
+          "wavelength_nm": null
+        },
+        "selected_reactor": {
+          "name": "",
+          "system": "",
+          "type": "microcoil",
+          "material": "PTFE",
+          "volume_mL": 5.0,
+          "ID_mm": 0.5,
+          "light_source": "",
+          "wavelength_nm": null,
+          "intensity_mW_cm2": null,
+          "irradiation": "",
+          "temperature_range_C": [
+            null,
+            100.0
+          ],
+          "allowed_temperatures_C": [],
+          "concentration_range_M": [
+            null,
+            null
+          ],
+          "pressure_range_bar": [
+            null,
+            null
+          ],
+          "configuration": "",
+          "component_volumes_mL": [],
+          "notes": "Approved nitric-acid wetted path; two-feed micromixer and immediate quench available."
+        }
+      },
+      "final_pass": {
+        "applied": true,
+        "old": {
+          "reactor_volume_mL": 5.0,
+          "tubing_ID_mm": 0.5,
+          "tubing_material": "PTFE",
+          "flow_rate_mL_min": 0.26596,
+          "BPR_bar": 5.0,
+          "temperature_C": 60.0,
+          "concentration_M": 0.1,
+          "wavelength_nm": null
+        },
+        "new": {
+          "reactor_volume_mL": 5.0,
+          "tubing_ID_mm": 0.5,
+          "tubing_material": "PTFE",
+          "flow_rate_mL_min": 0.26596,
+          "BPR_bar": 5.0,
+          "temperature_C": 60.0,
+          "concentration_M": 0.1,
+          "wavelength_nm": null
+        },
+        "selected_reactor": {
+          "name": "",
+          "system": "",
+          "type": "microcoil",
+          "material": "PTFE",
+          "volume_mL": 5.0,
+          "ID_mm": 0.5,
+          "light_source": "",
+          "wavelength_nm": null,
+          "intensity_mW_cm2": null,
+          "irradiation": "",
+          "temperature_range_C": [
+            null,
+            100.0
+          ],
+          "allowed_temperatures_C": [],
+          "concentration_range_M": [
+            null,
+            null
+          ],
+          "pressure_range_bar": [
+            null,
+            null
+          ],
+          "configuration": "",
+          "component_volumes_mL": [],
+          "notes": "Approved nitric-acid wetted path; two-feed micromixer and immediate quench available."
+        }
+      }
+    },
+    "calculation_snapshot": {
+      "reactor_volume_mL": 5.0,
+      "tubing_ID_mm": 0.5,
+      "flow_rate_mL_min": 0.26596,
+      "residence_time_min": 18.8,
+      "residence_time_inlet_min": 0.0,
+      "residence_time_in_channel_min": 0.0,
+      "gas_flow_sccm": 0.0,
+      "gas_flow_actual_mL_min": 0.0,
+      "target_gas_equiv_inlet": 0.0,
+      "gas_equiv_supplied": 0.0,
+      "consistent": true,
+      "consistency_notes": []
+    }
+  },
+  "formatted_result": {
+    "proposal": {
+      "residence_time_min": 18.8,
+      "flow_rate_mL_min": 0.26596,
+      "temperature_C": 60.0,
+      "concentration_M": 0.1,
+      "BPR_bar": 5.0,
+      "reactor_type": "microcoil",
+      "tubing_material": "PTFE",
+      "tubing_ID_mm": 0.5,
+      "reactor_volume_mL": 5.0,
+      "residence_time_inlet_min": 18.8,
+      "residence_time_in_channel_min": 18.8,
+      "residence_time_basis": "liquid-only reactor volume / liquid flow",
+      "light_setup": "",
+      "wavelength_nm": null,
+      "deoxygenation_method": null,
+      "streams": [
+        {
+          "stream_label": "A",
+          "pump_role": "Substrate pump",
+          "contents": [
+            "Aniline derivative (0.1 M)"
+          ],
+          "solvent": "Industrial batch solvent",
+          "concentration_M": 0.1,
+          "flow_rate_mL_min": 0.13298,
+          "phase": "",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null,
+          "molar_equiv": 1.0,
+          "reasoning": "Assuming 1:1 stoichiometry and equal split. Q_total=0.564 mL/min. Q_A = Q_total / 2 = 0.282 mL/min."
+        },
+        {
+          "stream_label": "B",
+          "pump_role": "Acid pump",
+          "contents": [
+            "Nitric acid (2.0 equiv)"
+          ],
+          "solvent": "Industrial batch solvent",
+          "concentration_M": 0.1,
+          "flow_rate_mL_min": 0.13298,
+          "phase": "",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null,
+          "molar_equiv": 1.0,
+          "reasoning": "Assuming 1:1 stoichiometry and equal split. Q_total=0.564 mL/min. Q_B = Q_total / 2 = 0.282 mL/min."
+        }
+      ],
+      "mixer_type": "T-mixer",
+      "mixing_order_reasoning": "From Chemistry Plan: Substrate and nitrating agent must be mixed rapidly in the micromixer to ensure uniform reaction and heat dissipation. Incompatible pair (Aniline derivative, Nitric acid) must not be pre-mixed.",
+      "pre_reactor_steps": [
+        "Pump Stream A (Aniline derivative) and Stream B (Nitric acid) separately using syringe pumps."
+      ],
+      "post_reactor_steps": [
+        "Immediate quench with Water or dilute base to stop exothermic nitration and prevent over-nitration/oxidation."
+      ],
+      "chemistry_notes": "Thermal nitration of aniline derivative. Highly exothermic; flow mitigates thermal runaway. PTFE wetted path required for nitric acid compatibility. No light source used. Quench is critical for safety and selectivity. Residence time reduced from 4h batch to ~19 min based on kinetic intensification factor.\nInventory enforced: microcoil reactor: 5 mL, 0.5 mm ID, PTFE.",
+      "stage_parameters": [
+        {
+          "stage_number": 1,
+          "residence_time_min": 18.8
+        }
+      ],
+      "multiphase_metrics": {},
+      "heat_transfer_metrics": {
+        "surface_to_volume_m_inv": 8000.0,
+        "heat_transfer_area_m2": 0.04000033,
+        "UA_W_K": 12.000099,
+        "heat_generation_W": 0.058705,
+        "heat_removal_W": 120.000985,
+        "thermal_damkohler": 0.000489,
+        "heat_transfer_score": 1.0
+      },
+      "inventory_selection": {
+        "name": "",
+        "system": "",
+        "type": "microcoil",
+        "material": "PTFE",
+        "volume_mL": 5.0,
+        "ID_mm": 0.5,
+        "light_source": "",
+        "wavelength_nm": null,
+        "intensity_mW_cm2": null,
+        "irradiation": "",
+        "temperature_range_C": [
+          null,
+          100.0
+        ],
+        "allowed_temperatures_C": [],
+        "concentration_range_M": [
+          null,
+          null
+        ],
+        "pressure_range_bar": [
+          null,
+          null
+        ],
+        "configuration": "",
+        "component_volumes_mL": [],
+        "notes": "Approved nitric-acid wetted path; two-feed micromixer and immediate quench available."
+      },
+      "inventory_constraints": {
+        "forced_reactor_inventory": true,
+        "allowed_reactor_volumes_mL": [
+          5.0
+        ],
+        "allowed_reactor_IDs_mm": [
+          0.5
+        ],
+        "selected_reactor": {
+          "name": "",
+          "system": "",
+          "type": "microcoil",
+          "material": "PTFE",
+          "volume_mL": 5.0,
+          "ID_mm": 0.5,
+          "light_source": "",
+          "wavelength_nm": null,
+          "intensity_mW_cm2": null,
+          "irradiation": "",
+          "temperature_range_C": [
+            null,
+            100.0
+          ],
+          "allowed_temperatures_C": [],
+          "concentration_range_M": [
+            null,
+            null
+          ],
+          "pressure_range_bar": [
+            null,
+            null
+          ],
+          "configuration": "",
+          "component_volumes_mL": [],
+          "notes": "Approved nitric-acid wetted path; two-feed micromixer and immediate quench available."
+        },
+        "selected_pump": {
+          "name": "Acid pump",
+          "type": "syringe",
+          "max_pressure_bar": 20.0,
+          "max_flow_rate_mL_min": 2.0,
+          "min_flow_rate_mL_min": 0.01,
+          "compatible_systems": []
+        },
+        "flow_recalculation": {
+          "residence_time_basis": "liquid-only reactor volume / liquid flow",
+          "requested_residence_time_min": 18.8,
+          "pump_flow_clamped": false,
+          "pump_min_flow_rate_mL_min": 0.01,
+          "pump_max_flow_rate_mL_min": 2.0,
+          "liquid_flow_rate_mL_min": 0.26596,
+          "gas_flow_actual_mL_min": null,
+          "gas_flow_sccm": null,
+          "target_gas_equiv_inlet": null,
+          "gas_equiv_supplied": null,
+          "o2_equiv_supplied": null
+        },
+        "final_validation": {
+          "schema_version": "flowpilot_final_validation_v1.0",
+          "status": "ready",
+          "checks": {
+            "reactor_inventory_match": true,
+            "pump_flow_feasible": true,
+            "tubing_feasible": true,
+            "geometry_closure": true,
+            "calculation_matches_serialized_design": true,
+            "gas_bookkeeping_complete": true
+          },
+          "unresolved_reasons": [],
+          "geometry_relative_error": 9.599999999920783e-06,
+          "gas_required": false,
+          "inventory_enforcement": {
+            "first_pass": {
+              "applied": true,
+              "old": {
+                "reactor_volume_mL": 10.6032,
+                "tubing_ID_mm": 0.75,
+                "tubing_material": "FEP",
+                "flow_rate_mL_min": 0.564,
+                "BPR_bar": 3.5,
+                "temperature_C": 60.0,
+                "concentration_M": 0.1,
+                "wavelength_nm": null
+              },
+              "new": {
+                "reactor_volume_mL": 5.0,
+                "tubing_ID_mm": 0.5,
+                "tubing_material": "PTFE",
+                "flow_rate_mL_min": 0.26596,
+                "BPR_bar": 5.0,
+                "temperature_C": 60.0,
+                "concentration_M": 0.1,
+                "wavelength_nm": null
+              },
+              "selected_reactor": {
+                "name": "",
+                "system": "",
+                "type": "microcoil",
+                "material": "PTFE",
+                "volume_mL": 5.0,
+                "ID_mm": 0.5,
+                "light_source": "",
+                "wavelength_nm": null,
+                "intensity_mW_cm2": null,
+                "irradiation": "",
+                "temperature_range_C": [
+                  null,
+                  100.0
+                ],
+                "allowed_temperatures_C": [],
+                "concentration_range_M": [
+                  null,
+                  null
+                ],
+                "pressure_range_bar": [
+                  null,
+                  null
+                ],
+                "configuration": "",
+                "component_volumes_mL": [],
+                "notes": "Approved nitric-acid wetted path; two-feed micromixer and immediate quench available."
+              }
+            },
+            "final_pass": {
+              "applied": true,
+              "old": {
+                "reactor_volume_mL": 5.0,
+                "tubing_ID_mm": 0.5,
+                "tubing_material": "PTFE",
+                "flow_rate_mL_min": 0.26596,
+                "BPR_bar": 5.0,
+                "temperature_C": 60.0,
+                "concentration_M": 0.1,
+                "wavelength_nm": null
+              },
+              "new": {
+                "reactor_volume_mL": 5.0,
+                "tubing_ID_mm": 0.5,
+                "tubing_material": "PTFE",
+                "flow_rate_mL_min": 0.26596,
+                "BPR_bar": 5.0,
+                "temperature_C": 60.0,
+                "concentration_M": 0.1,
+                "wavelength_nm": null
+              },
+              "selected_reactor": {
+                "name": "",
+                "system": "",
+                "type": "microcoil",
+                "material": "PTFE",
+                "volume_mL": 5.0,
+                "ID_mm": 0.5,
+                "light_source": "",
+                "wavelength_nm": null,
+                "intensity_mW_cm2": null,
+                "irradiation": "",
+                "temperature_range_C": [
+                  null,
+                  100.0
+                ],
+                "allowed_temperatures_C": [],
+                "concentration_range_M": [
+                  null,
+                  null
+                ],
+                "pressure_range_bar": [
+                  null,
+                  null
+                ],
+                "configuration": "",
+                "component_volumes_mL": [],
+                "notes": "Approved nitric-acid wetted path; two-feed micromixer and immediate quench available."
+              }
+            }
+          },
+          "calculation_snapshot": {
+            "reactor_volume_mL": 5.0,
+            "tubing_ID_mm": 0.5,
+            "flow_rate_mL_min": 0.26596,
+            "residence_time_min": 18.8,
+            "residence_time_inlet_min": 0.0,
+            "residence_time_in_channel_min": 0.0,
+            "gas_flow_sccm": 0.0,
+            "gas_flow_actual_mL_min": 0.0,
+            "target_gas_equiv_inlet": 0.0,
+            "gas_equiv_supplied": 0.0,
+            "consistent": true,
+            "consistency_notes": []
+          }
+        }
+      },
+      "evidence_calibration": {},
+      "reasoning_per_field": {
+        "residence_time_min": "Calculation Step 2 estimated 18.8 min (range 10.3-36.0 min) based on 13x intensification factor. Analogy 1 used 60 min at 120C; our T is lower (60C) but flow mixing is superior. 18.8 min is conservative and within calculated range.",
+        "residence_time_basis": "Single-phase liquid system. Basis is liquid volume / liquid flow.",
+        "temperature_C": "From Batch Protocol and Chemistry Plan: 60 C. Analogy 1 used 120C but different solvent/catalyst. We maintain batch T for selectivity control.",
+        "BPR_bar": "Calculation Step 8: BPR not required. T=60C is well below solvent bp (assumed >80C for industrial solvent) and no gas generated. Inventory BPR available but not strictly needed for pressure containment, though could be used for stability. Set to 0 as per calculation.",
+        "tubing_material": "From Inventory: PTFE microcoil. Chemistry Plan mandates PTFE for nitric acid compatibility. Analogy 1 used packed bed (material unspecified but likely ceramic/glass); PTFE is safer for HNO3.",
+        "concentration_M": "From Batch Protocol: 0.1 M. Analogy 1 used 1.0 M; we stick to batch concentration to ensure solubility and control exotherm density.",
+        "reactor_volume_mL": "From Inventory: 5 mL PTFE microcoil. Calculation Step 3 suggested 9.41 mL for 18.8 min at 0.5 mL/min. However, Inventory constraint mandates use of the 5 mL reactor. To use the 5 mL reactor with 0.5 mL/min flow, residence time becomes 10 min. This is within the lower bound of the calculated range (10.3-36.0 min) and represents a 24x intensification. We adjust residence_time_min to 10.0 to match the physical inventory constraint.",
+        "flow_rate_mL_min": "Calculation Step 3 suggested 0.5 mL/min. This fits within pump limits (0.01-2.0 mL/min).",
+        "tubing_ID_mm": "From Inventory: 0.5 mm ID. Calculation Step 3 suggested 1.0 mm. We use inventory 0.5 mm. This increases pressure drop but is within pump capacity (20 bar max, calc delta P 0.04 bar). Smaller ID improves heat transfer.",
+        "inventory_selection": "Forced to available inventory reactor: microcoil reactor: 5 mL, 0.5 mm ID, PTFE. Flow rates recalculated from selected volume and target residence time. Selected pump flow range was satisfied."
+      },
+      "literature_analogies": [
+        "Analogy 1: Solid acid catalyzed nitration in flow. Similar mechanism (EAS). Key difference: T=120C vs 60C, packed bed vs coil. Adjustment: Used for safety/flow concept, but T and reactor type from inventory/plan.",
+        "Analogy 2: SNAr condensation. Dissimilar mechanism. Used for general flow parameter ranges (T, RT).",
+        "Analogy 3: Cross-coupling. Dissimilar mechanism. Used for BPR/pressure concepts."
+      ],
+      "engine_validated": true,
+      "safety_flags": [],
+      "confidence": "LOW"
+    },
+    "unit_operations": [],
+    "pid_description": "",
+    "council_rounds": 2,
+    "safety_report": {
+      "total_checks": 3,
+      "critical": 1,
+      "dfmea_modes": 3,
+      "validation_experiments": [
+        "Pressure stability test: Run solvent at 60°C with BPR set to 1.5 bar for 2 hours; monitor for pressure oscillations indicating cavitation. Repeat at 3.0 bar to confirm stability.",
+        "Material compatibility test: Soak PTFE tubing in the specific industrial solvent at 60°C for 48 hours; measure weight change and check for leachables via GC-MS.",
+        "Quench efficiency validation: Inject a pulse of reactant and monitor conversion/selectivity at the outlet with and without the proposed quench mixer to quantify mixing limitations."
+      ],
+      "screen_required": false,
+      "feasibility_diagnostic": {}
+    },
+    "council_messages": [
+      {
+        "agent": "DesignerV4",
+        "status": "ACCEPT",
+        "field": "design",
+        "value": "### Stage 0 — Problem Framing\n\n**Reaction class:** other  \n**Flags:** none  \n**Flow justified:** Yes\n\n### Stage 1 — Candidate Matrix\n\n**Strategy:** This is a thermal electrophilic aromatic substitutio",
+        "concern": "",
+        "revision_required": false,
+        "suggested_revision": null
+      },
+      {
+        "agent": "CandidateRefinementV4",
+        "status": "REVISE",
+        "field": "design",
+        "value": "### Pre-selection Expert Refinement\n\nPre-selection expert refinement applied bounded edits to 2/2 candidates before rescoring.\n\n### Applied Candidate Edits\n\n#### Candidate 1 (chemistry, safety)\n- **co",
+        "concern": "",
+        "revision_required": true,
+        "suggested_revision": null
+      },
+      {
+        "agent": "DrChemistryV4",
+        "status": "WARNING",
+        "field": "design",
+        "value": "### Overall Chemistry Assessment\n\nThe chemistry landscape is dominated by a fundamental material incompatibility: both candidates utilize PTFE tubing for a reaction at 60°C. While PTFE is chemically i",
+        "concern": "**Candidate 2 BLOCKED:** Pressure drop (62.7 bar) exceeds pump limit (20 bar)., Coil length (171 m) exceeds practical benchtop limit (25 m)., Conversion (40%) is below minimum threshold (50%).",
+        "revision_required": false,
+        "suggested_revision": null
+      },
+      {
+        "agent": "DrKineticsV4",
+        "status": "WARNING",
+        "field": "design",
+        "value": "### Overall Kinetics Assessment\n\nThe kinetics landscape is dominated by a single-pass conversion floor (X ≥ 0.30) and a strict short-τ policy. Both candidates achieve X > 0.30, but Candidate 2 is phys",
+        "concern": "**Candidate 2 BLOCKED:** ΔP=62.7 bar > 20 bar pump max. Physically impossible., L=171m > 25m bench limit. Impractical., IF=24 exceeds thermal class range (8-15×)., X=0.40 is close to the 0.30 floor, leaving little margin for RTD effects.",
+        "revision_required": false,
+        "suggested_revision": null
+      },
+      {
+        "agent": "DrFluidicsV4",
+        "status": "WARNING",
+        "field": "design",
+        "value": "### Overall Fluidics & Hardware Assessment\n\nThe fluidics landscape is dominated by severe geometric and pressure constraints. Candidate 1 presents a viable, albeit long, laminar flow path with excelle",
+        "concern": "**Candidate 2 BLOCKED:** ΔP=62.7 bar > 5 bar hard limit and > 20 bar pump max., L=171.4 m > 30 m hard limit., Pump headroom is negative; system cannot operate.",
+        "revision_required": false,
+        "suggested_revision": null
+      },
+      {
+        "agent": "DrSafetyV4",
+        "status": "WARNING",
+        "field": "design",
+        "value": "### Overall Safety Assessment\n\nThe safety landscape is dominated by a critical material compatibility failure and severe pressure integrity risks. Both candidates specify PTFE tubing, which is opaque ",
+        "concern": "**Candidate 2 BLOCKED:** Pressure drop (62.7 bar) exceeds pump maximum (20 bar) by 3x, PTFE is opaque and incompatible with photochemical reactors, Coil length (171 m) is impractical for benchtop operation",
+        "revision_required": false,
+        "suggested_revision": null
+      },
+      {
+        "agent": "SkepticV4",
+        "status": "REVISE",
+        "field": "design",
+        "value": "### Arithmetic & Consistency Audit\n\nAUDIT: 3 issues found (1 CRITICAL, 2 HIGH, 0 scope violations). 1 candidates flagged for disqualification. CRITICAL errors found — council MUST correct before proce",
+        "concern": "[CRITICAL] Candidate 2 — BPR_BELOW_HARD_FLOOR: BPR_current=1.5 bar < hard floor=62.8 bar (gas_liquid_floor=N/A). Boiling/phase-separation risk — council MUST raise BPR or reduce ΔP.",
+        "revision_required": true,
+        "suggested_revision": null
+      },
+      {
+        "agent": "RevisionAgent",
+        "status": "REVISE",
+        "field": "design",
+        "value": "### Stage 3.5 — Parameter Revision\n\n**Domains that triggered revision:** safety\n\n**Changes applied to winner:**\n\n- **BPR_bar**: Dr. Safety REVISE: BPR_adequate=false. Agent reported BPR_required_bar=3",
+        "concern": "",
+        "revision_required": true,
+        "suggested_revision": null
+      },
+      {
+        "agent": "ChiefV4",
+        "status": "ACCEPT",
+        "field": "design",
+        "value": "### Selection Rationale\n\nCandidate 1 is selected as the sole viable flow chemistry design, as Candidate 2 was disqualified due to critical safety and hardware violations (excessive pressure drop and c",
+        "concern": "Conversion X=0.62 is lower than ideal; may require longer residence time or higher temperature to reach >90%.",
+        "revision_required": false,
+        "suggested_revision": null
+      }
+    ],
+    "confidence": "LOW",
+    "explanation": "(1) Proposed flow setup\n*   **Reactor:** 5.0 mL PTFE microcoil (0.5 mm ID).\n*   **Feeds:** Two syringe pumps delivering Stream A (Aniline derivative, 0.1 M) and Stream B (Nitric acid, 2.0 equiv) at **0.13298 mL/min** each.\n*   **Mixing:** T-mixer for rapid combination of incompatible streams.\n*   **Conditions:** **60.0 °C**, **5.0 bar** BPR.\n*   **Hydraulics:** Total flow rate **0.26596 mL/min**; Residence time **18.8 min**.\n*   **Post-Reactor:** Immediate quench with water or dilute base.\n\n(2) Why these conditions were chosen\n*   **Residence Time & Temperature:** The **18.8 min** residence time at **60.0 °C** represents a ~13-fold intensification over the 4-hour batch protocol. This reduction is justified by the superior heat transfer and mixing in flow, which suppresses side reactions typical of electrophilic aromatic substitution (EAS). While literature analogies for solid-acid catalyzed nitrations often use higher temperatures (e.g., 120 °C), the lower temperature is maintained here to preserve selectivity for the specific aniline derivative, relying on flow efficiency rather than thermal energy to drive conversion.\n*   **Material Selection:** **PTFE** tubing is mandated for compatibility with nitric acid. Unlike FEP or PFA, PTFE offers superior chemical resistance to strong oxidants, preventing reactor degradation and leaching.\n*   **Heat Transfer:** The design achieves a thermal Damköhler number (**Da_th**) of **0.000489** and a heat transfer coefficient (**UA**) of **12.000099 W/K**. This indicates that heat removal is significantly faster than heat generation, effectively eliminating the risk of thermal runaway associated with batch nitrations.\n\n(3) Key differences from the batch protocol\n*   **Time Scale:** Reaction time reduced from 240 minutes (batch) to **18.8 minutes** (flow).\n*   **Mixing Regime:** Batch relies on macroscopic stirring, leading to potential concentration gradients. Flow utilizes a T-mixer and laminar flow in a 0.5 mm ID coil to ensure rapid, homogeneous mixing of the electrophile and substrate, minimizing local hotspots and poly-nitration.\n*   **Safety Inventory:** The maximum hazardous inventory is limited to the reactor volume (**5.0 mL**) plus dead volume, compared to the full batch scale.\n*   **Quench Strategy:** Batch quenching is often slow and exothermic. Flow enables immediate, continuous quenching post-reactor, strictly controlling the reaction endpoint and preventing over-oxidation.\n\n(4) Any warnings or flags from the engineering validation\n*   **Conversion Limitation:** The predicted single-pass conversion is approximately **62%**. This is below the ideal >90% target for process efficiency. The residence time is kinetically limited; if higher conversion is required, the flow rate must be reduced (increasing residence time) or temperature increased, subject to selectivity constraints.\n*   **Material Opacity:** PTFE is opaque. While irrelevant for this thermal reaction, it prevents visual inspection of the flow or precipitation. Ensure no photochemical steps are inadvertently introduced in downstream processing.\n*   **Pressure Drop:** The calculated pressure drop is low (~0.29 bar), well within the pump limit (20 bar) and BPR setting (**5.0 bar**). However, the BPR is set to **5.0 bar** to ensure system stability and prevent cavitation, providing a significant safety margin over the minimum required pressure.\n*   **Coil Management:** The 5.0 mL volume in 0.5 mm ID tubing results in a coil length of approximately 25 meters. Careful coiling is required to avoid mechanical stress and ensure uniform heating.\n\n**Confidence: LOW** — The closest literature analogy has a similarity score of 0.42 (threshold for MEDIUM: 0.50). No close precedent found in the corpus for this exact reaction class and conditions. Treat this proposal as a starting hypothesis requiring careful experimental validation before scale-up."
+  },
+  "frozen_context": {
+    "case": {
+      "case_id": "dinitration_feasible",
+      "title": "Dinitration: approved acid-compatible microflow path",
+      "protocol": "RAW BATCH PROTOCOL:\nAn aniline derivative was treated with nitric acid in the industrial batch solvent at 60 C for 4 h. Nitric acid served as nitrating reagent and acid catalyst. The dinitrated product was obtained in 89% yield.\n\nOBJECTIVE:\nDesign a conservative microflow nitration screen with segregated feeds, controlled mixing, and immediate quench.\n\nHARD CONSTRAINTS:\n- Use only the listed inventory.\n- Use two segregated feeds before the micromixer.\n- Use the approved PTFE 5 mL microcoil.\n- Operate at 60 C and include immediate quench.\n\nAVAILABLE INVENTORY (authoritative JSON):\n{\"BPR_available\":[5],\"light_sources\":[],\"pumps\":[{\"max_flow_rate_mL_min\":2.0,\"max_pressure_bar\":20,\"min_flow_rate_mL_min\":0.01,\"name\":\"Acid pump\",\"type\":\"syringe\"},{\"max_flow_rate_mL_min\":2.0,\"max_pressure_bar\":20,\"min_flow_rate_mL_min\":0.01,\"name\":\"Substrate pump\",\"type\":\"syringe\"}],\"reactors\":[{\"ID_mm\":0.5,\"material\":\"PTFE\",\"max_temperature_C\":100,\"notes\":\"Approved nitric-acid wetted path; two-feed micromixer and immediate quench available.\",\"type\":\"microcoil\",\"volume_mL\":5}],\"tubing\":[{\"ID_mm\":0.5,\"material\":\"PTFE\",\"max_pressure_bar\":20,\"max_temperature_C\":100,\"transparent\":false}]}",
+      "precedent_level": "withheld_source",
+      "difficulty": "high",
+      "notes": "FlowPilot ablation case; source flow answer withheld.",
+      "cached_result_path": null,
+      "batch_record_data": null,
+      "tags": [
+        "nitration",
+        "exothermic",
+        "paired_constraint"
+      ]
+    },
+    "inventory_path": "/home/amirreza/Documents/codes/Flow Agent/ablation_test/studies/fair_architecture_benchmark_v1_1_20260730/stage2_matched_run_20260730/cells/qwen27b_full_flowpilot/dinitration_feasible/repeat_03/input_inventory.json",
+    "batch_record": {
+      "reaction_description": "Nitration of an aniline derivative with nitric acid",
+      "photocatalyst": null,
+      "catalyst_loading_mol_pct": null,
+      "base": null,
+      "solvent": "industrial batch solvent",
+      "temperature_C": 60.0,
+      "reaction_time_h": 4.0,
+      "concentration_M": null,
+      "scale_mmol": null,
+      "yield_pct": 89.0,
+      "light_source": null,
+      "wavelength_nm": null,
+      "additives": [],
+      "atmosphere": null,
+      "raw_text": "RAW BATCH PROTOCOL:\nAn aniline derivative was treated with nitric acid in the industrial batch solvent at 60 C for 4 h. Nitric acid served as nitrating reagent and acid catalyst. The dinitrated product was obtained in 89% yield.\n\nOBJECTIVE:\nDesign a conservative microflow nitration screen with segregated feeds, controlled mixing, and immediate quench.\n\nHARD CONSTRAINTS:\n- Use only the listed inventory.\n- Use two segregated feeds before the micromixer.\n- Use the approved PTFE 5 mL microcoil.\n- Operate at 60 C and include immediate quench.\n\nAVAILABLE INVENTORY (authoritative JSON):\n{\"BPR_available\":[5],\"light_sources\":[],\"pumps\":[{\"max_flow_rate_mL_min\":2.0,\"max_pressure_bar\":20,\"min_flow_rate_mL_min\":0.01,\"name\":\"Acid pump\",\"type\":\"syringe\"},{\"max_flow_rate_mL_min\":2.0,\"max_pressure_bar\":20,\"min_flow_rate_mL_min\":0.01,\"name\":\"Substrate pump\",\"type\":\"syringe\"}],\"reactors\":[{\"ID_mm\":0.5,\"material\":\"PTFE\",\"max_temperature_C\":100,\"notes\":\"Approved nitric-acid wetted path; two-feed micromixer and immediate quench available.\",\"type\":\"microcoil\",\"volume_mL\":5}],\"tubing\":[{\"ID_mm\":0.5,\"material\":\"PTFE\",\"max_pressure_bar\":20,\"max_temperature_C\":100,\"transparent\":false}]}"
+    },
+    "chemistry_plan": {
+      "reaction_name": "Nitration of aniline derivative",
+      "reaction_class": "Electrophilic Aromatic Substitution",
+      "mechanism_type": "Electrophilic attack",
+      "bond_formed": "C-N",
+      "bond_broken": "N-O (in HNO3)",
+      "stages": [],
+      "n_stages": 1,
+      "reagents": [
+        {
+          "name": "Aniline derivative",
+          "role": "substrate",
+          "equiv_or_loading": "",
+          "smiles": null,
+          "notes": ""
+        },
+        {
+          "name": "Industrial batch solvent",
+          "role": "solvent",
+          "equiv_or_loading": "",
+          "smiles": null,
+          "notes": ""
+        },
+        {
+          "name": "Nitric acid",
+          "role": "substrate",
+          "equiv_or_loading": "",
+          "smiles": null,
+          "notes": ""
+        },
+        {
+          "name": "Water or dilute base",
+          "role": "quencher",
+          "equiv_or_loading": "",
+          "smiles": null,
+          "notes": ""
+        }
+      ],
+      "mechanism_steps": [],
+      "key_intermediate": "Sigma complex (arenium ion)",
+      "excited_state_type": "",
+      "energy_transfer_or_redox": "",
+      "oxygen_sensitive": false,
+      "o2_is_reagent": false,
+      "moisture_sensitive": false,
+      "temperature_sensitive": true,
+      "light_sensitive_reagents": [],
+      "stream_logic": [
+        {
+          "stream_label": "A",
+          "reagents": [
+            "Aniline derivative",
+            "Industrial batch solvent"
+          ],
+          "reasoning": "Substrate solution for controlled delivery.",
+          "molar_equiv": 1.0,
+          "concentration_M": null,
+          "phase": "",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null
+        },
+        {
+          "stream_label": "B",
+          "reagents": [
+            "Nitric acid"
+          ],
+          "reasoning": "Nitrating reagent and acid catalyst. Segregated to control mixing.",
+          "molar_equiv": 2.0,
+          "concentration_M": null,
+          "phase": "",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null
+        }
+      ],
+      "mixing_order_reasoning": "Substrate and nitrating agent must be mixed rapidly in the micromixer to ensure uniform reaction and heat dissipation.",
+      "incompatible_pairs": [
+        [
+          "Aniline derivative",
+          "Nitric acid"
+        ]
+      ],
+      "deoxygenation_required": false,
+      "deoxygenation_reasoning": "Nitric acid is a strong oxidant; inert atmosphere not strictly required for mechanism, but may help prevent side oxidation. Conservative default: not required.",
+      "quench_required": true,
+      "quench_reagent": "Water or dilute base",
+      "quench_reasoning": "Immediate quench stops exothermic nitration and prevents over-nitration or oxidation of the aniline derivative.",
+      "retrieval_keywords": [
+        "nitration",
+        "aniline",
+        "nitric acid",
+        "flow chemistry",
+        "exothermic",
+        "Electrophilic Aromatic Substitution",
+        "Electrophilic attack",
+        "industrial batch solvent",
+        "Water or dilute base"
+      ],
+      "similar_reaction_classes": [
+        "Sulfonation",
+        "Halogenation",
+        "Friedel-Crafts acylation",
+        "Electrophilic Aromatic Substitution"
+      ],
+      "batch_limitations": [
+        "kinetic"
+      ],
+      "batch_limitations_reasoning": "no specific batch limitation identified; defaulting to kinetic (intrinsic rate)",
+      "recommended_wavelength_nm": null,
+      "wavelength_reasoning": "Thermal reaction, no photochemistry involved.",
+      "confidence_notes": "High confidence in flow adaptation for exothermic nitration. Quench is critical.",
+      "intensification_mandate": {
+        "tau_reduction_target": 3.0,
+        "minimum_flow_advantage": "selectivity",
+        "required_mixing_regime": "enhanced_laminar_mixing",
+        "flow_justification_basis": "Flow must demonstrate 3.0x residence-time reduction. Identified batch limitations: kinetic. Primary flow advantage: selectivity. Mechanisms: selectivity-sensitive stream logic."
+      }
+    },
+    "analogies": [
+      {
+        "record_id": "Ishitani 등 - 2023 - Liquid-phase Catalytic Continuous-Flow Aromatic Nitration Reactions with Conc. HNO3 on Modified Mixe.pdf",
+        "metadata": {
+          "confidence": 95,
+          "wavelength_nm": 0,
+          "title": "",
+          "chemistry_class": "Nitration",
+          "doi": "",
+          "photocatalyst": "",
+          "phase_regime": "single_phase_liquid",
+          "solvent": "DCE",
+          "mechanism_type": "Solid acid catalyzed liquid-phase continuous-flow reaction",
+          "year": 0,
+          "process_mode": "both",
+          "has_translation": true,
+          "reactor_type": "Packed-bed reactor"
+        },
+        "summary": "This study describes a solid acid catalyzed liquid-phase aromatic nitration reaction using concentrated nitric acid in a continuous flow system. The reaction was conducted at 120°C in dichloroethane (DCE) solvent at 1.0 M concentration using a packed-bed reactor with a volume of 7.85 mL and a flow rate of 0.91 mL/min. The flow process achieved 90% yield compared to 92% yield in the corresponding batch reaction conducted under similar conditions (120°C, 1 hour reaction time). The continuous flow approach enabled safe handling of the highly exothermic and potentially hazardous nitration reaction with concentrated nitric acid through better heat management and containment in the packed-bed reactor format. A back-pressure regulator was required to maintain proper reaction conditions and prevent solvent vaporization at the elevated temperature.",
+        "semantic_score": 0.6945,
+        "field_score": 0.0,
+        "final_score": 0.4167,
+        "full_record": {
+          "chemistry": {
+            "reaction_name": "Liquid-phase Catalytic Continuous-Flow Aromatic Nitration",
+            "reaction_class": "Nitration",
+            "mechanism_type": "Solid acid catalyzed liquid-phase continuous-flow reaction",
+            "substrates": {
+              "substrate_A": "Toluene",
+              "substrate_B": "Conc. HNO3",
+              "limiting_reagent": "Toluene",
+              "stoichiometry": "HNO3/toluene = 2.2"
+            },
+            "catalyst": {
+              "name": "MoO3/TiO2−ZrO2",
+              "type": "solid acid catalyst",
+              "loading_mol_pct": null,
+              "role": "Catalyzes nitration reaction"
+            },
+            "photocatalyst": {
+              "name": null,
+              "loading_mol_pct": null,
+              "role": null,
+              "absorption_max_nm": null
+            },
+            "co_catalyst": {
+              "name": null,
+              "loading_mol_pct": null,
+              "role": null
+            },
+            "additives": [
+              {
+                "name": "Celite",
+                "equiv": null,
+                "role": "Pseudo-mixer to enhance mixing"
+              }
+            ],
+            "base": {
+              "name": null,
+              "equiv": null
+            },
+            "oxidant": {
+              "name": "Conc. HNO3",
+              "equiv": null
+            },
+            "reductant": {
+              "name": null,
+              "equiv": null
+            },
+            "product": "Nitrotoluene",
+            "bond_formed": "Nitro group attachment to aromatic ring",
+            "mechanistic_details": {
+              "excited_state_lifetime_ns": null,
+              "redox_potential_discussed": false,
+              "triplet_state_involved": false,
+              "key_intermediate": "Nitronium ion"
+            },
+            "scope_summary": "The catalyst was effective for a wide variety of aromatic compounds, achieving good to high yields for substrates such as benzene, alkyl benzenes, chloro- or iodobenzene, naphthalene, acenaphthene, and 1,3-benzodioxole."
+          },
+          "batch_baseline": {
+            "temperature_C": 120,
+            "reaction_time_min": 60,
+            "solvent": "DCE",
+            "concentration_M": 1,
+            "light_source": "",
+            "light_power_W": null,
+            "atmosphere": "",
+            "yield_percent": 92,
+            "ee_percent": null,
+            "scale_mmol": null,
+            "vessel": ""
+          },
+          "flow_optimized": {
+            "temperature_C": 120,
+            "residence_time_min": null,
+            "flow_rate_total_mL_min": 0.91,
+            "flow_rate_stream_A_mL_min": 0.72,
+            "flow_rate_stream_B_mL_min": 0.19,
+            "concentration_M": 1,
+            "back_pressure_bar": false,
+            "atmosphere": "",
+            "yield_percent": 90,
+            "ee_percent": null,
+            "scale_mmol": null,
+            "throughput_mmol_h": 30
+          },
+          "optimization_table": {
+            "variables_screened": [
+              "Catalyst",
+              "WHSV"
+            ],
+            "number_of_entries": null,
+            "optimal_entry_number": null,
+            "key_findings": "Using Mo-modified Ti-Zr mixed-metal oxide catalyst achieved high yields at WHSV of 4.0 h⁻¹."
+          },
+          "reactor": {
+            "type": "Packed-bed reactor",
+            "material": null,
+            "volume_mL": 7.85,
+            "tubing_diameter_mm": null,
+            "channel_depth_mm": null
+          },
+          "light_source": {
+            "type": "",
+            "wavelength_nm": null,
+            "power_W": null,
+            "irradiance_mW_cm2": null,
+            "color": "",
+            "position_relative_to_reactor": ""
+          },
+          "pump": {
+            "type": "",
+            "number_of_inlets": null
+          },
+          "figures": [
+            {
+              "figure_type": "other",
+              "page": 1,
+              "caption": "",
+              "description": "Non-chemistry figure, skipped extraction."
+            },
+            {
+              "figure_type": "reactor_scheme",
+              "components": [
+                "Solution A",
+                "HNO3",
+                "Packed-bed Reactor Module",
+                "Reactor A",
+                "Reactor B",
+                "Celite Pre-column"
+              ],
+              "flow_path": "Solution A and HNO3 are pumped into the Packed-bed Reactor Module, which includes Reactor A and Reactor B.",
+              "number_of_inlets": null,
+              "mixer_type": "",
+              "reactor_geometry": "packed-bed",
+              "light_source_position": "",
+              "BPR_present": false,
+              "inline_analytics": [],
+              "labeled_dimensions": {
+                "Reactor A": "7.85 mL",
+                "Reactor B": "7.85 mL",
+                "Celite Pre-column": "0.98 mL"
+              },
+              "key_information": "Catalyst and Celite are packed in Reactors A and B with specified amounts.",
+              "caption": "Figure 1.  Overview of aromatic nitration. | Figure 2.  Details of flow nitration system and reactor modules. (a) Outline of flow nitration setup. (b) Reactor modules. (c) Reactor constitutions. | Figure 3.  Initial trials on continuous-flow nitration.  Conditions : Catalyst, 6 wt% MoO 3 /TiO 2 − ZrO 2  (6MTZ(2.88)-C500);  v 1  = 0.17 − 0.25 mL/min,  v 2  = 0.13  ×  v 1  mL/min; 120  ° C.  White circle , reactor A; white square , reactor B;  black circle , reactor  A+ ;  black square , reactor B+ ;  black diamond , reactor  A+  containing 6MTZ(0.76)-C500.",
+              "page": 2
+            },
+            {
+              "figure_type": "other",
+              "page": 3,
+              "caption": "Figure 4.  Comparison between 6MTZ(0.97)-S400 and 6MTZ(1.05)-S700. | Figure 5.  Flow Nitration using 6MTZ- S -type Catalysts.  Conditions : Catalyst, 1.0 g at Reactor Set  A+ ;  v 1  = 0.17 − 0.86 mL/min,  v 2  = 0.13  ×  v 1  mL/ min; 120  ° C.  White circle , 6MTZ(0.97)-S400;  white square , 6MTZ(1.00)-S500;  white diamond , 6MTZ(1.09)-S600;  black circle , 6MTZ(1.05)-S700; red circle , 6MTZ(0.75)-S700;  blue circle , 6MTZ(0.51)-S700;  black diamond , 6MTZ(0.95)-",
+              "description": "Non-chemistry figure, skipped extraction."
+            },
+            {
+              "figure_type": "other",
+              "page": 3,
+              "caption": "Figure 4.  Comparison between 6MTZ(0.97)-S400 and 6MTZ(1.05)-S700. | Figure 5.  Flow Nitration using 6MTZ- S -type Catalysts.  Conditions : Catalyst, 1.0 g at Reactor Set  A+ ;  v 1  = 0.17 − 0.86 mL/min,  v 2  = 0.13  ×  v 1  mL/ min; 120  ° C.  White circle , 6MTZ(0.97)-S400;  white square , 6MTZ(1.00)-S500;  white diamond , 6MTZ(1.09)-S600;  black circle , 6MTZ(1.05)-S700; red circle , 6MTZ(0.75)-S700;  blue circle , 6MTZ(0.51)-S700;  black diamond , 6MTZ(0.95)-",
+              "description": "Non-chemistry figure, skipped extraction."
+            },
+            {
+              "figure_type": "other",
+              "page": 3,
+              "caption": "Figure 4.  Comparison between 6MTZ(0.97)-S400 and 6MTZ(1.05)-S700. | Figure 5.  Flow Nitration using 6MTZ- S -type Catalysts.  Conditions : Catalyst, 1.0 g at Reactor Set  A+ ;  v 1  = 0.17 − 0.86 mL/min,  v 2  = 0.13  ×  v 1  mL/ min; 120  ° C.  White circle , 6MTZ(0.97)-S400;  white square , 6MTZ(1.00)-S500;  white diamond , 6MTZ(1.09)-S600;  black circle , 6MTZ(1.05)-S700; red circle , 6MTZ(0.75)-S700;  blue circle , 6MTZ(0.51)-S700;  black diamond , 6MTZ(0.95)-",
+              "description": "Non-chemistry figure, skipped extraction."
+            },
+            {
+              "figure_type": "other",
+              "page": 8,
+              "caption": "",
+              "description": "Non-chemistry figure, skipped extraction."
+            }
+          ],
+          "translation_logic": {
+            "batch_limitation": "",
+            "flow_advantage": "",
+            "what_changed": "",
+            "what_stayed_same": "",
+            "time_reduction_factor": null,
+            "yield_change_percent": null,
+            "safety_improvement": "",
+            "scale_up_discussed": false
+          },
+          "process_figures": {
+            "has_reactor_scheme": true,
+            "has_flow_diagram": false,
+            "has_optimization_table": true,
+            "figure_descriptions": []
+          },
+          "field_sources": {
+            "flow_rate_total_mL_min": "derived",
+            "back_pressure_bar": "text",
+            "temperature_C": "table",
+            "reaction_time_min": "text",
+            "concentration_M": "table",
+            "yield_percent": "table"
+          },
+          "field_confidence": {
+            "flow_rate_total_mL_min": 3,
+            "back_pressure_bar": 3,
+            "temperature_C": 3,
+            "reaction_time_min": 2,
+            "concentration_M": 3,
+            "yield_percent": 3
+          },
+          "conflicts": [
+            "Reactors A and B have volumes stated in table but not in text"
+          ],
+          "confidence_overall": 95,
+          "notes": "Back pressure regulator (BPR) noted in reactor scheme but not in quantitative data. Reactor volumes confirmed in figure.",
+          "source_pdf": "Ishitani 등 - 2023 - Liquid-phase Catalytic Continuous-Flow Aromatic Nitration Reactions with Conc. HNO3 on Modified Mixe.pdf"
+        }
+      },
+      {
+        "record_id": "op100288t.pdf",
+        "metadata": {
+          "wavelength_nm": 0,
+          "year": 0,
+          "reactor_type": "Vapourtec R4+ flow reactor",
+          "mechanism_type": "Nucleophilic aromatic substitution (SNAr)",
+          "phase_regime": "single_phase_liquid",
+          "has_translation": true,
+          "chemistry_class": "Condensation reaction",
+          "confidence": 85,
+          "process_mode": "both",
+          "solvent": "DMA",
+          "photocatalyst": "",
+          "doi": "",
+          "title": ""
+        },
+        "summary": "This record describes a condensation reaction proceeding via nucleophilic aromatic substitution (SNAr) mechanism using DIPEA as base in DMA solvent. The reaction was performed in a Vapourtec R4+ flow reactor with a 10 mL reactor volume at 250°C with a 30-minute residence time and 1.0 mL/min flow rate, achieving 69% yield at 0.5 M concentration. The batch baseline was conducted at room temperature (25°C) for 30 minutes and achieved the same 69% yield. Flow chemistry enabled the use of significantly higher reaction temperature (250°C vs 25°C) while maintaining the same residence time and yield, suggesting improved reaction kinetics and process intensification through better heat transfer control in the continuous flow system.",
+        "semantic_score": 0.5387,
+        "field_score": 0.0,
+        "final_score": 0.3232,
+        "full_record": {
+          "chemistry": {
+            "reaction_name": "Synthesis of substituted indazoles",
+            "reaction_class": "Condensation reaction",
+            "mechanism_type": "Nucleophilic aromatic substitution (SNAr)",
+            "substrates": {
+              "substrate_A": "2-fluorobenzaldehyde",
+              "substrate_B": "methylhydrazine",
+              "limiting_reagent": "methylhydrazine",
+              "stoichiometry": ""
+            },
+            "catalyst": {
+              "name": "",
+              "type": "",
+              "loading_mol_pct": null,
+              "role": ""
+            },
+            "photocatalyst": {
+              "name": null,
+              "loading_mol_pct": null,
+              "role": null,
+              "absorption_max_nm": null
+            },
+            "co_catalyst": {
+              "name": "",
+              "loading_mol_pct": null,
+              "role": ""
+            },
+            "additives": [
+              {
+                "name": "DIPEA",
+                "equiv": null,
+                "role": ""
+              }
+            ],
+            "base": {
+              "name": "DIPEA",
+              "equiv": 1.05
+            },
+            "oxidant": {
+              "name": "",
+              "equiv": null
+            },
+            "reductant": {
+              "name": "",
+              "equiv": null
+            },
+            "product": "3-aminoindazoles",
+            "bond_formed": "C-N",
+            "mechanistic_details": {
+              "excited_state_lifetime_ns": null,
+              "redox_potential_discussed": false,
+              "triplet_state_involved": false,
+              "key_intermediate": "hydrazone"
+            },
+            "scope_summary": "The synthesis involves condensation of 2-fluorobenzaldehydes with methylhydrazine to produce substituted indazoles. The reaction conditions were optimized for a range of electron-withdrawing and electron-donating groups. The methodology allows for rapid synthesis and scalability, suitable for generating a range of indazole analogues."
+          },
+          "batch_baseline": {
+            "temperature_C": 25,
+            "reaction_time_min": 30,
+            "solvent": "DMA",
+            "concentration_M": null,
+            "light_source": "",
+            "light_power_W": null,
+            "atmosphere": "",
+            "yield_percent": 69,
+            "ee_percent": null,
+            "scale_mmol": null,
+            "vessel": "not explicitly stated but batch process is implied"
+          },
+          "flow_optimized": {
+            "temperature_C": 250,
+            "residence_time_min": 30,
+            "flow_rate_total_mL_min": 1.0,
+            "flow_rate_stream_A_mL_min": 0.5,
+            "flow_rate_stream_B_mL_min": 0.5,
+            "concentration_M": 0.5,
+            "back_pressure_bar": null,
+            "atmosphere": "",
+            "yield_percent": 69,
+            "ee_percent": null,
+            "scale_mmol": 1.0,
+            "throughput_mmol_h": null
+          },
+          "optimization_table": {
+            "variables_screened": [
+              "solvent",
+              "temperature",
+              "reaction time"
+            ],
+            "number_of_entries": 18,
+            "optimal_entry_number": 10,
+            "key_findings": "DMA solvent at 250 °C for 30 minutes gave 69% yield."
+          },
+          "reactor": {
+            "type": "Vapourtec R4+ flow reactor",
+            "material": null,
+            "volume_mL": 10,
+            "tubing_diameter_mm": null,
+            "channel_depth_mm": null
+          },
+          "light_source": {
+            "type": "",
+            "wavelength_nm": null,
+            "power_W": null,
+            "irradiance_mW_cm2": null,
+            "color": "",
+            "position_relative_to_reactor": ""
+          },
+          "pump": {
+            "type": "Vapourtec R4+",
+            "number_of_inlets": 2
+          },
+          "figures": [
+            {
+              "figure_type": "reactor_scheme",
+              "components": [],
+              "flow_path": "",
+              "number_of_inlets": null,
+              "mixer_type": "",
+              "reactor_geometry": "",
+              "light_source_position": "",
+              "BPR_present": false,
+              "inline_analytics": [],
+              "labeled_dimensions": {},
+              "key_information": "",
+              "caption": "Scheme 1. Routes to indazoles, including the 3-amino and 3-hydroxy analogues",
+              "page": 1
+            },
+            {
+              "figure_type": "other",
+              "page": 2,
+              "caption": "Scheme 2. Two common reaction pathways for the hydrazone intermediate (4), giving either the indazole (1) or the azine (5) | Figure 1. Vapourtec R4 flow reactor setup.",
+              "description": "Non-chemistry figure, skipped extraction."
+            },
+            {
+              "figure_type": "mechanistic_scheme",
+              "mechanism_type": "",
+              "key_intermediates": [],
+              "oxidation_states": {},
+              "rate_determining_step": "",
+              "key_observations_supporting_mechanism": [],
+              "caption": "Scheme 2. Two common reaction pathways for the hydrazone intermediate (4), giving either the indazole (1) or the azine (5) | Figure 1. Vapourtec R4 flow reactor setup.",
+              "page": 2
+            },
+            {
+              "figure_type": "mechanistic_scheme",
+              "mechanism_type": null,
+              "key_intermediates": [],
+              "oxidation_states": {},
+              "rate_determining_step": null,
+              "key_observations_supporting_mechanism": [],
+              "caption": "Scheme 2. Two common reaction pathways for the hydrazone intermediate (4), giving either the indazole (1) or the azine (5) | Figure 1. Vapourtec R4 flow reactor setup.",
+              "page": 2
+            },
+            {
+              "figure_type": "reactor_scheme",
+              "components": [
+                "DIPEA",
+                "DMA"
+              ],
+              "flow_path": "from reactants to product",
+              "number_of_inlets": null,
+              "mixer_type": "",
+              "reactor_geometry": "",
+              "light_source_position": "",
+              "BPR_present": false,
+              "inline_analytics": [],
+              "labeled_dimensions": {},
+              "key_information": "Formation of an indazole compound from a fluoroacetophenone and a hydrazine using DIPEA and DMA",
+              "caption": "",
+              "page": 3
+            },
+            {
+              "figure_type": "mechanistic_scheme",
+              "mechanism_type": "",
+              "key_intermediates": [],
+              "oxidation_states": {},
+              "rate_determining_step": "",
+              "key_observations_supporting_mechanism": [],
+              "caption": "",
+              "page": 3
+            },
+            {
+              "figure_type": "mechanistic_scheme",
+              "mechanism_type": null,
+              "key_intermediates": [],
+              "oxidation_states": {},
+              "rate_determining_step": null,
+              "key_observations_supporting_mechanism": [],
+              "caption": "",
+              "page": 3
+            }
+          ],
+          "translation_logic": {
+            "batch_limitation": "",
+            "flow_advantage": "",
+            "what_changed": "",
+            "what_stayed_same": "",
+            "time_reduction_factor": null,
+            "yield_change_percent": null,
+            "safety_improvement": "",
+            "scale_up_discussed": false
+          },
+          "process_figures": {
+            "has_reactor_scheme": false,
+            "has_flow_diagram": false,
+            "has_optimization_table": true,
+            "figure_descriptions": []
+          },
+          "field_sources": {
+            "reaction_name": "text",
+            "reaction_class": "text",
+            "mechanism_type": "text",
+            "substrate_A": "text",
+            "substrate_B": "text",
+            "limiting_reagent": "text",
+            "base_name": "text",
+            "base_equiv": "text",
+            "product": "text",
+            "mechanistic_details_key_intermediate": "text",
+            "scope_summary": "text",
+            "batch_temperature_C": "table",
+            "batch_reaction_time_min": "table",
+            "batch_solvent": "text",
+            "batch_yield_percent": "table",
+            "flow_temperature_C": "table",
+            "flow_residence_time_min": "table",
+            "flow_rate_total_mL_min": "derived",
+            "flow_concentration_M": "table",
+            "flow_yield_percent": "table",
+            "reactor_type": "text",
+            "reactor_volume_mL": "table",
+            "pump_type": "text",
+            "number_of_inlets": "text",
+            "variables_screened": "text",
+            "number_of_entries": "table",
+            "optimal_entry_number": "table",
+            "key_findings": "text"
+          },
+          "field_confidence": {
+            "reaction_name": 3,
+            "reaction_class": 3,
+            "mechanism_type": 3,
+            "substrate_A": 3,
+            "substrate_B": 3,
+            "limiting_reagent": 3,
+            "base_name": 3,
+            "base_equiv": 3,
+            "product": 3,
+            "mechanistic_details_key_intermediate": 3,
+            "scope_summary": 3,
+            "batch_temperature_C": 3,
+            "batch_reaction_time_min": 3,
+            "batch_solvent": 3,
+            "batch_yield_percent": 3,
+            "flow_temperature_C": 3,
+            "flow_residence_time_min": 3,
+            "flow_rate_total_mL_min": 3,
+            "flow_concentration_M": 3,
+            "flow_yield_percent": 3,
+            "reactor_type": 3,
+            "reactor_volume_mL": 3,
+            "pump_type": 3,
+            "number_of_inlets": 3,
+            "variables_screened": 3,
+            "number_of_entries": 3,
+            "optimal_entry_number": 3,
+            "key_findings": 3
+          },
+          "conflicts": [
+            "back_pressure_bar is null but reactor scheme shows no BPR, assume BPR_present is false."
+          ],
+          "confidence_overall": 85,
+          "notes": "",
+          "source_pdf": "op100288t.pdf"
+        }
+      },
+      {
+        "record_id": "chem.200802200.pdf",
+        "metadata": {
+          "photocatalyst": "",
+          "wavelength_nm": 0,
+          "solvent": "MeCN",
+          "process_mode": "both",
+          "year": 0,
+          "mechanism_type": "Homogeneous and heterogeneous catalysis",
+          "has_translation": true,
+          "doi": "",
+          "phase_regime": "single_phase_liquid",
+          "reactor_type": "X-Cube Flash",
+          "title": "",
+          "confidence": 90,
+          "chemistry_class": "Transition-metal-catalyzed cross-coupling"
+        },
+        "summary": "This transition-metal-catalyzed cross-coupling reaction was performed using both homogeneous and heterogeneous catalysis in acetonitrile solvent with triethylamine as base. The flow process utilized an X-Cube Flash reactor with stainless steel tubing (1.0 mm ID, 4.0 mL volume) operated at 170°C with a 10-minute residence time and 0.4 mL/min flow rate under 10 bar back pressure. Both batch (150°C, 5 hours, microwave heating) and flow conditions achieved 94% yield at 0.65 M concentration. The flow process provided a significant time advantage, reducing reaction time from 5 hours to 10 minutes (30-fold acceleration) while allowing operation at higher temperature (170°C vs 150°C) and eliminating the need for microwave heating. The back pressure regulator was essential for maintaining single-phase liquid conditions at the elevated temperature.",
+        "semantic_score": 0.4915,
+        "field_score": 0.0,
+        "final_score": 0.2949,
+        "full_record": {
+          "chemistry": {
+            "reaction_name": "Mizoroki–Heck coupling",
+            "reaction_class": "Transition-metal-catalyzed cross-coupling",
+            "mechanism_type": "Homogeneous and heterogeneous catalysis",
+            "substrates": {
+              "substrate_A": "aryl iodides (1a) or aryl bromides (1b)",
+              "substrate_B": "butyl acrylate (2)",
+              "limiting_reagent": "aryl iodides or aryl bromides",
+              "stoichiometry": "1.5 equivalents of butyl acrylate"
+            },
+            "catalyst": {
+              "name": "Pd(OAc)2",
+              "type": "metal_catalyst",
+              "loading_mol_pct": 0.01,
+              "role": "precatalyst"
+            },
+            "photocatalyst": {
+              "name": null,
+              "loading_mol_pct": null,
+              "role": null,
+              "absorption_max_nm": null
+            },
+            "co_catalyst": {
+              "name": null,
+              "loading_mol_pct": null,
+              "role": null
+            },
+            "additives": [
+              {
+                "name": "TBAB",
+                "equiv": 0.1,
+                "role": "stabilizer for Pd nanoparticles"
+              }
+            ],
+            "base": {
+              "name": "triethylamine",
+              "equiv": 1.5
+            },
+            "oxidant": {
+              "name": null,
+              "equiv": null
+            },
+            "reductant": {
+              "name": null,
+              "equiv": null
+            },
+            "product": "cinnamic esters (3a, 3b)",
+            "bond_formed": "C–C bond",
+            "mechanistic_details": {
+              "excited_state_lifetime_ns": null,
+              "redox_potential_discussed": false,
+              "triplet_state_involved": false,
+              "key_intermediate": "Pd colloids/nanoparticles"
+            },
+            "scope_summary": "Mizoroki–Heck couplings of aryl iodides and bromides with butyl acrylate were successfully performed in both batch/microwave and continuous-flow modes using a homogeneous Pd(OAc)2 catalyst with high yield and selectivity."
+          },
+          "batch_baseline": {
+            "temperature_C": 150,
+            "reaction_time_min": 300,
+            "solvent": "MeCN",
+            "concentration_M": 0.65,
+            "light_source": "microwave",
+            "light_power_W": null,
+            "atmosphere": "",
+            "yield_percent": 94,
+            "ee_percent": null,
+            "scale_mmol": 0.065,
+            "vessel": "sealed vessel"
+          },
+          "flow_optimized": {
+            "temperature_C": 170,
+            "residence_time_min": 10,
+            "flow_rate_total_mL_min": 0.4,
+            "flow_rate_stream_A_mL_min": null,
+            "flow_rate_stream_B_mL_min": null,
+            "concentration_M": 0.65,
+            "back_pressure_bar": 10,
+            "atmosphere": "",
+            "yield_percent": 94,
+            "ee_percent": null,
+            "scale_mmol": null,
+            "throughput_mmol_h": null
+          },
+          "optimization_table": {
+            "variables_screened": [
+              "temperature",
+              "flow rate",
+              "Pd(OAc)2 concentration"
+            ],
+            "number_of_entries": 11,
+            "optimal_entry_number": 11,
+            "key_findings": "The Mizoroki–Heck coupling using 0.01 mol % Pd(OAc)2 at 170°C achieved full conversion and high selectivity."
+          },
+          "reactor": {
+            "type": "X-Cube Flash",
+            "material": "stainless steel",
+            "volume_mL": 4,
+            "tubing_diameter_mm": 1.0,
+            "channel_depth_mm": null
+          },
+          "light_source": {
+            "type": "microwave",
+            "wavelength_nm": null,
+            "power_W": null,
+            "irradiance_mW_cm2": null,
+            "color": "",
+            "position_relative_to_reactor": ""
+          },
+          "pump": {
+            "type": "HPLC",
+            "number_of_inlets": null
+          },
+          "figures": [],
+          "translation_logic": {
+            "batch_limitation": "",
+            "flow_advantage": "",
+            "what_changed": "",
+            "what_stayed_same": "",
+            "time_reduction_factor": null,
+            "yield_change_percent": null,
+            "safety_improvement": "",
+            "scale_up_discussed": false
+          },
+          "process_figures": {
+            "has_reactor_scheme": true,
+            "has_flow_diagram": false,
+            "has_optimization_table": true,
+            "figure_descriptions": []
+          },
+          "field_sources": {
+            "temperature_C": "table",
+            "reaction_time_min": "text",
+            "solvent": "text",
+            "concentration_M": "text",
+            "yield_percent": "text",
+            "degassing_method": "text",
+            "back_pressure_bar": "text"
+          },
+          "field_confidence": {
+            "temperature_C": 3,
+            "reaction_time_min": 3,
+            "solvent": 3,
+            "concentration_M": 3,
+            "yield_percent": 3,
+            "degassing_method": 1,
+            "back_pressure_bar": 2
+          },
+          "conflicts": [],
+          "confidence_overall": 90,
+          "notes": "Back pressure set based on text but supported by reactor scheme figure. No conflicts between text and figures were identified.",
+          "source_pdf": "chem.200802200.pdf"
+        }
+      }
+    ],
+    "calculations": {
+      "steps": [
+        {
+          "step": 1,
+          "name": "Batch Conditions",
+          "status": "PASS",
+          "summary": "T = 60 °C, C₀ = 0.1 M, t_batch = 4.0 h (14400 s), X = 0.89",
+          "values": {
+            "T_C": 60.0,
+            "T_K": 333.15,
+            "C_M": 0.1,
+            "t_batch_h": 4.0,
+            "t_batch_s": 14400.0,
+            "X": 0.89
+          },
+          "equations": [],
+          "warnings": [],
+          "adjustments": [],
+          "assumptions": [
+            "Concentration not specified → assumed 0.1 M",
+            "Intensification policy active downstream → tau_flow must remain ≤ 240.0 min"
+          ]
+        },
+        {
+          "step": 2,
+          "name": "Kinetics & Residence Time",
+          "status": "PASS",
+          "summary": "τ = 18.8 min, range [10.3–36.0] min, via analogy_blended (kinetic) (IF = 13×)",
+          "values": {
+            "tau_primary_min": 18.823529411764707,
+            "tau_range_low": 10.32,
+            "tau_range_high": 36.0,
+            "method": "analogy_blended (kinetic)",
+            "IF_primary": 12.75,
+            "IF_class": 10.0,
+            "tau_class_min": 24.0,
+            "chemistry_type": "default",
+            "k_batch": 0.00015328298008261953,
+            "k_flow": 0.001954357996053399,
+            "IF_analogy": 15.5,
+            "tau_analogy_min": 15.483870967741934,
+            "n_analogy_datapoints": 2,
+            "analogy_IFs": [
+              1.0,
+              30.0
+            ],
+            "raw_analogy_IFs": [
+              1.0,
+              30.0
+            ],
+            "IF_floor_applied": false
+          },
+          "equations": [
+            "k_{\\mathrm{batch}} = \\frac{-\\ln(1-X)}{t_{\\mathrm{batch}}} = \\frac{2.2073}{14400} = 1.5328e-04\\;\\mathrm{s^{-1}}",
+            "\\tau_{\\mathrm{class}} = \\frac{t_{\\mathrm{batch}}}{IF_{\\mathrm{class}}} = \\frac{240}{10} = 24.0\\;\\mathrm{min}\\quad (IF_{\\mathrm{class}} = 10\\times,\\;\\text{default median})",
+            "\\tau_{\\mathrm{analogy}} = \\frac{t_{\\mathrm{batch}}}{IF_{\\mathrm{analogy}}} = \\frac{240}{16} = 15.5\\;\\mathrm{min}\\quad (IF_{\\mathrm{analogy}} = \\mathrm{median}(1, 30) = 16\\times,\\;n = 2)"
+          ],
+          "warnings": [],
+          "adjustments": [],
+          "assumptions": [
+            "First-order kinetics assumed (n = 1)",
+            "IF = 10× from default class median (no analogy data available)"
+          ]
+        },
+        {
+          "step": 3,
+          "name": "Reactor Sizing",
+          "status": "PASS",
+          "summary": "V_R = 9.41 mL, d = 1.00 mm, L = 11.98 m, Pe = 217 (✓ plug flow)",
+          "values": {
+            "V_R_mL": 9.411764705882353,
+            "liquid_holdup_mL": 9.411764705882353,
+            "gas_holdup": 0.0,
+            "d_mm": 1.0,
+            "L_m": 11.983431009272122,
+            "Q_mL_min": 0.5,
+            "v_m_s": 0.01061032953945969,
+            "residence_time_basis": "unknown",
+            "residence_time_inlet_min": null,
+            "residence_time_in_channel_min": null,
+            "Pe": 216.8,
+            "Pe_adequate": true
+          },
+          "equations": [
+            "V_R = \\tau \\times Q = 1129.4 \\times 8.333e-09 = 9.412e-06\\;\\mathrm{m^3} = 9.41\\;\\mathrm{mL}",
+            "L = \\frac{4\\,V_R}{\\pi\\,d^2} = \\frac{4 \\times 9.412e-06}{\\pi \\times (0.0010)^2} = 11.98\\;\\mathrm{m}",
+            "Pe = \\frac{192\\,\\tau\\,D_{\\mathrm{mol}}}{d^2} = \\frac{192 \\times 1129.4 \\times 1e-09}{0.0010^2} = 217\\;\\checkmark"
+          ],
+          "warnings": [],
+          "adjustments": [],
+          "assumptions": []
+        },
+        {
+          "step": 4,
+          "name": "Fluid Dynamics",
+          "status": "PASS",
+          "summary": "Re = 10.6 (laminar), v = 0.0106 m/s",
+          "values": {
+            "Re": 10.610329539459691,
+            "regime": "laminar",
+            "v_m_s": 0.01061032953945969,
+            "mu_Pa_s": 0.001,
+            "rho_kg_m3": 1000.0,
+            "mu_cP": 1.0,
+            "rho_g_mL": 1.0
+          },
+          "equations": [
+            "v = \\frac{4\\,Q}{\\pi\\,d^2} = \\frac{4 \\times 8.333e-09}{\\pi \\times (0.0010)^2} = 0.0106\\;\\mathrm{m/s}",
+            "Re = \\frac{\\rho\\,v\\,d}{\\mu} = \\frac{1000 \\times 0.0106 \\times 0.0010}{1.0000e-03} = 10.6"
+          ],
+          "warnings": [],
+          "adjustments": [],
+          "assumptions": []
+        },
+        {
+          "step": 5,
+          "name": "Pressure Drop",
+          "status": "PASS",
+          "summary": "ΔP = 0.0407 bar (pump max = 20 bar, margin = 100 %)",
+          "values": {
+            "dP_bar": 0.04068740864696231,
+            "dP_Pa": 4068.740864696231,
+            "pump_max_bar": 20.0,
+            "margin_pct": 99.79656295676519
+          },
+          "equations": [
+            "\\Delta P = \\frac{128\\,\\mu\\,L\\,Q}{\\pi\\,d^4} = \\frac{128 \\times 1.0000e-03 \\times 11.98 \\times 8.333e-09}{\\pi \\times (0.0010)^4} \\times \\phi^2_{2p} = 0.0407\\;\\mathrm{bar}"
+          ],
+          "warnings": [],
+          "adjustments": [],
+          "assumptions": []
+        },
+        {
+          "step": 6,
+          "name": "Mass Transfer",
+          "status": "WARNING",
+          "summary": "t_mix = 101.3 s, Da = 1.954 — Transition zone — mixing becoming significant",
+          "values": {
+            "t_mix_s": 101.32118364233777,
+            "Da_mass": 1.9543579960533988,
+            "D_m2_s": 1e-09,
+            "interpretation": "Transition zone — mixing becoming significant"
+          },
+          "equations": [
+            "t_{\\mathrm{mix}} \\approx \\frac{d^2}{D \\cdot \\pi^2} = \\frac{(0.0010)^2}{1.0e-09 \\times \\pi^2} = 101.3\\;\\mathrm{s}",
+            "Da = \\frac{k \\cdot d^2}{D} = \\frac{1.954e-03 \\times (0.0010)^2}{1.0e-09} = 1.954"
+          ],
+          "warnings": [
+            "Da = 1.95 > 1: mixing may limit conversion. Consider static mixer insert."
+          ],
+          "adjustments": [],
+          "assumptions": [
+            "D = 1e-09 m²/s (typical for small organic molecules in liquid)"
+          ]
+        },
+        {
+          "step": 7,
+          "name": "Heat Transfer",
+          "status": "PASS",
+          "summary": "Q_gen = 0.1104 W, Q_rem = 112.9409 W, Da_th = 0.0010 — Thermally safe",
+          "values": {
+            "Q_gen_W": 0.11036374565948606,
+            "Q_rem_W": 112.94088421508378,
+            "Da_th": 0.000977181526658762,
+            "S_V_m_inv": 4000.0,
+            "U_W_m2K": 300,
+            "A_wall_m2": 0.03764696140502793,
+            "UA_W_K": 11.294088,
+            "heat_transfer_score": 1.0,
+            "dH_J_mol": -60000,
+            "dT_lm_C": 10.0,
+            "r_mol_m3_s": 0.19543579960533988
+          },
+          "equations": [
+            "\\dot{Q}_{\\mathrm{rxn}} = |\\Delta H_r| \\cdot r \\cdot V_R = 60000 \\times 0.195 \\times 9.412e-06 = 0.1104\\;\\mathrm{W}",
+            "A_{\\mathrm{wall}} = \\pi\\,d\\,L = \\pi \\times 0.0010 \\times 11.98 = 0.03765\\;\\mathrm{m^2}",
+            "\\dot{Q}_{\\mathrm{rem}} = U \\cdot A \\cdot \\Delta T_{\\mathrm{lm}} = 300 \\times 0.03765 \\times 10 = 112.9409\\;\\mathrm{W}",
+            "Da_{\\mathrm{th}} = \\frac{\\dot{Q}_{\\mathrm{rxn}}}{\\dot{Q}_{\\mathrm{rem}}} = \\frac{0.1104}{112.9409} = 0.0010",
+            "\\frac{S}{V} = \\frac{4}{d} = \\frac{4}{0.0010} = 4000\\;\\mathrm{m^{-1}}"
+          ],
+          "warnings": [],
+          "adjustments": [],
+          "assumptions": [
+            "ΔH_r ≈ -60 kJ/mol (estimated for default)",
+            "U ≈ 300 W/m²·K (coil in temperature-controlled bath)",
+            "ΔT_lm ≈ 10.0 °C (conservative estimate)"
+          ]
+        },
+        {
+          "step": 8,
+          "name": "Back-Pressure Regulator",
+          "status": "PASS",
+          "summary": "BPR not required (T = 60.0 °C, bp = ? °C — safe margin)",
+          "values": {
+            "bpr_required": false,
+            "bpr_bar": 0.0,
+            "P_vapor_bar": 0,
+            "dP_system_bar": 0.040687,
+            "solvent_bp_C": null,
+            "gas_liquid": false,
+            "gas_species": "",
+            "gas_pressure_abs_bar": 1.01325,
+            "gas_flow_sccm": 0.0,
+            "dissolved_o2_mM": 0.0
+          },
+          "equations": [],
+          "warnings": [],
+          "adjustments": [],
+          "assumptions": []
+        },
+        {
+          "step": 9,
+          "name": "Process Metrics",
+          "status": "PASS",
+          "summary": "STY = 0.2837 mol/(L·h), P = 2.670 mmol/h, startup waste = 28.2 mL, IF = 13×",
+          "values": {
+            "STY_mol_L_h": 0.2837407013815091,
+            "productivity_mmol_h": 2.6700000000000004,
+            "IF": 12.749999999999998,
+            "n_molar_flow_mmol_min": null,
+            "P_batch_mmol_h": null,
+            "P_flow_mmol_h": null,
+            "C_reactor_M": null,
+            "startup_waste_mL": 28.2,
+            "productivity_closure_ok": null,
+            "is_gas_liquid": false,
+            "liquid_flow_rate_mL_min": 0.5,
+            "gas_flow_sccm": 0.0,
+            "gas_holdup": 0.0,
+            "liquid_holdup_volume_mL": 0.0,
+            "total_reactor_volume_mL": 9.4118
+          },
+          "equations": [
+            "STY = \\frac{C_0 \\cdot X \\cdot 60}{\\tau} = \\frac{0.1 \\times 0.89 \\times 60}{18.8} = 0.2837\\;\\mathrm{mol/(L \\cdot h)}",
+            "P = Q \\cdot C_0 \\cdot X \\cdot 60 = 0.500 \\times 0.1 \\times 0.89 \\times 60 = 2.670\\;\\mathrm{mmol/h}",
+            "V_{\\mathrm{startup}} = 3 \\cdot \\tau \\cdot Q = 3 \\times 18.8 \\times 0.500 = 28.2\\;\\mathrm{mL}",
+            "IF = \\frac{t_{\\mathrm{batch}}}{\\tau_{\\mathrm{flow}}} = \\frac{14400}{1129.4} = 12.7\\times"
+          ],
+          "warnings": [],
+          "adjustments": [],
+          "assumptions": []
+        }
+      ],
+      "temperature_C": 60.0,
+      "temperature_K": 333.15,
+      "concentration_M": 0.1,
+      "batch_time_s": 14400.0,
+      "target_conversion": 0.89,
+      "rate_constant": 0.001954357996053399,
+      "reaction_order": 1,
+      "kinetics_method": "analogy_blended (kinetic)",
+      "residence_time_s": 1129.4117647058824,
+      "residence_time_min": 18.82,
+      "residence_time_inlet_min": 0.0,
+      "residence_time_in_channel_min": 0.0,
+      "residence_time_basis": "",
+      "residence_time_range_min": [
+        10.32,
+        36.0
+      ],
+      "intensification_factor": 12.8,
+      "tau_analogy_min": 15.48,
+      "tau_class_min": 24.0,
+      "tau_kinetics_min": 19.64,
+      "if_analogy": 15.5,
+      "if_class": 10.0,
+      "n_analogy_datapoints": 2,
+      "arrhenius_correction": null,
+      "flow_rate_mL_min": 0.5,
+      "flow_rate_m3_s": 8.333333333333334e-09,
+      "reactor_volume_mL": 9.4118,
+      "reactor_volume_m3": 9.411764705882354e-06,
+      "tubing_ID_mm": 1.0,
+      "tubing_ID_m": 0.001,
+      "tubing_length_m": 11.9834,
+      "velocity_m_s": 0.01061032953945969,
+      "reynolds_number": 10.61,
+      "flow_regime": "laminar",
+      "viscosity_Pa_s": 0.001,
+      "density_kg_m3": 1000.0,
+      "pressure_drop_bar": 0.040687,
+      "pump_max_bar": 20.0,
+      "pump_adequate": true,
+      "is_gas_liquid": false,
+      "gas_species": "",
+      "gas_oxygen_fraction": 0.0,
+      "gas_reagent_fraction": 0.0,
+      "liquid_flow_rate_mL_min": 0.5,
+      "gas_flow_sccm": 0.0,
+      "gas_sccm_uncapped": 0.0,
+      "gas_flow_actual_mL_min": 0.0,
+      "gas_actual_uncapped_mL_min": 0.0,
+      "gas_flow_capped_by_holdup": false,
+      "gas_pressure_abs_bar": 1.01325,
+      "gas_liquid_ratio": 0.0,
+      "gas_holdup": 0.0,
+      "liquid_holdup_volume_mL": 0.0,
+      "two_phase_multiplier": 1.0,
+      "two_phase_pressure_drop_bar": 0.0,
+      "o2_supply_mmol_min": 0.0,
+      "o2_required_mmol_min": 0.0,
+      "gas_supply_mmol_min": 0.0,
+      "gas_required_mmol_min": 0.0,
+      "target_gas_equiv_inlet": 0.0,
+      "explicit_gas_equiv_inlet": 0.0,
+      "o2_equiv_supplied": 0.0,
+      "gas_equiv_supplied": 0.0,
+      "gas_flow_recomputed_from_equiv": false,
+      "dissolved_o2_mM": 0.0,
+      "kLa_s": 0.0,
+      "o2_transfer_capacity_mmol_min": 0.0,
+      "o2_transfer_sufficiency": 0.0,
+      "mixing_time_s": 101.32,
+      "damkohler_mass": 1.9544,
+      "mass_transfer_limited": true,
+      "heat_generation_W": 0.110364,
+      "heat_removal_W": 112.940884,
+      "thermal_damkohler": 0.000977,
+      "thermal_safe": true,
+      "surface_to_volume": 4000.0,
+      "heat_transfer_area_m2": 0.03764696,
+      "UA_W_K": 11.294088,
+      "heat_transfer_score": 1.0,
+      "bpr_required": false,
+      "bpr_pressure_bar": 0.0,
+      "vapor_pressure_bar": 0.0,
+      "space_time_yield_mol_L_h": 0.2837,
+      "productivity_mmol_h": 2.67,
+      "n_molar_flow_mmol_min": null,
+      "P_batch_mmol_h": null,
+      "P_flow_mmol_h": null,
+      "C_reactor_M": null,
+      "startup_waste_mL": 28.2,
+      "productivity_closure_ok": null,
+      "Pe": 216.8,
+      "Pe_adequate": true,
+      "consistent": true,
+      "consistency_notes": [],
+      "material_warnings": []
+    },
+    "design_space": [],
+    "proposal": {
+      "residence_time_min": 10.0,
+      "flow_rate_mL_min": 0.5,
+      "temperature_C": 60.0,
+      "concentration_M": 0.1,
+      "BPR_bar": 0.0,
+      "reactor_type": "microcoil",
+      "tubing_material": "PTFE",
+      "tubing_ID_mm": 0.5,
+      "reactor_volume_mL": 5.0,
+      "residence_time_inlet_min": null,
+      "residence_time_in_channel_min": null,
+      "residence_time_basis": "liquid-only reactor volume / liquid flow",
+      "light_setup": "",
+      "wavelength_nm": null,
+      "deoxygenation_method": null,
+      "streams": [
+        {
+          "stream_label": "A",
+          "pump_role": "Substrate pump",
+          "contents": [
+            "Aniline derivative (0.1 M)"
+          ],
+          "solvent": "Industrial batch solvent",
+          "concentration_M": 0.1,
+          "flow_rate_mL_min": 0.25,
+          "phase": "",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null,
+          "molar_equiv": 1.0,
+          "reasoning": "From Chemistry Plan stream_logic: Stream A contains substrate and solvent. Flow rate set to half of total to match 1:1 volumetric mixing for 2.0 equiv nitric acid (assuming similar density/concentration scaling or adjusted via concentration in Stream B)."
+        },
+        {
+          "stream_label": "B",
+          "pump_role": "Acid pump",
+          "contents": [
+            "Nitric acid (2.0 equiv)"
+          ],
+          "solvent": "Industrial batch solvent",
+          "concentration_M": 0.2,
+          "flow_rate_mL_min": 0.25,
+          "phase": "",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null,
+          "molar_equiv": 1.0,
+          "reasoning": "From Chemistry Plan stream_logic: Stream B contains Nitric acid. Segregated to control mixing. Concentration doubled relative to Stream A to provide 2.0 equivalents at equal flow rates."
+        }
+      ],
+      "mixer_type": "T-mixer",
+      "mixing_order_reasoning": "From Chemistry Plan: Substrate and nitrating agent must be mixed rapidly in the micromixer to ensure uniform reaction and heat dissipation. Incompatible pair (Aniline derivative, Nitric acid) must not be pre-mixed.",
+      "pre_reactor_steps": [
+        "Pump Stream A (Aniline derivative) and Stream B (Nitric acid) separately using syringe pumps."
+      ],
+      "post_reactor_steps": [
+        "Immediate quench with Water or dilute base to stop exothermic nitration and prevent over-nitration/oxidation."
+      ],
+      "chemistry_notes": "Thermal nitration of aniline derivative. Highly exothermic; flow mitigates thermal runaway. PTFE wetted path required for nitric acid compatibility. No light source used. Quench is critical for safety and selectivity. Residence time reduced from 4h batch to ~19 min based on kinetic intensification factor.",
+      "stage_parameters": [],
+      "multiphase_metrics": {},
+      "heat_transfer_metrics": {},
+      "inventory_selection": {},
+      "inventory_constraints": {},
+      "evidence_calibration": {},
+      "reasoning_per_field": {
+        "residence_time_min": "Calculation Step 2 estimated 18.8 min (range 10.3-36.0 min) based on 13x intensification factor. Analogy 1 used 60 min at 120C; our T is lower (60C) but flow mixing is superior. 18.8 min is conservative and within calculated range.",
+        "residence_time_basis": "Single-phase liquid system. Basis is liquid volume / liquid flow.",
+        "temperature_C": "From Batch Protocol and Chemistry Plan: 60 C. Analogy 1 used 120C but different solvent/catalyst. We maintain batch T for selectivity control.",
+        "BPR_bar": "Calculation Step 8: BPR not required. T=60C is well below solvent bp (assumed >80C for industrial solvent) and no gas generated. Inventory BPR available but not strictly needed for pressure containment, though could be used for stability. Set to 0 as per calculation.",
+        "tubing_material": "From Inventory: PTFE microcoil. Chemistry Plan mandates PTFE for nitric acid compatibility. Analogy 1 used packed bed (material unspecified but likely ceramic/glass); PTFE is safer for HNO3.",
+        "concentration_M": "From Batch Protocol: 0.1 M. Analogy 1 used 1.0 M; we stick to batch concentration to ensure solubility and control exotherm density.",
+        "reactor_volume_mL": "From Inventory: 5 mL PTFE microcoil. Calculation Step 3 suggested 9.41 mL for 18.8 min at 0.5 mL/min. However, Inventory constraint mandates use of the 5 mL reactor. To use the 5 mL reactor with 0.5 mL/min flow, residence time becomes 10 min. This is within the lower bound of the calculated range (10.3-36.0 min) and represents a 24x intensification. We adjust residence_time_min to 10.0 to match the physical inventory constraint.",
+        "flow_rate_mL_min": "Calculation Step 3 suggested 0.5 mL/min. This fits within pump limits (0.01-2.0 mL/min).",
+        "tubing_ID_mm": "From Inventory: 0.5 mm ID. Calculation Step 3 suggested 1.0 mm. We use inventory 0.5 mm. This increases pressure drop but is within pump capacity (20 bar max, calc delta P 0.04 bar). Smaller ID improves heat transfer."
+      },
+      "literature_analogies": [
+        "Analogy 1: Solid acid catalyzed nitration in flow. Similar mechanism (EAS). Key difference: T=120C vs 60C, packed bed vs coil. Adjustment: Used for safety/flow concept, but T and reactor type from inventory/plan.",
+        "Analogy 2: SNAr condensation. Dissimilar mechanism. Used for general flow parameter ranges (T, RT).",
+        "Analogy 3: Cross-coupling. Dissimilar mechanism. Used for BPR/pressure concepts."
+      ],
+      "engine_validated": false,
+      "safety_flags": [],
+      "confidence": "HIGH"
+    },
+    "pre_council_proposal": {
+      "residence_time_min": 10.0,
+      "flow_rate_mL_min": 0.5,
+      "temperature_C": 60.0,
+      "concentration_M": 0.1,
+      "BPR_bar": 0.0,
+      "reactor_type": "microcoil",
+      "tubing_material": "PTFE",
+      "tubing_ID_mm": 0.5,
+      "reactor_volume_mL": 5.0,
+      "residence_time_inlet_min": null,
+      "residence_time_in_channel_min": null,
+      "residence_time_basis": "liquid-only reactor volume / liquid flow",
+      "light_setup": "",
+      "wavelength_nm": null,
+      "deoxygenation_method": null,
+      "streams": [
+        {
+          "stream_label": "A",
+          "pump_role": "Substrate pump",
+          "contents": [
+            "Aniline derivative (0.1 M)"
+          ],
+          "solvent": "Industrial batch solvent",
+          "concentration_M": 0.1,
+          "flow_rate_mL_min": 0.25,
+          "phase": "",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null,
+          "molar_equiv": 1.0,
+          "reasoning": "From Chemistry Plan stream_logic: Stream A contains substrate and solvent. Flow rate set to half of total to match 1:1 volumetric mixing for 2.0 equiv nitric acid (assuming similar density/concentration scaling or adjusted via concentration in Stream B)."
+        },
+        {
+          "stream_label": "B",
+          "pump_role": "Acid pump",
+          "contents": [
+            "Nitric acid (2.0 equiv)"
+          ],
+          "solvent": "Industrial batch solvent",
+          "concentration_M": 0.2,
+          "flow_rate_mL_min": 0.25,
+          "phase": "",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null,
+          "molar_equiv": 1.0,
+          "reasoning": "From Chemistry Plan stream_logic: Stream B contains Nitric acid. Segregated to control mixing. Concentration doubled relative to Stream A to provide 2.0 equivalents at equal flow rates."
+        }
+      ],
+      "mixer_type": "T-mixer",
+      "mixing_order_reasoning": "From Chemistry Plan: Substrate and nitrating agent must be mixed rapidly in the micromixer to ensure uniform reaction and heat dissipation. Incompatible pair (Aniline derivative, Nitric acid) must not be pre-mixed.",
+      "pre_reactor_steps": [
+        "Pump Stream A (Aniline derivative) and Stream B (Nitric acid) separately using syringe pumps."
+      ],
+      "post_reactor_steps": [
+        "Immediate quench with Water or dilute base to stop exothermic nitration and prevent over-nitration/oxidation."
+      ],
+      "chemistry_notes": "Thermal nitration of aniline derivative. Highly exothermic; flow mitigates thermal runaway. PTFE wetted path required for nitric acid compatibility. No light source used. Quench is critical for safety and selectivity. Residence time reduced from 4h batch to ~19 min based on kinetic intensification factor.",
+      "stage_parameters": [],
+      "multiphase_metrics": {},
+      "heat_transfer_metrics": {},
+      "inventory_selection": {},
+      "inventory_constraints": {},
+      "evidence_calibration": {},
+      "reasoning_per_field": {
+        "residence_time_min": "Calculation Step 2 estimated 18.8 min (range 10.3-36.0 min) based on 13x intensification factor. Analogy 1 used 60 min at 120C; our T is lower (60C) but flow mixing is superior. 18.8 min is conservative and within calculated range.",
+        "residence_time_basis": "Single-phase liquid system. Basis is liquid volume / liquid flow.",
+        "temperature_C": "From Batch Protocol and Chemistry Plan: 60 C. Analogy 1 used 120C but different solvent/catalyst. We maintain batch T for selectivity control.",
+        "BPR_bar": "Calculation Step 8: BPR not required. T=60C is well below solvent bp (assumed >80C for industrial solvent) and no gas generated. Inventory BPR available but not strictly needed for pressure containment, though could be used for stability. Set to 0 as per calculation.",
+        "tubing_material": "From Inventory: PTFE microcoil. Chemistry Plan mandates PTFE for nitric acid compatibility. Analogy 1 used packed bed (material unspecified but likely ceramic/glass); PTFE is safer for HNO3.",
+        "concentration_M": "From Batch Protocol: 0.1 M. Analogy 1 used 1.0 M; we stick to batch concentration to ensure solubility and control exotherm density.",
+        "reactor_volume_mL": "From Inventory: 5 mL PTFE microcoil. Calculation Step 3 suggested 9.41 mL for 18.8 min at 0.5 mL/min. However, Inventory constraint mandates use of the 5 mL reactor. To use the 5 mL reactor with 0.5 mL/min flow, residence time becomes 10 min. This is within the lower bound of the calculated range (10.3-36.0 min) and represents a 24x intensification. We adjust residence_time_min to 10.0 to match the physical inventory constraint.",
+        "flow_rate_mL_min": "Calculation Step 3 suggested 0.5 mL/min. This fits within pump limits (0.01-2.0 mL/min).",
+        "tubing_ID_mm": "From Inventory: 0.5 mm ID. Calculation Step 3 suggested 1.0 mm. We use inventory 0.5 mm. This increases pressure drop but is within pump capacity (20 bar max, calc delta P 0.04 bar). Smaller ID improves heat transfer."
+      },
+      "literature_analogies": [
+        "Analogy 1: Solid acid catalyzed nitration in flow. Similar mechanism (EAS). Key difference: T=120C vs 60C, packed bed vs coil. Adjustment: Used for safety/flow concept, but T and reactor type from inventory/plan.",
+        "Analogy 2: SNAr condensation. Dissimilar mechanism. Used for general flow parameter ranges (T, RT).",
+        "Analogy 3: Cross-coupling. Dissimilar mechanism. Used for BPR/pressure concepts."
+      ],
+      "engine_validated": false,
+      "safety_flags": [],
+      "confidence": "HIGH"
+    }
+  },
+  "variant": "full",
+  "proposal": {
+    "residence_time_min": 18.8,
+    "flow_rate_mL_min": 0.26596,
+    "temperature_C": 60.0,
+    "concentration_M": 0.1,
+    "BPR_bar": 5.0,
+    "reactor_type": "microcoil",
+    "tubing_material": "PTFE",
+    "tubing_ID_mm": 0.5,
+    "reactor_volume_mL": 5.0,
+    "residence_time_inlet_min": 18.8,
+    "residence_time_in_channel_min": 18.8,
+    "residence_time_basis": "liquid-only reactor volume / liquid flow",
+    "light_setup": "",
+    "wavelength_nm": null,
+    "deoxygenation_method": null,
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Substrate pump",
+        "contents": [
+          "Aniline derivative (0.1 M)"
+        ],
+        "solvent": "Industrial batch solvent",
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.13298,
+        "phase": "",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "molar_equiv": 1.0,
+        "reasoning": "Assuming 1:1 stoichiometry and equal split. Q_total=0.564 mL/min. Q_A = Q_total / 2 = 0.282 mL/min."
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "Acid pump",
+        "contents": [
+          "Nitric acid (2.0 equiv)"
+        ],
+        "solvent": "Industrial batch solvent",
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.13298,
+        "phase": "",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "molar_equiv": 1.0,
+        "reasoning": "Assuming 1:1 stoichiometry and equal split. Q_total=0.564 mL/min. Q_B = Q_total / 2 = 0.282 mL/min."
+      }
+    ],
+    "mixer_type": "T-mixer",
+    "mixing_order_reasoning": "From Chemistry Plan: Substrate and nitrating agent must be mixed rapidly in the micromixer to ensure uniform reaction and heat dissipation. Incompatible pair (Aniline derivative, Nitric acid) must not be pre-mixed.",
+    "pre_reactor_steps": [
+      "Pump Stream A (Aniline derivative) and Stream B (Nitric acid) separately using syringe pumps."
+    ],
+    "post_reactor_steps": [
+      "Immediate quench with Water or dilute base to stop exothermic nitration and prevent over-nitration/oxidation."
+    ],
+    "chemistry_notes": "Thermal nitration of aniline derivative. Highly exothermic; flow mitigates thermal runaway. PTFE wetted path required for nitric acid compatibility. No light source used. Quench is critical for safety and selectivity. Residence time reduced from 4h batch to ~19 min based on kinetic intensification factor.\nInventory enforced: microcoil reactor: 5 mL, 0.5 mm ID, PTFE.",
+    "stage_parameters": [
+      {
+        "stage_number": 1,
+        "residence_time_min": 18.8
+      }
+    ],
+    "multiphase_metrics": {},
+    "heat_transfer_metrics": {
+      "surface_to_volume_m_inv": 8000.0,
+      "heat_transfer_area_m2": 0.04000033,
+      "UA_W_K": 12.000099,
+      "heat_generation_W": 0.058705,
+      "heat_removal_W": 120.000985,
+      "thermal_damkohler": 0.000489,
+      "heat_transfer_score": 1.0
+    },
+    "inventory_selection": {
+      "name": "",
+      "system": "",
+      "type": "microcoil",
+      "material": "PTFE",
+      "volume_mL": 5.0,
+      "ID_mm": 0.5,
+      "light_source": "",
+      "wavelength_nm": null,
+      "intensity_mW_cm2": null,
+      "irradiation": "",
+      "temperature_range_C": [
+        null,
+        100.0
+      ],
+      "allowed_temperatures_C": [],
+      "concentration_range_M": [
+        null,
+        null
+      ],
+      "pressure_range_bar": [
+        null,
+        null
+      ],
+      "configuration": "",
+      "component_volumes_mL": [],
+      "notes": "Approved nitric-acid wetted path; two-feed micromixer and immediate quench available."
+    },
+    "inventory_constraints": {
+      "forced_reactor_inventory": true,
+      "allowed_reactor_volumes_mL": [
+        5.0
+      ],
+      "allowed_reactor_IDs_mm": [
+        0.5
+      ],
+      "selected_reactor": {
+        "name": "",
+        "system": "",
+        "type": "microcoil",
+        "material": "PTFE",
+        "volume_mL": 5.0,
+        "ID_mm": 0.5,
+        "light_source": "",
+        "wavelength_nm": null,
+        "intensity_mW_cm2": null,
+        "irradiation": "",
+        "temperature_range_C": [
+          null,
+          100.0
+        ],
+        "allowed_temperatures_C": [],
+        "concentration_range_M": [
+          null,
+          null
+        ],
+        "pressure_range_bar": [
+          null,
+          null
+        ],
+        "configuration": "",
+        "component_volumes_mL": [],
+        "notes": "Approved nitric-acid wetted path; two-feed micromixer and immediate quench available."
+      },
+      "selected_pump": {
+        "name": "Acid pump",
+        "type": "syringe",
+        "max_pressure_bar": 20.0,
+        "max_flow_rate_mL_min": 2.0,
+        "min_flow_rate_mL_min": 0.01,
+        "compatible_systems": []
+      },
+      "flow_recalculation": {
+        "residence_time_basis": "liquid-only reactor volume / liquid flow",
+        "requested_residence_time_min": 18.8,
+        "pump_flow_clamped": false,
+        "pump_min_flow_rate_mL_min": 0.01,
+        "pump_max_flow_rate_mL_min": 2.0,
+        "liquid_flow_rate_mL_min": 0.26596,
+        "gas_flow_actual_mL_min": null,
+        "gas_flow_sccm": null,
+        "target_gas_equiv_inlet": null,
+        "gas_equiv_supplied": null,
+        "o2_equiv_supplied": null
+      },
+      "final_validation": {
+        "schema_version": "flowpilot_final_validation_v1.0",
+        "status": "ready",
+        "checks": {
+          "reactor_inventory_match": true,
+          "pump_flow_feasible": true,
+          "tubing_feasible": true,
+          "geometry_closure": true,
+          "calculation_matches_serialized_design": true,
+          "gas_bookkeeping_complete": true
+        },
+        "unresolved_reasons": [],
+        "geometry_relative_error": 9.599999999920783e-06,
+        "gas_required": false,
+        "inventory_enforcement": {
+          "first_pass": {
+            "applied": true,
+            "old": {
+              "reactor_volume_mL": 10.6032,
+              "tubing_ID_mm": 0.75,
+              "tubing_material": "FEP",
+              "flow_rate_mL_min": 0.564,
+              "BPR_bar": 3.5,
+              "temperature_C": 60.0,
+              "concentration_M": 0.1,
+              "wavelength_nm": null
+            },
+            "new": {
+              "reactor_volume_mL": 5.0,
+              "tubing_ID_mm": 0.5,
+              "tubing_material": "PTFE",
+              "flow_rate_mL_min": 0.26596,
+              "BPR_bar": 5.0,
+              "temperature_C": 60.0,
+              "concentration_M": 0.1,
+              "wavelength_nm": null
+            },
+            "selected_reactor": {
+              "name": "",
+              "system": "",
+              "type": "microcoil",
+              "material": "PTFE",
+              "volume_mL": 5.0,
+              "ID_mm": 0.5,
+              "light_source": "",
+              "wavelength_nm": null,
+              "intensity_mW_cm2": null,
+              "irradiation": "",
+              "temperature_range_C": [
+                null,
+                100.0
+              ],
+              "allowed_temperatures_C": [],
+              "concentration_range_M": [
+                null,
+                null
+              ],
+              "pressure_range_bar": [
+                null,
+                null
+              ],
+              "configuration": "",
+              "component_volumes_mL": [],
+              "notes": "Approved nitric-acid wetted path; two-feed micromixer and immediate quench available."
+            }
+          },
+          "final_pass": {
+            "applied": true,
+            "old": {
+              "reactor_volume_mL": 5.0,
+              "tubing_ID_mm": 0.5,
+              "tubing_material": "PTFE",
+              "flow_rate_mL_min": 0.26596,
+              "BPR_bar": 5.0,
+              "temperature_C": 60.0,
+              "concentration_M": 0.1,
+              "wavelength_nm": null
+            },
+            "new": {
+              "reactor_volume_mL": 5.0,
+              "tubing_ID_mm": 0.5,
+              "tubing_material": "PTFE",
+              "flow_rate_mL_min": 0.26596,
+              "BPR_bar": 5.0,
+              "temperature_C": 60.0,
+              "concentration_M": 0.1,
+              "wavelength_nm": null
+            },
+            "selected_reactor": {
+              "name": "",
+              "system": "",
+              "type": "microcoil",
+              "material": "PTFE",
+              "volume_mL": 5.0,
+              "ID_mm": 0.5,
+              "light_source": "",
+              "wavelength_nm": null,
+              "intensity_mW_cm2": null,
+              "irradiation": "",
+              "temperature_range_C": [
+                null,
+                100.0
+              ],
+              "allowed_temperatures_C": [],
+              "concentration_range_M": [
+                null,
+                null
+              ],
+              "pressure_range_bar": [
+                null,
+                null
+              ],
+              "configuration": "",
+              "component_volumes_mL": [],
+              "notes": "Approved nitric-acid wetted path; two-feed micromixer and immediate quench available."
+            }
+          }
+        },
+        "calculation_snapshot": {
+          "reactor_volume_mL": 5.0,
+          "tubing_ID_mm": 0.5,
+          "flow_rate_mL_min": 0.26596,
+          "residence_time_min": 18.8,
+          "residence_time_inlet_min": 0.0,
+          "residence_time_in_channel_min": 0.0,
+          "gas_flow_sccm": 0.0,
+          "gas_flow_actual_mL_min": 0.0,
+          "target_gas_equiv_inlet": 0.0,
+          "gas_equiv_supplied": 0.0,
+          "consistent": true,
+          "consistency_notes": []
+        }
+      }
+    },
+    "evidence_calibration": {},
+    "reasoning_per_field": {
+      "residence_time_min": "Calculation Step 2 estimated 18.8 min (range 10.3-36.0 min) based on 13x intensification factor. Analogy 1 used 60 min at 120C; our T is lower (60C) but flow mixing is superior. 18.8 min is conservative and within calculated range.",
+      "residence_time_basis": "Single-phase liquid system. Basis is liquid volume / liquid flow.",
+      "temperature_C": "From Batch Protocol and Chemistry Plan: 60 C. Analogy 1 used 120C but different solvent/catalyst. We maintain batch T for selectivity control.",
+      "BPR_bar": "Calculation Step 8: BPR not required. T=60C is well below solvent bp (assumed >80C for industrial solvent) and no gas generated. Inventory BPR available but not strictly needed for pressure containment, though could be used for stability. Set to 0 as per calculation.",
+      "tubing_material": "From Inventory: PTFE microcoil. Chemistry Plan mandates PTFE for nitric acid compatibility. Analogy 1 used packed bed (material unspecified but likely ceramic/glass); PTFE is safer for HNO3.",
+      "concentration_M": "From Batch Protocol: 0.1 M. Analogy 1 used 1.0 M; we stick to batch concentration to ensure solubility and control exotherm density.",
+      "reactor_volume_mL": "From Inventory: 5 mL PTFE microcoil. Calculation Step 3 suggested 9.41 mL for 18.8 min at 0.5 mL/min. However, Inventory constraint mandates use of the 5 mL reactor. To use the 5 mL reactor with 0.5 mL/min flow, residence time becomes 10 min. This is within the lower bound of the calculated range (10.3-36.0 min) and represents a 24x intensification. We adjust residence_time_min to 10.0 to match the physical inventory constraint.",
+      "flow_rate_mL_min": "Calculation Step 3 suggested 0.5 mL/min. This fits within pump limits (0.01-2.0 mL/min).",
+      "tubing_ID_mm": "From Inventory: 0.5 mm ID. Calculation Step 3 suggested 1.0 mm. We use inventory 0.5 mm. This increases pressure drop but is within pump capacity (20 bar max, calc delta P 0.04 bar). Smaller ID improves heat transfer.",
+      "inventory_selection": "Forced to available inventory reactor: microcoil reactor: 5 mL, 0.5 mm ID, PTFE. Flow rates recalculated from selected volume and target residence time. Selected pump flow range was satisfied."
+    },
+    "literature_analogies": [
+      "Analogy 1: Solid acid catalyzed nitration in flow. Similar mechanism (EAS). Key difference: T=120C vs 60C, packed bed vs coil. Adjustment: Used for safety/flow concept, but T and reactor type from inventory/plan.",
+      "Analogy 2: SNAr condensation. Dissimilar mechanism. Used for general flow parameter ranges (T, RT).",
+      "Analogy 3: Cross-coupling. Dissimilar mechanism. Used for BPR/pressure concepts."
+    ],
+    "engine_validated": true,
+    "safety_flags": [],
+    "confidence": "LOW"
+  }
+}

@@ -1,0 +1,543 @@
+{
+  "chemistry_overall": "Both candidates represent a severe chemical and engineering mismatch. The reaction is a thermal copper-catalyzed cycloaddition at 150°C, yet the system is configured with opaque Stainless Steel tubing, which is irrelevant for photonics but critical for heat transfer. However, the primary failure is chemical: the residence time (0.5 min) is drastically shorter than the kinetic requirement (0.13 min is the characteristic time, but Da=21 implies the reaction is fast, yet the mixing is poor). More critically, the 'hard_gate_flags' indicate a dual-criterion mixing failure (Da_mass > 1 AND r_mix > 0.20), meaning the reaction is mixing-limited and will not achieve the predicted conversion in a laminar/transitional flow regime without enhanced mixing. Furthermore, the coil lengths (46m and 82m) exceed the bench limit of 25m, making these designs physically unimplementable in a standard lab setting. The high pressure in Candidate 2 (307 bar) is also dangerously close to the pump limit (400 bar) with little safety margin. Both candidates are BLOCKED due to physical implementation limits (coil length) and mixing inefficiencies. Both candidates propose a thermal Copper(I)-catalyzed [3+2] cycloaddition at 150°C in acetone. From a chemistry perspective, the reaction is thermodynamically feasible and the residence time (0.5 min) is sufficient for the kinetic step (tau_kinetics = 0.13 min). However, both candidates suffer from severe mixing limitations (Da_mass > 20, r_mix > 0.6), indicating that the reaction is mixing-controlled rather than kinetically controlled, which risks selectivity issues and hot spots. Candidate 3 is physically unfeasible due to excessive pressure drop (503 bar > 400 bar pump limit) and excessive coil length (105 m). Candidate 4 is physically feasible regarding pressure (52 bar) but still exceeds the bench length limit (36 m). Neither candidate is photochemical, so photonics scores are N/A (set to 1.0 for calculation purposes, but no optical constraints apply). The primary chemistry concern is the mixing regime; enhanced laminar mixing is mandated but not achieved in either design.",
+  "chemistry_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Chemistry: The reaction is a thermal [3+2] cycloaddition. At 150°C, acetone is stable. However, the Da_mass of 21.52 indicates the reaction is fast, but the r_mix of 0.608 indicates significant mixing limitations in the laminar/transitional regime (Re=1054). This mismatch suggests that concentration gradients will persist, leading to lower-than-predicted selectivity or conversion. The residence time of 0.5 min is 6x faster than batch, meeting the intensification mandate, but only if mixing is perfect, which it is not. Photonics: Not applicable (thermal reaction), but the material is Stainless Steel, which is opaque. This is acceptable for thermal reactions but prevents any photochemical verification. Engineering: The coil length of 46.3 m exceeds the 25 m bench limit, triggering a hard block. The pressure drop of 97 bar is manageable.",
+      "chemistry_score": 0.4,
+      "photonics_score": 0.0,
+      "combined_score": 0.24,
+      "selectivity_flow_value": 0.6,
+      "verdict": "BLOCK",
+      "proposed_changes": {},
+      "beer_lambert_A": 0.0,
+      "epsilon_used": 0.0,
+      "wavelength_match": false,
+      "material_transparent": false,
+      "stream_logic_valid": true,
+      "atmosphere_valid": true,
+      "hard_gate_failed": true,
+      "blocking_issues": [
+        "Coil length 46.3 m exceeds 25 m bench limit",
+        "Mixing-limited regime (Da_mass=21.5, r_mix=0.61) reduces effective conversion"
+      ],
+      "concerns": [
+        "Stainless steel is opaque; if this were photochemical, it would be a hard block.",
+        "High Da_mass with high r_mix indicates poor micromixing, risking side products."
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Chemistry: Similar to Candidate 1, the mixing limitations (Da_mass=21.52, r_mix=0.608) are severe. The higher flow rate (9.4 mL/min) increases the Reynolds number to 1873 (turbulent/transitional), which might improve mixing slightly, but the Da_mass remains high, indicating the reaction is still faster than the mixing time scale in the core. The residence time is identical (0.5 min). Engineering: The coil length of 82.3 m is more than 3x the bench limit, making it physically impossible to implement. The pressure drop of 307 bar is dangerously high, leaving only ~93 bar margin to the pump limit, which is unsafe for continuous operation.",
+      "chemistry_score": 0.4,
+      "photonics_score": 0.0,
+      "combined_score": 0.24,
+      "selectivity_flow_value": 0.6,
+      "verdict": "BLOCK",
+      "proposed_changes": {},
+      "beer_lambert_A": 0.0,
+      "epsilon_used": 0.0,
+      "wavelength_match": false,
+      "material_transparent": false,
+      "stream_logic_valid": true,
+      "atmosphere_valid": true,
+      "hard_gate_failed": true,
+      "blocking_issues": [
+        "Coil length 82.3 m exceeds 25 m bench limit",
+        "Pressure drop 307 bar is too close to pump limit 400 bar",
+        "Mixing-limited regime (Da_mass=21.5, r_mix=0.61) reduces effective conversion"
+      ],
+      "concerns": [
+        "High pressure operation increases risk of leaks or failure.",
+        "Stainless steel is opaque; if this were photochemical, it would be a hard block."
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Chemistry: The reaction conditions (150°C, Acetone, Cu(I)) are standard for [3+2] cycloadditions. The residence time (0.5 min) is ~4x the kinetic time constant (0.13 min), ensuring high conversion (98%). However, the Damköhler number (Da_mass = 21.5) and mixing ratio (r_mix = 0.61) indicate severe mixing limitations. This suggests that local concentration gradients will dominate, potentially leading to side reactions or poor selectivity, violating the 'enhanced_laminar_mixing' mandate. Photonics: Not applicable (thermal reaction). Hard Gates: FAILED. Pressure drop (503 bar) exceeds pump max (400 bar). Coil length (105 m) exceeds bench limit (25 m). These are hard physical blocks.",
+      "chemistry_score": 0.6,
+      "photonics_score": 1.0,
+      "combined_score": 0.66,
+      "selectivity_flow_value": 0.6,
+      "verdict": "BLOCK",
+      "proposed_changes": {},
+      "beer_lambert_A": 0.0,
+      "epsilon_used": 0.0,
+      "wavelength_match": true,
+      "material_transparent": true,
+      "stream_logic_valid": true,
+      "atmosphere_valid": true,
+      "hard_gate_failed": true,
+      "blocking_issues": [
+        "Pressure drop (503 bar) exceeds pump maximum (400 bar)",
+        "Coil length (105 m) exceeds bench limit (25 m)",
+        "Mixing-limited regime (Da_mass=21.5, r_mix=0.61) violates enhanced mixing mandate"
+      ],
+      "concerns": [
+        "Mixing limitations may compromise selectivity despite high conversion."
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Chemistry: Similar to Candidate 3, the reaction is kinetically feasible (tau = 0.5 min > tau_kinetics = 0.13 min). However, the mixing is even worse (Da_mass = 24.8, r_mix = 0.70), indicating that the reaction is heavily mixing-controlled. This poses a significant risk to selectivity and reproducibility, failing the 'enhanced_laminar_mixing' requirement. Photonics: Not applicable. Hard Gates: FAILED. Coil length (36.5 m) exceeds bench limit (25 m). Pressure drop (52 bar) is within pump limits. The primary issue is the physical footprint and the mixing regime.",
+      "chemistry_score": 0.55,
+      "photonics_score": 1.0,
+      "combined_score": 0.62,
+      "selectivity_flow_value": 0.6,
+      "verdict": "BLOCK",
+      "proposed_changes": {},
+      "beer_lambert_A": 0.0,
+      "epsilon_used": 0.0,
+      "wavelength_match": true,
+      "material_transparent": true,
+      "stream_logic_valid": true,
+      "atmosphere_valid": true,
+      "hard_gate_failed": true,
+      "blocking_issues": [
+        "Coil length (36.5 m) exceeds bench limit (25 m)",
+        "Mixing-limited regime (Da_mass=24.8, r_mix=0.70) violates enhanced mixing mandate"
+      ],
+      "concerns": [
+        "Severe mixing limitations will likely lead to poor selectivity and hot spots."
+      ]
+    }
+  ],
+  "kinetics_overall": "The kinetics landscape for this Copper(I)-catalyzed [3+2] cycloaddition is dominated by a severe mixing-kinetics mismatch. Both candidates propose a residence time (τ) of 0.5 min, which is kinetically sufficient (X ≈ 0.98) given the fast reaction rate (τ_kinetics = 0.13 min). However, the Damköhler number (Da_mass ≈ 21.5) and mixing ratio (r_mix ≈ 0.61) indicate that the reaction is mixing-limited, not reaction-rate-limited. The proposed τ (0.5 min) is significantly shorter than the required mixing time (τ_mixing_required ≈ 4.0 min), meaning the conversion prediction is overly optimistic and likely unachievable in practice without enhanced mixing. The Intensification Factor (IF = 18.5×) is high for a thermal reaction (typical 8–15×) but justifiable if attributed to heat transfer enhancement at 150°C, though the mixing failure undermines this benefit. The primary risk is that the 'hazardous intermediate' advantage is negated if the reaction does not proceed as predicted due to poor mixing, leading to either low conversion or side reactions. The Chief should note that while the τ reduction target (6.0×) is met numerically, the physical feasibility is compromised by the mixing regime. The kinetics landscape is dominated by a severe mixing-kinetics decoupling. Both candidates propose a residence time (τ) of 0.5 min, which is physically impossible to sustain given the calculated τ_mixing_required of ~4.7 min. The reaction is extremely fast (τ_kinetics = 0.13 min), leading to high Damköhler numbers (Da > 20) and mixing ratios (r_mix > 0.6), indicating that the reaction is mixing-limited, not kinetics-limited. The Intensification Factor (IF) of 18.5 is justified for a thermal cycloaddition (class range 8–15×, upper bound exceeded due to heat transfer enhancement in flow), but the conversion estimates (X=0.98) are overly optimistic because they ignore the RTD broadening caused by poor mixing. The primary risk is not conversion failure, but selectivity loss and incomplete reaction in the core of the laminar flow profile. The 'hazardous intermediate' justification is valid, but the current τ is too short to allow for proper mixing. I recommend increasing τ to at least 4.7 min to satisfy the mixing constraint, which will reduce the IF to ~0.64 (unacceptable) or require a redesign of the reactor geometry to enhance mixing (e.g., static mixers) to lower τ_mixing_required. Given the hard policy, I must score based on the provided τ, but flag the mixing failure as a critical BLOCK for kinetics validity.",
+  "kinetics_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Candidate 1 proposes τ = 0.5 min with τ_kinetics = 0.13 min, yielding a theoretical X = 0.98. The IF is 18.5× (batch τ = 3.0 min), which is above the typical thermal range (8–15×) but potentially justifiable by high-temperature heat transfer. However, the mixing analysis reveals a critical flaw: τ_mixing_required = t_mix / 0.15. With r_mix = 0.608, t_mix is significant. Using the provided Da_mass = 21.52, the reaction is mixing-limited. The required mixing time τ_mixing_required_min is estimated at ~4.0 min (based on r_mix and Da). Since τ_proposed (0.5 min) < τ_mixing_required (4.0 min), the kinetics prediction is optimistic. The final τ decision rule τ_final = max(τ_mixing_required, τ_lit/4) suggests τ_final should be at least 4.0 min. The current design fails the mixing criterion. X is adequate (0.98 > 0.30), but the margin is illusory due to mixing limitations. RTD risk is high in laminar/transitional flow with such a short τ relative to mixing time.",
+      "kinetics_score": 0.45,
+      "tau_reduction_flow_value": 1.0,
+      "achieved_reduction_factor": 6.0,
+      "target_reduction_factor": 6.0,
+      "reduction_achievement": 1.0,
+      "IF_used": 18.5,
+      "IF_valid": true,
+      "tau_vs_literature": "τ=0.5 min is < 0.5×τ_lit (assuming τ_lit ~ 3.0 min batch). Justification: fast kinetics, but mixing-limited.",
+      "X_estimated": 0.98,
+      "X_adequate": true,
+      "tau_mixing_required_min": 4.0,
+      "tau_proposed_final_min": 0.5,
+      "STY": 0.235,
+      "productivity_mg_h": 19455.7,
+      "t_steady_min": 1.5,
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "tau_min": 4.0
+      },
+      "concerns": [
+        "Mixing-limited: Da_mass=21.52 > 1 AND r_mix=0.61 > 0.20. τ_proposed (0.5 min) < τ_mixing_required (4.0 min).",
+        "IF=18.5× is high for thermal; ensure heat transfer justification is robust.",
+        "L=46.3 m exceeds bench limit (25 m), requiring coiling which may affect RTD."
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Candidate 2 is identical to Candidate 1 in terms of τ (0.5 min), τ_kinetics (0.13 min), and mixing parameters (Da_mass = 21.52, r_mix = 0.608). The only difference is higher flow rate (Q = 9.42 mL/min) and longer coil (L = 82.3 m), leading to higher pressure drop (307 bar). The kinetics assessment is identical: X = 0.98 is theoretically achievable but practically limited by mixing. τ_mixing_required_min is ~4.0 min. Since τ_proposed (0.5 min) < τ_mixing_required (4.0 min), the design is flawed. The IF is 18.5×, same as Candidate 1. The higher pressure drop and longer coil do not mitigate the mixing issue. The final τ decision rule again suggests τ_final ≥ 4.0 min. The productivity is higher (34587.9 mg/h), but the conversion reliability is low due to mixing limitations.",
+      "kinetics_score": 0.45,
+      "tau_reduction_flow_value": 1.0,
+      "achieved_reduction_factor": 6.0,
+      "target_reduction_factor": 6.0,
+      "reduction_achievement": 1.0,
+      "IF_used": 18.5,
+      "IF_valid": true,
+      "tau_vs_literature": "τ=0.5 min is < 0.5×τ_lit (assuming τ_lit ~ 3.0 min batch). Justification: fast kinetics, but mixing-limited.",
+      "X_estimated": 0.98,
+      "X_adequate": true,
+      "tau_mixing_required_min": 4.0,
+      "tau_proposed_final_min": 0.5,
+      "STY": 0.235,
+      "productivity_mg_h": 34587.9,
+      "t_steady_min": 1.5,
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "tau_min": 4.0
+      },
+      "concerns": [
+        "Mixing-limited: Da_mass=21.52 > 1 AND r_mix=0.61 > 0.20. τ_proposed (0.5 min) < τ_mixing_required (4.0 min).",
+        "IF=18.5× is high for thermal; ensure heat transfer justification is robust.",
+        "L=82.3 m exceeds bench limit (25 m) significantly, requiring complex coiling.",
+        "High pressure drop (307 bar) may challenge pump limits (400 bar max)."
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Candidate 3 proposes τ=0.5 min. τ_kinetics is 0.13 min. The IF is 18.5 (batch τ=9.25 min implied, or 3.0 min batch / 0.5 min flow = 6.0x? The data says IF_used=18.5, batch_time=3.0 min. 3.0/0.5 = 6.0. There is a discrepancy in the input data: IF_used=18.5 vs achieved_reduction=6.0. I will use the achieved_reduction_factor of 6.0 for the IF calculation as it matches the τ ratio. IF=6.0 is within the thermal class range (8-15x is typical, but 6x is acceptable for cycloadditions if heat transfer is the driver). However, the mixing constraint is violated. τ_mixing_required = t_mix / 0.15. With r_mix=0.608, t_mix is significant. Using the rule τ_mixing_required_min = 4.7 min (derived from r_mix and Da), τ_proposed (0.5) is far below this. The conversion X=0.98 is optimistic. The actual conversion will be lower due to RTD. The τ/τ_k ratio is 3.8, which is thin. The laminar RTD means the core sees τ/2 = 0.25 min, which is only 1.9x τ_kinetics. This is risky. The IF of 6.0 is valid for the class. The τ is not justified by mixing.",
+      "kinetics_score": 0.1,
+      "tau_reduction_flow_value": 1.0,
+      "achieved_reduction_factor": 6.0,
+      "target_reduction_factor": 6.0,
+      "reduction_achievement": 1.0,
+      "IF_used": 6.0,
+      "IF_valid": true,
+      "tau_vs_literature": "τ=0.5 min is < 0.5x τ_lit (assuming τ_lit ~ 3-5 min for batch). Short τ is not justified by mixing.",
+      "X_estimated": 0.98,
+      "X_adequate": true,
+      "tau_mixing_required_min": 4.7,
+      "tau_proposed_final_min": 0.5,
+      "STY": 0.235,
+      "productivity_mg_h": 44272.6,
+      "t_steady_min": 1.5,
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "tau_min": 4.7
+      },
+      "concerns": [
+        "Mixing-limited: Da_mass=21.52 > 1 AND r_mix=0.61 > 0.20. τ_proposed (0.5) < τ_mixing_required (4.7). Kinetics prediction is invalid.",
+        "Laminar RTD: Core sees 0.25 min. τ_kinetics=0.13 min. Margin is thin (1.9x).",
+        "IF=6.0 is valid for thermal cycloaddition, but τ is not physically achievable with current mixing."
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Candidate 4 proposes τ=0.5 min. τ_kinetics is 0.13 min. The IF is 6.0 (3.0 min batch / 0.5 min flow). This is within the acceptable range for thermal reactions if heat transfer is the primary driver. However, the mixing constraint is violated. τ_mixing_required = 4.7 min (derived from r_mix=0.701 and Da=24.83). τ_proposed (0.5) is far below this. The conversion X=0.98 is optimistic. The actual conversion will be lower due to RTD. The τ/τ_k ratio is 3.8, which is thin. The laminar RTD means the core sees τ/2 = 0.25 min, which is only 1.9x τ_kinetics. This is risky. The IF of 6.0 is valid for the class. The τ is not justified by mixing.",
+      "kinetics_score": 0.1,
+      "tau_reduction_flow_value": 1.0,
+      "achieved_reduction_factor": 6.0,
+      "target_reduction_factor": 6.0,
+      "reduction_achievement": 1.0,
+      "IF_used": 6.0,
+      "IF_valid": true,
+      "tau_vs_literature": "τ=0.5 min is < 0.5x τ_lit (assuming τ_lit ~ 3-5 min for batch). Short τ is not justified by mixing.",
+      "X_estimated": 0.98,
+      "X_adequate": true,
+      "tau_mixing_required_min": 4.7,
+      "tau_proposed_final_min": 0.5,
+      "STY": 0.235,
+      "productivity_mg_h": 17687.0,
+      "t_steady_min": 1.5,
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "tau_min": 4.7
+      },
+      "concerns": [
+        "Mixing-limited: Da_mass=24.83 > 1 AND r_mix=0.70 > 0.20. τ_proposed (0.5) < τ_mixing_required (4.7). Kinetics prediction is invalid.",
+        "Laminar RTD: Core sees 0.25 min. τ_kinetics=0.13 min. Margin is thin (1.9x).",
+        "IF=6.0 is valid for thermal cycloaddition, but τ is not physically achievable with current mixing."
+      ]
+    }
+  ],
+  "fluidics_overall": "Both candidates are fundamentally flawed and must be BLOCKED. Candidate 1 fails due to excessive pressure drop (97 bar) and bench-impractical length (46 m). Candidate 2 is worse, with a catastrophic pressure drop (307 bar) and extreme length (82 m). Both suffer from severe mixing limitations (r_mix = 0.61) which, combined with high Da_mass (21.5), creates a dual-criterion mixing failure, meaning conversion is limited by mass transfer rather than kinetics. The required d_fix to resolve mixing is ~0.10 mm, which would further exacerbate pressure drop issues. Neither candidate is viable for benchtop implementation. Both candidates are fundamentally flawed and require immediate revision. Candidate 3 is a hard BLOCK due to turbulent flow (Re > 2300), excessive pressure drop (503 bar vs 400 bar pump max), and bench-impractical length (105 m). Candidate 4 is also a BLOCK due to length (36 m > 30 m limit) and extreme pressure drop (52 bar), despite having laminar flow. Both candidates suffer from severe mixing limitations (r_mix > 0.60) combined with high Damköhler numbers, indicating reaction-limited performance. The primary issue is the use of large diameters (0.27-0.29 mm) for very short residence times (0.5 min), which creates poor mixing relative to reaction speed. To fix this, diameter must be drastically reduced to improve mixing, which will increase pressure drop but allow for shorter coil lengths. A new design with d ~ 0.1 mm is likely required to achieve acceptable r_mix < 0.10 while keeping L < 15 m.",
+  "fluidics_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Re = 1054 (laminar/transitional). ΔP = 97.2 bar, which exceeds the hard limit of 5 bar (BLOCK). Pump headroom is 97.5% (400 bar max), but the absolute ΔP is the blocker. r_mix = 0.61, which is > 0.20. Da_mass = 21.5 > 1.0. Dual-criterion mixing fail is TRUE. L = 46.3 m, which exceeds the hard limit of 30 m (BLOCK). To fix mixing, d_fix = 0.27 * sqrt(0.15/0.61) = 0.10 mm. This is a commercial size but would increase ΔP significantly. Tubing is Stainless Steel, appropriate for high P/T. Pump type: HPLC piston (Q=5.3 mL/min). Dead volume impact is negligible. Verdict: BLOCK due to ΔP and L.",
+      "fluidics_score": 0.0,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 1054,
+      "flow_regime": "laminar",
+      "De": null,
+      "dP_bar": 97.22,
+      "pump_headroom_pct": 97.5,
+      "t_mix_s": 4.56,
+      "r_mix": 0.608,
+      "dual_criterion_mixing_fail": true,
+      "d_change_direction": "decrease",
+      "d_fix_mm": 0.1,
+      "tau_mixing_required_min": null,
+      "L_m": 46.3,
+      "geometry_feasible": false,
+      "pump_type": "HPLC piston (Q=5.3 mL/min)",
+      "tubing_material": "Stainless Steel",
+      "dead_volume_mL": 0.1,
+      "dead_volume_impact": "V_dead/Q = 0.019 min = 3.8% of τ=0.5 min — acceptable",
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "d_mm": 0.1
+      },
+      "concerns": [
+        "ΔP > 5 bar (hard block)",
+        "L > 30 m (hard block)",
+        "Dual-criterion mixing fail"
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Re = 1873 (laminar/transitional). ΔP = 307.3 bar, which exceeds the hard limit of 5 bar (BLOCK). Pump headroom is 23.2% (400 bar max), which is > 20%, so pump stall is not immediate, but the absolute ΔP is the blocker. r_mix = 0.61, which is > 0.20. Da_mass = 21.5 > 1.0. Dual-criterion mixing fail is TRUE. L = 82.3 m, which exceeds the hard limit of 30 m (BLOCK). To fix mixing, d_fix = 0.27 * sqrt(0.15/0.61) = 0.10 mm. This is a commercial size but would increase ΔP significantly. Tubing is Stainless Steel 316L, appropriate for high P/T. Pump type: HPLC piston (Q=9.4 mL/min). Dead volume impact is negligible. Verdict: BLOCK due to ΔP and L.",
+      "fluidics_score": 0.0,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 1873,
+      "flow_regime": "laminar",
+      "De": null,
+      "dP_bar": 307.26,
+      "pump_headroom_pct": 23.2,
+      "t_mix_s": 4.56,
+      "r_mix": 0.608,
+      "dual_criterion_mixing_fail": true,
+      "d_change_direction": "decrease",
+      "d_fix_mm": 0.1,
+      "tau_mixing_required_min": null,
+      "L_m": 82.3,
+      "geometry_feasible": false,
+      "pump_type": "HPLC piston (Q=9.4 mL/min)",
+      "tubing_material": "Stainless Steel 316L",
+      "dead_volume_mL": 0.1,
+      "dead_volume_impact": "V_dead/Q = 0.011 min = 2.2% of τ=0.5 min — negligible",
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "d_mm": 0.1
+      },
+      "concerns": [
+        "ΔP > 5 bar (hard block)",
+        "L > 30 m (hard block)",
+        "Dual-criterion mixing fail"
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Candidate 3 is a hard BLOCK. Re = 2398 > 2300, indicating turbulent flow, which is undesirable for precise residence time control in this context. Pressure drop is 503.42 bar, which exceeds the pump maximum of 400 bar (headroom = -25.8%), causing pump stall. Length is 105.35 m, far exceeding the 30 m bench limit. Mixing is poor: r_mix = 0.608 > 0.20, and Da_mass = 21.52 > 1.0, triggering the dual-criterion mixing fail. To fix mixing, d must be decreased. d_fix = 0.27 * sqrt(0.15 / 0.608) = 0.27 * 0.496 = 0.134 mm. Round to 0.13 mm. This will increase Re and ΔP, but reduce L significantly. Pump type: HPLC piston (Q = 12.06 mL/min). Tubing: FEP. Dead volume impact is negligible. Blockage risk is low due to high Q.",
+      "fluidics_score": 0.0,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 2398,
+      "flow_regime": "turbulent",
+      "De": null,
+      "dP_bar": 503.42,
+      "pump_headroom_pct": -25.8,
+      "t_mix_s": 18.225,
+      "r_mix": 0.608,
+      "dual_criterion_mixing_fail": true,
+      "d_change_direction": "decrease",
+      "d_fix_mm": 0.13,
+      "tau_mixing_required_min": null,
+      "L_m": 105.35,
+      "geometry_feasible": false,
+      "pump_type": "HPLC piston (Q=12.06 mL/min)",
+      "tubing_material": "FEP",
+      "dead_volume_mL": 0.1,
+      "dead_volume_impact": "V_dead/Q = 0.008 min = 1.6% of τ=0.5 min — acceptable",
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "d_mm": 0.13
+      },
+      "concerns": [
+        "Re > 2300 (turbulent)",
+        "ΔP > pump max",
+        "L > 30 m",
+        "Dual-criterion mixing fail"
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Candidate 4 is a hard BLOCK. Re = 892, which is laminar, but pressure drop is 52.33 bar, exceeding the 5 bar hard limit. Pump headroom is (1 - 52.33/400) * 100 = 86.9%, which is fine, but the absolute ΔP is too high. Length is 36.48 m, exceeding the 30 m bench limit. Mixing is poor: r_mix = 0.701 > 0.20, and Da_mass = 24.83 > 1.0, triggering the dual-criterion mixing fail. To fix mixing, d must be decreased. d_fix = 0.29 * sqrt(0.15 / 0.701) = 0.29 * 0.463 = 0.134 mm. Round to 0.13 mm. This will increase Re and ΔP, but reduce L significantly. Pump type: HPLC piston (Q = 4.82 mL/min). Tubing: FEP. Dead volume impact is negligible. Blockage risk is low due to moderate Q.",
+      "fluidics_score": 0.0,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 892,
+      "flow_regime": "laminar",
+      "De": null,
+      "dP_bar": 52.33,
+      "pump_headroom_pct": 86.9,
+      "t_mix_s": 21.025,
+      "r_mix": 0.701,
+      "dual_criterion_mixing_fail": true,
+      "d_change_direction": "decrease",
+      "d_fix_mm": 0.13,
+      "tau_mixing_required_min": null,
+      "L_m": 36.48,
+      "geometry_feasible": false,
+      "pump_type": "HPLC piston (Q=4.82 mL/min)",
+      "tubing_material": "FEP",
+      "dead_volume_mL": 0.1,
+      "dead_volume_impact": "V_dead/Q = 0.021 min = 4.2% of τ=0.5 min — acceptable",
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "d_mm": 0.13
+      },
+      "concerns": [
+        "ΔP > 5 bar",
+        "L > 30 m",
+        "Dual-criterion mixing fail"
+      ]
+    }
+  ],
+  "safety_overall": "The safety landscape is critically compromised by a fundamental mismatch between the proposed operating conditions and the selected materials. Both candidates operate at 150°C in Acetone, a temperature far exceeding the safe limit for standard stainless steel in organic solvents (risk of stress corrosion cracking and seal failure) and well above the glass transition of most standard polymer seals. Furthermore, the calculated pressure drops (97 bar and 307 bar) are extreme, creating significant mechanical stress risks. The BPR setting of 12.0 bar is dangerously inadequate for Candidate 2 (ΔP 307 bar), creating a high risk of catastrophic overpressure if the BPR is intended to protect downstream equipment, or conversely, the system is under-pressurized relative to the pump's capability, risking seal blowouts. Material compatibility is a BLOCK for Stainless Steel at 150°C with Acetone without specific high-temperature alloy verification (e.g., Hastelloy) and compatible high-temp seals (e.g., PTFE/Viton blends rated >150°C). Thermal safety is low risk due to low concentration, but mechanical and material integrity are severe concerns. The safety landscape is dominated by extreme pressure hazards and material integrity risks at 150°C. Both candidates operate at temperatures significantly exceeding the standard rating of FEP tubing (typically 150°C max, but with significant pressure derating), creating a high risk of creep failure or rupture. Candidate 3 is physically impossible and critically unsafe, as the pressure drop (503 bar) exceeds the pump's maximum rating (400 bar) and the BPR setting (12 bar) is dangerously low for the generated pressure. Candidate 4, while within pump limits, still presents a severe safety risk due to the combination of 150°C and 52 bar pressure in FEP tubing, which lacks sufficient safety margin for long-term operation. Acetone at 150°C is superheated and highly flammable; any leak poses an immediate fire/explosion hazard. BPR settings of 12 bar are inadequate for the actual pressures generated in Candidate 3 and provide insufficient margin for Candidate 4 given the high temperature. Material compatibility requires upgrading to PFA or stainless steel (with halide check) to handle the thermal and pressure load safely.",
+  "safety_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Candidate 1 operates at 150°C with a ΔP of 97.2 bar. The BPR is set to 12.0 bar. This BPR setting is likely intended as a back-pressure regulator to maintain liquid phase, but 12 bar is insufficient to contain the 97 bar pressure drop generated by the coil if the BPR is downstream; however, if the BPR is set to 12 bar, the pump will likely struggle or the system will vent, as the coil requires ~97 bar to push flow. More critically, Stainless Steel is not recommended for Acetone at 150°C due to potential seal degradation and long-term corrosion risks, though SS316 is often used for high-temp organic synthesis if seals are compatible. The primary safety failure is the material selection at this temperature. Da_thermal is negligible. The pressure drop headroom is tight if the pump max is 400 bar, but the BPR setting is inconsistent with the ΔP.",
+      "safety_score": 0.2,
+      "safety_delta_flow_value": 0.7,
+      "Da_thermal": 0.01,
+      "thermal_safe": true,
+      "BPR_required_bar": 100.0,
+      "BPR_current_bar": 12.0,
+      "BPR_adequate": false,
+      "system_type": "liquid",
+      "material_compatible": false,
+      "material_recommendation": "Hastelloy C-276 or SS316L with High-Temp PTFE/Viton Seals",
+      "material_rationale": "Acetone at 150°C exceeds standard SS316 seal ratings (Viton max ~200°C but degrades, PTFE is safe but hard to seal in high ΔP). Standard SS316 is acceptable for short term, but seals are the weak point. BPR must be raised to >100 bar to match ΔP.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A",
+      "hazard_flags": [
+        "Acetone — Flammable (Flash point -20°C); at 150°C, vapor pressure is high (~10 bar). Risk of fire if leak occurs.",
+        "High Pressure (97 bar) — Risk of projectile tubing failure if fittings fail.",
+        "High Temperature (150°C) — Burn hazard; requires thermal insulation."
+      ],
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "BPR_bar": 100.0,
+        "tubing_material": "SS316L with High-Temp Seals"
+      },
+      "blocking_issues": [
+        "BPR (12 bar) is grossly inadequate for ΔP (97 bar). System will not maintain pressure or will vent dangerously.",
+        "Material compatibility at 150°C requires verification of seals; standard SS316 is marginal."
+      ],
+      "conditions": [
+        "Increase BPR to >100 bar.",
+        "Verify seal material rating for 150°C Acetone."
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Candidate 2 operates at 150°C with a ΔP of 307.3 bar. The BPR is set to 12.0 bar. This is a catastrophic safety configuration. The pressure drop across the coil is 307 bar, but the BPR is set to 12 bar. This implies the pump is pushing against a 12 bar backpressure, but the coil requires 307 bar to achieve the stated flow. This is physically inconsistent or indicates a massive pressure surge risk. If the BPR is 12 bar, the flow will not be achieved, or the pump will cavitate/overheat. If the BPR is actually 307 bar, it is dangerously close to the pump max (400 bar) with only ~20% headroom, which is a safety risk. Furthermore, SS316L at 150°C with Acetone poses seal integrity risks. The high pressure (307 bar) combined with flammable solvent at high temperature creates a significant energy release hazard.",
+      "safety_score": 0.1,
+      "safety_delta_flow_value": 0.7,
+      "Da_thermal": 0.01,
+      "thermal_safe": true,
+      "BPR_required_bar": 310.0,
+      "BPR_current_bar": 12.0,
+      "BPR_adequate": false,
+      "system_type": "liquid",
+      "material_compatible": false,
+      "material_recommendation": "Hastelloy C-276 or SS316L with High-Temp PTFE Seals",
+      "material_rationale": "Acetone at 150°C and 307 bar. SS316L is mechanically strong but seals are critical. High pressure requires robust fittings (e.g., Swagelok VCR).",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A",
+      "hazard_flags": [
+        "Acetone — Flammable; high pressure increases fire risk.",
+        "Extreme Pressure (307 bar) — High energy storage; risk of explosive decompression.",
+        "High Temperature (150°C) — Burn hazard.",
+        "BPR Mismatch — 12 bar BPR vs 307 bar ΔP is a critical control failure."
+      ],
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "BPR_bar": 310.0,
+        "tubing_material": "SS316L with High-Temp Seals"
+      },
+      "blocking_issues": [
+        "BPR (12 bar) is grossly inadequate for ΔP (307 bar).",
+        "Pressure headroom is <20% if BPR is raised to 310 bar (Pump max 400 bar).",
+        "Material compatibility at 150°C requires high-temp seal verification."
+      ],
+      "conditions": [
+        "Increase BPR to >310 bar.",
+        "Verify pump can sustain 310 bar continuously.",
+        "Verify seal material rating for 150°C Acetone."
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Candidate 3 is a critical safety failure. The calculated pressure drop is 503.4 bar, which exceeds the pump's maximum pressure of 400 bar, making operation impossible without equipment damage. Furthermore, the BPR is set to 12 bar, which is vastly inadequate for a system generating >500 bar; this would result in immediate overpressure and potential catastrophic failure of the reactor coil. The temperature of 150°C is at the absolute limit for FEP, and combined with such high pressure, the risk of tubing rupture is extreme. The length of 105m also exceeds bench limits, increasing the volume of hazardous superheated acetone in the system. This candidate must be blocked.",
+      "safety_score": 0.0,
+      "safety_delta_flow_value": 0.7,
+      "Da_thermal": 0.05,
+      "thermal_safe": true,
+      "BPR_required_bar": 504.0,
+      "BPR_current_bar": 12.0,
+      "BPR_adequate": false,
+      "system_type": "liquid",
+      "material_compatible": false,
+      "material_recommendation": "PFA or SS316L",
+      "material_rationale": "FEP is rated for 150°C but has very low pressure ratings at this temperature (typically <10 bar). At 503 bar, FEP will fail instantly. PFA or SS316L is required for high-pressure, high-temperature service. Acetone is compatible with both, but pressure rating is the limiting factor.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A — single stage",
+      "hazard_flags": [
+        "Acetone at 150°C: Superheated, highly flammable liquid. Risk of flash fire if leaked.",
+        "Pressure Drop 503 bar > Pump Max 400 bar: Equipment damage and rupture risk.",
+        "BPR 12 bar << Actual Pressure 503 bar: Critical overpressure hazard.",
+        "FEP at 150°C/503 bar: Material failure guaranteed."
+      ],
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "BPR_bar": 504.0,
+        "tubing_material": "PFA"
+      },
+      "blocking_issues": [
+        "Pressure drop exceeds pump maximum (503 > 400 bar).",
+        "BPR setting (12 bar) is critically inadequate for generated pressure (503 bar).",
+        "Material (FEP) cannot withstand 503 bar at 150°C."
+      ],
+      "conditions": []
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Candidate 4 operates at 52.3 bar pressure drop and 150°C. While within the pump's 400 bar limit, the BPR is set to 12 bar, which is inadequate. The BPR must be set to at least P_vap + ΔP + margin. At 150°C, acetone vapor pressure is ~10 bar. Total system pressure is ~62 bar. A BPR of 12 bar offers no protection against overpressure if the pump fails or flow is restricted. The material FEP is questionable at 150°C and 52 bar; while FEP can handle 150°C, its pressure rating drops significantly at high temperatures (often <10-20 bar). PFA is strongly recommended for better pressure-temperature performance. The length (36.5m) exceeds the 25m bench limit, posing handling risks. Thermal safety is acceptable (Da_thermal low), but pressure and material risks are high.",
+      "safety_score": 0.4,
+      "safety_delta_flow_value": 0.7,
+      "Da_thermal": 0.05,
+      "thermal_safe": true,
+      "BPR_required_bar": 65.0,
+      "BPR_current_bar": 12.0,
+      "BPR_adequate": false,
+      "system_type": "liquid",
+      "material_compatible": false,
+      "material_recommendation": "PFA",
+      "material_rationale": "FEP at 150°C has a low pressure rating (typically <10 bar). At 52 bar, FEP is at risk of creep failure or rupture. PFA has better high-temperature pressure resistance. Acetone is compatible with PFA. SS316L is an alternative if halides are absent.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A — single stage",
+      "hazard_flags": [
+        "Acetone at 150°C: Superheated, highly flammable. Risk of fire if leaked.",
+        "BPR 12 bar << System Pressure ~62 bar: Inadequate overpressure protection.",
+        "FEP at 150°C/52 bar: Potential material failure due to pressure-temperature limits.",
+        "Coil length 36.5m > 25m bench limit: Handling and containment risk."
+      ],
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "BPR_bar": 65.0,
+        "tubing_material": "PFA"
+      },
+      "blocking_issues": [],
+      "conditions": [
+        "Increase BPR to at least 65 bar to cover system pressure + margin.",
+        "Switch tubing material to PFA to ensure integrity at 150°C and 52 bar.",
+        "Verify coil length can be accommodated or reduce length by increasing diameter/flow."
+      ]
+    }
+  ],
+  "tool_calls": {
+    "chemistry": [],
+    "kinetics": [],
+    "fluidics": [],
+    "safety": []
+  },
+  "blocked_by_scoring": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "process_value_scores": [
+    {
+      "candidate_id": 1,
+      "PVS": 0.845,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.7
+    },
+    {
+      "candidate_id": 2,
+      "PVS": 0.845,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.7
+    },
+    {
+      "candidate_id": 3,
+      "PVS": 0.845,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.7
+    },
+    {
+      "candidate_id": 4,
+      "PVS": 0.845,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.7
+    }
+  ]
+}

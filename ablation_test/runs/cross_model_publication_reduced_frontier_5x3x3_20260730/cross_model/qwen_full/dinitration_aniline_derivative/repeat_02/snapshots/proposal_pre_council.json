@@ -1,0 +1,81 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 2.0,
+  "temperature_C": 60.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 0.0,
+  "reactor_type": "Coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Substrate feed",
+      "contents": [
+        "Aniline Derivative (1.0 equiv)"
+      ],
+      "solvent": "Industrial Batch Solvent",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.333,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream A contains substrate and solvent. Flow rate set to 2/3 of total to match stoichiometry and mixing ratio."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Nitrating agent feed",
+      "contents": [
+        "Nitric Acid (2.0 equiv)"
+      ],
+      "solvent": "Industrial Batch Solvent",
+      "concentration_M": 0.2,
+      "flow_rate_mL_min": 0.167,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream B contains Nitric Acid. Concentration doubled relative to A to maintain 2:1 stoichiometry at equal molar flow. Flow rate set to 1/3 of total."
+    }
+  ],
+  "mixer_type": "Static Mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Add HNO3 to substrate to control exotherm and prevent over-nitration. Static mixer ensures rapid mixing (Da > 1) to manage heat release.",
+  "pre_reactor_steps": [
+    "Purge lines with solvent to remove air/moisture if sensitive, though Chemistry Plan states not oxygen/moisture sensitive."
+  ],
+  "post_reactor_steps": [
+    "Quench with Water or Dilute Base to neutralize excess acid and stop reaction, as per Chemistry Plan quench_required."
+  ],
+  "chemistry_notes": "Electrophilic aromatic nitration is highly exothermic. Flow chemistry provides superior heat transfer (Da_th = 0.0016) and mixing control (Da = 3.1) compared to batch. Residence time reduced from 240 min (batch) to ~12 min (flow) based on kinetic analogy blending. No light source required. BPR not strictly required by calculation but recommended for safety with nitric acid.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation estimated 11.9 min (range 5.2-36.0 min). Analogy 1 used 60 min at 120C; Analogy 2 used 30 min at 250C. Our reaction is at 60C, so kinetics are slower than high-T analogies but faster than batch due to better mixing/heat transfer. 11.9 min is within calculated range.",
+    "residence_time_basis": "Liquid-only system. No gas reagents.",
+    "temperature_C": "Same as batch (60 C) as per input. Analogy 1 used 120C, but our substrate may be sensitive. Maintaining batch T ensures selectivity.",
+    "BPR_bar": "Calculation says BPR not required (T=60C, bp likely >80C for industrial solvent). However, nitric acid can be volatile/corrosive. Set to 0 as per calculation, but monitor for boiling.",
+    "tubing_material": "PFA preferred for thermal stability and chemical resistance to nitric acid. FEP is also acceptable but PFA has higher temp rating.",
+    "concentration_M": "Batch input implied 0.1 M (from calculation Step 1). Analogy 1 used 1.0 M, but lower concentration helps manage exotherm in nitration.",
+    "reactor_volume_mL": "Calculated as 5.93 mL based on tau=11.9 min and Q=0.5 mL/min. Matches calculation Step 3.",
+    "tubing_ID_mm": "1.0 mm from calculation Step 3. Ensures laminar flow (Re=10.6) and good heat transfer."
+  },
+  "literature_analogies": [
+    "Analogy 1: Solid acid catalyzed nitration in flow (120C, 60 min). Used for safety/heat management context.",
+    "Analogy 2: SNAr in flow (250C, 30 min). Used for residence time scaling context, though mechanism differs."
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

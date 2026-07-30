@@ -1,0 +1,3116 @@
+{
+  "proposal": {
+    "residence_time_min": 85.424,
+    "flow_rate_mL_min": 0.01,
+    "temperature_C": 40.0,
+    "concentration_M": 0.5,
+    "BPR_bar": 5.0,
+    "reactor_type": "coil",
+    "tubing_material": "FEP",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 20.0,
+    "residence_time_inlet_min": 85.424,
+    "residence_time_in_channel_min": 374.5885,
+    "residence_time_basis": "inlet/STP apparent residence time",
+    "light_setup": "Manual strip LED 448 nm (62 mW/cm2), standard 360 irradiation",
+    "wavelength_nm": 448.0,
+    "deoxygenation_method": null,
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Liquid substrate feed via manual syringe/HPLC pump",
+        "contents": [
+          "6-methyl-1,2,3,4-tetrahydroquinoline (0.50 M)"
+        ],
+        "solvent": "DMSO",
+        "concentration_M": 0.5,
+        "flow_rate_mL_min": 0.01,
+        "phase": "",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "molar_equiv": 1.0,
+        "reasoning": "Chemistry Plan stream_logic: substrate dissolved in DMSO at 0.50 M, single liquid pump feed. Min pump flow = 0.010 mL/min (hard constraint). At 20 mL reactor, 0.010 mL/min liquid + 0.2792 mL/min O2 STP gives tau_inlet = 20/(0.010+0.2792) = 68.9 min \u2014 exactly the KRICT 3-1 anchor. To exceed 68.9 min on the same 20 mL reactor we must reduce total inlet flow below 0.2902 mL/min while keeping O2 >= 2.0 equiv. At liquid min = 0.010 mL/min and O2 = 2.0 equiv: O2_STP = 0.010*0.5*2.0*22400/1000 = 0.2240 mL/min. Total inlet = 0.010 + 0.2240 = 0.234 mL/min. tau_inlet = 20/0.234 = 85.5 min. This is the maximum achievable inlet tau on this setup and exceeds the 68.9 min anchor.\nFinal synchronization: liquid pump rate set to 0.08000 mL/min so \u03a3 liquid reactor feeds = final Q_liquid 0.08000 mL/min.\n\nClosed-loop update: flow and concentration synchronized to the revised next-run design.\nFinal synchronization: liquid pump rate set to 0.08000 mL/min so \u03a3 liquid reactor feeds = final Q_liquid 0.08000 mL/min."
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "Gaseous O2 feed via MFC",
+        "contents": [
+          "O2 gas (2.0 equiv at inlet/STP basis)"
+        ],
+        "solvent": "",
+        "concentration_M": null,
+        "flow_rate_mL_min": 0.0434,
+        "phase": "gas",
+        "gas_flow_sccm": 0.2241,
+        "gas_flow_actual_mL_min": 0.0434,
+        "molar_equiv": 2.0,
+        "reasoning": "Deterministic gas stoichiometry: inlet/STP MFC flow was recomputed from target O2 equivalents (2.00 equiv), liquid flow 0.01000 mL/min, and substrate concentration. Pressure-corrected in-channel gas flow is reported separately; supplied O2 equiv = 2.00."
+      }
+    ],
+    "mixer_type": "T-mixer",
+    "mixing_order_reasoning": "Chemistry Plan: liquid substrate stream A and gaseous O2 stream B meet at a T-mixer upstream of the irradiated FEP coil. Taylor (slug) flow develops naturally in 1.0 mm ID FEP tubing, ensuring high gas-liquid mass transfer and uniform photon exposure through thin liquid slugs.",
+    "pre_reactor_steps": [
+      "Dissolve 6-methyl-1,2,3,4-tetrahydroquinoline in DMSO at 0.50 M; no deoxygenation required \u2014 O2 is the essential oxidant (Chemistry Plan: deoxygenation_required = false).",
+      "Purge all tubing and the reactor coil with O2 flow before starting the liquid pump to establish Taylor flow from the outset."
+    ],
+    "post_reactor_steps": [
+      "No quench required \u2014 Chemistry Plan: quench_required = false; 6-methylquinoline is stable at the reactor outlet.",
+      "BPR (3 bar) at reactor outlet maintains pressurized gas-liquid flow and prevents slug disruption; product collected after BPR.",
+      "Allow steady-state (3 x tau_inlet = 3 x 85.5 = 256 min startup waste ~5.6 mL liquid) before collecting product fraction."
+    ],
+    "chemistry_notes": "Reaction is a photocatalyst-free aerobic dehydrogenation driven by blue-light excitation of a substrate-O2 EDA/CT complex in DMSO. Rate-limiting steps are photon absorption and O2 mass transfer. Flow advantage: FEP tubing (1 mm ID) gives Taylor slug flow with high gas-liquid kLa; transparent FEP enables uniform irradiation. Design objective: single-factor residence-time increase from 68.9 min (Entry 7, 51% yield) to maximum achievable 85.5 min inlet tau on the 20 mL manual coil at pump minimum 0.010 mL/min and 2.0 equiv O2 STP. Conditions preserved: T=40C, c=0.50M, BPR=3 bar, reactor=20 mL manual FEP coil, wavelength=448 nm. In-channel tau = 20/(0.010+0.0560) = 20/0.0660 = 303 min (or 20/0.0747 ~ 268 min per Chemistry Plan). Analogies: Analogy 1 (PFA coil, 4.6 mL, 10 bar, gas-liquid photooxidation) confirms BPR mandatory for gas-liquid photoreactors and PFA/FEP tubing preference; difference is catalyst-free EDA mechanism vs methylene blue sensitizer \u2014 BPR and tubing choice directly adopted. Analogy 2 (FEP coil 10 mL, 100 min, 450 nm, 0.1 mL/min) confirms 450 nm blue LED and FEP coil geometry; difference is iridium photoredox vs catalyst-free EDA \u2014 wavelength and material directly adopted, flow rate not applicable due to different scale. Analogy 3 (closed-loop, UV) not applicable for hardware parameters. Extrapolating the measured yield-vs-tau_inlet trend (10-12% at ~8 min, 26% at 13 min, 51% at 68.9 min) with approximately logarithmic kinetics suggests ~58-65% yield at 85.5 min inlet tau \u2014 a meaningful step toward batch 75%, still under photon-flux limit of manual 62 mW/cm2 setup. Higher photon flux (Vapourtec 355 mW/cm2 at 450 nm) is the primary hypothesis to test after this experiment.\nNo engine-validated final design was selected. Run the attached screen matrix first.\n\nEvidence calibration: measured campaign data override unsupported residence-time intensification.\n\nClosed-loop refinement v2: experiment_calibrated_kinetics.\nInventory enforced: Manual Setup Manual strip-LED photoreactor coil 20 mL: 20 mL, 1 mm ID, FEP.",
+    "stage_parameters": [],
+    "multiphase_metrics": {
+      "gas_species": "O2",
+      "gas_oxygen_fraction": 1.0,
+      "liquid_flow_rate_mL_min": 0.01,
+      "gas_flow_sccm": 0.2241,
+      "gas_sccm_uncapped": 0.2241,
+      "gas_flow_actual_mL_min": 0.0434,
+      "gas_actual_uncapped_mL_min": 0.0434,
+      "gas_flow_capped_by_holdup": false,
+      "gas_pressure_abs_bar": 6.0,
+      "gas_liquid_ratio": 4.3392,
+      "gas_holdup": 0.8127,
+      "liquid_holdup_volume_mL": 3.7459,
+      "total_reactor_volume_mL": 20.0001,
+      "residence_time_basis": "inlet/STP apparent residence time",
+      "residence_time_inlet_min": 85.424,
+      "residence_time_in_channel_min": 374.5885,
+      "two_phase_multiplier": 12.0,
+      "two_phase_pressure_drop_bar": 0.020751,
+      "o2_supply_mmol_min": 0.01,
+      "o2_required_mmol_min": 0.01,
+      "target_gas_equiv_inlet": 2.0,
+      "explicit_gas_equiv_inlet": 2.0,
+      "o2_equiv_supplied": 2.0,
+      "gas_flow_recomputed_from_equiv": false,
+      "dissolved_o2_mM": 37.1429,
+      "kLa_s": 0.30445,
+      "o2_transfer_capacity_mmol_min": 2.541398,
+      "o2_transfer_sufficiency": 254.1398
+    },
+    "heat_transfer_metrics": {
+      "surface_to_volume_m_inv": 4000.0,
+      "heat_transfer_area_m2": 0.08000034,
+      "UA_W_K": 24.000103,
+      "heat_generation_W": 0.06079,
+      "heat_removal_W": 240.001028,
+      "thermal_damkohler": 0.000253,
+      "heat_transfer_score": 1.0
+    },
+    "inventory_selection": {
+      "name": "Manual strip-LED photoreactor coil 20 mL",
+      "system": "Manual Setup",
+      "type": "coil",
+      "material": "FEP",
+      "volume_mL": 20.0,
+      "ID_mm": 1.0,
+      "light_source": "Manual strip LED 448 nm",
+      "wavelength_nm": 448.0,
+      "intensity_mW_cm2": 62.0,
+      "irradiation": "standard 360 irradiation",
+      "temperature_range_C": [
+        null,
+        null
+      ],
+      "allowed_temperatures_C": [
+        40.0,
+        50.0
+      ],
+      "concentration_range_M": [
+        0.1,
+        0.5
+      ],
+      "pressure_range_bar": [
+        0.0,
+        8.0
+      ]
+    },
+    "inventory_constraints": {
+      "forced_reactor_inventory": true,
+      "allowed_reactor_volumes_mL": [
+        10.0,
+        15.0,
+        20.0
+      ],
+      "allowed_reactor_IDs_mm": [
+        1.0
+      ],
+      "selected_reactor": {
+        "name": "Manual strip-LED photoreactor coil 20 mL",
+        "system": "Manual Setup",
+        "type": "coil",
+        "material": "FEP",
+        "volume_mL": 20.0,
+        "ID_mm": 1.0,
+        "light_source": "Manual strip LED 448 nm",
+        "wavelength_nm": 448.0,
+        "intensity_mW_cm2": 62.0,
+        "irradiation": "standard 360 irradiation",
+        "temperature_range_C": [
+          null,
+          null
+        ],
+        "allowed_temperatures_C": [
+          40.0,
+          50.0
+        ],
+        "concentration_range_M": [
+          0.1,
+          0.5
+        ],
+        "pressure_range_bar": [
+          0.0,
+          8.0
+        ]
+      },
+      "selected_pump": {
+        "name": "Manual syringe/HPLC pump setup",
+        "type": "syringe",
+        "max_pressure_bar": 8.0,
+        "max_flow_rate_mL_min": 5.0,
+        "min_flow_rate_mL_min": 0.01,
+        "compatible_systems": [
+          "Manual Setup"
+        ]
+      },
+      "flow_recalculation": {
+        "residence_time_basis": "inlet/STP apparent residence time",
+        "requested_residence_time_min": 98.9,
+        "pump_flow_clamped": true,
+        "pump_min_flow_rate_mL_min": 0.01,
+        "pump_max_flow_rate_mL_min": 5.0,
+        "liquid_flow_rate_mL_min": 0.01,
+        "gas_flow_actual_mL_min": 0.04339,
+        "gas_flow_sccm": 0.22413,
+        "target_gas_equiv_inlet": 2.0,
+        "o2_equiv_supplied": 2.0
+      }
+    },
+    "evidence_calibration": {
+      "n_experiments": 4,
+      "n_usable": 4,
+      "response_metric": "yield_pct",
+      "target_response_pct": 75.0,
+      "primary_residence_time_basis": "inlet/STP apparent residence time",
+      "best_run_id": "entry_07_krict_3_1",
+      "best_response_pct": 51.0,
+      "best_tau_min": 68.9,
+      "target_tau_min": 133.897,
+      "recommended_tau_min": 98.9,
+      "best_tau_inlet_min": 68.9,
+      "best_tau_in_channel_min": 216.38,
+      "target_tau_inlet_min": 133.897,
+      "apparent_rate_min_inv": 0.010353,
+      "target_tau_in_channel_min": null,
+      "recommended_tau_inlet_min": 98.9,
+      "recommended_tau_in_channel_min": null,
+      "anchor_conditions": {
+        "residence_time_basis": "inlet/STP apparent residence time",
+        "residence_time_min": 68.9,
+        "reactor_volume_mL": 20.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.5,
+        "BPR_bar": 3.0,
+        "tubing_ID_mm": 1.016,
+        "gas_equiv_inlet": 2.0,
+        "substrate_flow_mL_min": 0.01122,
+        "gas_flow_stp_mL_min": 0.27905,
+        "gas_flow_in_channel_mL_min": 0.08106,
+        "residence_time_inlet_min": 68.9,
+        "residence_time_in_channel_min": 216.729
+      },
+      "recommended_conditions": {
+        "residence_time_basis": "inlet/STP apparent residence time",
+        "residence_time_min": 98.9,
+        "reactor_volume_mL": 20.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.5,
+        "BPR_bar": 3.0,
+        "tubing_ID_mm": 1.016,
+        "gas_equiv_inlet": 2.0,
+        "substrate_flow_mL_min": 0.00782,
+        "gas_flow_stp_mL_min": 0.19441,
+        "gas_flow_in_channel_mL_min": 0.05647,
+        "residence_time_inlet_min": 98.9,
+        "residence_time_in_channel_min": 311.096
+      },
+      "design_ladder": [
+        {
+          "label": "best_observed_anchor",
+          "purpose": "Reproduce the best measured condition before claiming improvement.",
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_min": 68.9,
+          "reactor_volume_mL": 20.0,
+          "temperature_C": 40.0,
+          "concentration_M": 0.5,
+          "BPR_bar": 3.0,
+          "tubing_ID_mm": 1.016,
+          "gas_equiv_inlet": 2.0,
+          "substrate_flow_mL_min": 0.01122,
+          "gas_flow_stp_mL_min": 0.27905,
+          "gas_flow_in_channel_mL_min": 0.08106,
+          "residence_time_inlet_min": 68.9,
+          "residence_time_in_channel_min": 216.729
+        },
+        {
+          "label": "next_intermediate_screen",
+          "purpose": "Step toward the target while limiting the next experimental jump.",
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_min": 98.9,
+          "reactor_volume_mL": 20.0,
+          "temperature_C": 40.0,
+          "concentration_M": 0.5,
+          "BPR_bar": 3.0,
+          "tubing_ID_mm": 1.016,
+          "gas_equiv_inlet": 2.0,
+          "substrate_flow_mL_min": 0.00782,
+          "gas_flow_stp_mL_min": 0.19441,
+          "gas_flow_in_channel_mL_min": 0.05647,
+          "residence_time_inlet_min": 98.9,
+          "residence_time_in_channel_min": 311.096
+        },
+        {
+          "label": "target_estimate",
+          "purpose": "Fitted first-order estimate for 75.0% yield_pct.",
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_min": 133.897,
+          "reactor_volume_mL": 20.0,
+          "temperature_C": 40.0,
+          "concentration_M": 0.5,
+          "BPR_bar": 3.0,
+          "tubing_ID_mm": 1.016,
+          "gas_equiv_inlet": 2.0,
+          "substrate_flow_mL_min": 0.00578,
+          "gas_flow_stp_mL_min": 0.14359,
+          "gas_flow_in_channel_mL_min": 0.04171,
+          "residence_time_inlet_min": 133.897,
+          "residence_time_in_channel_min": 421.183
+        }
+      ],
+      "notes": [
+        "Experimental campaign data override the first-pass intensification mandate.",
+        "Residence time is calibrated on inlet/STP apparent residence time.",
+        "The fitted target is a screening estimate, not a final kinetic model."
+      ]
+    },
+    "reasoning_per_field": {
+      "residence_time_min": "Evidence-calibrated from measured conversion/product response versus inlet/STP apparent residence time; the original short residence-time design is treated as an aggressive screen only.",
+      "residence_time_basis": "O2 equivalents controlled by MFC/STP inlet flow per design objective Q-OBJ-001. Inlet/STP basis used as primary. In-channel basis reported separately for hydrodynamics.",
+      "residence_time_inlet_min": "tau_inlet = V_reactor / (Q_liquid + Q_O2_STP) = 20.0 / (0.010 + 0.2240) = 20.0 / 0.2340 = 85.5 min. Exceeds 68.9 min anchor. Single-factor change from Entry 7.",
+      "residence_time_in_channel_min": "At 3 bar BPR (gauge), absolute pressure ~4.013 bar. Gas compression: Q_O2_actual = 0.2240 * (1.013/4.013) = 0.0564 mL/min. Total in-channel = 0.010 + 0.0564 = 0.0664 mL/min. tau_in_channel = 20.0/0.0664 = 301 min. Chemistry Plan calculation gives 268 min (using 3 bar absolute convention). Reporting 268 min per Chemistry Plan calculation consistency.",
+      "flow_rate_mL_min": "Liquid pump at minimum = 0.010 mL/min (hard constraint: manual syringe pump min = 0.01 mL/min). This is the only way to maximize tau_inlet on the 20 mL reactor while keeping O2 >= 2.0 equiv. Verified against Entry 7 KRICT 3-1 which used 0.01123 mL/min liquid and achieved tau_inlet = 68.9 min at 20 mL; reducing to 0.010 mL/min pushes tau to 85.5 min.",
+      "temperature_C": "Preserved at 40 C per constraint Q-CONSTR-001 (preserve successful conditions for single-factor screen). Same as batch protocol and all KRICT entries. Manual 20 mL reactor allows [40, 50] C; 40 C maintained.",
+      "BPR_bar": "Preserved at 3 bar per constraint Q-CONSTR-001. Gas-liquid system: BPR mandatory (Chemistry Plan, calculation Step 8: BPR required). Available BPRs: [0, 3, 6, 8]. 3 bar selected \u2014 same as successful Entry 7. Analogy 1 used 10 bar but with pressurized air; 3 bar sufficient for O2 solubility maintenance and Taylor flow stability at this flow rate.",
+      "reactor_type": "Coil per Chemistry Plan stage 1 and inventory. 20 mL manual FEP coil selected to match Entry 7 (KRICT 3-1) for single-factor comparison. Design objective: same 20 mL manual setup.",
+      "tubing_material": "FEP \u2014 transparent to visible light (photochemistry rule), available in inventory (FEP 1.0 mm ID), used in all KRICT entries and Analogy 2 (FEP coil). Analogy 1 used PFA (also transparent) \u2014 same family, FEP preferred per inventory.",
+      "tubing_ID_mm": "1.0 mm per inventory (only FEP 1.0 mm available). Matches Entry 7 (1.016 mm). Ensures Taylor slug flow at these flow rates; photon penetration adequate at 1 mm ID.",
+      "concentration_M": "0.50 M preserved per constraint Q-CONSTR-001 and all successful KRICT entries. Within reactor range [0.1-0.5 M].",
+      "BPR_bar_validation": "Calculation Step 8: BPR required for gas-liquid system, recommended 5.7 bar. Available BPRs: 3 or 6 bar. Preserving 3 bar per Q-CONSTR-001 single-factor constraint and Entry 7 precedent. 3 bar is adequate to maintain O2 in Taylor slugs; higher pressure would increase O2 solubility but changes two variables. Flag for future experiment.",
+      "reactor_volume_mL": "20 mL manual strip-LED coil \u2014 exact inventory item. Same reactor as Entry 7 (KRICT 3-1) for single-factor tau comparison. Calculation Step 3 suggested 80 mL but that exceeds inventory; constrained to 20 mL.",
+      "light_setup": "Manual strip LED 448 nm at 62 mW/cm2 \u2014 matched to 20 mL manual reactor inventory. Wavelength 448 nm within batch protocol 450\u00b115 nm window and Chemistry Plan recommended 448 nm. Same as all KRICT entries. Analogy 2 confirms 450 nm blue LED for this reaction class.",
+      "wavelength_nm": "448 nm \u2014 inventory Manual strip LED 448 nm, matched to Chemistry Plan recommended_wavelength_nm=448. Batch protocol states 450\u00b115 nm; 448 falls within. Note: batch input wavelength_nm=15 is a data entry error confirmed by Chemistry Plan confidence_notes.",
+      "deoxygenation_method": "Null \u2014 Chemistry Plan: deoxygenation_required=false. O2 is essential reactant; deoxygenating would kill the reaction.",
+      "gas_flow_sccm": "O2 STP flow = Q_liquid * C_substrate * n_equiv * Vm = 0.010 mL/min * 0.50 mmol/mL * 2.0 * 22.4 mL/mmol = 0.2240 mL/min STP = 0.2240 sccm. Exactly 2.0 equiv O2. Chemistry Plan stream B reasoning directly applied.",
+      "mixing_order": "T-mixer: Chemistry Plan mixing_order_reasoning. Liquid A + gas B meet at T-junction upstream of irradiated FEP coil. Taylor flow in 1 mm ID FEP confirmed by Re~10-15 (laminar) and gas/liquid flow ratio.",
+      "closed_loop_refinement": "Updated from experimental feedback. The next run keeps deterministic volume closure and prioritizes operational stability before scale-up.",
+      "inventory_selection": "Forced to available inventory reactor: Manual Setup Manual strip-LED photoreactor coil 20 mL: 20 mL, 1 mm ID, FEP. Flow rates recalculated from selected volume and target residence time. Liquid flow was clamped to the operating range of Manual syringe/HPLC pump setup."
+    },
+    "literature_analogies": [
+      "10.1039/c9re00286c",
+      "10.1039/d1re00297j",
+      "10.1039/c5re00009b"
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      "ENGINE_FALLBACK: screen required: all candidates disqualified before Chief selection",
+      "SCREEN_REQUIRED: all candidates disqualified before Chief selection",
+      "SCREEN_REQUIRED: evidence-calibrated from experimental feedback"
+    ],
+    "confidence": "MEDIUM",
+    "reactor_volume_mL_reported_by_council_mL": 20.0
+  },
+  "unit_operations": [],
+  "pid_description": "",
+  "council_rounds": 0,
+  "safety_report": {
+    "fallback_reason": "screen required: all candidates disqualified before Chief selection",
+    "feasibility_diagnostic": {
+      "status": "KINETIC_ANCHOR_UNCERTAIN_SCREEN_REQUIRED",
+      "hard_block": false,
+      "kinetic_anchor_quality": "UNCERTAIN",
+      "uncertainty_reasons": [
+        "raw_analogy_IFs=[1.9, 4.8]; corrected_analogy_IFs=[1.9, 4.8]",
+        "design-space candidate tau=37.5 min is under the intensification ceiling with projected X\u22480.82; delegating kinetics risk to council"
+      ],
+      "batch_time_min": 900.0,
+      "tau_kinetics_min": 49.83,
+      "tau_reduction_target": 20.0,
+      "tau_intensification_ceiling_min": 45.0,
+      "required_to_ceiling_ratio": 1.107,
+      "candidate_tau_min": 37.5,
+      "candidate_projected_conversion": 0.823,
+      "candidate_under_ceiling": true,
+      "candidate_worth_council": true,
+      "minimum_flow_advantage": "mass_transfer",
+      "diagnosis": "Current kinetic anchor is uncertain, not a hard infeasibility: analogy kinetic anchor \u03c4=49.8 min exceeds the intensification ceiling \u03c4\u226445.0 min (20.0\u00d7 faster than 900.0 min batch), but the upstream design-space search already found a candidate at \u03c4=37.5 min with projected X\u22480.82 \u2014 proceed and let the council evaluate it as a screening hypothesis.",
+      "recommended_next_steps": [
+        "Council proceeds with the design-space candidate; outcome is a SCREEN_REQUIRED hypothesis.",
+        "Run a small flow screen to measure conversion at sub-batch tau values.",
+        "Test intensification levers: higher temperature, lower viscosity/dilution strategy, smaller ID or enhanced mixing, and staged/recycle operation if chemically justified.",
+        "Revisit analogy/kinetic anchor if it came from weak local-model reasoning rather than measured flow precedent."
+      ]
+    },
+    "screen_required": true,
+    "screen_reason": "all candidates disqualified before Chief selection",
+    "screen_candidates": [
+      {
+        "id": 1,
+        "screen_id": "S1",
+        "purpose": "target-ceiling small-ID baseline",
+        "tau_min": 45.0,
+        "batch_time_min": 900.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.0982,
+        "V_R_mL": 4.418,
+        "d_mm": 0.75,
+        "L_m": 10.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.5,
+        "BPR_bar": 3.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 900.0,
+          "tau_min": 45.0,
+          "tau_ratio": 0.05,
+          "achieved_reduction_factor": 20.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 1.0,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.0982,
+          "L_m": 10.0,
+          "V_R_mL": 4.418,
+          "surface_to_volume_m_inv": 5333.3,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.858,
+          "automatic_flags": []
+        }
+      },
+      {
+        "id": 2,
+        "screen_id": "S2",
+        "purpose": "mid-tau small-ID intensified",
+        "tau_min": 30.0,
+        "batch_time_min": 900.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.1473,
+        "V_R_mL": 4.418,
+        "d_mm": 0.75,
+        "L_m": 10.0,
+        "temperature_C": 50.0,
+        "concentration_M": 0.5,
+        "BPR_bar": 3.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 900.0,
+          "tau_min": 30.0,
+          "tau_ratio": 0.0333,
+          "achieved_reduction_factor": 30.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 1.5,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.1473,
+          "L_m": 10.0,
+          "V_R_mL": 4.418,
+          "surface_to_volume_m_inv": 5333.3,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.858,
+          "automatic_flags": []
+        }
+      },
+      {
+        "id": 3,
+        "screen_id": "S3",
+        "purpose": "short-tau high surface-area challenge",
+        "tau_min": 15.0,
+        "batch_time_min": 900.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.1047,
+        "V_R_mL": 1.571,
+        "d_mm": 0.5,
+        "L_m": 8.0,
+        "temperature_C": 60.0,
+        "concentration_M": 0.5,
+        "BPR_bar": 3.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 900.0,
+          "tau_min": 15.0,
+          "tau_ratio": 0.0167,
+          "achieved_reduction_factor": 60.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 3.0,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.1047,
+          "L_m": 8.0,
+          "V_R_mL": 1.571,
+          "surface_to_volume_m_inv": 8000.0,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.858,
+          "automatic_flags": []
+        }
+      },
+      {
+        "id": 4,
+        "screen_id": "S4",
+        "purpose": "target-ceiling mid-ID practical comparator",
+        "tau_min": 45.0,
+        "batch_time_min": 900.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.1745,
+        "V_R_mL": 7.854,
+        "d_mm": 1.0,
+        "L_m": 10.0,
+        "temperature_C": 50.0,
+        "concentration_M": 0.5,
+        "BPR_bar": 3.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 900.0,
+          "tau_min": 45.0,
+          "tau_ratio": 0.05,
+          "achieved_reduction_factor": 20.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 1.0,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.1745,
+          "L_m": 10.0,
+          "V_R_mL": 7.854,
+          "surface_to_volume_m_inv": 4000.0,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.858,
+          "automatic_flags": []
+        }
+      },
+      {
+        "id": 5,
+        "screen_id": "S5",
+        "purpose": "large-ID dispersion/control comparator",
+        "tau_min": 45.0,
+        "batch_time_min": 900.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.3574,
+        "V_R_mL": 16.085,
+        "d_mm": 1.6,
+        "L_m": 8.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.5,
+        "BPR_bar": 3.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 900.0,
+          "tau_min": 45.0,
+          "tau_ratio": 0.05,
+          "achieved_reduction_factor": 20.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 1.0,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.3574,
+          "L_m": 8.0,
+          "V_R_mL": 16.085,
+          "surface_to_volume_m_inv": 2500.0,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.752,
+          "automatic_flags": []
+        }
+      }
+    ],
+    "screen_acceptance_criteria": [
+      "Measure conversion, isolated/assay yield, impurity profile, pressure drop, and visual clogging for every screen point.",
+      "Do not promote a point to final design unless tau_flow is below the batch-proximity threshold and measured conversion/yield meets the project target.",
+      "If all screen points underperform, report the reaction as not currently flow-intensifiable under the available kinetic anchor and require manual chemistry review."
+    ]
+  },
+  "council_messages": [],
+  "confidence": "MEDIUM",
+  "explanation": "# Flow Chemistry Design: Photocatalyst-Free Aerobic Dehydrogenation of 6-Methyl-1,2,3,4-Tetrahydroquinoline to 6-Methylquinoline\n\n---\n\n## (1) Proposed Flow Setup\n\n**Reaction:** Aerobic photooxidative dehydrogenation \u2014 6-methyl-1,2,3,4-tetrahydroquinoline \u2192 6-methylquinoline, using O\u2082 as the terminal oxidant and blue light as the sole activation source. No photocatalyst.\n\n**Hardware summary:**\n\n| Parameter | Value |\n|---|---|\n| Reactor | FEP coil, 1.0 mm ID, 70.24 mL total volume |\n| Temperature | 40.0 \u00b0C |\n| Light source | Strip LED, 448.0 nm, 62 mW/cm\u00b2, 360\u00b0 irradiation |\n| Liquid flow rate | 0.08 mL/min (substrate stream) |\n| O\u2082 MFC flow | 1.793 sccm |\n| Residence time (inlet/STP basis) | 37.5 min |\n| Residence time (in-channel, compressed) | 164.4 min |\n| Substrate concentration | 0.5 M in DMSO |\n| Back-pressure regulator | 5.0 bar |\n| Reactor pressure (absolute) | ~6.0 bar |\n\n**Stream configuration:**\n\n- **Stream A (liquid):** 6-methyl-1,2,3,4-tetrahydroquinoline at 0.5 M in DMSO, delivered by syringe or HPLC pump at 0.08 mL/min.\n- **Stream B (gas):** Pure O\u2082 via MFC at 1.793 sccm (STP), providing 2.0 equiv O\u2082 on an inlet/STP basis.\n- Both streams meet at a **T-mixer** upstream of the irradiated FEP coil. At 1.0 mm ID, the combined gas\u2013liquid flow will naturally adopt **Taylor (slug) flow**, which is essential for mass transfer and uniform photon delivery through thin liquid slugs.\n\n**Startup procedure:**\n1. Dissolve substrate in DMSO at 0.5 M. No deoxygenation \u2014 O\u2082 is the essential reactant.\n2. Purge all tubing with O\u2082 before starting the liquid pump to establish Taylor flow immediately.\n3. Allow **3 \u00d7 \u03c4_inlet = ~112 min** of steady-state startup before collecting product fractions (waste volume ~8.9 mL liquid).\n4. No quench required at the outlet; 6-methylquinoline is stable. Collect product after the BPR.\n\n---\n\n## (2) Why These Conditions Were Chosen\n\n**Mechanism and solvent:** The reaction proceeds via direct photoexcitation of a ground-state charge-transfer (EDA) complex between the tetrahydroquinoline (electron donor) and O\u2082 (electron acceptor) in DMSO. No photocatalyst is required. DMSO may additionally act as a radical mediator. Blue light at 448 nm directly excites this substrate\u2013O\u2082 CT complex (absorption window 400\u2013470 nm), generating a radical ion pair [THQ\u2022\u207a \u00b7\u00b7\u00b7 O\u2082\u2022\u207b], which then undergoes sequential \u03b1-amino C\u2013H abstraction and aromatization.\n\n**Wavelength (448 nm):** Directly matches the available manual strip-LED inventory and falls within the batch protocol window of 450 \u00b1 15 nm. Confirmed as appropriate for this substrate class by analogy to blue-LED photoreactions (see below). Note: the raw batch input listed \"wavelength_nm = 15,\" which is a data entry error; the batch protocol text explicitly states 450 \u00b1 15 nm.\n\n**Temperature (40 \u00b0C):** Preserved directly from the batch protocol and all prior KRICT flow entries. Raising temperature would break the single-factor comparison and is reserved as a future optimization lever.\n\n**Concentration (0.5 M):** Carried forward from batch and all validated flow entries. Higher concentration increases the probability of productive substrate\u2013O\u2082 encounters for CT complex formation.\n\n**FEP tubing, 1.0 mm ID:** FEP is optically transparent to visible light \u2014 a strict requirement for photochemical flow reactors. The 1.0 mm ID gives a surface-to-volume ratio of 4000 m\u207b\u00b9, ensuring adequate photon penetration through liquid slugs and high gas\u2013liquid interfacial area.\n\n**BPR at 5.0 bar (6.0 bar absolute):** Required to maintain pressurized Taylor slug flow, prevent slug disruption at the outlet, and increase dissolved O\u2082 concentration in the liquid phase. Gas\u2013liquid photoreactors without a BPR suffer from uncontrolled phase separation and inconsistent irradiation. The 5.0 bar setting gives a computed two-phase pressure drop of 0.58 bar across the coil, which is acceptable.\n\n**O\u2082 at 2.0 equiv (inlet/STP):** Stoichiometry matches the batch protocol. Two sequential photooxidation cycles are required per substrate molecule, consuming approximately 1 equiv O\u2082 each. Excess beyond stoichiometry is unnecessary and complicates phase management.\n\n**Literature analogies relied upon:**\n\n- **DOI: 10.1039/c9re00286c** \u2014 Gas\u2013liquid photooxidation in a PFA coil (4.6 mL, 10 bar) using a sensitizer dye. Directly establishes: BPR is mandatory for gas\u2013liquid photoreactors; PFA/FEP tubing is the preferred material; Taylor slug flow is the target hydrodynamic regime. The current design differs in mechanism (catalyst-free EDA vs. methylene blue sensitization), but the hardware principles are directly adopted.\n\n- **DOI: 10.1039/d1re00297j** \u2014 Iridium photoredox catalysis in a 10 mL FEP coil at 450 nm, 100 min residence time, 0.1 mL/min. Confirms: 450 nm blue LEDs are appropriate for this reaction class\n\n**Confidence: LOW** \u2014 The closest literature analogy has a similarity score of 0.44 (threshold for MEDIUM: 0.50). No close precedent found in the corpus for this exact reaction class and conditions. Treat this proposal as a starting hypothesis requiring careful experimental validation before scale-up.\n\nClosed-loop v2: Diagnosis: . Next run: Refine for experiment_calibrated_kinetics. residence_time_min: 82.68 -> 98.9; flow_rate_mL_min: 0.00935 -> 0.00782; gas_flow_actual_mL_min: 0.06755 -> 0.05647; gas_flow_sccm: 0.23254 -> 0.19441; residence_time_inlet_min: 82.68 -> 98.9; residence_time_in_channel_min: 260.075 -> 311.096. Use evidence-calibrated residence times from the experimental campaign instead of the original intensification estimate. No dominant failure mode was detected; run a mild residence-time confirmation screen.\n\nInventory enforcement: final reactor hardware was snapped to {'name': 'Manual strip-LED photoreactor coil 20 mL', 'system': 'Manual Setup', 'type': 'coil', 'material': 'FEP', 'volume_mL': 20.0, 'ID_mm': 1.0, 'light_source': 'Manual strip LED 448 nm', 'wavelength_nm': 448.0, 'intensity_mW_cm2': 62.0, 'irradiation': 'standard 360 irradiation', 'temperature_range_C': [None, None], 'allowed_temperatures_C': [40.0, 50.0], 'concentration_range_M': [0.1, 0.5], 'pressure_range_bar': [0.0, 8.0]}.",
+  "chemistry_plan": {
+    "reaction_name": "Photocatalyst-free aerobic dehydrogenation of 6-methyl-1,2,3,4-tetrahydroquinoline to 6-methylquinoline",
+    "reaction_class": "Aerobic photooxidative dehydrogenation",
+    "mechanism_type": "Photoinduced electron transfer / charge-transfer complex with O2",
+    "bond_formed": "C2=N (aromatization of dihydropyridine ring)",
+    "bond_broken": "C2-H, C3-H, N-H (formal loss of 2H\u2082 equivalents, accepted by O2 \u2192 H2O2/H2O)",
+    "stages": [
+      {
+        "stage_number": 1,
+        "stage_name": "Photochemical aerobic dehydrogenation",
+        "reaction_type": "Photoinduced aerobic oxidation",
+        "reactor_type": "coil",
+        "temperature_C": 40.0,
+        "requires_light": true,
+        "wavelength_nm": 448.0,
+        "batch_time_h": 15.0,
+        "feed_streams": [
+          {
+            "stream_label": "A",
+            "reagents": [
+              "6-methyl-1,2,3,4-tetrahydroquinoline (0.50 M in DMSO)"
+            ],
+            "reasoning": "Substrate dissolved in DMSO at batch concentration; single liquid feed",
+            "molar_equiv": 1.0,
+            "phase": ""
+          },
+          {
+            "stream_label": "B",
+            "reagents": [
+              "O2 gas (2.0 equiv at STP/inlet basis)"
+            ],
+            "reasoning": "Gaseous O2 via MFC; co-fed at T-mixer to generate Taylor flow segments in FEP coil",
+            "molar_equiv": 1.0,
+            "phase": ""
+          }
+        ],
+        "inlet_from_previous": "",
+        "solvent": "DMSO",
+        "atmosphere": "O2",
+        "oxygen_sensitive": false,
+        "moisture_sensitive": false,
+        "deoxygenation_required": false,
+        "post_stage_action": "",
+        "post_stage_reasoning": ""
+      }
+    ],
+    "n_stages": 1,
+    "reagents": [
+      {
+        "name": "6-methyl-1,2,3,4-tetrahydroquinoline",
+        "role": "substrate",
+        "equiv_or_loading": "1.0 equiv",
+        "smiles": "CC1=CC2=C(NCCCC2=C1)C",
+        "notes": "MW 147.22; limiting reagent; 0.50 M in DMSO"
+      },
+      {
+        "name": "oxygen (O2)",
+        "role": "terminal oxidant / co-substrate",
+        "equiv_or_loading": "2.0 equiv (inlet/STP basis)",
+        "smiles": "[O][O]",
+        "notes": "MW 32; gas phase; delivered via MFC; forms Taylor flow segments with liquid in FEP tubing"
+      },
+      {
+        "name": "DMSO",
+        "role": "solvent",
+        "equiv_or_loading": "solvent (0.50 M substrate)",
+        "smiles": "CS(=O)C",
+        "notes": "May play a mild co-oxidant or radical mediating role; also acts as hydrogen-bond acceptor facilitating substrate\u2013O2 interaction"
+      }
+    ],
+    "mechanism_steps": [
+      {
+        "step_number": 1,
+        "description": "Blue light (450 nm) excites a ground-state charge-transfer complex between 6-methyl-1,2,3,4-tetrahydroquinoline (electron donor) and O2 (electron acceptor) in DMSO, generating a radical ion pair [THQ\u2022\u207a \u00b7\u00b7\u00b7 O2\u2022\u207b]",
+        "species_involved": [
+          "6-methyl-1,2,3,4-tetrahydroquinoline",
+          "O2",
+          "DMSO"
+        ],
+        "is_photon_dependent": true,
+        "is_rate_limiting": true
+      },
+      {
+        "step_number": 2,
+        "description": "Superoxide radical anion (O2\u2022\u207b) abstracts an \u03b1-amino C\u2013H hydrogen from THQ\u2022\u207a to give the 2,3-dihydroquinoline intermediate and HOO\u207b/H2O2",
+        "species_involved": [
+          "THQ radical cation",
+          "superoxide radical anion"
+        ],
+        "is_photon_dependent": false,
+        "is_rate_limiting": false
+      },
+      {
+        "step_number": 3,
+        "description": "A second photoexcitation/oxidation cycle on the 2,3-dihydroquinoline intermediate removes the remaining two C\u2013H/N\u2013H hydrogens, completing aromatization to 6-methylquinoline",
+        "species_involved": [
+          "2,3-dihydroquinoline intermediate",
+          "O2"
+        ],
+        "is_photon_dependent": true,
+        "is_rate_limiting": false
+      },
+      {
+        "step_number": 4,
+        "description": "H2O2 produced decomposes or is further reduced; net: THQ + O2 \u2192 quinoline + H2O2 (or H2O + \u00bdO2)",
+        "species_involved": [
+          "H2O2"
+        ],
+        "is_photon_dependent": false,
+        "is_rate_limiting": false
+      }
+    ],
+    "key_intermediate": "6-methyl-2,3-dihydroquinoline (partially oxidized intermediate)",
+    "excited_state_type": "Charge-transfer complex excited state (substrate\u2013O2 EDA complex)",
+    "energy_transfer_or_redox": "Single electron transfer (SET) from THQ to O2 upon photoexcitation of CT complex",
+    "oxygen_sensitive": false,
+    "o2_is_reagent": false,
+    "moisture_sensitive": false,
+    "temperature_sensitive": false,
+    "light_sensitive_reagents": [],
+    "stream_logic": [
+      {
+        "stream_label": "A",
+        "reagents": [
+          "6-methyl-1,2,3,4-tetrahydroquinoline",
+          "DMSO"
+        ],
+        "reasoning": "Substrate in DMSO at 0.50 M; single liquid pump feed. At target \u03c4_inlet ~ 115 min in 20 mL reactor: liquid flow = 0.010 mL/min (pump minimum). Substrate molar flow = 0.005 mmol/min.",
+        "molar_equiv": 1.0,
+        "concentration_M": 0.5,
+        "phase": "liquid"
+      },
+      {
+        "stream_label": "B",
+        "reagents": [
+          "O2"
+        ],
+        "reasoning": "O2 via MFC at STP. For 2.0 equiv O2 at inlet: O2 molar flow = 0.010 mmol/min = 0.224 mL/min STP. Total inlet volumetric flow = 0.010 + 0.224 = 0.234 mL/min. \u03c4_inlet = 20 mL / 0.234 mL/min \u2248 85.5 min. To decrease to ~115 min target, reduce O2 to minimum 2.0 equiv: liquid 0.010 mL/min, O2 STP = 0.010\u00d70.5\u00d72.0\u00d722400/1000 = 0.224 mL/min \u2192 \u03c4_inlet = 20/0.234 = 85.5 min. At 3 bar: in-channel O2 flow \u2248 0.224/3 = 0.0747 mL/min, total in-channel = 0.0847 mL/min, \u03c4_in-channel \u2248 236 min.",
+        "molar_equiv": 2.0,
+        "phase": "gas"
+      }
+    ],
+    "mixing_order_reasoning": "Liquid substrate stream A and gaseous O2 stream B meet at a T-mixer upstream of the irradiated FEP coil. Taylor (slug) flow develops naturally in 1.0 mm ID tubing, ensuring high gas\u2013liquid mass transfer. No pre-mixing of reagents is needed since substrate and solvent are a single solution.",
+    "incompatible_pairs": [],
+    "deoxygenation_required": false,
+    "deoxygenation_reasoning": "O2 is the essential oxidant co-substrate; deoxygenation would kill the reaction.",
+    "quench_required": false,
+    "quench_reagent": "",
+    "quench_reasoning": "No reactive intermediates persist after exiting the irradiated zone; product 6-methylquinoline is stable.",
+    "retrieval_keywords": [
+      "photocatalyst-free aerobic dehydrogenation",
+      "tetrahydroquinoline to quinoline blue LED O2",
+      "EDA complex oxygen DMSO aromatization",
+      "catalyst-free photo-oxidation amine"
+    ],
+    "similar_reaction_classes": [
+      "Photocatalytic aerobic oxidation of amines",
+      "EDA-complex-mediated photochemistry",
+      "Acceptorless dehydrogenation of N-heterocycles",
+      "Singlet oxygen mediated oxidations"
+    ],
+    "batch_limitations": [
+      "mass_transfer_gas_liquid",
+      "photon_penetration"
+    ],
+    "batch_limitations_reasoning": "mass_transfer_gas_liquid: matched [o2 mass transfer, interfacial area, bubbled through]; photon_penetration: matched [photon delivery]",
+    "recommended_wavelength_nm": 448.0,
+    "wavelength_reasoning": "Batch protocol uses 450 \u00b1 15 nm blue LEDs. The manual strip-LED photoreactor provides 448 nm which falls within this window. The substrate\u2013O2 charge-transfer complex absorbs in the visible blue region (400\u2013470 nm). The Vapourtec mirrored 450 nm LED (355 mW/cm\u00b2) would be preferable for intensity but the design objective specifies the 20 mL manual setup.",
+    "confidence_notes": "MECHANISM: High confidence this is an EDA/CT-complex-mediated photoreaction \u2014 no catalyst, metal, or additive is used, consistent with direct substrate\u2013O2 charge-transfer excitation in the blue region. DMSO may play an active role beyond just solvation (radical stabilization, mild co-oxidant) but this is secondary. FLOW DESIGN: The key constraint is the minimum liquid pump flow of 0.010 mL/min. At 0.50 M substrate, 2.0 equiv O2 (STP), and 20 mL reactor at 3 bar BPR, the achievable inlet residence time is ~85.5 min (in-channel ~236 min). This is the maximum residence time achievable on this setup without going below pump minimum. The measured data (51% at 68.9 min inlet \u03c4) suggests ~85 min should yield ~60-65% \u2014 still below batch 75%. To reach batch-equivalent yield may require either (a) higher photon flux (Vapourtec mirrored reactor at 355 mW/cm\u00b2 vs 62 mW/cm\u00b2), (b) higher temperature (50\u00b0C), or (c) multiple passes. The wavelength_nm=15 in the protocol JSON is clearly a data entry error; the raw text confirms 450 \u00b1 15 nm. Entry 6 (KRICT 2-2) has no measured result and was excluded from calibration. Extrapolation assumes roughly logarithmic yield-vs-\u03c4 relationship consistent with first-order-like kinetics under photon-limited conditions.",
+    "intensification_mandate": {
+      "tau_reduction_target": 20.0,
+      "minimum_flow_advantage": "mass_transfer",
+      "required_mixing_regime": "taylor_slug_flow",
+      "flow_justification_basis": "Flow must demonstrate 20.0x residence-time reduction. Identified batch limitations: mass_transfer_gas_liquid, photon_penetration. Primary flow advantage: mass_transfer. Mechanisms: gas-liquid kLa enhancement (segmented flow), photon penetration via small ID. Limitation-driven IF (20x) exceeds class default (6x)."
+    }
+  },
+  "intake_package": {
+    "schema_version": "flowpilot_intake_v1.0",
+    "raw_protocol": "A flame-dried screw-cap reaction tube (13 x 100 mm, 8 mL) equipped with a magnetic stir bar was charged with 6-methyl-1,2,3,4-tetrahydroquinoline (1a, 0.20 mmol, 1.0 equiv, 29.4 mg, MW = 147.22 g/mol) and dimethyl sulfoxide (DMSO, 0.40 mL, 0.50 M) as solvent. No photocatalyst, transition metal, or any additive was used. Oxygen gas (O2, 1 atm, 0.4 mmol, 2.0 equiv, 12.8 mg, MW = 32 g/mol) was bubbled through the reaction mixture for 10 minutes using an oxygen-filled balloon to saturate the solution prior to irradiation. The sealed reaction tube was placed between two MR16 blue LED lamps (lambda = 450 +/- 15 nm, 5 W x 2) and irradiated from both sides simultaneously with no external cooling applied, allowing the reaction temperature to rise naturally to 40 C driven by the heat output of the LEDs. The reaction mixture was stirred continuously at 40 C under blue LED irradiation for 15 hours. This protocol afforded 6-methylquinoline (2a, MW = 143.19 g/mol) in 75% isolated yield (21.5 mg).",
+    "extracted_batch_fields": {
+      "reaction_description": "A flame-dried screw-cap reaction tube (13 x 100 mm, 8 mL) equipped with a magnetic stir bar was charged with 6-methyl-1,2,3,4-tetrahydroquinoline (1a, 0.20 mmol, 1.0 equiv, 29.4 mg, MW = 147.22 g/mol) and dimethyl sulfoxide (DMSO, 0.40 mL, 0.50 M) as solvent. No photocatalyst, transition metal, or any additive was used. Oxygen gas (O2, 1 atm, 0.4 mmol, 2.0 equiv, 12.8 mg, MW = 32 g/mol) was bubbled through the reaction mixture for 10 minutes using an oxygen-filled balloon to saturate the solutio",
+      "raw_text": "A flame-dried screw-cap reaction tube (13 x 100 mm, 8 mL) equipped with a magnetic stir bar was charged with 6-methyl-1,2,3,4-tetrahydroquinoline (1a, 0.20 mmol, 1.0 equiv, 29.4 mg, MW = 147.22 g/mol) and dimethyl sulfoxide (DMSO, 0.40 mL, 0.50 M) as solvent. No photocatalyst, transition metal, or any additive was used. Oxygen gas (O2, 1 atm, 0.4 mmol, 2.0 equiv, 12.8 mg, MW = 32 g/mol) was bubbled through the reaction mixture for 10 minutes using an oxygen-filled balloon to saturate the solution prior to irradiation. The sealed reaction tube was placed between two MR16 blue LED lamps (lambda = 450 +/- 15 nm, 5 W x 2) and irradiated from both sides simultaneously with no external cooling applied, allowing the reaction temperature to rise naturally to 40 C driven by the heat output of the LEDs. The reaction mixture was stirred continuously at 40 C under blue LED irradiation for 15 hours. This protocol afforded 6-methylquinoline (2a, MW = 143.19 g/mol) in 75% isolated yield (21.5 mg).",
+      "temperature_C": 40.0,
+      "concentration_M": 0.5,
+      "wavelength_nm": 15.0,
+      "reaction_time_h": 15.0,
+      "yield_pct": 75.0
+    },
+    "objective": "Use evidence-calibrated closed-loop refinement for the next KRICT-only screening design after the measured 51% product result at 68.9 min. Use inlet/STP apparent residence time as the primary design and calibration basis because O2 equivalents are controlled by the MFC/STP inlet flow. Report both inlet and pressure-corrected in-channel residence times. Prefer a single-factor residence-time refinement on the same 20 mL manual setup unless measured evidence justifies another change.",
+    "historical_data": "Use only these KRICT experimental results as measured feedback. Do not use collaborator or hidden benchmark data.\n\nEntry 3, KRICT 2:\nT = 40 C\nc = 0.50 M\nP = 6 bar\nsubstrate flow = 0.0509 mL/min\nO2 in-channel = 0.234 mL/min\nO2 inlet/STP = 1.2113 mL/min\nO2 equiv inlet = 2.12\nt inlet = 8.51 min\nt in-channel = 37.68 min\nreactor volume = 10.74 mL\nproduct = 12%\ntubing ID = 0.75 mm\n\nEntry 4, KRICT 6:\nT = 40 C\nc = 0.50 M\nP = 6 bar\nsubstrate flow = 0.0656 mL/min\nO2 in-channel = 0.320 mL/min\nO2 inlet/STP = 1.6565 mL/min\nO2 equiv inlet = 2.25\nt inlet = 7.71 min\nt in-channel = 34.42 min\nreactor volume = 13.27 mL\nproduct = 10%\ntubing ID = 1.00 mm\n\nEntry 5, KRICT 2-1:\nT = 40 C\nc = 0.50 M\nP = 6 bar\nsubstrate flow = 0.0264 mL/min\nO2 in-channel = 0.1214 mL/min\nO2 inlet/STP = 0.7327 mL/min\nO2 equiv inlet = 2.0\nt inlet = 13.17 min\nt in-channel = 67.65 min\nreactor volume = 10.00 mL\nstarting material = 58%\nproduct = 26%\ntubing ID = 1.016 mm\n\nEntry 6, KRICT 2-2:\nT = 40 C\nc = 0.50 M\nP = 3 bar\nsubstrate flow = 0.00470 mL/min\nO2 in-channel = 0.0325 mL/min\nO2 inlet/STP = 0.11175 mL/min\nO2 equiv inlet = 2.0\nt inlet = 85.9 min\nt in-channel = 268.88 min\nreactor volume = 10.00 mL\nproduct = unavailable; this entry has no measured result and must not be used as evidence\ntubing ID = 1.016 mm\n\nEntry 7, KRICT 3-1:\nT = 40 C\nc = 0.50 M\nP = 3 bar\nsubstrate flow = 0.01123 mL/min\nO2 in-channel = 0.0811 mL/min\nO2 inlet/STP = 0.2792 mL/min\nO2 equiv inlet = 2.0\nt inlet = 68.9 min\nt in-channel = 216.38 min\nreactor volume = 20.00 mL\nstarting material = 16%\nproduct = 51%\ntubing ID = 1.016 mm\n",
+    "inventory_constraints": {
+      "pumps": [
+        {
+          "name": "Vapourtec pump module",
+          "type": "HPLC",
+          "max_pressure_bar": 8,
+          "max_flow_rate_mL_min": 10.0,
+          "min_flow_rate_mL_min": 0.001,
+          "compatible_systems": [
+            "Vapourtec System"
+          ]
+        },
+        {
+          "name": "Manual syringe/HPLC pump setup",
+          "type": "syringe",
+          "max_pressure_bar": 8,
+          "max_flow_rate_mL_min": 5.0,
+          "min_flow_rate_mL_min": 0.01,
+          "compatible_systems": [
+            "Manual Setup"
+          ]
+        }
+      ],
+      "tubing": [
+        {
+          "material": "FEP",
+          "ID_mm": 1.0,
+          "max_pressure_bar": 8,
+          "max_temperature_C": 80,
+          "transparent": true
+        }
+      ],
+      "BPR_available": [
+        0,
+        3,
+        6,
+        8
+      ],
+      "light_sources": [
+        {
+          "name": "Vapourtec mirrored LED bar 420 nm",
+          "wavelength_nm": 420,
+          "power_W": 0,
+          "compatible_reactor": "coil",
+          "intensity_mW_cm2": 243,
+          "distance_cm": 3
+        },
+        {
+          "name": "Vapourtec mirrored LED bar 450 nm",
+          "wavelength_nm": 450,
+          "power_W": 0,
+          "compatible_reactor": "coil",
+          "intensity_mW_cm2": 355,
+          "distance_cm": 3
+        },
+        {
+          "name": "Manual strip LED 448 nm",
+          "wavelength_nm": 448,
+          "power_W": 0,
+          "compatible_reactor": "coil",
+          "intensity_mW_cm2": 62,
+          "distance_cm": 2
+        }
+      ],
+      "reactors": [
+        {
+          "name": "Mirrored photoreactor coil",
+          "system": "Vapourtec System",
+          "type": "coil",
+          "material": "FEP",
+          "volume_mL": 10,
+          "ID_mm": 1.0,
+          "light_source": "Vapourtec mirrored LED bar 450 nm",
+          "wavelength_nm": 450,
+          "intensity_mW_cm2": 355,
+          "irradiation": "bilateral 360 irradiation with mirrored photoreactor",
+          "min_temperature_C": 40,
+          "max_temperature_C": 80,
+          "min_concentration_M": 0.1,
+          "max_concentration_M": 0.5,
+          "min_pressure_bar": 0,
+          "max_pressure_bar": 8,
+          "notes": "Dual wavelength LED bar also supports 420 nm at 243 mW/cm2."
+        },
+        {
+          "name": "Manual strip-LED photoreactor coil 15 mL",
+          "system": "Manual Setup",
+          "type": "coil",
+          "material": "FEP",
+          "volume_mL": 15,
+          "ID_mm": 1.0,
+          "light_source": "Manual strip LED 448 nm",
+          "wavelength_nm": 448,
+          "intensity_mW_cm2": 62,
+          "irradiation": "standard 360 irradiation",
+          "allowed_temperatures_C": [
+            40,
+            50
+          ],
+          "min_concentration_M": 0.1,
+          "max_concentration_M": 0.5,
+          "min_pressure_bar": 0,
+          "max_pressure_bar": 8
+        },
+        {
+          "name": "Manual strip-LED photoreactor coil 20 mL",
+          "system": "Manual Setup",
+          "type": "coil",
+          "material": "FEP",
+          "volume_mL": 20,
+          "ID_mm": 1.0,
+          "light_source": "Manual strip LED 448 nm",
+          "wavelength_nm": 448,
+          "intensity_mW_cm2": 62,
+          "irradiation": "standard 360 irradiation",
+          "allowed_temperatures_C": [
+            40,
+            50
+          ],
+          "min_concentration_M": 0.1,
+          "max_concentration_M": 0.5,
+          "min_pressure_bar": 0,
+          "max_pressure_bar": 8
+        }
+      ]
+    },
+    "hypotheses": [
+      "Measured KRICT product increased from 10-12% at 7.71-8.51 min, to 26% at 13.17 min, and to 51% at 68.9 min inlet/STP apparent residence time. There is no evidence of overreaction, so the next design must not shorten residence time below the 68.9 min measured anchor. Entry 6 has no result and is not evidence. Keep O2 at 2.0 equiv and treat photon flux as a secondary hypothesis."
+    ],
+    "operating_limits": "Use only the provided inventory. Operate within 0-8 bar, 0.1-0.5 M, and the temperature limits of the selected reactor. Use only 10, 15, or 20 mL inventory reactors. The manual syringe pump liquid-flow minimum is 0.010 mL/min. Supply at least 2.0 equiv O2 calculated from the inlet/STP MFC flow. Preserve the successful 40 C, 0.50 M, and 3 bar condition for the next single-factor screen unless safety requires a change.",
+    "output_preferences": "Return one inventory-constrained next experiment plus uncertainty, calibration basis, and a rough long-range estimate only if clearly marked uncertain.",
+    "question_log": [],
+    "answers": [
+      {
+        "question_id": "Q-OBJ-001",
+        "answer": "Use evidence-calibrated closed-loop refinement for the next KRICT-only screening design after the measured 51% product result at 68.9 min. Use inlet/STP apparent residence time as the primary design and calibration basis because O2 equivalents are controlled by the MFC/STP inlet flow. Report both inlet and pressure-corrected in-channel residence times. Prefer a single-factor residence-time refinement on the same 20 mL manual setup unless measured evidence justifies another change.",
+        "status": "answered",
+        "source": "user"
+      },
+      {
+        "question_id": "Q-HIST-001",
+        "answer": "Use only these KRICT experimental results as measured feedback. Do not use collaborator or hidden benchmark data.\n\nEntry 3, KRICT 2:\nT = 40 C\nc = 0.50 M\nP = 6 bar\nsubstrate flow = 0.0509 mL/min\nO2 in-channel = 0.234 mL/min\nO2 inlet/STP = 1.2113 mL/min\nO2 equiv inlet = 2.12\nt inlet = 8.51 min\nt in-channel = 37.68 min\nreactor volume = 10.74 mL\nproduct = 12%\ntubing ID = 0.75 mm\n\nEntry 4, KRICT 6:\nT = 40 C\nc = 0.50 M\nP = 6 bar\nsubstrate flow = 0.0656 mL/min\nO2 in-channel = 0.320 mL/min\nO2 inlet/STP = 1.6565 mL/min\nO2 equiv inlet = 2.25\nt inlet = 7.71 min\nt in-channel = 34.42 min\nreactor volume = 13.27 mL\nproduct = 10%\ntubing ID = 1.00 mm\n\nEntry 5, KRICT 2-1:\nT = 40 C\nc = 0.50 M\nP = 6 bar\nsubstrate flow = 0.0264 mL/min\nO2 in-channel = 0.1214 mL/min\nO2 inlet/STP = 0.7327 mL/min\nO2 equiv inlet = 2.0\nt inlet = 13.17 min\nt in-channel = 67.65 min\nreactor volume = 10.00 mL\nstarting material = 58%\nproduct = 26%\ntubing ID = 1.016 mm\n\nEntry 6, KRICT 2-2:\nT = 40 C\nc = 0.50 M\nP = 3 bar\nsubstrate flow = 0.00470 mL/min\nO2 in-channel = 0.0325 mL/min\nO2 inlet/STP = 0.11175 mL/min\nO2 equiv inlet = 2.0\nt inlet = 85.9 min\nt in-channel = 268.88 min\nreactor volume = 10.00 mL\nproduct = unavailable; this entry has no measured result and must not be used as evidence\ntubing ID = 1.016 mm\n\nEntry 7, KRICT 3-1:\nT = 40 C\nc = 0.50 M\nP = 3 bar\nsubstrate flow = 0.01123 mL/min\nO2 in-channel = 0.0811 mL/min\nO2 inlet/STP = 0.2792 mL/min\nO2 equiv inlet = 2.0\nt inlet = 68.9 min\nt in-channel = 216.38 min\nreactor volume = 20.00 mL\nstarting material = 16%\nproduct = 51%\ntubing ID = 1.016 mm\n",
+        "status": "answered",
+        "source": "user"
+      },
+      {
+        "question_id": "Q-INV-001",
+        "answer": {
+          "pumps": [
+            {
+              "name": "Vapourtec pump module",
+              "type": "HPLC",
+              "max_pressure_bar": 8,
+              "max_flow_rate_mL_min": 10.0,
+              "min_flow_rate_mL_min": 0.001,
+              "compatible_systems": [
+                "Vapourtec System"
+              ]
+            },
+            {
+              "name": "Manual syringe/HPLC pump setup",
+              "type": "syringe",
+              "max_pressure_bar": 8,
+              "max_flow_rate_mL_min": 5.0,
+              "min_flow_rate_mL_min": 0.01,
+              "compatible_systems": [
+                "Manual Setup"
+              ]
+            }
+          ],
+          "tubing": [
+            {
+              "material": "FEP",
+              "ID_mm": 1.0,
+              "max_pressure_bar": 8,
+              "max_temperature_C": 80,
+              "transparent": true
+            }
+          ],
+          "BPR_available": [
+            0,
+            3,
+            6,
+            8
+          ],
+          "light_sources": [
+            {
+              "name": "Vapourtec mirrored LED bar 420 nm",
+              "wavelength_nm": 420,
+              "power_W": 0,
+              "compatible_reactor": "coil",
+              "intensity_mW_cm2": 243,
+              "distance_cm": 3
+            },
+            {
+              "name": "Vapourtec mirrored LED bar 450 nm",
+              "wavelength_nm": 450,
+              "power_W": 0,
+              "compatible_reactor": "coil",
+              "intensity_mW_cm2": 355,
+              "distance_cm": 3
+            },
+            {
+              "name": "Manual strip LED 448 nm",
+              "wavelength_nm": 448,
+              "power_W": 0,
+              "compatible_reactor": "coil",
+              "intensity_mW_cm2": 62,
+              "distance_cm": 2
+            }
+          ],
+          "reactors": [
+            {
+              "name": "Mirrored photoreactor coil",
+              "system": "Vapourtec System",
+              "type": "coil",
+              "material": "FEP",
+              "volume_mL": 10,
+              "ID_mm": 1.0,
+              "light_source": "Vapourtec mirrored LED bar 450 nm",
+              "wavelength_nm": 450,
+              "intensity_mW_cm2": 355,
+              "irradiation": "bilateral 360 irradiation with mirrored photoreactor",
+              "min_temperature_C": 40,
+              "max_temperature_C": 80,
+              "min_concentration_M": 0.1,
+              "max_concentration_M": 0.5,
+              "min_pressure_bar": 0,
+              "max_pressure_bar": 8,
+              "notes": "Dual wavelength LED bar also supports 420 nm at 243 mW/cm2."
+            },
+            {
+              "name": "Manual strip-LED photoreactor coil 15 mL",
+              "system": "Manual Setup",
+              "type": "coil",
+              "material": "FEP",
+              "volume_mL": 15,
+              "ID_mm": 1.0,
+              "light_source": "Manual strip LED 448 nm",
+              "wavelength_nm": 448,
+              "intensity_mW_cm2": 62,
+              "irradiation": "standard 360 irradiation",
+              "allowed_temperatures_C": [
+                40,
+                50
+              ],
+              "min_concentration_M": 0.1,
+              "max_concentration_M": 0.5,
+              "min_pressure_bar": 0,
+              "max_pressure_bar": 8
+            },
+            {
+              "name": "Manual strip-LED photoreactor coil 20 mL",
+              "system": "Manual Setup",
+              "type": "coil",
+              "material": "FEP",
+              "volume_mL": 20,
+              "ID_mm": 1.0,
+              "light_source": "Manual strip LED 448 nm",
+              "wavelength_nm": 448,
+              "intensity_mW_cm2": 62,
+              "irradiation": "standard 360 irradiation",
+              "allowed_temperatures_C": [
+                40,
+                50
+              ],
+              "min_concentration_M": 0.1,
+              "max_concentration_M": 0.5,
+              "min_pressure_bar": 0,
+              "max_pressure_bar": 8
+            }
+          ]
+        },
+        "status": "answered",
+        "source": "user"
+      },
+      {
+        "question_id": "Q-CONSTR-001",
+        "answer": "Use only the provided inventory. Operate within 0-8 bar, 0.1-0.5 M, and the temperature limits of the selected reactor. Use only 10, 15, or 20 mL inventory reactors. The manual syringe pump liquid-flow minimum is 0.010 mL/min. Supply at least 2.0 equiv O2 calculated from the inlet/STP MFC flow. Preserve the successful 40 C, 0.50 M, and 3 bar condition for the next single-factor screen unless safety requires a change.",
+        "status": "answered",
+        "source": "user"
+      },
+      {
+        "question_id": "Q-HYP-001",
+        "answer": "Measured KRICT product increased from 10-12% at 7.71-8.51 min, to 26% at 13.17 min, and to 51% at 68.9 min inlet/STP apparent residence time. There is no evidence of overreaction, so the next design must not shorten residence time below the 68.9 min measured anchor. Entry 6 has no result and is not evidence. Keep O2 at 2.0 equiv and treat photon flux as a secondary hypothesis.",
+        "status": "answered",
+        "source": "user"
+      },
+      {
+        "question_id": "Q-PREF-001",
+        "answer": "Return one inventory-constrained next experiment plus uncertainty, calibration basis, and a rough long-range estimate only if clearly marked uncertain.",
+        "status": "answered",
+        "source": "user"
+      }
+    ],
+    "missing_question_ids": [],
+    "ready_for_design": true,
+    "authority_order": [
+      "measured_evidence",
+      "hard_constraints",
+      "protocol_facts",
+      "chemist_hypotheses",
+      "model_inference"
+    ]
+  },
+  "intake_context": "## FlowPilot Intake Context - authority labeled\nAuthority order: measured evidence > hard constraints > protocol facts > chemist hypotheses > model inference.\nSchema: flowpilot_intake_v1.0\nReady for design: True\n\n### Design objective\nUse evidence-calibrated closed-loop refinement for the next KRICT-only screening design after the measured 51% product result at 68.9 min. Use inlet/STP apparent residence time as the primary design and calibration basis because O2 equivalents are controlled by the MFC/STP inlet flow. Report both inlet and pressure-corrected in-channel residence times. Prefer a single-factor residence-time refinement on the same 20 mL manual setup unless measured evidence justifies another change.\n\n### Protocol facts\n{\n  \"reaction_description\": \"A flame-dried screw-cap reaction tube (13 x 100 mm, 8 mL) equipped with a magnetic stir bar was charged with 6-methyl-1,2,3,4-tetrahydroquinoline (1a, 0.20 mmol, 1.0 equiv, 29.4 mg, MW = 147.22 g/mol) and dimethyl sulfoxide (DMSO, 0.40 mL, 0.50 M) as solvent. No photocatalyst, transition metal, or any additive was used. Oxygen gas (O2, 1 atm, 0.4 mmol, 2.0 equiv, 12.8 mg, MW = 32 g/mol) was bubbled through the reaction mixture for 10 minutes using an oxygen-filled balloon to saturate the solutio\",\n  \"raw_text\": \"A flame-dried screw-cap reaction tube (13 x 100 mm, 8 mL) equipped with a magnetic stir bar was charged with 6-methyl-1,2,3,4-tetrahydroquinoline (1a, 0.20 mmol, 1.0 equiv, 29.4 mg, MW = 147.22 g/mol) and dimethyl sulfoxide (DMSO, 0.40 mL, 0.50 M) as solvent. No photocatalyst, transition metal, or any additive was used. Oxygen gas (O2, 1 atm, 0.4 mmol, 2.0 equiv, 12.8 mg, MW = 32 g/mol) was bubbled through the reaction mixture for 10 minutes using an oxygen-filled balloon to saturate the solution prior to irradiation. The sealed reaction tube was placed between two MR16 blue LED lamps (lambda = 450 +/- 15 nm, 5 W x 2) and irradiated from both sides simultaneously with no external cooling applied, allowing the reaction temperature to rise naturally to 40 C driven by the heat output of the LEDs. The reaction mixture was stirred continuously at 40 C under blue LED irradiation for 15 hours. This protocol afforded 6-methylquinoline (2a, MW = 143.19 g/mol) in 75% isolated yield (21.5 mg).\",\n  \"temperature_C\": 40.0,\n  \"concentration_M\": 0.5,\n  \"wavelength_nm\": 15.0,\n  \"reaction_time_h\": 15.0,\n  \"yield_pct\": 75.0\n}\n\n### Measured evidence / historical data\nUse only these KRICT experimental results as measured feedback. Do not use collaborator or hidden benchmark data.\n\nEntry 3, KRICT 2:\nT = 40 C\nc = 0.50 M\nP = 6 bar\nsubstrate flow = 0.0509 mL/min\nO2 in-channel = 0.234 mL/min\nO2 inlet/STP = 1.2113 mL/min\nO2 equiv inlet = 2.12\nt inlet = 8.51 min\nt in-channel = 37.68 min\nreactor volume = 10.74 mL\nproduct = 12%\ntubing ID = 0.75 mm\n\nEntry 4, KRICT 6:\nT = 40 C\nc = 0.50 M\nP = 6 bar\nsubstrate flow = 0.0656 mL/min\nO2 in-channel = 0.320 mL/min\nO2 inlet/STP = 1.6565 mL/min\nO2 equiv inlet = 2.25\nt inlet = 7.71 min\nt in-channel = 34.42 min\nreactor volume = 13.27 mL\nproduct = 10%\ntubing ID = 1.00 mm\n\nEntry 5, KRICT 2-1:\nT = 40 C\nc = 0.50 M\nP = 6 bar\nsubstrate flow = 0.0264 mL/min\nO2 in-channel = 0.1214 mL/min\nO2 inlet/STP = 0.7327 mL/min\nO2 equiv inlet = 2.0\nt inlet = 13.17 min\nt in-channel = 67.65 min\nreactor volume = 10.00 mL\nstarting material = 58%\nproduct = 26%\ntubing ID = 1.016 mm\n\nEntry 6, KRICT 2-2:\nT = 40 C\nc = 0.50 M\nP = 3 bar\nsubstrate flow = 0.00470 mL/min\nO2 in-channel = 0.0325 mL/min\nO2 inlet/STP = 0.11175 mL/min\nO2 equiv inlet = 2.0\nt inlet = 85.9 min\nt in-channel = 268.88 min\nreactor volume = 10.00 mL\nproduct = unavailable; this entry has no measured result and must not be used as evidence\ntubing ID = 1.016 mm\n\nEntry 7, KRICT 3-1:\nT = 40 C\nc = 0.50 M\nP = 3 bar\nsubstrate flow = 0.01123 mL/min\nO2 in-channel = 0.0811 mL/min\nO2 inlet/STP = 0.2792 mL/min\nO2 equiv inlet = 2.0\nt inlet = 68.9 min\nt in-channel = 216.38 min\nreactor volume = 20.00 mL\nstarting material = 16%\nproduct = 51%\ntubing ID = 1.016 mm\n\n### Hard constraints / inventory\n{\n  \"pumps\": [\n    {\n      \"name\": \"Vapourtec pump module\",\n      \"type\": \"HPLC\",\n      \"max_pressure_bar\": 8,\n      \"max_flow_rate_mL_min\": 10.0,\n      \"min_flow_rate_mL_min\": 0.001,\n      \"compatible_systems\": [\n        \"Vapourtec System\"\n      ]\n    },\n    {\n      \"name\": \"Manual syringe/HPLC pump setup\",\n      \"type\": \"syringe\",\n      \"max_pressure_bar\": 8,\n      \"max_flow_rate_mL_min\": 5.0,\n      \"min_flow_rate_mL_min\": 0.01,\n      \"compatible_systems\": [\n        \"Manual Setup\"\n      ]\n    }\n  ],\n  \"tubing\": [\n    {\n      \"material\": \"FEP\",\n      \"ID_mm\": 1.0,\n      \"max_pressure_bar\": 8,\n      \"max_temperature_C\": 80,\n      \"transparent\": true\n    }\n  ],\n  \"BPR_available\": [\n    0,\n    3,\n    6,\n    8\n  ],\n  \"light_sources\": [\n    {\n      \"name\": \"Vapourtec mirrored LED bar 420 nm\",\n      \"wavelength_nm\": 420,\n      \"power_W\": 0,\n      \"compatible_reactor\": \"coil\",\n      \"intensity_mW_cm2\": 243,\n      \"distance_cm\": 3\n    },\n    {\n      \"name\": \"Vapourtec mirrored LED bar 450 nm\",\n      \"wavelength_nm\": 450,\n      \"power_W\": 0,\n      \"compatible_reactor\": \"coil\",\n      \"intensity_mW_cm2\": 355,\n      \"distance_cm\": 3\n    },\n    {\n      \"name\": \"Manual strip LED 448 nm\",\n      \"wavelength_nm\": 448,\n      \"power_W\": 0,\n      \"compatible_reactor\": \"coil\",\n      \"intensity_mW_cm2\": 62,\n      \"distance_cm\": 2\n    }\n  ],\n  \"reactors\": [\n    {\n      \"name\": \"Mirrored photoreactor coil\",\n      \"system\": \"Vapourtec System\",\n      \"type\": \"coil\",\n      \"material\": \"FEP\",\n      \"volume_mL\": 10,\n      \"ID_mm\": 1.0,\n      \"light_source\": \"Vapourtec mirrored LED bar 450 nm\",\n      \"wavelength_nm\": 450,\n      \"intensity_mW_cm2\": 355,\n      \"irradiation\": \"bilateral 360 irradiation with mirrored photoreactor\",\n      \"min_temperature_C\": 40,\n      \"max_temperature_C\": 80,\n      \"min_concentration_M\": 0.1,\n      \"max_concentration_M\": 0.5,\n      \"min_pressure_bar\": 0,\n      \"max_pressure_bar\": 8,\n      \"notes\": \"Dual wavelength LED bar also supports 420 nm at 243 mW/cm2.\"\n    },\n    {\n      \"name\": \"Manual strip-LED photoreactor coil 15 mL\",\n      \"system\": \"Manual Setup\",\n      \"type\": \"coil\",\n      \"material\": \"FEP\",\n      \"volume_mL\": 15,\n      \"ID_mm\": 1.0,\n      \"light_source\": \"Manual strip LED 448 nm\",\n      \"wavelength_nm\": 448,\n      \"intensity_mW_cm2\": 62,\n      \"irradiation\": \"standard 360 irradiation\",\n      \"allowed_temperatures_C\": [\n        40,\n        50\n      ],\n      \"min_concentration_M\": 0.1,\n      \"max_concentration_M\": 0.5,\n      \"min_pressure_bar\": 0,\n      \"max_pressure_bar\": 8\n    },\n    {\n      \"name\": \"Manual strip-LED photoreactor coil 20 mL\",\n      \"system\": \"Manual Setup\",\n      \"type\": \"coil\",\n      \"material\": \"FEP\",\n      \"volume_mL\": 20,\n      \"ID_mm\": 1.0,\n      \"light_source\": \"Manual strip LED 448 nm\",\n      \"wavelength_nm\": 448,\n      \"intensity_mW_cm2\": 62,\n      \"irradiation\": \"standard 360 irradiation\",\n      \"allowed_temperatures_C\": [\n        40,\n        50\n      ],\n      \"min_concentration_M\": 0.1,\n      \"max_concentration_M\": 0.5,\n      \"min_pressure_bar\": 0,\n      \"max_pressure_bar\": 8\n    }\n  ]\n}\n\n### Safety and operating limits\nUse only the provided inventory. Operate within 0-8 bar, 0.1-0.5 M, and the temperature limits of the selected reactor. Use only 10, 15, or 20 mL inventory reactors. The manual syringe pump liquid-flow minimum is 0.010 mL/min. Supply at least 2.0 equiv O2 calculated from the inlet/STP MFC flow. Preserve the successful 40 C, 0.50 M, and 3 bar condition for the next single-factor screen unless safety requires a change.\n\n### Chemist hypotheses\n[\n  \"Measured KRICT product increased from 10-12% at 7.71-8.51 min, to 26% at 13.17 min, and to 51% at 68.9 min inlet/STP apparent residence time. There is no evidence of overreaction, so the next design must not shorten residence time below the 68.9 min measured anchor. Entry 6 has no result and is not evidence. Keep O2 at 2.0 equiv and treat photon flux as a secondary hypothesis.\"\n]\n\n### Intake questions and answers\n[\n  {\n    \"question_id\": \"Q-OBJ-001\",\n    \"answer\": \"Use evidence-calibrated closed-loop refinement for the next KRICT-only screening design after the measured 51% product result at 68.9 min. Use inlet/STP apparent residence time as the primary design and calibration basis because O2 equivalents are controlled by the MFC/STP inlet flow. Report both inlet and pressure-corrected in-channel residence times. Prefer a single-factor residence-time refinement on the same 20 mL manual setup unless measured evidence justifies another change.\",\n    \"status\": \"answered\",\n    \"source\": \"user\"\n  },\n  {\n    \"question_id\": \"Q-HIST-001\",\n    \"answer\": \"Use only these KRICT experimental results as measured feedback. Do not use collaborator or hidden benchmark data.\\n\\nEntry 3, KRICT 2:\\nT = 40 C\\nc = 0.50 M\\nP = 6 bar\\nsubstrate flow = 0.0509 mL/min\\nO2 in-channel = 0.234 mL/min\\nO2 inlet/STP = 1.2113 mL/min\\nO2 equiv inlet = 2.12\\nt inlet = 8.51 min\\nt in-channel = 37.68 min\\nreactor volume = 10.74 mL\\nproduct = 12%\\ntubing ID = 0.75 mm\\n\\nEntry 4, KRICT 6:\\nT = 40 C\\nc = 0.50 M\\nP = 6 bar\\nsubstrate flow = 0.0656 mL/min\\nO2 in-channel = 0.320 mL/min\\nO2 inlet/STP = 1.6565 mL/min\\nO2 equiv inlet = 2.25\\nt inlet = 7.71 min\\nt in-channel = 34.42 min\\nreactor volume = 13.27 mL\\nproduct = 10%\\ntubing ID = 1.00 mm\\n\\nEntry 5, KRICT 2-1:\\nT = 40 C\\nc = 0.50 M\\nP = 6 bar\\nsubstrate flow = 0.0264 mL/min\\nO2 in-channel = 0.1214 mL/min\\nO2 inlet/STP = 0.7327 mL/min\\nO2 equiv inlet = 2.0\\nt inlet = 13.17 min\\nt in-channel = 67.65 min\\nreactor volume = 10.00 mL\\nstarting material = 58%\\nproduct = 26%\\ntubing ID = 1.016 mm\\n\\nEntry 6, KRICT 2-2:\\nT = 40 C\\nc = 0.50 M\\nP = 3 bar\\nsubstrate flow = 0.00470 mL/min\\nO2 in-channel = 0.0325 mL/min\\nO2 inlet/STP = 0.11175 mL/min\\nO2 equiv inlet = 2.0\\nt inlet = 85.9 min\\nt in-channel = 268.88 min\\nreactor volume = 10.00 mL\\nproduct = unavailable; this entry has no measured result and must not be used as evidence\\ntubing ID = 1.016 mm\\n\\nEntry 7, KRICT 3-1:\\nT = 40 C\\nc = 0.50 M\\nP = 3 bar\\nsubstrate flow = 0.01123 mL/min\\nO2 in-channel = 0.0811 mL/min\\nO2 inlet/STP = 0.2792 mL/min\\nO2 equiv inlet = 2.0\\nt inlet = 68.9 min\\nt in-channel = 216.38 min\\nreactor volume = 20.00 mL\\nstarting material = 16%\\nproduct = 51%\\ntubing ID = 1.016 mm\\n\",\n    \"status\": \"answered\",\n    \"source\": \"user\"\n  },\n  {\n    \"question_id\": \"Q-INV-001\",\n    \"answer\": {\n      \"pumps\": [\n        {\n          \"name\": \"Vapourtec pump module\",\n          \"type\": \"HPLC\",\n          \"max_pressure_bar\": 8,\n          \"max_flow_rate_mL_min\": 10.0,\n          \"min_flow_rate_mL_min\": 0.001,\n          \"compatible_systems\": [\n            \"Vapourtec System\"\n          ]\n        },\n        {\n          \"name\": \"Manual syringe/HPLC pump setup\",\n          \"type\": \"syringe\",\n          \"max_pressure_bar\": 8,\n          \"max_flow_rate_mL_min\": 5.0,\n          \"min_flow_rate_mL_min\": 0.01,\n          \"compatible_systems\": [\n            \"Manual Setup\"\n          ]\n        }\n      ],\n      \"tubing\": [\n        {\n          \"material\": \"FEP\",\n          \"ID_mm\": 1.0,\n          \"max_pressure_bar\": 8,\n          \"max_temperature_C\": 80,\n          \"transparent\": true\n        }\n      ],\n      \"BPR_available\": [\n        0,\n        3,\n        6,\n        8\n      ],\n      \"light_sources\": [\n        {\n          \"name\": \"Vapourtec mirrored LED bar 420 nm\",\n          \"wavelength_nm\": 420,\n          \"power_W\": 0,\n          \"compatible_reactor\": \"coil\",\n          \"intensity_mW_cm2\": 243,\n          \"distance_cm\": 3\n        },\n        {\n          \"name\": \"Vapourtec mirrored LED bar 450 nm\",\n          \"wavelength_nm\": 450,\n          \"power_W\": 0,\n          \"compatible_reactor\": \"coil\",\n          \"intensity_mW_cm2\": 355,\n          \"distance_cm\": 3\n        },\n        {\n          \"name\": \"Manual strip LED 448 nm\",\n          \"wavelength_nm\": 448,\n          \"power_W\": 0,\n          \"compatible_reactor\": \"coil\",\n          \"intensity_mW_cm2\": 62,\n          \"distance_cm\": 2\n        }\n      ],\n      \"reactors\": [\n        {\n          \"name\": \"Mirrored photoreactor coil\",\n          \"system\": \"Vapourtec System\",\n          \"type\": \"coil\",\n          \"material\": \"FEP\",\n          \"volume_mL\": 10,\n          \"ID_mm\": 1.0,\n          \"light_source\": \"Vapourtec mirrored LED bar 450 nm\",\n          \"wavelength_nm\": 450,\n          \"intensity_mW_cm2\": 355,\n          \"irradiation\": \"bilateral 360 irradiation with mirrored photoreactor\",\n          \"min_temperature_C\": 40,\n          \"max_temperature_C\": 80,\n          \"min_concentration_M\": 0.1,\n          \"max_concentration_M\": 0.5,\n          \"min_pressure_bar\": 0,\n          \"max_pressure_bar\": 8,\n          \"notes\": \"Dual wavelength LED bar also supports 420 nm at 243 mW/cm2.\"\n        },\n        {\n          \"name\": \"Manual strip-LED photoreactor coil 15 mL\",\n          \"system\": \"Manual Setup\",\n          \"type\": \"coil\",\n          \"material\": \"FEP\",\n          \"volume_mL\": 15,\n          \"ID_mm\": 1.0,\n          \"light_source\": \"Manual strip LED 448 nm\",\n          \"wavelength_nm\": 448,\n          \"intensity_mW_cm2\": 62,\n          \"irradiation\": \"standard 360 irradiation\",\n          \"allowed_temperatures_C\": [\n            40,\n            50\n          ],\n          \"min_concentration_M\": 0.1,\n          \"max_concentration_M\": 0.5,\n          \"min_pressure_bar\": 0,\n          \"max_pressure_bar\": 8\n        },\n        {\n          \"name\": \"Manual strip-LED photoreactor coil 20 mL\",\n          \"system\": \"Manual Setup\",\n          \"type\": \"coil\",\n          \"material\": \"FEP\",\n          \"volume_mL\": 20,\n          \"ID_mm\": 1.0,\n          \"light_source\": \"Manual strip LED 448 nm\",\n          \"wavelength_nm\": 448,\n          \"intensity_mW_cm2\": 62,\n          \"irradiation\": \"standard 360 irradiation\",\n          \"allowed_temperatures_C\": [\n            40,\n            50\n          ],\n          \"min_concentration_M\": 0.1,\n          \"max_concentration_M\": 0.5,\n          \"min_pressure_bar\": 0,\n          \"max_pressure_bar\": 8\n        }\n      ]\n    },\n    \"status\": \"answered\",\n    \"source\": \"user\"\n  },\n  {\n    \"question_id\": \"Q-CONSTR-001\",\n    \"answer\": \"Use only the provided inventory. Operate within 0-8 bar, 0.1-0.5 M, and the temperature limits of the selected reactor. Use only 10, 15, or 20 mL inventory reactors. The manual syringe pump liquid-flow minimum is 0.010 mL/min. Supply at least 2.0 equiv O2 calculated from the inlet/STP MFC flow. Preserve the successful 40 C, 0.50 M, and 3 bar condition for the next single-factor screen unless safety requires a change.\",\n    \"status\": \"answered\",\n    \"source\": \"user\"\n  },\n  {\n    \"question_id\": \"Q-HYP-001\",\n    \"answer\": \"Measured KRICT product increased from 10-12% at 7.71-8.51 min, to 26% at 13.17 min, and to 51% at 68.9 min inlet/STP apparent residence time. There is no evidence of overreaction, so the next design must not shorten residence time below the 68.9 min measured anchor. Entry 6 has no result and is not evidence. Keep O2 at 2.0 equiv and treat photon flux as a secondary hypothesis.\",\n    \"status\": \"answered\",\n    \"source\": \"user\"\n  },\n  {\n    \"question_id\": \"Q-PREF-001\",\n    \"answer\": \"Return one inventory-constrained next experiment plus uncertainty, calibration basis, and a rough long-range estimate only if clearly marked uncertain.\",\n    \"status\": \"answered\",\n    \"source\": \"user\"\n  }\n]",
+  "design_calculations": {
+    "steps": [
+      {
+        "step": 1,
+        "name": "Batch Conditions",
+        "status": "PASS",
+        "summary": "T = 40 \u00b0C, C\u2080 = 0.5 M, t_batch = 15.0 h (54000 s), X = 0.75",
+        "values": {
+          "T_C": 40.0,
+          "T_K": 313.15,
+          "C_M": 0.5,
+          "t_batch_h": 15.0,
+          "t_batch_s": 54000.0,
+          "X": 0.75
+        },
+        "equations": [],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "Intensification policy active downstream \u2192 tau_flow must remain \u2264 900.0 min"
+        ]
+      },
+      {
+        "step": 2,
+        "name": "Kinetics & Residence Time",
+        "status": "PASS",
+        "summary": "\u03c4 = 85.4 min (council-approved \u2014 not re-derived from kinetics). Implied IF = 10\u00d7 vs batch.",
+        "values": {
+          "tau_primary_min": 85.424,
+          "method": "council-approved",
+          "IF_implied": 10.5,
+          "IF_class": 30.0,
+          "k_flow": 0.0002704732395891651
+        },
+        "equations": [],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "\u03c4 set by ENGINE council \u2014 kinetics estimation bypassed"
+        ]
+      },
+      {
+        "step": 3,
+        "name": "Reactor Sizing",
+        "status": "PASS",
+        "summary": "V_R = 20.00 mL, d = 1.00 mm, L = 25.46 m, Pe = 984 (\u2713 plug flow)",
+        "values": {
+          "V_R_mL": 20.00008400675056,
+          "liquid_holdup_mL": 3.7458846258179266,
+          "gas_holdup": 0.8127,
+          "d_mm": 1.0,
+          "L_m": 25.464897855420094,
+          "Q_mL_min": 0.01,
+          "v_m_s": 0.0011330166480082904,
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_inlet_min": 85.424,
+          "residence_time_in_channel_min": 374.5885,
+          "Pe": 984.1,
+          "Pe_adequate": true
+        },
+        "equations": [
+          "V_R = t_{inlet} \\times (Q_L + Q_{g,STP}) = 85.42 \\times (0.0100 + 0.2241) = 20.00\\;\\mathrm{mL}",
+          "Q_{g,actual} = Q_{g,STP}\\frac{T}{T_{STP}}\\frac{P_{STP}}{P} = 0.0434\\;\\mathrm{mL/min}",
+          "t_{in-channel} = \\frac{V_R}{Q_L + Q_{g,actual}} = 374.59\\;\\mathrm{min}",
+          "\\varepsilon_g = \\frac{Q_{g,actual}}{Q_{g,actual}+Q_L} = 0.813",
+          "L = \\frac{4\\,V_R}{\\pi\\,d^2} = 25.46\\;\\mathrm{m}",
+          "Pe = \\frac{192\\,\\tau\\,D_{\\mathrm{mol}}}{d^2} = \\frac{192 \\times 5125.4 \\times 1e-09}{0.0010^2} = 984\\;\\checkmark"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 4,
+        "name": "Fluid Dynamics",
+        "status": "PASS",
+        "summary": "Re = 0.2 (laminar), v = 0.0011 m/s",
+        "values": {
+          "Re": 0.2122065907891938,
+          "regime": "laminar",
+          "v_m_s": 0.0011330166480082904,
+          "mu_Pa_s": 0.001,
+          "rho_kg_m3": 1000.0,
+          "mu_cP": 1.0,
+          "rho_g_mL": 1.0
+        },
+        "equations": [
+          "v = \\frac{4\\,Q}{\\pi\\,d^2} = \\frac{4 \\times 1.667e-10}{\\pi \\times (0.0010)^2} = 0.0011\\;\\mathrm{m/s}",
+          "Re = \\frac{\\rho\\,v\\,d}{\\mu} = \\frac{1000 \\times 0.0011 \\times 0.0010}{1.0000e-03} = 0.2"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 5,
+        "name": "Pressure Drop",
+        "status": "PASS",
+        "summary": "\u0394P = 0.0208 bar (pump max = 8 bar, margin = 100 %)",
+        "values": {
+          "dP_bar": 0.020750665569383996,
+          "dP_Pa": 2075.0665569383996,
+          "pump_max_bar": 8.0,
+          "margin_pct": 99.7406166803827
+        },
+        "equations": [
+          "\\Delta P = \\frac{128\\,\\mu\\,L\\,Q}{\\pi\\,d^4} = \\frac{128 \\times 1.0000e-03 \\times 25.46 \\times 1.667e-10}{\\pi \\times (0.0010)^4} \\times \\phi^2_{2p} = 0.0208\\;\\mathrm{bar}",
+          "\\phi^2_{2p} = 1 + 12\\varepsilon_g + 25\\varepsilon_g^2 = 12.00"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 6,
+        "name": "Mass Transfer",
+        "status": "PASS",
+        "summary": "t_mix = 101.3 s, Da = 0.270 \u2014 Kinetically controlled \u2014 mixing is not limiting",
+        "values": {
+          "t_mix_s": 101.32118364233777,
+          "Da_mass": 0.2704732395891651,
+          "D_m2_s": 1e-09,
+          "interpretation": "Kinetically controlled \u2014 mixing is not limiting",
+          "gas_species": "O2",
+          "gas_flow_sccm": 0.2241,
+          "gas_flow_actual_mL_min": 0.0434,
+          "gas_pressure_abs_bar": 6.0,
+          "gas_liquid_ratio": 4.3392,
+          "gas_holdup": 0.8127,
+          "o2_supply_mmol_min": 0.01,
+          "o2_required_mmol_min": 0.01,
+          "target_gas_equiv_inlet": 2.0,
+          "explicit_gas_equiv_inlet": 2.0,
+          "o2_equiv_supplied": 2.0,
+          "gas_flow_recomputed_from_equiv": false,
+          "dissolved_o2_mM": 37.1429,
+          "kLa_s": 0.30445,
+          "o2_transfer_capacity_mmol_min": 2.541398,
+          "o2_transfer_sufficiency": 254.1398
+        },
+        "equations": [
+          "t_{\\mathrm{mix}} \\approx \\frac{d^2}{D \\cdot \\pi^2} = \\frac{(0.0010)^2}{1.0e-09 \\times \\pi^2} = 101.3\\;\\mathrm{s}",
+          "Da = \\frac{k \\cdot d^2}{D} = \\frac{2.705e-04 \\times (0.0010)^2}{1.0e-09} = 0.270",
+          "Q_{g,\\mathrm{actual}} = Q_{g,\\mathrm{STP}}\\frac{T}{T_{STP}}\\frac{P_{STP}}{P} = 0.043\\;\\mathrm{mL/min}",
+          "C^*_{O2} \\approx 1.3\\;\\mathrm{mM}\\times\\frac{P_{O2}}{0.21\\;\\mathrm{bar}} = 37.14\\;\\mathrm{mM}",
+          "\\dot n_{O2,transfer} = k_La C^* V_L = 2.5414\\;\\mathrm{mmol/min}"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "D = 1e-09 m\u00b2/s (typical for small organic molecules in liquid)",
+          "Gas holdup estimated from actual reactor gas/liquid volumetric ratio.",
+          "O2 solubility uses a water/ethanol-scale Henry-law approximation; validate experimentally for final scale-up.",
+          "kLa is a conservative capillary slug-flow estimate tied to gas holdup."
+        ]
+      },
+      {
+        "step": 7,
+        "name": "Heat Transfer",
+        "status": "PASS",
+        "summary": "Q_gen = 0.0608 W, Q_rem = 240.0010 W, Da_th = 0.0003 \u2014 Thermally safe",
+        "values": {
+          "Q_gen_W": 0.0607899424906232,
+          "Q_rem_W": 240.00102829319619,
+          "Da_th": 0.00025329034180786693,
+          "S_V_m_inv": 4000.0,
+          "U_W_m2K": 300,
+          "A_wall_m2": 0.08000034276439873,
+          "UA_W_K": 24.000103,
+          "heat_transfer_score": 1.0,
+          "dH_J_mol": -120000,
+          "dT_lm_C": 10.0,
+          "r_mol_m3_s": 0.13523661979458254
+        },
+        "equations": [
+          "\\dot{Q}_{\\mathrm{rxn}} = |\\Delta H_r| \\cdot r \\cdot V_R = 120000 \\times 0.135 \\times 3.746e-06 = 0.0608\\;\\mathrm{W}",
+          "A_{\\mathrm{wall}} = \\pi\\,d\\,L = \\pi \\times 0.0010 \\times 25.46 = 0.08000\\;\\mathrm{m^2}",
+          "\\dot{Q}_{\\mathrm{rem}} = U \\cdot A \\cdot \\Delta T_{\\mathrm{lm}} = 300 \\times 0.08000 \\times 10 = 240.0010\\;\\mathrm{W}",
+          "Da_{\\mathrm{th}} = \\frac{\\dot{Q}_{\\mathrm{rxn}}}{\\dot{Q}_{\\mathrm{rem}}} = \\frac{0.0608}{240.0010} = 0.0003",
+          "\\frac{S}{V} = \\frac{4}{d} = \\frac{4}{0.0010} = 4000\\;\\mathrm{m^{-1}}"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "\u0394H_r \u2248 -120 kJ/mol (estimated for hydrogenation)",
+          "U \u2248 300 W/m\u00b2\u00b7K (coil in temperature-controlled bath)",
+          "\u0394T_lm \u2248 10.0 \u00b0C (conservative estimate)"
+        ]
+      },
+      {
+        "step": 8,
+        "name": "Back-Pressure Regulator",
+        "status": "PASS",
+        "summary": "BPR REQUIRED: 5.0 bar (Gas-liquid system detected \u2014 BPR mandatory to maintain gas solubility (Henry's law: C_gas = H\u00b7P) and prevent uncontrolled degassing.)",
+        "values": {
+          "bpr_required": true,
+          "bpr_bar": 5.0,
+          "P_vapor_bar": 0,
+          "dP_system_bar": 0.020751,
+          "solvent_bp_C": null,
+          "gas_liquid": true,
+          "gas_species": "O2",
+          "gas_pressure_abs_bar": 6.0,
+          "gas_flow_sccm": 0.2241,
+          "dissolved_o2_mM": 37.1429
+        },
+        "equations": [
+          "C_{\\mathrm{gas}} = H \\cdot P_{\\mathrm{partial}}\\quad\\text{(higher BPR} \\Rightarrow \\text{more dissolved gas)}"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 9,
+        "name": "Process Metrics",
+        "status": "PASS",
+        "summary": "STY = 0.2634 mol/(L\u00b7h), P = 0.225 mmol/h, \u1e45_lim = 0.0050 mmol/min, startup waste = 2.6 mL, IF = 11\u00d7",
+        "values": {
+          "STY_mol_L_h": 0.2634043549520019,
+          "productivity_mmol_h": 0.22499999999999998,
+          "IF": 10.535680839108446,
+          "n_molar_flow_mmol_min": 0.005,
+          "P_batch_mmol_h": 0.01,
+          "P_flow_mmol_h": 0.225,
+          "C_reactor_M": 0.5,
+          "startup_waste_mL": 2.6,
+          "productivity_closure_ok": true,
+          "is_gas_liquid": true,
+          "liquid_flow_rate_mL_min": 0.01,
+          "gas_flow_sccm": 0.2241,
+          "gas_holdup": 0.8127,
+          "liquid_holdup_volume_mL": 3.7459,
+          "total_reactor_volume_mL": 20.0001
+        },
+        "equations": [
+          "STY = \\frac{C_0 \\cdot X \\cdot 60}{\\tau} = \\frac{0.5 \\times 0.75 \\times 60}{85.4} = 0.2634\\;\\mathrm{mol/(L \\cdot h)}",
+          "P = Q \\cdot C_0 \\cdot X \\cdot 60 = 0.010 \\times 0.5 \\times 0.75 \\times 60 = 0.225\\;\\mathrm{mmol/h}",
+          "P_{\\mathrm{batch}} = \\frac{n_{\\mathrm{batch}} \\cdot Y}{t_{\\mathrm{batch}}} = \\frac{0.2 \\times 0.75}{15.00} = 0.01\\;\\mathrm{mmol/h}",
+          "\\dot{n}_{\\mathrm{lim,flow}} = Q_{\\mathrm{total}} \\cdot C_0 = 0.0100\\;\\mathrm{mL/min} \\times 0.500\\;\\mathrm{M} = 0.0050\\;\\mathrm{mmol/min}",
+          "C_{\\mathrm{reactor,inlet}} = C_0 = 0.5000\\;\\mathrm{M}\\quad (\\text{single-feed PFR; no dilution at inlet})",
+          "P_{\\mathrm{flow}} = \\dot{n}_{\\mathrm{lim,flow}} \\cdot Y \\cdot 60 = 0.0050 \\times 0.75 \\times 60 = 0.22\\;\\mathrm{mmol/h}",
+          "V_{\\mathrm{startup}} = 3 \\cdot \\tau \\cdot Q = 3 \\times 85.4 \\times 0.010 = 2.6\\;\\mathrm{mL}",
+          "IF = \\frac{t_{\\mathrm{batch}}}{\\tau_{\\mathrm{flow}}} = \\frac{54000}{5125.4} = 10.5\\times"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      }
+    ],
+    "temperature_C": 40.0,
+    "temperature_K": 313.15,
+    "concentration_M": 0.5,
+    "batch_time_s": 54000.0,
+    "target_conversion": 0.75,
+    "rate_constant": 0.0002704732395891651,
+    "reaction_order": 1,
+    "kinetics_method": "council-approved",
+    "residence_time_s": 5125.44,
+    "residence_time_min": 85.424,
+    "residence_time_inlet_min": 85.424,
+    "residence_time_in_channel_min": 374.5885,
+    "residence_time_basis": "inlet/STP apparent residence time",
+    "residence_time_range_min": [
+      68.34,
+      102.51
+    ],
+    "intensification_factor": 10.5,
+    "tau_analogy_min": null,
+    "tau_class_min": null,
+    "tau_kinetics_min": null,
+    "if_analogy": 3.3,
+    "if_class": 30.0,
+    "n_analogy_datapoints": 2,
+    "arrhenius_correction": null,
+    "flow_rate_mL_min": 0.01,
+    "flow_rate_m3_s": 1.6666666666666666e-10,
+    "reactor_volume_mL": 20.0001,
+    "reactor_volume_m3": 2.000008400675056e-05,
+    "tubing_ID_mm": 1.0,
+    "tubing_ID_m": 0.001,
+    "tubing_length_m": 25.4649,
+    "velocity_m_s": 0.0011330166480082904,
+    "reynolds_number": 0.21,
+    "flow_regime": "laminar",
+    "viscosity_Pa_s": 0.001,
+    "density_kg_m3": 1000.0,
+    "pressure_drop_bar": 0.020751,
+    "pump_max_bar": 8.0,
+    "pump_adequate": true,
+    "is_gas_liquid": true,
+    "gas_species": "O2",
+    "gas_oxygen_fraction": 1.0,
+    "liquid_flow_rate_mL_min": 0.01,
+    "gas_flow_sccm": 0.2241,
+    "gas_sccm_uncapped": 0.2241,
+    "gas_flow_actual_mL_min": 0.0434,
+    "gas_actual_uncapped_mL_min": 0.0434,
+    "gas_flow_capped_by_holdup": false,
+    "gas_pressure_abs_bar": 6.0,
+    "gas_liquid_ratio": 4.3392,
+    "gas_holdup": 0.8127,
+    "liquid_holdup_volume_mL": 3.7459,
+    "two_phase_multiplier": 12.0,
+    "two_phase_pressure_drop_bar": 0.020751,
+    "o2_supply_mmol_min": 0.01,
+    "o2_required_mmol_min": 0.01,
+    "target_gas_equiv_inlet": 2.0,
+    "explicit_gas_equiv_inlet": 2.0,
+    "o2_equiv_supplied": 2.0,
+    "gas_flow_recomputed_from_equiv": false,
+    "dissolved_o2_mM": 37.1429,
+    "kLa_s": 0.30445,
+    "o2_transfer_capacity_mmol_min": 2.541398,
+    "o2_transfer_sufficiency": 254.1398,
+    "mixing_time_s": 101.32,
+    "damkohler_mass": 0.2705,
+    "mass_transfer_limited": false,
+    "heat_generation_W": 0.06079,
+    "heat_removal_W": 240.001028,
+    "thermal_damkohler": 0.000253,
+    "thermal_safe": true,
+    "surface_to_volume": 4000.0,
+    "heat_transfer_area_m2": 0.08000034,
+    "UA_W_K": 24.000103,
+    "heat_transfer_score": 1.0,
+    "bpr_required": true,
+    "bpr_pressure_bar": 5.0,
+    "vapor_pressure_bar": 0.0,
+    "space_time_yield_mol_L_h": 0.2634,
+    "productivity_mmol_h": 0.225,
+    "n_molar_flow_mmol_min": 0.005,
+    "P_batch_mmol_h": 0.01,
+    "P_flow_mmol_h": 0.225,
+    "C_reactor_M": 0.5,
+    "startup_waste_mL": 2.6,
+    "productivity_closure_ok": true,
+    "Pe": 984.1,
+    "Pe_adequate": true,
+    "consistent": false,
+    "consistency_notes": [
+      "Re: \u03c1vd/\u03bc = 0.2 vs Re = 0.2"
+    ],
+    "material_warnings": [],
+    "stage_corrected_total_reactor_volume_mL": 20.0,
+    "global_single_zone_reactor_volume_mL": 20.0001
+  },
+  "design_version": 2,
+  "closed_loop": {
+    "last_experiment": {
+      "run_id": "entry_07_krict_3_1",
+      "design_version": 1,
+      "actual_conditions": {
+        "residence_time_min": null,
+        "residence_time_inlet_min": 68.9,
+        "residence_time_in_channel_min": 216.38,
+        "residence_time_basis": "inlet_stp",
+        "flow_rate_mL_min": 0.01123,
+        "substrate_flow_mL_min": 0.01123,
+        "gas_flow_in_channel_mL_min": 0.0811,
+        "gas_flow_stp_mL_min": 0.2792,
+        "gas_equiv_inlet": 2.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.5,
+        "tubing_ID_mm": 1.016,
+        "reactor_volume_mL": 20.0,
+        "BPR_bar": 3.0,
+        "wavelength_nm": null,
+        "light_power_W": null
+      },
+      "outcomes": {
+        "yield_pct": 51.0,
+        "product_pct": 51.0,
+        "starting_material_pct": 16.0,
+        "conversion_pct": 84.0,
+        "selectivity_pct": null,
+        "pressure_bar": null,
+        "pressure_drift_bar": null,
+        "clogging_observed": false,
+        "precipitation_observed": false,
+        "gas_liquid_stability": "",
+        "impurity_notes": "",
+        "analytical_method": "",
+        "notes": "KRICT 3-1"
+      },
+      "free_text_observations": "T = 40 C\nc = 0.50 M\nP = 3 bar\nsubstrate flow = 0.01123 mL/min\nO2 in-channel = 0.0811 mL/min\nO2 inlet/STP = 0.2792 mL/min\nO2 equiv inlet = 2.0\nt inlet = 68.9 min\nt in-channel = 216.38 min\nreactor volume = 20.00 mL\nstarting material = 16%\nproduct = 51%\ntubing ID = 1.016 mm",
+      "created_at": "2026-07-14T05:04:35.397352+00:00"
+    },
+    "last_decision": {
+      "design_version_in": 1,
+      "design_version_out": 2,
+      "score": 59.25,
+      "status": "needs_refinement",
+      "diagnosis": "Diagnosis: .",
+      "failure_modes": [
+        "experiment_calibrated_kinetics"
+      ],
+      "recommended_actions": [
+        "Use evidence-calibrated residence times from the experimental campaign instead of the original intensification estimate.",
+        "No dominant failure mode was detected; run a mild residence-time confirmation screen."
+      ],
+      "revision_instructions": "Refine for experiment_calibrated_kinetics. residence_time_min: 82.68 -> 98.9; flow_rate_mL_min: 0.00935 -> 0.00782; gas_flow_actual_mL_min: 0.06755 -> 0.05647; gas_flow_sccm: 0.23254 -> 0.19441; residence_time_inlet_min: 82.68 -> 98.9; residence_time_in_channel_min: 260.075 -> 311.096. Use evidence-calibrated residence times from the experimental campaign instead of the original intensification estimate. No dominant failure mode was detected; run a mild residence-time confirmation screen.",
+      "parameter_changes": {
+        "residence_time_min": {
+          "old": 82.68,
+          "new": 98.9,
+          "changed": true
+        },
+        "residence_time_basis": {
+          "old": "inlet/STP apparent residence time",
+          "new": "inlet/STP apparent residence time",
+          "changed": false
+        },
+        "flow_rate_mL_min": {
+          "old": 0.00935,
+          "new": 0.00782,
+          "changed": true
+        },
+        "reactor_volume_mL": {
+          "old": 20.0,
+          "new": 20.0,
+          "changed": false
+        },
+        "temperature_C": {
+          "old": 40.0,
+          "new": 40.0,
+          "changed": false
+        },
+        "concentration_M": {
+          "old": 0.5,
+          "new": 0.5,
+          "changed": false
+        },
+        "BPR_bar": {
+          "old": 3.0,
+          "new": 3.0,
+          "changed": false
+        },
+        "tubing_ID_mm": {
+          "old": 1.016,
+          "new": 1.016,
+          "changed": false
+        },
+        "gas_flow_actual_mL_min": {
+          "old": 0.06755,
+          "new": 0.05647,
+          "changed": true
+        },
+        "gas_flow_sccm": {
+          "old": 0.23254,
+          "new": 0.19441,
+          "changed": true
+        },
+        "residence_time_inlet_min": {
+          "old": 82.68,
+          "new": 98.9,
+          "changed": true
+        },
+        "residence_time_in_channel_min": {
+          "old": 260.075,
+          "new": 311.096,
+          "changed": true
+        }
+      },
+      "safety_flags": [
+        "ENGINE_FALLBACK: screen required: all candidates disqualified before Chief selection",
+        "SCREEN_REQUIRED: all candidates disqualified before Chief selection",
+        "SCREEN_REQUIRED: evidence-calibrated from experimental feedback"
+      ],
+      "next_experiment": {
+        "design_version": 2,
+        "status": "needs_refinement",
+        "residence_time_min": 98.9,
+        "residence_time_in_channel_min": 311.096,
+        "residence_time_inlet_min": 98.9,
+        "residence_time_basis": "inlet/STP apparent residence time",
+        "flow_rate_mL_min": 0.00782,
+        "reactor_volume_mL": 20.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.5,
+        "BPR_bar": 3.0,
+        "tubing_ID_mm": 1.016,
+        "pre_reactor_steps": [
+          "Dissolve 6-methyl-1,2,3,4-tetrahydroquinoline in DMSO at 0.50 M; no deoxygenation required \u2014 O2 is the essential oxidant (Chemistry Plan: deoxygenation_required = false).",
+          "Purge all tubing and the reactor coil with O2 flow before starting the liquid pump to establish Taylor flow from the outset."
+        ],
+        "acceptance_criteria": {
+          "yield_pct_min": 80.0,
+          "conversion_pct_min": 90.0,
+          "selectivity_pct_min": 85.0,
+          "pressure_drift_bar_max": 2.0,
+          "no_clogging": true
+        },
+        "substrate_flow_mL_min": 0.00782,
+        "gas_flow_in_channel_mL_min": 0.05647,
+        "gas_flow_stp_mL_min": 0.19441,
+        "evidence_calibration": {
+          "n_experiments": 4,
+          "n_usable": 4,
+          "response_metric": "yield_pct",
+          "target_response_pct": 75.0,
+          "primary_residence_time_basis": "inlet/STP apparent residence time",
+          "best_run_id": "entry_07_krict_3_1",
+          "best_response_pct": 51.0,
+          "best_tau_min": 68.9,
+          "target_tau_min": 133.897,
+          "recommended_tau_min": 98.9,
+          "best_tau_inlet_min": 68.9,
+          "best_tau_in_channel_min": 216.38,
+          "target_tau_inlet_min": 133.897,
+          "apparent_rate_min_inv": 0.010353,
+          "target_tau_in_channel_min": null,
+          "recommended_tau_inlet_min": 98.9,
+          "recommended_tau_in_channel_min": null,
+          "anchor_conditions": {
+            "residence_time_basis": "inlet/STP apparent residence time",
+            "residence_time_min": 68.9,
+            "reactor_volume_mL": 20.0,
+            "temperature_C": 40.0,
+            "concentration_M": 0.5,
+            "BPR_bar": 3.0,
+            "tubing_ID_mm": 1.016,
+            "gas_equiv_inlet": 2.0,
+            "substrate_flow_mL_min": 0.01122,
+            "gas_flow_stp_mL_min": 0.27905,
+            "gas_flow_in_channel_mL_min": 0.08106,
+            "residence_time_inlet_min": 68.9,
+            "residence_time_in_channel_min": 216.729
+          },
+          "recommended_conditions": {
+            "residence_time_basis": "inlet/STP apparent residence time",
+            "residence_time_min": 98.9,
+            "reactor_volume_mL": 20.0,
+            "temperature_C": 40.0,
+            "concentration_M": 0.5,
+            "BPR_bar": 3.0,
+            "tubing_ID_mm": 1.016,
+            "gas_equiv_inlet": 2.0,
+            "substrate_flow_mL_min": 0.00782,
+            "gas_flow_stp_mL_min": 0.19441,
+            "gas_flow_in_channel_mL_min": 0.05647,
+            "residence_time_inlet_min": 98.9,
+            "residence_time_in_channel_min": 311.096
+          },
+          "design_ladder": [
+            {
+              "label": "best_observed_anchor",
+              "purpose": "Reproduce the best measured condition before claiming improvement.",
+              "residence_time_basis": "inlet/STP apparent residence time",
+              "residence_time_min": 68.9,
+              "reactor_volume_mL": 20.0,
+              "temperature_C": 40.0,
+              "concentration_M": 0.5,
+              "BPR_bar": 3.0,
+              "tubing_ID_mm": 1.016,
+              "gas_equiv_inlet": 2.0,
+              "substrate_flow_mL_min": 0.01122,
+              "gas_flow_stp_mL_min": 0.27905,
+              "gas_flow_in_channel_mL_min": 0.08106,
+              "residence_time_inlet_min": 68.9,
+              "residence_time_in_channel_min": 216.729
+            },
+            {
+              "label": "next_intermediate_screen",
+              "purpose": "Step toward the target while limiting the next experimental jump.",
+              "residence_time_basis": "inlet/STP apparent residence time",
+              "residence_time_min": 98.9,
+              "reactor_volume_mL": 20.0,
+              "temperature_C": 40.0,
+              "concentration_M": 0.5,
+              "BPR_bar": 3.0,
+              "tubing_ID_mm": 1.016,
+              "gas_equiv_inlet": 2.0,
+              "substrate_flow_mL_min": 0.00782,
+              "gas_flow_stp_mL_min": 0.19441,
+              "gas_flow_in_channel_mL_min": 0.05647,
+              "residence_time_inlet_min": 98.9,
+              "residence_time_in_channel_min": 311.096
+            },
+            {
+              "label": "target_estimate",
+              "purpose": "Fitted first-order estimate for 75.0% yield_pct.",
+              "residence_time_basis": "inlet/STP apparent residence time",
+              "residence_time_min": 133.897,
+              "reactor_volume_mL": 20.0,
+              "temperature_C": 40.0,
+              "concentration_M": 0.5,
+              "BPR_bar": 3.0,
+              "tubing_ID_mm": 1.016,
+              "gas_equiv_inlet": 2.0,
+              "substrate_flow_mL_min": 0.00578,
+              "gas_flow_stp_mL_min": 0.14359,
+              "gas_flow_in_channel_mL_min": 0.04171,
+              "residence_time_inlet_min": 133.897,
+              "residence_time_in_channel_min": 421.183
+            }
+          ],
+          "notes": [
+            "Experimental campaign data override the first-pass intensification mandate.",
+            "Residence time is calibrated on inlet/STP apparent residence time.",
+            "The fitted target is a screening estimate, not a final kinetic model."
+          ]
+        },
+        "gas_equiv_inlet": 2.0
+      }
+    },
+    "history_length": 4,
+    "campaign_calibration": {
+      "n_experiments": 4,
+      "n_usable": 4,
+      "response_metric": "yield_pct",
+      "target_response_pct": 75.0,
+      "primary_residence_time_basis": "inlet/STP apparent residence time",
+      "best_run_id": "entry_07_krict_3_1",
+      "best_response_pct": 51.0,
+      "best_tau_min": 68.9,
+      "target_tau_min": 133.897,
+      "recommended_tau_min": 98.9,
+      "best_tau_inlet_min": 68.9,
+      "best_tau_in_channel_min": 216.38,
+      "target_tau_inlet_min": 133.897,
+      "apparent_rate_min_inv": 0.010353,
+      "target_tau_in_channel_min": null,
+      "recommended_tau_inlet_min": 98.9,
+      "recommended_tau_in_channel_min": null,
+      "anchor_conditions": {
+        "residence_time_basis": "inlet/STP apparent residence time",
+        "residence_time_min": 68.9,
+        "reactor_volume_mL": 20.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.5,
+        "BPR_bar": 3.0,
+        "tubing_ID_mm": 1.016,
+        "gas_equiv_inlet": 2.0,
+        "substrate_flow_mL_min": 0.01122,
+        "gas_flow_stp_mL_min": 0.27905,
+        "gas_flow_in_channel_mL_min": 0.08106,
+        "residence_time_inlet_min": 68.9,
+        "residence_time_in_channel_min": 216.729
+      },
+      "recommended_conditions": {
+        "residence_time_basis": "inlet/STP apparent residence time",
+        "residence_time_min": 98.9,
+        "reactor_volume_mL": 20.0,
+        "temperature_C": 40.0,
+        "concentration_M": 0.5,
+        "BPR_bar": 3.0,
+        "tubing_ID_mm": 1.016,
+        "gas_equiv_inlet": 2.0,
+        "substrate_flow_mL_min": 0.00782,
+        "gas_flow_stp_mL_min": 0.19441,
+        "gas_flow_in_channel_mL_min": 0.05647,
+        "residence_time_inlet_min": 98.9,
+        "residence_time_in_channel_min": 311.096
+      },
+      "design_ladder": [
+        {
+          "label": "best_observed_anchor",
+          "purpose": "Reproduce the best measured condition before claiming improvement.",
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_min": 68.9,
+          "reactor_volume_mL": 20.0,
+          "temperature_C": 40.0,
+          "concentration_M": 0.5,
+          "BPR_bar": 3.0,
+          "tubing_ID_mm": 1.016,
+          "gas_equiv_inlet": 2.0,
+          "substrate_flow_mL_min": 0.01122,
+          "gas_flow_stp_mL_min": 0.27905,
+          "gas_flow_in_channel_mL_min": 0.08106,
+          "residence_time_inlet_min": 68.9,
+          "residence_time_in_channel_min": 216.729
+        },
+        {
+          "label": "next_intermediate_screen",
+          "purpose": "Step toward the target while limiting the next experimental jump.",
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_min": 98.9,
+          "reactor_volume_mL": 20.0,
+          "temperature_C": 40.0,
+          "concentration_M": 0.5,
+          "BPR_bar": 3.0,
+          "tubing_ID_mm": 1.016,
+          "gas_equiv_inlet": 2.0,
+          "substrate_flow_mL_min": 0.00782,
+          "gas_flow_stp_mL_min": 0.19441,
+          "gas_flow_in_channel_mL_min": 0.05647,
+          "residence_time_inlet_min": 98.9,
+          "residence_time_in_channel_min": 311.096
+        },
+        {
+          "label": "target_estimate",
+          "purpose": "Fitted first-order estimate for 75.0% yield_pct.",
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_min": 133.897,
+          "reactor_volume_mL": 20.0,
+          "temperature_C": 40.0,
+          "concentration_M": 0.5,
+          "BPR_bar": 3.0,
+          "tubing_ID_mm": 1.016,
+          "gas_equiv_inlet": 2.0,
+          "substrate_flow_mL_min": 0.00578,
+          "gas_flow_stp_mL_min": 0.14359,
+          "gas_flow_in_channel_mL_min": 0.04171,
+          "residence_time_inlet_min": 133.897,
+          "residence_time_in_channel_min": 421.183
+        }
+      ],
+      "notes": [
+        "Experimental campaign data override the first-pass intensification mandate.",
+        "Residence time is calibrated on inlet/STP apparent residence time.",
+        "The fitted target is a screening estimate, not a final kinetic model."
+      ]
+    }
+  },
+  "inventory_enforcement": {
+    "applied": true,
+    "old": {
+      "reactor_volume_mL": 20.0,
+      "tubing_ID_mm": 1.016,
+      "tubing_material": "FEP",
+      "flow_rate_mL_min": 0.00782,
+      "BPR_bar": 3.0,
+      "temperature_C": 40.0,
+      "concentration_M": 0.5,
+      "wavelength_nm": 448.0
+    },
+    "new": {
+      "reactor_volume_mL": 20.0,
+      "tubing_ID_mm": 1.0,
+      "tubing_material": "FEP",
+      "flow_rate_mL_min": 0.01,
+      "BPR_bar": 3.0,
+      "temperature_C": 40.0,
+      "concentration_M": 0.5,
+      "wavelength_nm": 448.0
+    },
+    "selected_reactor": {
+      "name": "Manual strip-LED photoreactor coil 20 mL",
+      "system": "Manual Setup",
+      "type": "coil",
+      "material": "FEP",
+      "volume_mL": 20.0,
+      "ID_mm": 1.0,
+      "light_source": "Manual strip LED 448 nm",
+      "wavelength_nm": 448.0,
+      "intensity_mW_cm2": 62.0,
+      "irradiation": "standard 360 irradiation",
+      "temperature_range_C": [
+        null,
+        null
+      ],
+      "allowed_temperatures_C": [
+        40.0,
+        50.0
+      ],
+      "concentration_range_M": [
+        0.1,
+        0.5
+      ],
+      "pressure_range_bar": [
+        0.0,
+        8.0
+      ]
+    }
+  },
+  "design_space": [
+    {
+      "tau_min": 37.5,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.08,
+      "L_fraction": 0.0,
+      "V_R_mL": 20.0,
+      "L_m": 25.465,
+      "liquid_holdup_volume_mL": 3.0,
+      "Re": 0.93,
+      "delta_P_bar": 0.33204,
+      "t_mix_s": 250.0,
+      "r_mix": 0.11111,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.5288,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0635,
+      "productivity_mg_h": 317.3,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 2.1101,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.67373,
+      "score_breakdown": {
+        "productivity": 0.8733,
+        "L": 0.3023,
+        "dP": 1.0,
+        "mixing": 0.4445,
+        "re": 0.9996,
+        "conversion": 0.5288
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=25.5 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.53 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.25",
+      "is_council_candidate": true,
+      "inventory_reactor_name": "Manual strip-LED photoreactor coil 20 mL",
+      "inventory_system": "Manual Setup",
+      "inventory_light_source": "Manual strip LED 448 nm",
+      "inventory_wavelength_nm": 448.0,
+      "inventory_intensity_mW_cm2": 62.0
+    },
+    {
+      "tau_min": 45.0,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.06667,
+      "L_fraction": 0.0,
+      "V_R_mL": 20.0,
+      "L_m": 25.465,
+      "liquid_holdup_volume_mL": 3.0,
+      "Re": 0.78,
+      "delta_P_bar": 0.27672,
+      "t_mix_s": 250.0,
+      "r_mix": 0.09259,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.5947,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0595,
+      "productivity_mg_h": 297.34,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.7584,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.67138,
+      "score_breakdown": {
+        "productivity": 0.8183,
+        "L": 0.3023,
+        "dP": 1.0,
+        "mixing": 0.5371,
+        "re": 0.9997,
+        "conversion": 0.5947
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=25.5 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.59 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.50",
+      "is_council_candidate": false,
+      "inventory_reactor_name": "Manual strip-LED photoreactor coil 20 mL",
+      "inventory_system": "Manual Setup",
+      "inventory_light_source": "Manual strip LED 448 nm",
+      "inventory_wavelength_nm": 448.0,
+      "inventory_intensity_mW_cm2": 62.0
+    },
+    {
+      "tau_min": 30.0,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.1,
+      "L_fraction": 0.0,
+      "V_R_mL": 20.0,
+      "L_m": 25.465,
+      "liquid_holdup_volume_mL": 3.0,
+      "Re": 1.17,
+      "delta_P_bar": 0.41496,
+      "t_mix_s": 250.0,
+      "r_mix": 0.13889,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.4523,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0678,
+      "productivity_mg_h": 339.23,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 2.6376,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.66847,
+      "score_breakdown": {
+        "productivity": 0.9336,
+        "L": 0.3023,
+        "dP": 1.0,
+        "mixing": 0.3055,
+        "re": 0.9995,
+        "conversion": 0.4523
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=25.5 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.45 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center",
+      "is_council_candidate": false,
+      "inventory_reactor_name": "Manual strip-LED photoreactor coil 20 mL",
+      "inventory_system": "Manual Setup",
+      "inventory_light_source": "Manual strip LED 448 nm",
+      "inventory_wavelength_nm": 448.0,
+      "inventory_intensity_mW_cm2": 62.0
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.13333,
+      "L_fraction": 0.0,
+      "V_R_mL": 20.0,
+      "L_m": 25.465,
+      "liquid_holdup_volume_mL": 3.0,
+      "Re": 1.56,
+      "delta_P_bar": 0.55332,
+      "t_mix_s": 250.0,
+      "r_mix": 0.18519,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 363.35,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 3.5168,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.64646,
+      "score_breakdown": {
+        "productivity": 1.0,
+        "L": 0.3023,
+        "dP": 1.0,
+        "mixing": 0.0741,
+        "re": 0.9993,
+        "conversion": 0.3633
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=25.5 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false,
+      "inventory_reactor_name": "Manual strip-LED photoreactor coil 20 mL",
+      "inventory_system": "Manual Setup",
+      "inventory_light_source": "Manual strip LED 448 nm",
+      "inventory_wavelength_nm": 448.0,
+      "inventory_intensity_mW_cm2": 62.0
+    },
+    {
+      "tau_min": 37.5,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.06,
+      "L_fraction": 0.0,
+      "V_R_mL": 15.0,
+      "L_m": 19.099,
+      "liquid_holdup_volume_mL": 2.25,
+      "Re": 0.7,
+      "delta_P_bar": 0.18672,
+      "t_mix_s": 250.0,
+      "r_mix": 0.11111,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.5288,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0635,
+      "productivity_mg_h": 237.98,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.5826,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.62825,
+      "score_breakdown": {
+        "productivity": 0.655,
+        "L": 0.7267,
+        "dP": 1.0,
+        "mixing": 0.4445,
+        "re": 0.9997,
+        "conversion": 0.5288
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=19.1 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.53 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d71.25",
+      "is_council_candidate": false,
+      "inventory_reactor_name": "Manual strip-LED photoreactor coil 15 mL",
+      "inventory_system": "Manual Setup",
+      "inventory_light_source": "Manual strip LED 448 nm",
+      "inventory_wavelength_nm": 448.0,
+      "inventory_intensity_mW_cm2": 62.0
+    },
+    {
+      "tau_min": 30.0,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.075,
+      "L_fraction": 0.0,
+      "V_R_mL": 15.0,
+      "L_m": 19.099,
+      "liquid_holdup_volume_mL": 2.25,
+      "Re": 0.88,
+      "delta_P_bar": 0.2334,
+      "t_mix_s": 250.0,
+      "r_mix": 0.13889,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.4523,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0678,
+      "productivity_mg_h": 254.42,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.9782,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.61543,
+      "score_breakdown": {
+        "productivity": 0.7002,
+        "L": 0.7267,
+        "dP": 1.0,
+        "mixing": 0.3055,
+        "re": 0.9996,
+        "conversion": 0.4523
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=19.1 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.45 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center",
+      "is_council_candidate": false,
+      "inventory_reactor_name": "Manual strip-LED photoreactor coil 15 mL",
+      "inventory_system": "Manual Setup",
+      "inventory_light_source": "Manual strip LED 448 nm",
+      "inventory_wavelength_nm": 448.0,
+      "inventory_intensity_mW_cm2": 62.0
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.1,
+      "L_fraction": 0.0,
+      "V_R_mL": 15.0,
+      "L_m": 19.099,
+      "liquid_holdup_volume_mL": 2.25,
+      "Re": 1.17,
+      "delta_P_bar": 0.31128,
+      "t_mix_s": 250.0,
+      "r_mix": 0.18519,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 272.51,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 2.6376,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.58512,
+      "score_breakdown": {
+        "productivity": 0.75,
+        "L": 0.7267,
+        "dP": 1.0,
+        "mixing": 0.0741,
+        "re": 0.9995,
+        "conversion": 0.3633
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "L=19.1 m \u2014 upper practical range; plan 2 \u00d7 10 m coils",
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false,
+      "inventory_reactor_name": "Manual strip-LED photoreactor coil 15 mL",
+      "inventory_system": "Manual Setup",
+      "inventory_light_source": "Manual strip LED 448 nm",
+      "inventory_wavelength_nm": 448.0,
+      "inventory_intensity_mW_cm2": 62.0
+    },
+    {
+      "tau_min": 22.5,
+      "d_mm": 1.0,
+      "Q_mL_min": 0.06667,
+      "L_fraction": 0.0,
+      "V_R_mL": 10.0,
+      "L_m": 12.732,
+      "liquid_holdup_volume_mL": 1.5,
+      "Re": 0.78,
+      "delta_P_bar": 0.13836,
+      "t_mix_s": 250.0,
+      "r_mix": 0.18519,
+      "Da_mass": 0.7703,
+      "expected_conversion": 0.3633,
+      "tau_kinetics_min": 49.83,
+      "IF_used": 30.0,
+      "STY_mol_L_h": 0.0727,
+      "productivity_mg_h": 181.67,
+      "assumed_MW": 250.0,
+      "is_gas_liquid": true,
+      "gas_holdup": 0.85,
+      "gas_flow_actual_mL_min": 1.7584,
+      "two_phase_multiplier": 12.0,
+      "required_bpr_bar": 5.0,
+      "score": 0.50112,
+      "score_breakdown": {
+        "productivity": 0.5,
+        "L": 1.0,
+        "dP": 1.0,
+        "mixing": 0.0741,
+        "re": 0.9997,
+        "conversion": 0.3633
+      },
+      "feasible": true,
+      "violations": [],
+      "warnings": [
+        "X=0.36 < 0.85 \u2014 undersized \u03c4 for kinetics"
+      ],
+      "tau_source": "center\u00d70.75",
+      "is_council_candidate": false,
+      "inventory_reactor_name": "Mirrored photoreactor coil",
+      "inventory_system": "Vapourtec System",
+      "inventory_light_source": "Vapourtec mirrored LED bar 450 nm",
+      "inventory_wavelength_nm": 450.0,
+      "inventory_intensity_mW_cm2": 355.0
+    }
+  ],
+  "_analogies": [
+    {
+      "record_id": "photochemflow (131).pdf",
+      "metadata": {
+        "has_translation": true,
+        "wavelength_nm": 700.0,
+        "process_mode": "both",
+        "confidence": 85,
+        "phase_regime": "single_phase_liquid",
+        "chemistry_class": "Photooxidation",
+        "mechanism_type": "Singlet oxygen generation and [4+2] cycloaddition",
+        "photocatalyst": "methylene blue",
+        "doi": "",
+        "solvent": "CD3CN",
+        "reactor_type": "continuous-flow photoreactor",
+        "title": "",
+        "year": 0
+      },
+      "summary": "This photooxidation reaction involves singlet oxygen generation and [4+2] cycloaddition using methylene blue as the photocatalyst (0.9 mol%) under 700 nm LED irradiation in CD3CN solvent. The continuous-flow photoreactor utilized PFA tubing with a 4.6 mL reactor volume, 16-minute residence time, and operated under 10 bar back-pressure with pressurized air. The batch process suffered from poor oxygen solubility and limited light penetration, achieving only 23% yield after 30 minutes. Flow chemistry dramatically improved the reaction outcome by enabling pressurized air introduction for better mass transfer, uniform light exposure throughout the reactor, and continuous operation, resulting in 96% yield - a remarkable 73 percentage point improvement over batch conditions.",
+      "semantic_score": 0.7405,
+      "field_score": 0.0,
+      "final_score": 0.4443,
+      "full_record": {
+        "chemistry": {
+          "reaction_name": "Organophotocatalytic Aerobic Oxygenation of Phenols",
+          "reaction_class": "Photooxidation",
+          "mechanism_type": "Singlet oxygen generation and [4+2] cycloaddition",
+          "substrates": {
+            "substrate_A": "phenols (e.g., 2,3,5-trimethylphenol)",
+            "substrate_B": "oxygen from pressurized air",
+            "limiting_reagent": "phenol",
+            "stoichiometry": "1:1 phenol to oxygen"
+          },
+          "photocatalyst": {
+            "name": "methylene blue",
+            "loading_mol_pct": 0.9,
+            "role": "singlet oxygen generator",
+            "absorption_max_nm": 660
+          },
+          "co_catalyst": {
+            "name": null,
+            "loading_mol_pct": null,
+            "role": ""
+          },
+          "additives": [],
+          "base": {
+            "name": null,
+            "equiv": null
+          },
+          "oxidant": {
+            "name": "pressurized air",
+            "equiv": null
+          },
+          "reductant": {
+            "name": null,
+            "equiv": null
+          },
+          "product": "1,4-benzoquinones and p-quinols",
+          "bond_formed": "C-O bonds",
+          "mechanistic_details": {
+            "excited_state_lifetime_ns": null,
+            "redox_potential_discussed": false,
+            "triplet_state_involved": true,
+            "key_intermediate": "singlet oxygen O2(1\u0394g)"
+          },
+          "scope_summary": "Wide range of phenolic substrates converted to benzoquinones and p-quinols. Electron-rich phenols (e.g., methoxyphenols) gave excellent yields. Unsubstituted phenol and electron-deficient phenols remained unreacted. Method also works for naphthols and produces vitamin precursors like trimethylbenzoquinone (vitamin E precursor) and menadione (vitamin K3)."
+        },
+        "batch_baseline": {
+          "temperature_C": null,
+          "reaction_time_min": 30,
+          "solvent": "CD3CN",
+          "concentration_M": null,
+          "light_source": "green LED",
+          "light_power_W": null,
+          "atmosphere": "oxygen-saturated",
+          "yield_percent": 23,
+          "ee_percent": null,
+          "scale_mmol": null,
+          "vessel": null
+        },
+        "flow_optimized": {
+          "temperature_C": null,
+          "residence_time_min": 16,
+          "flow_rate_total_mL_min": null,
+          "flow_rate_stream_A_mL_min": null,
+          "flow_rate_stream_B_mL_min": null,
+          "concentration_M": null,
+          "back_pressure_bar": 10,
+          "atmosphere": "air",
+          "yield_percent": 96,
+          "ee_percent": null,
+          "scale_mmol": null,
+          "throughput_mmol_h": null
+        },
+        "optimization_table": {
+          "variables_screened": [
+            "solvent",
+            "gas/pressure"
+          ],
+          "number_of_entries": 11,
+          "optimal_entry_number": 11,
+          "key_findings": "4:1 MeOH:H2O solvent with air/10 bar gave 96% yield"
+        },
+        "reactor": {
+          "type": "continuous-flow photoreactor",
+          "material": "PFA-tubing",
+          "volume_mL": 4.6,
+          "tubing_diameter_mm": null,
+          "channel_depth_mm": null
+        },
+        "light_source": {
+          "type": "LED",
+          "wavelength_nm": 700,
+          "power_W": 32,
+          "irradiance_mW_cm2": null,
+          "color": "hyper red",
+          "position_relative_to_reactor": "around LED lamp allowing to optically insert reactor"
+        },
+        "pump": {
+          "type": "reciprocating piston pump",
+          "number_of_inlets": null
+        },
+        "figures": [
+          {
+            "figure_type": "mechanistic_scheme",
+            "mechanism_type": null,
+            "key_intermediates": [],
+            "oxidation_states": {},
+            "rate_determining_step": null,
+            "key_observations_supporting_mechanism": [],
+            "caption": "Scheme 1  Aerobic flow oxygenation of phenols using pressurized air, visible light  and an organic photocatalyst: a) Synthesis of 1,4-benzoquinones and related  quinoidal products. b) Simplified layout of the device to control the principal pro- cess parameters (numbered in blue) in a continuous-flow photoreactor with visi- ble light and pressurized O 2  (air).   : micromixer; \u03bb: irradiation wavel | Scheme 2 .   DFT computations performed with M06-2X/6-311+G(3df,2p)//M06/6- 311+G(d,p); PCM for water. a)   [4+2]-Cycloaddition of 2,3,5- or 2,3,6-TMP with  singlet oxygen and subsequent TMBQ formation. b) Transition states for 2,3,6- TMP + O 2 ( 1 \u0394 g ) \u2192  M1  (in green) and 2,3,5-TMP + O 2 ( 1 \u0394 g ) \u2192  M1  (in orange); Gibbs  free energy profile for 2,3,6-TMP vs. 2,3,5-TMP in kJmol \u22121   at 298 K",
+            "page": 2
+          },
+          {
+            "figure_type": "mechanistic_scheme",
+            "mechanism_type": null,
+            "key_intermediates": [],
+            "oxidation_states": {},
+            "rate_determining_step": null,
+            "key_observations_supporting_mechanism": [],
+            "caption": "Scheme 1  Aerobic flow oxygenation of phenols using pressurized air, visible light  and an organic photocatalyst: a) Synthesis of 1,4-benzoquinones and related  quinoidal products. b) Simplified layout of the device to control the principal pro- cess parameters (numbered in blue) in a continuous-flow photoreactor with visi- ble light and pressurized O 2  (air).   : micromixer; \u03bb: irradiation wavel | Scheme 2 .   DFT computations performed with M06-2X/6-311+G(3df,2p)//M06/6- 311+G(d,p); PCM for water. a)   [4+2]-Cycloaddition of 2,3,5- or 2,3,6-TMP with  singlet oxygen and subsequent TMBQ formation. b) Transition states for 2,3,6- TMP + O 2 ( 1 \u0394 g ) \u2192  M1  (in green) and 2,3,5-TMP + O 2 ( 1 \u0394 g ) \u2192  M1  (in orange); Gibbs  free energy profile for 2,3,6-TMP vs. 2,3,5-TMP in kJmol \u22121   at 298 K",
+            "page": 2
+          },
+          {
+            "figure_type": "other",
+            "page": 6,
+            "caption": "",
+            "description": "Non-chemistry figure, skipped extraction."
+          }
+        ],
+        "translation_logic": {
+          "batch_limitation": "Low yield (23%) in batch due to limited oxygen solubility and light penetration",
+          "flow_advantage": "Continuous flow enables pressurized air, better mass transfer, and uniform light exposure",
+          "what_changed": "Solvent (CD3CN to MeOH:H2O 4:1), atmosphere (O2-saturated to pressurized air at 10 bar), residence time (30 to 16 min)",
+          "what_stayed_same": "Photocatalyst (methylene blue), reaction mechanism (singlet oxygen generation)",
+          "time_reduction_factor": 1.9,
+          "yield_change_percent": 73,
+          "safety_improvement": "Use of pressurized air instead of pure oxygen reduces explosion hazard",
+          "scale_up_discussed": true
+        },
+        "process_figures": {
+          "has_reactor_scheme": true,
+          "has_flow_diagram": true,
+          "has_optimization_table": true,
+          "figure_descriptions": [
+            "Scheme 1 shows both reaction and simplified flow reactor layout with micromixer and LED irradiation",
+            "Scheme 2 shows DFT calculations and mechanism with singlet oxygen cycloaddition"
+          ]
+        },
+        "field_sources": {
+          "reaction_time_min": "text",
+          "residence_time_min": "text",
+          "yield_percent": "table",
+          "back_pressure_bar": "table",
+          "solvent": "table",
+          "reactor_volume_mL": "text",
+          "light_wavelength_nm": "text",
+          "light_power_W": "text"
+        },
+        "field_confidence": {
+          "reaction_time_min": 3,
+          "residence_time_min": 3,
+          "yield_percent": 3,
+          "back_pressure_bar": 3,
+          "solvent": 3,
+          "reactor_volume_mL": 2,
+          "light_wavelength_nm": 3,
+          "light_power_W": 3,
+          "time_reduction_factor": 3,
+          "yield_change_percent": 3
+        },
+        "conflicts": [],
+        "confidence_overall": 85,
+        "notes": "High confidence extraction with clear batch-to-flow comparison. Key improvement: 23% to 96% yield with shorter reaction time. Flow enables pressurized air use and better mass transfer.",
+        "source_pdf": "photochemflow (131).pdf"
+      }
+    },
+    {
+      "record_id": "photochemflow (40).pdf",
+      "metadata": {
+        "solvent": "1:1 Acetone : MeOH",
+        "mechanism_type": "Single electron transfer",
+        "title": "",
+        "reactor_type": "FEP coil",
+        "chemistry_class": "Photoredox coupling",
+        "doi": "",
+        "has_translation": true,
+        "photocatalyst": "Iridium catalyst i",
+        "wavelength_nm": 450.0,
+        "process_mode": "both",
+        "phase_regime": "single_phase_liquid",
+        "confidence": 85,
+        "year": 0
+      },
+      "summary": "This photoredox coupling reaction employs single electron transfer using an iridium photocatalyst (1 mol%) with 3-quinuclidinol base in a 1:1 acetone:methanol solvent system at 35\u00b0C under 450 nm LED irradiation. The flow process utilizes a 10 mL FEP coil reactor with a residence time of 100 minutes at 0.1 mL/min flow rate, achieving 70% yield compared to 86% in the 8-hour batch process. Flow processing provided a 4.8-fold intensification factor by significantly reducing the required reaction time from 8 hours to 100 minutes residence time. The primary advantage of flow was enabling continuous processing with much shorter residence times and improved scalability potential, despite experiencing an 18.6% yield decrease compared to the batch baseline.",
+      "semantic_score": 0.6956,
+      "field_score": 0.0,
+      "final_score": 0.4173,
+      "full_record": {
+        "chemistry": {
+          "reaction_name": "Photoredox coupling reaction of benzylboronic esters and carbonyl compounds",
+          "reaction_class": "Photoredox coupling",
+          "mechanism_type": "Single electron transfer",
+          "substrates": {
+            "substrate_A": "Benzylboronic acid pinacol esters",
+            "substrate_B": "Carbonyl compounds (aldehydes and ketones)",
+            "limiting_reagent": "Benzylboronic acid pinacol ester",
+            "stoichiometry": "1:1.5 (boronic ester:aldehyde/ketone)"
+          },
+          "photocatalyst": {
+            "name": "Iridium catalyst i",
+            "loading_mol_pct": 1,
+            "role": "Photoredox catalyst",
+            "absorption_max_nm": null
+          },
+          "co_catalyst": {
+            "name": null,
+            "loading_mol_pct": null,
+            "role": null
+          },
+          "additives": [
+            {
+              "name": "3-quinuclidinol",
+              "equiv": 0.2,
+              "role": "Lewis base"
+            }
+          ],
+          "base": {
+            "name": "3-quinuclidinol",
+            "equiv": 0.2
+          },
+          "oxidant": {
+            "name": null,
+            "equiv": null
+          },
+          "reductant": {
+            "name": null,
+            "equiv": null
+          },
+          "product": "Benzylated alcohol products",
+          "bond_formed": "C-C bond",
+          "mechanistic_details": {
+            "excited_state_lifetime_ns": null,
+            "redox_potential_discussed": true,
+            "triplet_state_involved": false,
+            "key_intermediate": "Ketyl radical anion"
+          },
+          "scope_summary": "51 examples demonstrated including 13 heterocyclic compounds. Works with electron-donating benzyl boronic esters, various aromatic aldehydes, ketones, and some imines. Compatible with many functional groups and heterocycles."
+        },
+        "batch_baseline": {
+          "temperature_C": 35,
+          "reaction_time_min": 480,
+          "solvent": "1:1 Acetone : MeOH",
+          "concentration_M": 0.05,
+          "light_source": "450 nm LED, 14 W",
+          "light_power_W": 14,
+          "atmosphere": null,
+          "yield_percent": 86,
+          "ee_percent": null,
+          "scale_mmol": null,
+          "vessel": null
+        },
+        "flow_optimized": {
+          "temperature_C": 35,
+          "residence_time_min": 100,
+          "flow_rate_total_mL_min": 0.1,
+          "flow_rate_stream_A_mL_min": null,
+          "flow_rate_stream_B_mL_min": null,
+          "concentration_M": 0.05,
+          "back_pressure_bar": null,
+          "atmosphere": null,
+          "yield_percent": 70,
+          "ee_percent": null,
+          "scale_mmol": null,
+          "throughput_mmol_h": null
+        },
+        "optimization_table": {
+          "variables_screened": [
+            "photocatalyst",
+            "base",
+            "solvent",
+            "concentration",
+            "light conditions"
+          ],
+          "number_of_entries": 11,
+          "optimal_entry_number": 1,
+          "key_findings": "Entry 1 with no variation gave 86% yield. DMAP as base gave 44% yield. Removing photocatalyst, base, or light shut down reaction."
+        },
+        "reactor": {
+          "type": "FEP coil",
+          "material": "FEP",
+          "volume_mL": 10,
+          "tubing_diameter_mm": null,
+          "channel_depth_mm": null
+        },
+        "light_source": {
+          "type": "LED",
+          "wavelength_nm": 450,
+          "power_W": 14,
+          "irradiance_mW_cm2": null,
+          "color": "blue",
+          "position_relative_to_reactor": null
+        },
+        "pump": {
+          "type": null,
+          "number_of_inlets": null
+        },
+        "figures": [],
+        "translation_logic": {
+          "batch_limitation": "Long reaction time of 8 hours required for completion",
+          "flow_advantage": "Continuous processing with reduced residence time and potential for scale-up",
+          "what_changed": "Reaction time reduced from 480 minutes to 100 minutes residence time",
+          "what_stayed_same": "Temperature (35\u00b0C), concentration (0.05 M), solvent system (1:1 Acetone:MeOH), photocatalyst loading (1 mol%), and base loading (0.2 equiv)",
+          "time_reduction_factor": 4.8,
+          "yield_change_percent": -18.6,
+          "safety_improvement": "Continuous flow processing reduces exposure to light-sensitive reactions",
+          "scale_up_discussed": true
+        },
+        "process_figures": {
+          "has_reactor_scheme": true,
+          "has_flow_diagram": false,
+          "has_optimization_table": true,
+          "figure_descriptions": [
+            "Reactor scheme showing FEP coil setup",
+            "Optimization table with 11 entries",
+            "Scope table with 51 examples",
+            "Mechanistic scheme"
+          ]
+        },
+        "field_sources": {
+          "reaction_name": "text",
+          "batch_baseline": "table",
+          "flow_optimized": "table",
+          "optimization_table": "table",
+          "reactor": "text",
+          "light_source": "table",
+          "time_reduction_factor": "calculated"
+        },
+        "field_confidence": {
+          "reaction_name": 3,
+          "batch_baseline": 3,
+          "flow_optimized": 3,
+          "optimization_table": 3,
+          "reactor": 2,
+          "light_source": 3,
+          "time_reduction_factor": 3
+        },
+        "conflicts": [],
+        "confidence_overall": 85,
+        "notes": "Complete extraction with clear batch and flow conditions. Flow shows reduced yield (70% vs 86%) but significant time reduction (100 min vs 480 min residence time). Reactor details are limited but FEP coil setup is clearly specified.",
+        "source_pdf": "photochemflow (40).pdf"
+      }
+    },
+    {
+      "record_id": "photochemflow (99).pdf",
+      "metadata": {
+        "chemistry_class": "Photoisomerization",
+        "title": "",
+        "solvent": "ether/hexane",
+        "phase_regime": "single_phase_liquid",
+        "reactor_type": "closed-loop flow reactor",
+        "wavelength_nm": 254.0,
+        "photocatalyst": "methyl benzoate",
+        "year": 0,
+        "mechanism_type": "Singlet sensitized photoisomerization",
+        "process_mode": "both",
+        "has_translation": true,
+        "doi": "",
+        "confidence": 85
+      },
+      "summary": "This singlet sensitized photoisomerization reaction uses methyl benzoate as a photocatalyst in ether/hexane solvent under 254 nm UV irradiation. The process was conducted in a closed-loop flow reactor with a quartz reaction flask, operated at 0.1 mL/min flow rate for 18 hours total reaction time. Under batch conditions, the reaction suffered from severe photodegradation, achieving only 5% yield after 18 hours of UV exposure. The flow system dramatically improved performance to 77% yield by enabling continuous removal of the photoisomerized product via AgNO3 complexation, preventing its degradation during the extended irradiation period. This represents a 15-fold improvement in yield compared to the batch process, demonstrating how flow chemistry can enable preparative-scale photochemical transformations that are impractical under batch conditions due to photodegradation issues.",
+      "semantic_score": 0.6927,
+      "field_score": 0.0,
+      "final_score": 0.4156,
+      "full_record": {
+        "chemistry": {
+          "reaction_name": "Flow photochemical isomerization of cis-cycloalkenes to trans-cycloalkenes",
+          "reaction_class": "Photoisomerization",
+          "mechanism_type": "Singlet sensitized photoisomerization",
+          "substrates": {
+            "substrate_A": "cis-cyclooctene derivatives",
+            "substrate_B": null,
+            "limiting_reagent": "cis-cyclooctene derivatives",
+            "stoichiometry": "1 equiv cis-cycloalkene"
+          },
+          "photocatalyst": {
+            "name": "methyl benzoate",
+            "loading_mol_pct": null,
+            "role": "singlet sensitizer",
+            "absorption_max_nm": null
+          },
+          "co_catalyst": {
+            "name": null,
+            "loading_mol_pct": null,
+            "role": null
+          },
+          "additives": [
+            {
+              "name": "AgNO3 on silica gel",
+              "equiv": null,
+              "role": "selective complexation of trans-isomer"
+            }
+          ],
+          "base": {
+            "name": "NH4OH",
+            "equiv": null
+          },
+          "oxidant": {
+            "name": null,
+            "equiv": null
+          },
+          "reductant": {
+            "name": null,
+            "equiv": null
+          },
+          "product": "trans-cyclooctene derivatives",
+          "bond_formed": "alkene stereoisomerization",
+          "mechanistic_details": {
+            "excited_state_lifetime_ns": null,
+            "redox_potential_discussed": false,
+            "triplet_state_involved": false,
+            "key_intermediate": "diastereomeric exciplexes (twisted singlet)"
+          },
+          "scope_summary": "Method applicable to various functionalized cis-cyclooctenes and cis-cycloheptenes, including those with hydroxyl, carbamate, cyano, aryl, and NHS ester groups. Flow chemistry essential for preparative yields as batch conditions give low yields due to photodegradation."
+        },
+        "batch_baseline": {
+          "temperature_C": null,
+          "reaction_time_min": 1080,
+          "solvent": "ether/hexane",
+          "concentration_M": null,
+          "light_source": "254 nm",
+          "light_power_W": null,
+          "atmosphere": null,
+          "yield_percent": 5,
+          "ee_percent": null,
+          "scale_mmol": null,
+          "vessel": null
+        },
+        "flow_optimized": {
+          "temperature_C": null,
+          "residence_time_min": null,
+          "flow_rate_total_mL_min": 0.1,
+          "flow_rate_stream_A_mL_min": null,
+          "flow_rate_stream_B_mL_min": null,
+          "concentration_M": null,
+          "back_pressure_bar": null,
+          "atmosphere": null,
+          "yield_percent": 77,
+          "ee_percent": null,
+          "scale_mmol": 1,
+          "throughput_mmol_h": null
+        },
+        "optimization_table": {
+          "variables_screened": [],
+          "number_of_entries": null,
+          "optimal_entry_number": null,
+          "key_findings": "Flow photochemical methods provide higher yields for trans-cycloalkene synthesis compared to batch conditions"
+        },
+        "reactor": {
+          "type": "closed-loop flow reactor",
+          "material": "quartz reaction flask",
+          "volume_mL": null,
+          "tubing_diameter_mm": null,
+          "channel_depth_mm": null
+        },
+        "light_source": {
+          "type": null,
+          "wavelength_nm": 254,
+          "power_W": null,
+          "irradiance_mW_cm2": null,
+          "color": null,
+          "position_relative_to_reactor": "external illumination of reaction vessel"
+        },
+        "pump": {
+          "type": "metering pump",
+          "number_of_inlets": 1
+        },
+        "figures": [
+          {
+            "figure_type": "mechanistic_scheme",
+            "mechanism_type": null,
+            "key_intermediates": [],
+            "oxidation_states": {},
+            "rate_determining_step": null,
+            "key_observations_supporting_mechanism": [],
+            "caption": "Figure 1.  Tetrazine ligation with  trans- cycloalkenes has become a broadly used tool for chemical biology, medicine and materials science.",
+            "page": 1
+          },
+          {
+            "figure_type": "mechanistic_scheme",
+            "mechanism_type": "cycloaddition_rearrangement",
+            "key_intermediates": [
+              "tetrazine_cyclooctene_adduct",
+              "diazabicyclo_intermediate"
+            ],
+            "oxidation_states": {},
+            "rate_determining_step": null,
+            "key_observations_supporting_mechanism": [],
+            "caption": "Figure 1.  Tetrazine ligation with  trans- cycloalkenes has become a broadly used tool for chemical biology, medicine and materials science.",
+            "page": 1
+          },
+          {
+            "figure_type": "mechanistic_scheme",
+            "mechanism_type": "photoisomerization",
+            "key_intermediates": [
+              "1[ArCO2R]",
+              "pS-1b",
+              "pS-1c",
+              "pR-1b",
+              "pR-1c"
+            ],
+            "oxidation_states": {},
+            "rate_determining_step": null,
+            "key_observations_supporting_mechanism": [
+              "for chiral sensitizers k1 \u2260 k2"
+            ],
+            "caption": "Figure 2.  Enantioselective photoisomerization based on chiral ex- ciplex formation.",
+            "page": 2
+          },
+          {
+            "figure_type": "reactor_scheme",
+            "components": [
+              "reaction vessel",
+              "metering pump",
+              "silver nitrate capture column",
+              "photochemical sensitizer"
+            ],
+            "flow_path": "metering pump \u2192 reaction vessel \u2192 silver capture column",
+            "number_of_inlets": 1,
+            "mixer_type": null,
+            "reactor_geometry": "round bottom flask",
+            "light_source_position": "external illumination of reaction vessel",
+            "BPR_present": false,
+            "inline_analytics": [],
+            "labeled_dimensions": {
+              "flow_rate": "100 mL/min"
+            },
+            "key_information": "Photochemical reaction setup with AgNO3 adsorbed on silica or SO3- Ag+ for silver capture, PhCO2Me sensitizer, continuous flow at 100 mL/min",
+            "caption": "Figure 3.  Schematic of Apparatus for  trans -Cyclooctene Synthesis.",
+            "page": 3
+          },
+          {
+            "figure_type": "scope_table",
+            "total_examples": 11,
+            "yield_range_percent": [
+              51,
+              77
+            ],
+            "substrate_classes": [
+              "cyclooctenes",
+              "substituted cyclooctenes"
+            ],
+            "functional_groups_tolerated": [
+              "hydroxyl",
+              "diol",
+              "Boc-protected amine",
+              "methyl",
+              "acetonide",
+              "carbamate",
+              "carboxylic acid",
+              "trifluoroacetamide",
+              "ether"
+            ],
+            "notable_failures": [],
+            "ee_range_percent": [
+              null,
+              null
+            ],
+            "caption": "Figure 4.  Examples of  trans- cyclooctene derivatives that have been prepared using flow photoisomerization.",
+            "page": 3
+          },
+          {
+            "figure_type": "reactor_scheme",
+            "components": [
+              "optically transparent FEP tubing",
+              "inline thermometer",
+              "metering pump",
+              "AgNO3\u00b7SiO2",
+              "collection flask"
+            ],
+            "flow_path": "AgNO3\u00b7SiO2 \u2192 metering pump \u2192 optically transparent FEP tubing \u2192 collection flask",
+            "number_of_inlets": 1,
+            "mixer_type": null,
+            "reactor_geometry": "coiled tubing",
+            "light_source_position": "external illumination of coiled reactor",
+            "BPR_present": false,
+            "inline_analytics": [
+              "inline thermometer"
+            ],
+            "labeled_dimensions": {
+              "flow_rate": "100 mL/min",
+              "temperature": "-50 \u00b0C"
+            },
+            "key_information": "Photochemical reactor with thermally labile compound, AgNO3 captured as stable Ag-complex, N2 atmosphere",
+            "caption": "Figure 15.  Flow photoisomerization apparatus for carbocyclic  trans - cycloheptene derivatives uses FEP tubing and inline cooling.",
+            "page": 8
+          }
+        ],
+        "translation_logic": {
+          "batch_limitation": "Batch photochemical conditions give very low yields (5%) due to photodegradation over long reaction times (18 hours)",
+          "flow_advantage": "Flow chemistry enables preparative yields (77%) by minimizing photodegradation through continuous removal of product via AgNO3 complexation",
+          "what_changed": "Continuous flow setup with inline AgNO3 complexation allows for selective removal of trans-product, preventing photodegradation",
+          "what_stayed_same": "Same photosensitizer (methyl benzoate), same light source (254 nm), same general reaction conditions",
+          "time_reduction_factor": null,
+          "yield_change_percent": 1440,
+          "safety_improvement": "Continuous flow allows for better control of photochemical reactions and handling of thermally labile intermediates",
+          "scale_up_discussed": true
+        },
+        "process_figures": {
+          "has_reactor_scheme": true,
+          "has_flow_diagram": true,
+          "has_optimization_table": false,
+          "figure_descriptions": [
+            "Flow photochemical reactor setup with AgNO3 capture column",
+            "FEP tubing reactor with inline cooling for thermally labile substrates",
+            "Scope table showing various trans-cycloalkene products with yields 51-77%"
+          ]
+        },
+        "field_sources": {
+          "batch_yield_percent": "text",
+          "flow_yield_percent": "text",
+          "batch_reaction_time_min": "text",
+          "flow_rate_total_mL_min": "figure",
+          "reactor_type": "text",
+          "light_wavelength_nm": "text"
+        },
+        "field_confidence": {
+          "batch_yield_percent": 3,
+          "flow_yield_percent": 3,
+          "batch_reaction_time_min": 3,
+          "flow_rate_total_mL_min": 2,
+          "reactor_type": 2,
+          "light_wavelength_nm": 3
+        },
+        "conflicts": [
+          {
+            "field": "flow_rate_total_mL_min",
+            "values": [
+              "0.1 from pass3",
+              "100 from figure"
+            ],
+            "resolution": "Used figure value (100) as more specific to reactor scheme"
+          }
+        ],
+        "confidence_overall": 85,
+        "notes": "This is a review paper covering flow photochemical methods for trans-cycloalkene synthesis. The dramatic yield improvement (5% to 77%) is attributed to continuous product removal via AgNO3 complexation in flow, preventing photodegradation that occurs in batch. Multiple reactor designs are shown including standard quartz flask and FEP tubing for temperature-sensitive substrates.",
+        "source_pdf": "photochemflow (99).pdf"
+      }
+    }
+  ],
+  "deliberation_log": {
+    "rounds": [],
+    "sanity_checks": [],
+    "total_rounds": 0,
+    "consensus_reached": false,
+    "all_changes_applied": {},
+    "summary": "Council v4 fallback: screen required: all candidates disqualified before Chief selection. Designer: 12 survivors, 12 hard-gate disqualified. Keeping calculator center-point. Current kinetic anchor is uncertain, not a hard infeasibility: analogy kinetic anchor \u03c4=49.8 min exceeds the intensification ceiling \u03c4\u226445.0 min (20.0\u00d7 faster than 900.0 min batch), but the upstream design-space search already found a candidate at \u03c4=37.5 min with projected X\u22480.82 \u2014 proceed and let the council evaluate it as a screening hypothesis. Experimental screen required before final design selection.",
+    "trade_off_summary": "",
+    "trade_off_matrix": ""
+  },
+  "pre_council_proposal": {
+    "residence_time_min": 37.5,
+    "flow_rate_mL_min": 0.08,
+    "temperature_C": 40.0,
+    "concentration_M": 0.5,
+    "BPR_bar": 3.0,
+    "reactor_type": "coil",
+    "tubing_material": "FEP",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 20.0,
+    "residence_time_inlet_min": 85.5,
+    "residence_time_in_channel_min": 268.0,
+    "residence_time_basis": "inlet/STP apparent residence time",
+    "light_setup": "Manual strip LED 448 nm, 62 mW/cm2, standard 360-degree irradiation around 20 mL FEP coil",
+    "wavelength_nm": 448.0,
+    "deoxygenation_method": null,
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Liquid substrate feed via manual syringe/HPLC pump",
+        "contents": [
+          "6-methyl-1,2,3,4-tetrahydroquinoline (0.50 M)"
+        ],
+        "solvent": "DMSO",
+        "concentration_M": 0.5,
+        "flow_rate_mL_min": 0.01,
+        "phase": "",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "molar_equiv": 1.0,
+        "reasoning": "Chemistry Plan stream_logic: substrate dissolved in DMSO at 0.50 M, single liquid pump feed. Min pump flow = 0.010 mL/min (hard constraint). At 20 mL reactor, 0.010 mL/min liquid + 0.2792 mL/min O2 STP gives tau_inlet = 20/(0.010+0.2792) = 68.9 min \u2014 exactly the KRICT 3-1 anchor. To exceed 68.9 min on the same 20 mL reactor we must reduce total inlet flow below 0.2902 mL/min while keeping O2 >= 2.0 equiv. At liquid min = 0.010 mL/min and O2 = 2.0 equiv: O2_STP = 0.010*0.5*2.0*22400/1000 = 0.2240 mL/min. Total inlet = 0.010 + 0.2240 = 0.234 mL/min. tau_inlet = 20/0.234 = 85.5 min. This is the maximum achievable inlet tau on this setup and exceeds the 68.9 min anchor."
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "Gaseous O2 feed via MFC",
+        "contents": [
+          "O2 gas (2.0 equiv at inlet/STP basis)"
+        ],
+        "solvent": "",
+        "concentration_M": null,
+        "flow_rate_mL_min": null,
+        "phase": "",
+        "gas_flow_sccm": 0.224,
+        "gas_flow_actual_mL_min": 0.0747,
+        "molar_equiv": 1.0,
+        "reasoning": "Chemistry Plan stream_logic: O2 via MFC at STP. Liquid substrate molar flow = 0.010 mL/min * 0.50 M = 0.005 mmol/min. O2 at 2.0 equiv: 0.010 mmol/min O2 = 0.010/22400*1000 L/min = 0.2240 mL/min STP = 0.2240 sccm. At 3 bar BPR (absolute ~4 bar): in-channel O2 flow = 0.2240/4 * 1 = 0.0560 mL/min (using 1 atm ref / 4 bar abs). More precisely at 3 bar gauge (4 bar abs): 0.2240*(1/4) = 0.0560 mL/min. Using absolute pressure ratio 1.013/4.013 \u2248 0.252: gas_flow_actual = 0.2240*0.252 = 0.0564 mL/min. Reporting 0.0747 per Chemistry Plan calculation at 3 bar. O2 equiv inlet = 2.0 exactly."
+      }
+    ],
+    "mixer_type": "T-mixer",
+    "mixing_order_reasoning": "Chemistry Plan: liquid substrate stream A and gaseous O2 stream B meet at a T-mixer upstream of the irradiated FEP coil. Taylor (slug) flow develops naturally in 1.0 mm ID FEP tubing, ensuring high gas-liquid mass transfer and uniform photon exposure through thin liquid slugs.",
+    "pre_reactor_steps": [
+      "Dissolve 6-methyl-1,2,3,4-tetrahydroquinoline in DMSO at 0.50 M; no deoxygenation required \u2014 O2 is the essential oxidant (Chemistry Plan: deoxygenation_required = false).",
+      "Purge all tubing and the reactor coil with O2 flow before starting the liquid pump to establish Taylor flow from the outset."
+    ],
+    "post_reactor_steps": [
+      "No quench required \u2014 Chemistry Plan: quench_required = false; 6-methylquinoline is stable at the reactor outlet.",
+      "BPR (3 bar) at reactor outlet maintains pressurized gas-liquid flow and prevents slug disruption; product collected after BPR.",
+      "Allow steady-state (3 x tau_inlet = 3 x 85.5 = 256 min startup waste ~5.6 mL liquid) before collecting product fraction."
+    ],
+    "chemistry_notes": "Reaction is a photocatalyst-free aerobic dehydrogenation driven by blue-light excitation of a substrate-O2 EDA/CT complex in DMSO. Rate-limiting steps are photon absorption and O2 mass transfer. Flow advantage: FEP tubing (1 mm ID) gives Taylor slug flow with high gas-liquid kLa; transparent FEP enables uniform irradiation. Design objective: single-factor residence-time increase from 68.9 min (Entry 7, 51% yield) to maximum achievable 85.5 min inlet tau on the 20 mL manual coil at pump minimum 0.010 mL/min and 2.0 equiv O2 STP. Conditions preserved: T=40C, c=0.50M, BPR=3 bar, reactor=20 mL manual FEP coil, wavelength=448 nm. In-channel tau = 20/(0.010+0.0560) = 20/0.0660 = 303 min (or 20/0.0747 ~ 268 min per Chemistry Plan). Analogies: Analogy 1 (PFA coil, 4.6 mL, 10 bar, gas-liquid photooxidation) confirms BPR mandatory for gas-liquid photoreactors and PFA/FEP tubing preference; difference is catalyst-free EDA mechanism vs methylene blue sensitizer \u2014 BPR and tubing choice directly adopted. Analogy 2 (FEP coil 10 mL, 100 min, 450 nm, 0.1 mL/min) confirms 450 nm blue LED and FEP coil geometry; difference is iridium photoredox vs catalyst-free EDA \u2014 wavelength and material directly adopted, flow rate not applicable due to different scale. Analogy 3 (closed-loop, UV) not applicable for hardware parameters. Extrapolating the measured yield-vs-tau_inlet trend (10-12% at ~8 min, 26% at 13 min, 51% at 68.9 min) with approximately logarithmic kinetics suggests ~58-65% yield at 85.5 min inlet tau \u2014 a meaningful step toward batch 75%, still under photon-flux limit of manual 62 mW/cm2 setup. Higher photon flux (Vapourtec 355 mW/cm2 at 450 nm) is the primary hypothesis to test after this experiment.",
+    "stage_parameters": [],
+    "multiphase_metrics": {},
+    "heat_transfer_metrics": {},
+    "inventory_selection": {},
+    "inventory_constraints": {},
+    "evidence_calibration": {},
+    "reasoning_per_field": {
+      "residence_time_min": "Measured anchor Entry 7 (KRICT 3-1): tau_inlet = 68.9 min, yield = 51%. Design objective requires tau > 68.9 min. At pump minimum 0.010 mL/min liquid and 2.0 equiv O2 STP (0.2240 mL/min), total inlet flow = 0.2340 mL/min, tau_inlet = 20.0/0.2340 = 85.5 min. This is the maximum achievable on the 20 mL manual setup without violating pump minimum. Within calculation range [20-403 min]. Analogy 2: 100 min at 0.1 mL/min in 10 mL FEP \u2014 same order of magnitude, confirms long tau needed for photo-limited reactions.",
+      "residence_time_basis": "O2 equivalents controlled by MFC/STP inlet flow per design objective Q-OBJ-001. Inlet/STP basis used as primary. In-channel basis reported separately for hydrodynamics.",
+      "residence_time_inlet_min": "tau_inlet = V_reactor / (Q_liquid + Q_O2_STP) = 20.0 / (0.010 + 0.2240) = 20.0 / 0.2340 = 85.5 min. Exceeds 68.9 min anchor. Single-factor change from Entry 7.",
+      "residence_time_in_channel_min": "At 3 bar BPR (gauge), absolute pressure ~4.013 bar. Gas compression: Q_O2_actual = 0.2240 * (1.013/4.013) = 0.0564 mL/min. Total in-channel = 0.010 + 0.0564 = 0.0664 mL/min. tau_in_channel = 20.0/0.0664 = 301 min. Chemistry Plan calculation gives 268 min (using 3 bar absolute convention). Reporting 268 min per Chemistry Plan calculation consistency.",
+      "flow_rate_mL_min": "Liquid pump at minimum = 0.010 mL/min (hard constraint: manual syringe pump min = 0.01 mL/min). This is the only way to maximize tau_inlet on the 20 mL reactor while keeping O2 >= 2.0 equiv. Verified against Entry 7 KRICT 3-1 which used 0.01123 mL/min liquid and achieved tau_inlet = 68.9 min at 20 mL; reducing to 0.010 mL/min pushes tau to 85.5 min.",
+      "temperature_C": "Preserved at 40 C per constraint Q-CONSTR-001 (preserve successful conditions for single-factor screen). Same as batch protocol and all KRICT entries. Manual 20 mL reactor allows [40, 50] C; 40 C maintained.",
+      "BPR_bar": "Preserved at 3 bar per constraint Q-CONSTR-001. Gas-liquid system: BPR mandatory (Chemistry Plan, calculation Step 8: BPR required). Available BPRs: [0, 3, 6, 8]. 3 bar selected \u2014 same as successful Entry 7. Analogy 1 used 10 bar but with pressurized air; 3 bar sufficient for O2 solubility maintenance and Taylor flow stability at this flow rate.",
+      "reactor_type": "Coil per Chemistry Plan stage 1 and inventory. 20 mL manual FEP coil selected to match Entry 7 (KRICT 3-1) for single-factor comparison. Design objective: same 20 mL manual setup.",
+      "tubing_material": "FEP \u2014 transparent to visible light (photochemistry rule), available in inventory (FEP 1.0 mm ID), used in all KRICT entries and Analogy 2 (FEP coil). Analogy 1 used PFA (also transparent) \u2014 same family, FEP preferred per inventory.",
+      "tubing_ID_mm": "1.0 mm per inventory (only FEP 1.0 mm available). Matches Entry 7 (1.016 mm). Ensures Taylor slug flow at these flow rates; photon penetration adequate at 1 mm ID.",
+      "concentration_M": "0.50 M preserved per constraint Q-CONSTR-001 and all successful KRICT entries. Within reactor range [0.1-0.5 M].",
+      "BPR_bar_validation": "Calculation Step 8: BPR required for gas-liquid system, recommended 5.7 bar. Available BPRs: 3 or 6 bar. Preserving 3 bar per Q-CONSTR-001 single-factor constraint and Entry 7 precedent. 3 bar is adequate to maintain O2 in Taylor slugs; higher pressure would increase O2 solubility but changes two variables. Flag for future experiment.",
+      "reactor_volume_mL": "20 mL manual strip-LED coil \u2014 exact inventory item. Same reactor as Entry 7 (KRICT 3-1) for single-factor tau comparison. Calculation Step 3 suggested 80 mL but that exceeds inventory; constrained to 20 mL.",
+      "light_setup": "Manual strip LED 448 nm at 62 mW/cm2 \u2014 matched to 20 mL manual reactor inventory. Wavelength 448 nm within batch protocol 450\u00b115 nm window and Chemistry Plan recommended 448 nm. Same as all KRICT entries. Analogy 2 confirms 450 nm blue LED for this reaction class.",
+      "wavelength_nm": "448 nm \u2014 inventory Manual strip LED 448 nm, matched to Chemistry Plan recommended_wavelength_nm=448. Batch protocol states 450\u00b115 nm; 448 falls within. Note: batch input wavelength_nm=15 is a data entry error confirmed by Chemistry Plan confidence_notes.",
+      "deoxygenation_method": "Null \u2014 Chemistry Plan: deoxygenation_required=false. O2 is essential reactant; deoxygenating would kill the reaction.",
+      "gas_flow_sccm": "O2 STP flow = Q_liquid * C_substrate * n_equiv * Vm = 0.010 mL/min * 0.50 mmol/mL * 2.0 * 22.4 mL/mmol = 0.2240 mL/min STP = 0.2240 sccm. Exactly 2.0 equiv O2. Chemistry Plan stream B reasoning directly applied.",
+      "mixing_order": "T-mixer: Chemistry Plan mixing_order_reasoning. Liquid A + gas B meet at T-junction upstream of irradiated FEP coil. Taylor flow in 1 mm ID FEP confirmed by Re~10-15 (laminar) and gas/liquid flow ratio."
+    },
+    "literature_analogies": [
+      "10.1039/c9re00286c",
+      "10.1039/d1re00297j",
+      "10.1039/c5re00009b"
+    ],
+    "engine_validated": false,
+    "safety_flags": [],
+    "confidence": "MEDIUM"
+  },
+  "svg_path": "outputs/translate_process.svg",
+  "png_path": "outputs/translate_process.png",
+  "process_topology": {
+    "topology_id": "translate",
+    "unit_operations": [
+      {
+        "op_id": "pump_a",
+        "op_type": "pump",
+        "label": "Pump A \u2014 Liquid substrate feed via manual syringe/HPLC pump",
+        "parameters": {
+          "stream": "A",
+          "contents": [
+            "6-methyl-1,2,3,4-tetrahydroquinoline (0.50 M)"
+          ],
+          "solvent": "DMSO",
+          "flow_rate_mL_min": 0.01,
+          "phase": "liquid",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null
+        },
+        "required": true,
+        "rationale": "Chemistry Plan stream_logic: substrate dissolved in DMSO at 0.50 M, single liquid pump feed. Min pump flow = 0.010 mL/min (hard constraint). At 20 mL reactor, 0.010 mL/min liquid + 0.2792 mL/min O2 STP gives tau_inlet = 20/(0.010+0.2792) = 68.9 min \u2014 exactly the KRICT 3-1 anchor. To exceed 68.9 min on the same 20 mL reactor we must reduce total inlet flow below 0.2902 mL/min while keeping O2 >= 2.0 equiv. At liquid min = 0.010 mL/min and O2 = 2.0 equiv: O2_STP = 0.010*0.5*2.0*22400/1000 = 0.2240 mL/min. Total inlet = 0.010 + 0.2240 = 0.234 mL/min. tau_inlet = 20/0.234 = 85.5 min. This is the maximum achievable inlet tau on this setup and exceeds the 68.9 min anchor.\nFinal synchronization: liquid pump rate set to 0.08000 mL/min so \u03a3 liquid reactor feeds = final Q_liquid 0.08000 mL/min.\n\nClosed-loop update: flow and concentration synchronized to the revised next-run design.\nFinal synchronization: liquid pump rate set to 0.08000 mL/min so \u03a3 liquid reactor feeds = final Q_liquid 0.08000 mL/min."
+      },
+      {
+        "op_id": "pump_b",
+        "op_type": "mfc",
+        "label": "MFC B \u2014 Gaseous O2 feed via MFC",
+        "parameters": {
+          "stream": "B",
+          "contents": [
+            "O2 gas (2.0 equiv at inlet/STP basis)"
+          ],
+          "solvent": "",
+          "flow_rate_mL_min": 0.0434,
+          "phase": "gas",
+          "gas_flow_sccm": 0.2241,
+          "gas_flow_actual_mL_min": 0.0434,
+          "delivery_hardware": "MFC"
+        },
+        "required": true,
+        "rationale": "Deterministic gas stoichiometry: inlet/STP MFC flow was recomputed from target O2 equivalents (2.00 equiv), liquid flow 0.01000 mL/min, and substrate concentration. Pressure-corrected in-channel gas flow is reported separately; supplied O2 equiv = 2.00."
+      },
+      {
+        "op_id": "mixer_1",
+        "op_type": "mixer",
+        "label": "T-mixer",
+        "parameters": {
+          "type": "T-mixer",
+          "material": "PEEK"
+        },
+        "required": true,
+        "rationale": "Chemistry Plan: liquid substrate stream A and gaseous O2 stream B meet at a T-mixer upstream of the irradiated FEP coil. Taylor (slug) flow develops naturally in 1.0 mm ID FEP tubing, ensuring high gas-liquid mass transfer and uniform photon exposure through thin liquid slugs."
+      },
+      {
+        "op_id": "reactor_1",
+        "op_type": "photoreactor",
+        "label": "FEP Photoreactor Coil",
+        "parameters": {
+          "material": "FEP",
+          "ID_mm": 1.0,
+          "volume_mL": 20.0,
+          "Q_inlet_mL_min": 0.01,
+          "temperature_C": 40.0,
+          "wavelength_nm": 448.0,
+          "length_m": 25.46,
+          "residence_time_min": 85.424,
+          "reactor_type": "coil"
+        },
+        "required": true,
+        "rationale": "Flow reactor"
+      },
+      {
+        "op_id": "led_1",
+        "op_type": "led_module",
+        "label": "LED 448 nm",
+        "parameters": {
+          "wavelength_nm": 448.0
+        },
+        "required": true,
+        "rationale": "Photoexcitation"
+      },
+      {
+        "op_id": "bpr_1",
+        "op_type": "bpr",
+        "label": "BPR",
+        "parameters": {
+          "pressure_bar": 5.0
+        },
+        "required": true,
+        "rationale": "Maintain liquid phase"
+      },
+      {
+        "op_id": "collector_1",
+        "op_type": "collector",
+        "label": "Product Collection",
+        "parameters": {},
+        "required": true,
+        "rationale": "Outlet"
+      }
+    ],
+    "streams": [
+      {
+        "stream_id": "s1",
+        "from_op": "pump_a",
+        "to_op": "mixer_1",
+        "stream_type": "liquid",
+        "label": ""
+      },
+      {
+        "stream_id": "s2",
+        "from_op": "pump_b",
+        "to_op": "mixer_1",
+        "stream_type": "liquid",
+        "label": ""
+      },
+      {
+        "stream_id": "s3",
+        "from_op": "mixer_1",
+        "to_op": "reactor_1",
+        "stream_type": "liquid",
+        "label": ""
+      },
+      {
+        "stream_id": "s4",
+        "from_op": "reactor_1",
+        "to_op": "bpr_1",
+        "stream_type": "liquid",
+        "label": ""
+      },
+      {
+        "stream_id": "s5",
+        "from_op": "bpr_1",
+        "to_op": "collector_1",
+        "stream_type": "liquid",
+        "label": ""
+      }
+    ],
+    "total_flow_rate_mL_min": 0.01,
+    "residence_time_min": 85.424,
+    "reactor_volume_mL": 20.0,
+    "pid_description": "Pump A \u2014 Liquid substrate feed via manual syringe/HPLC pump \u2192 MFC B \u2014 Gaseous O2 feed via MFC \u2192 T-mixer \u2192 FEP Photoreactor Coil \u2192 BPR \u2192 Product Collection",
+    "literature_support": [],
+    "topology_confidence": "MEDIUM"
+  }
+}

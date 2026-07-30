@@ -220,7 +220,7 @@ def _normalize_plan_data(data: dict) -> dict:
     # incompatible_pairs: expected [[A, B], ...] but LLM may return
     # [{"species_1": A, "species_2": B, ...}, ...]
     pairs = data.get("incompatible_pairs", [])
-    if pairs and isinstance(pairs[0], dict):
+    if isinstance(pairs, list):
         normalized = []
         for p in pairs:
             if isinstance(p, dict):
@@ -230,21 +230,50 @@ def _normalize_plan_data(data: dict) -> dict:
                     normalized.append(vals[:2])
                 elif vals:
                     normalized.append(vals)
+            elif isinstance(p, str) and p.strip():
+                species = [
+                    item.strip()
+                    for item in re.split(r"\s*(?:\+|/|\band\b|\bwith\b)\s*", p)
+                    if item.strip()
+                ]
+                normalized.append(species[:2] if species else [p.strip()])
+            elif isinstance(p, list):
+                normalized.append([str(item) for item in p[:2]])
             else:
-                normalized.append(p)
+                continue
         data["incompatible_pairs"] = normalized
 
+    def normalize_stream(stream: dict) -> None:
+        # reagents should be a list of strings
+        reagents = stream.get("reagents", [])
+        if reagents and isinstance(reagents, list) and isinstance(reagents[0], dict):
+            stream["reagents"] = [
+                item.get("name", str(item)) for item in reagents
+            ]
+        elif isinstance(reagents, str):
+            stream["reagents"] = [reagents]
+
+        for field, fallback in (
+            ("molar_equiv", 1.0),
+            ("concentration_M", None),
+            ("gas_flow_sccm", None),
+            ("gas_flow_actual_mL_min", None),
+        ):
+            value = stream.get(field)
+            if value is None:
+                continue
+            try:
+                stream[field] = float(value)
+            except (TypeError, ValueError):
+                stream[field] = fallback
+
     # stream_logic: expected list of dicts with stream_label/reagents/reasoning
-    # but LLM may nest differently
+    # but LLM may nest differently or put phase labels in numeric fields.
     streams = data.get("stream_logic", [])
-    if streams and isinstance(streams[0], dict):
+    if isinstance(streams, list):
         for s in streams:
-            # reagents should be a list of strings
-            r = s.get("reagents", [])
-            if r and isinstance(r[0], dict):
-                s["reagents"] = [
-                    item.get("name", str(item)) for item in r
-                ]
+            if isinstance(s, dict):
+                normalize_stream(s)
 
     # mechanism_steps: species_involved should be list[str]
     steps = data.get("mechanism_steps", [])
@@ -263,9 +292,7 @@ def _normalize_plan_data(data: dict) -> dict:
             feeds = stage.get("feed_streams", [])
             for f in feeds:
                 if isinstance(f, dict):
-                    r = f.get("reagents", [])
-                    if r and isinstance(r[0], dict):
-                        f["reagents"] = [item.get("name", str(item)) for item in r]
+                    normalize_stream(f)
 
     # ── Coerce None → "" for str fields with empty-string defaults ───────────
     # Pydantic v2 rejects None for plain `str` fields even with a "" default.
@@ -295,6 +322,18 @@ def _normalize_plan_data(data: dict) -> dict:
                 data[field] = float(stripped) if stripped else None
             except ValueError:
                 data[field] = None
+
+    mandate = data.get("intensification_mandate")
+    if isinstance(mandate, dict):
+        if mandate.get("tau_reduction_target") is None:
+            mandate.pop("tau_reduction_target", None)
+        for field in (
+            "minimum_flow_advantage",
+            "required_mixing_regime",
+            "flow_justification_basis",
+        ):
+            if mandate.get(field) is None:
+                mandate.pop(field, None)
 
     return data
 

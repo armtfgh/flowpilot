@@ -264,6 +264,9 @@ def _render_design():
 
 def _render_result_compact(result: dict, key_suffix):
     """Show a small summary card inside a chat message — no tabs, no downloads."""
+    from components.design_disposition import render_design_disposition
+
+    render_design_disposition(result, compact=True)
     proposal = result.get("proposal", {})
     conf     = result.get("confidence", "?")
     conf_color = {"HIGH": "green", "MEDIUM": "orange", "LOW": "red"}.get(conf, "gray")
@@ -286,9 +289,12 @@ def _render_result_compact(result: dict, key_suffix):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _render_result(result: dict, key_prefix: str = ""):
+    from components.design_disposition import render_design_disposition
+
     proposal = result.get("proposal", {})
     conf = result.get("confidence", "LOW")
     conf_color = {"HIGH": "green", "MEDIUM": "orange", "LOW": "red"}.get(conf, "gray")
+    render_design_disposition(result)
     st.markdown(f"### Confidence: :{conf_color}[{conf}]")
     if result.get("autosave_dir"):
         st.caption(f"Autosaved run folder: {result['autosave_dir']}")

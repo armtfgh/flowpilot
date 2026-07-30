@@ -1,0 +1,68 @@
+{
+  "residence_time_min": 9.0,
+  "flow_rate_mL_min": 0.08333,
+  "temperature_C": 60.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 10.0,
+  "reactor_type": "packed_bed",
+  "tubing_material": "SS",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 5.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Sparging with inert gas (N2/Ar) prior to pump",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Substrate feed",
+      "contents": [
+        "N-Diphenylmethylazetidin-3-ol (0.1 M)",
+        "Acetic acid (1.0 equiv)"
+      ],
+      "solvent": "Methanol",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Substrate, additive, and solvent in one stream. Concentration from batch baseline. Flow rate derived from reactor volume and residence time."
+    }
+  ],
+  "mixer_type": "None (Packed Bed)",
+  "mixing_order_reasoning": "From Chemistry Plan: Substrate and acid dissolved in solvent before contacting catalyst. No mixing of streams required as catalyst is stationary.",
+  "pre_reactor_steps": [
+    "Degas methanol solution via sparging with inert gas (N2/Ar) to remove O2, as O2 competes for Pd active sites and poses explosion risk with H2 (Chemistry Plan)."
+  ],
+  "post_reactor_steps": [
+    "Filter off Pd(OH)2/Al2O3 catalyst particles.",
+    "Concentrate filtrate to isolate 3-azetidinol."
+  ],
+  "chemistry_notes": "CRITICAL CONSTRAINT VIOLATION: The reaction requires Hydrogen gas (H2) as a reagent for hydrogenolysis. The provided inventory explicitly prohibits H2 feeds and gas hardware ('service_status': 'prohibited_unavailable'). The available reactor is a liquid-only packed bed. Therefore, the reaction CANNOT be executed as designed. This proposal represents the theoretical flow setup IF H2 were available, using the packed bed reactor for the heterogeneous catalyst. The low yield (38.1%) in batch suggests mass transfer limitations or catalyst deactivation, which flow might improve, but the lack of H2 makes this moot. Analogies provided are photochemical and irrelevant to this thermal hydrogenation, so parameters are derived from the Engineering Design Calculations and batch conditions.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Engineering Calculation Step 2 suggests 6.0 min. Batch was 5h (300 min). Flow intensification target is 3x, but hydrogenation kinetics are fast. 6 min is a conservative estimate for conversion in flow packed bed.",
+    "residence_time_basis": "Liquid-only basis because H2 gas feed is prohibited by inventory. If H2 were allowed, it would be gas-liquid.",
+    "temperature_C": "Same as batch (60 C) to maintain kinetic profile. Inventory reactor supports up to 120 C.",
+    "BPR_bar": "Engineering Calculation Step 8 requires BPR. Inventory has 10 and 20 bar BPRs. 10 bar selected to maintain pressure if H2 were present, and to prevent methanol boiling (bp 65 C) at 60 C operation.",
+    "tubing_material": "SS (Stainless Steel) as per inventory for the packed bed reactor. SS is standard for thermal hydrogenation.",
+    "concentration_M": "0.1 M from batch baseline (Engineering Calculation Step 1).",
+    "reactor_volume_mL": "5.0 mL from inventory 'packed_bed' reactor. Note: Calculation suggested 11.2 mL, but inventory is authoritative. This reduces residence time to 10 min if flow is 0.5 mL/min, or requires higher flow.",
+    "flow_rate_mL_min": "0.5 mL/min derived from V=5mL and t=10min (adjusted for inventory volume). Calculation suggested 0.5 mL/min for 11.2 mL volume. Keeping 0.5 mL/min is safe for HPLC pump.",
+    "light_setup": "Empty. Reaction is thermal catalysis, not photochemical.",
+    "wavelength_nm": "Null. No light source required.",
+    "deoxygenation_method": "Sparging. O2 is incompatible with H2 and poisons Pd."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "LOW"
+}

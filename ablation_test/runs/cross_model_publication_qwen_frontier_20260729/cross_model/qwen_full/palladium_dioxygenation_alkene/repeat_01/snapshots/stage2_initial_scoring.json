@@ -1,0 +1,535 @@
+{
+  "chemistry_overall": "The chemistry landscape is dominated by a critical mismatch between the reaction kinetics and the residence times proposed. The batch reference time is 300 minutes, implying a slow catalytic oxidation. Both candidates suffer from severe mixing limitations (Da_mass > 1.0), which is fatal for a 'selectivity-sensitive' oxidation where intermediate over-oxidation is the primary risk. Candidate 1 offers a longer residence time (10.3 min) but still achieves only 57% conversion, indicating it is kinetically undersized. Candidate 2 is drastically undersized (3.1 min, 23% conversion). Since this is not a photochemical reaction, photonics scores are neutralized (1.0), but the chemistry scores are low due to the failure to meet the minimum conversion threshold (X < 0.50 for Cand 2) and the mixing-limited selectivity risk for both. Neither candidate is acceptable for a selective oxidation process without significant residence time extension or reactor redesign to improve mixing. Both candidates suffer from a critical failure in stream logic and atmosphere management. The reaction is explicitly marked as 'O₂-sensitive' and involves catalytic oxidation, yet the provided data lacks any evidence of inert gas purging or exclusion of atmospheric oxygen in the feed streams. In flow chemistry, O₂-sensitive radicals or intermediates must be strictly isolated from air; without explicit confirmation of an inert atmosphere (N₂/Ar) in the solvent and reagent lines, the reaction will likely fail due to quenching or side reactions. Furthermore, both candidates exhibit 'dual-criterion mixing fails' (Da_mass > 1.0 and r_mix > 0.20), indicating that mass transfer limitations are severe. For a selectivity-driven oxidation, poor mixing leads to local hotspots of reagent concentration, promoting over-oxidation or decomposition. Candidate 3 has a longer residence time (10.4 min) which is closer to the kinetic requirement (12.12 min) but still under-converts (58%). Candidate 4 is severely under-converted (32%) due to short residence time (4.6 min). Neither candidate meets the 'ACCEPT' criteria due to the hard gate failure of atmosphere logic and mixing limitations.",
+  "chemistry_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Candidate 1 operates at τ = 10.3 min with C = 0.1 M in PFA tubing. The chemistry score is penalized heavily because the Damköhler number for mass transfer (Da_mass = 1.78) indicates that mixing is slower than reaction, leading to local concentration gradients that will degrade selectivity in an oxidation process. Furthermore, the expected conversion is only 57%, which is below the typical threshold for a viable flow process (usually >80-90% or at least >50% with high selectivity). The atmosphere logic is valid (O₂-sensitive handled), but the kinetic undersizing is a major flaw. Photonics score is 1.0 as no light is involved. The material (PFA) is compatible with DMF/AcOH. The primary failure is the inability to achieve sufficient conversion within the mixing-limited regime.",
+      "chemistry_score": 0.45,
+      "photonics_score": 1.0,
+      "combined_score": 0.67,
+      "selectivity_flow_value": 0.6,
+      "verdict": "WARNING",
+      "proposed_changes": {},
+      "beer_lambert_A": 0.0,
+      "epsilon_used": 0.0,
+      "wavelength_match": true,
+      "material_transparent": true,
+      "stream_logic_valid": true,
+      "atmosphere_valid": true,
+      "hard_gate_failed": false,
+      "blocking_issues": [],
+      "concerns": [
+        "Da_mass > 1.0 implies mixing-limited selectivity loss.",
+        "Conversion 57% is low for a production process.",
+        "Long coil (24m) increases pressure drop and handling complexity."
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Candidate 2 operates at τ = 3.1 min with C = 0.1 M in PFA tubing. This candidate is critically undersized for the reaction kinetics (batch time 300 min). The expected conversion is only 23%, which fails the minimum conversion criterion (X < 0.50). The Da_mass is 3.17, indicating severe mixing limitations that will likely lead to poor selectivity and hot spots if the reaction is exothermic. While the residence time reduction is impressive (96x), it is meaningless if the reaction does not proceed. The chemistry score is very low due to insufficient conversion and mixing issues. Photonics score is 1.0. The material is compatible. This candidate is not viable for the stated objective.",
+      "chemistry_score": 0.2,
+      "photonics_score": 1.0,
+      "combined_score": 0.52,
+      "selectivity_flow_value": 0.6,
+      "verdict": "REVISE",
+      "proposed_changes": {},
+      "beer_lambert_A": 0.0,
+      "epsilon_used": 0.0,
+      "wavelength_match": true,
+      "material_transparent": true,
+      "stream_logic_valid": true,
+      "atmosphere_valid": true,
+      "hard_gate_failed": false,
+      "blocking_issues": [],
+      "concerns": [
+        "Conversion 23% is too low.",
+        "Da_mass > 1.0 implies mixing-limited selectivity loss.",
+        "Residence time is too short for the reaction kinetics."
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Candidate 3 fails the atmosphere logic hard gate. The reaction is O₂-sensitive, but there is no indication of inert atmosphere handling in the stream definition. In catalytic oxidations, trace O₂ can quench radical intermediates or lead to uncontrolled autoxidation. Additionally, the mixing regime is poor (r_mix=0.225, Da_mass=1.78), which is detrimental for selectivity. The residence time (10.4 min) is insufficient for full conversion (X=0.58) given the kinetic time constant (12.12 min). While PFA is transparent and compatible with DMF/AcOH, the chemical feasibility is compromised by the lack of O₂ exclusion and poor mixing. The concentration (0.1 M) is within the optimal range, but the photonics score is irrelevant as this is not a photochemical reaction (Photochemical reaction: False). However, since the prompt requires photonics scoring for all, I will note that without a photocatalyst, Beer-Lambert is not applicable, but the material transparency is valid. The primary failure is chemical: atmosphere and mixing.",
+      "chemistry_score": 0.2,
+      "photonics_score": 0.5,
+      "combined_score": 0.32,
+      "selectivity_flow_value": 0.6,
+      "verdict": "BLOCK",
+      "proposed_changes": {},
+      "beer_lambert_A": 0.0,
+      "epsilon_used": 0.0,
+      "wavelength_match": false,
+      "material_transparent": true,
+      "stream_logic_valid": false,
+      "atmosphere_valid": false,
+      "hard_gate_failed": true,
+      "blocking_issues": [
+        "Atmosphere logic: O₂-sensitive reaction without confirmed inert atmosphere",
+        "Mixing failure: Da_mass > 1.0 and r_mix > 0.20 indicates mass transfer limitation affecting selectivity"
+      ],
+      "concerns": [
+        "Residence time (10.4 min) is less than kinetic time constant (12.12 min), leading to incomplete conversion."
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Candidate 4 also fails the atmosphere logic hard gate due to the O₂-sensitive nature of the reaction without confirmed inert handling. The mixing is even worse than Candidate 3 (r_mix=0.906, Da_mass=3.17), which is catastrophic for selectivity in an oxidation reaction. The residence time (4.6 min) is far too short for the kinetics (12.12 min), resulting in very low conversion (32%). The high flow rate (4.1 mL/min) exacerbates the mixing issues. PFA is compatible, but the chemical process is fundamentally flawed due to atmosphere and mixing. The photonics score is again not applicable for a non-photochemical reaction, but material transparency is valid. The primary failure is chemical: atmosphere, mixing, and insufficient residence time.",
+      "chemistry_score": 0.1,
+      "photonics_score": 0.5,
+      "combined_score": 0.26,
+      "selectivity_flow_value": 0.6,
+      "verdict": "BLOCK",
+      "proposed_changes": {},
+      "beer_lambert_A": 0.0,
+      "epsilon_used": 0.0,
+      "wavelength_match": false,
+      "material_transparent": true,
+      "stream_logic_valid": false,
+      "atmosphere_valid": false,
+      "hard_gate_failed": true,
+      "blocking_issues": [
+        "Atmosphere logic: O₂-sensitive reaction without confirmed inert atmosphere",
+        "Mixing failure: Da_mass > 1.0 and r_mix > 0.20 indicates severe mass transfer limitation",
+        "Insufficient conversion: X=0.32 is below the minimum threshold of 0.50"
+      ],
+      "concerns": [
+        "Residence time (4.6 min) is significantly less than kinetic time constant (12.12 min)."
+      ]
+    }
+  ],
+  "kinetics_overall": "The kinetics landscape is dominated by a severe mismatch between the proposed residence times and the reaction kinetics. The batch time is 300 min, and the kinetic time constant (τ_kinetics) is 12.12 min. Both candidates propose residence times (10.3 min and 3.1 min) that are significantly shorter than τ_kinetics, leading to low conversions. Candidate 1 achieves X=0.57, which clears the X_floor=0.30 but is below the ideal 0.85. Candidate 2 achieves X=0.23, which fails the X_floor=0.30 hard gate. The Intensification Factor (IF) of 29x is unjustified for a thermal oxidation class (typical 8-15x) without specific heat/mass transfer analogies, triggering a WARNING. Mixing is a critical failure mode for both: Da_mass > 1.0 and r_mix > 0.20 indicate that the reaction is mixing-limited, not kinetics-limited, meaning the predicted conversions are optimistic. The short-τ policy favors Candidate 1 as it is the only one clearing the conversion floor, but it requires significant τ increase to ensure robustness and meet mixing requirements. The kinetics landscape is dominated by a severe mismatch between the proposed residence times and the mixing requirements for this catalytic oxidation. Both candidates exhibit Intensification Factors (IF) of ~29x, which far exceeds the typical thermal oxidation range (8–15x) and triggers a WARNING without specific analogy justification. More critically, both designs fail the mixing-kinetics coupling check: the required mixing time (τ_mixing_required ≈ 1.5 min) is not the bottleneck, but the Damköhler numbers (Da > 1) and high r_mix values indicate that mass transfer limitations are significant, making the predicted conversions optimistic. Candidate 3 achieves X=0.58, clearing the X_floor=0.30, while Candidate 4 barely clears it at X=0.32. However, both are flagged for 'dual-criterion mixing fail', suggesting the kinetic model assumes perfect mixing which is not met. The short-τ policy favors Candidate 4 for productivity, but its conversion is dangerously close to the floor. Candidate 3 is safer kinetically but still suffers from mixing limitations. The IF of 29x is unjustified for a standard thermal oxidation unless specific heat/mass transfer enhancements are cited.",
+  "kinetics_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Candidate 1 proposes τ=10.3 min. τ_kinetics=12.12 min. The calculated conversion X = 1 - exp(-10.3/12.12) = 0.57, which clears the X_floor=0.30 but is below 0.85. The IF=29x is >15x (thermal class upper bound), requiring justification; here it is driven by selectivity, but the magnitude is high. τ_mixing_required = t_mix/0.15. Given r_mix=0.228, the mixing time is significant. The Da_mass=1.78 > 1.0 indicates mixing limitations. The τ_proposed (10.3 min) is likely less than τ_mixing_required, making the kinetics prediction optimistic. The final τ decision rule: τ_final = max(τ_mixing_required, τ_lit/4). τ_lit=300 min, so τ_lit/4=75 min. τ_mixing_required is estimated to be >10 min due to high Da. Thus, τ_final should be increased. However, per short-τ policy, we prefer the shortest τ that clears X_floor. Candidate 1 clears it. Candidate 2 does not. Therefore, Candidate 1 is the better design, but needs τ increase to ensure mixing adequacy and robust conversion. The current X=0.57 is acceptable per policy (X>=0.30), but the mixing failure is a concern. We will score it based on clearing the floor, but flag the mixing issue.",
+      "kinetics_score": 0.65,
+      "tau_reduction_flow_value": 1.0,
+      "achieved_reduction_factor": 29.126,
+      "target_reduction_factor": 3.0,
+      "reduction_achievement": 9.709,
+      "IF_used": 29.0,
+      "IF_valid": false,
+      "tau_vs_literature": "τ=10.3 min is < 0.5×τ_lit (150 min). Justification: Short-τ policy with X_floor=0.30. X=0.57 clears floor.",
+      "X_estimated": 0.57,
+      "X_adequate": true,
+      "tau_mixing_required_min": 15.0,
+      "tau_proposed_final_min": 10.3,
+      "STY": 0.084,
+      "productivity_mg_h": 884.0,
+      "t_steady_min": 30.9,
+      "verdict": "WARNING",
+      "proposed_changes": {
+        "tau_min": 15.0
+      },
+      "concerns": [
+        "IF=29x exceeds thermal class range (8-15x). Needs analogy.",
+        "Da_mass=1.78 > 1.0: Mixing-limited. Kinetics prediction optimistic.",
+        "X=0.57 < 0.85: Below ideal, but clears X_floor=0.30.",
+        "τ_proposed (10.3 min) < τ_mixing_required (15.0 min). Increase τ to 15.0 min."
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Candidate 2 proposes τ=3.1 min. τ_kinetics=12.12 min. The calculated conversion X = 1 - exp(-3.1/12.12) = 0.23, which is below the X_floor=0.30. This is a hard gate failure. The IF=29x is unjustified. τ_mixing_required is even more critical here due to higher flow rate and Da_mass=3.17. The τ_proposed (3.1 min) is far below τ_mixing_required. The final τ decision rule: τ_final = max(τ_mixing_required, τ_lit/4). τ_lit/4=75 min. τ_mixing_required is likely >20 min. Thus, τ_final should be significantly increased. Candidate 2 fails the X_floor and is blocked.",
+      "kinetics_score": 0.1,
+      "tau_reduction_flow_value": 1.0,
+      "achieved_reduction_factor": 96.774,
+      "target_reduction_factor": 3.0,
+      "reduction_achievement": 32.258,
+      "IF_used": 29.0,
+      "IF_valid": false,
+      "tau_vs_literature": "τ=3.1 min is < 0.5×τ_lit (150 min). No justification: X=0.23 < X_floor=0.30.",
+      "X_estimated": 0.23,
+      "X_adequate": false,
+      "tau_mixing_required_min": 20.0,
+      "tau_proposed_final_min": 3.1,
+      "STY": 0.109,
+      "productivity_mg_h": 2058.4,
+      "t_steady_min": 9.3,
+      "verdict": "BLOCK",
+      "proposed_changes": {
+        "tau_min": 75.0
+      },
+      "concerns": [
+        "X=0.23 < X_floor=0.30: Hard gate failure.",
+        "IF=29x exceeds thermal class range (8-15x). Needs analogy.",
+        "Da_mass=3.17 > 1.0: Severe mixing limitation.",
+        "τ_proposed (3.1 min) << τ_mixing_required (20.0 min). Increase τ to 75.0 min (τ_lit/4)."
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Candidate 3 proposes τ=10.4 min. The literature anchor τ_lit is not explicitly given but τ_kinetics=12.12 min implies a batch time likely >30 min. The IF=29x is >15x (thermal class upper bound), requiring justification. X=0.58 clears the X_floor=0.30. However, Da_mass=1.78 and r_mix=0.225 indicate mixing limitations. τ_mixing_required = t_mix/0.15. Assuming t_mix is related to r_mix and geometry, the high Da suggests kinetics are not purely reaction-limited. The τ/τ_k ratio is 10.4/12.12 = 0.86. For laminar flow, the centerline sees τ/2 = 5.2 min, which is < τ_kinetics, leading to a broad RTD and lower effective conversion than predicted. The final τ decision rule: τ_final = max(τ_mixing_required, τ_lit/4). If τ_lit ~ 300 min (batch), τ_lit/4 = 75 min. This suggests τ=10.4 min is too short for the mixing regime. The design is optimistic.",
+      "kinetics_score": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "achieved_reduction_factor": 28.846,
+      "target_reduction_factor": 3.0,
+      "reduction_achievement": 9.615,
+      "IF_used": 29.0,
+      "IF_valid": false,
+      "tau_vs_literature": "τ=10.4 min vs τ_kinetics=12.12 min. IF=29x exceeds thermal class (8-15x). WARNING.",
+      "X_estimated": 0.58,
+      "X_adequate": true,
+      "tau_mixing_required_min": 1.5,
+      "tau_proposed_final_min": 10.4,
+      "STY": 0.083,
+      "productivity_mg_h": 880.9,
+      "t_steady_min": 31.2,
+      "verdict": "WARNING",
+      "proposed_changes": {
+        "tau_min": 15.0
+      },
+      "concerns": [
+        "IF=29x exceeds thermal oxidation class limit (15x) without analogy.",
+        "Da_mass=1.78 > 1.0 indicates mixing limitations; X prediction is optimistic.",
+        "Laminar RTD: Centerline τ=5.2 min < τ_kinetics=12.12 min. Significant tailing expected."
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Candidate 4 proposes τ=4.6 min. X=0.32 barely clears the X_floor=0.30. The IF=29x is again unjustified for thermal oxidation. Da_mass=3.17 and r_mix=0.91 indicate severe mixing limitations. The τ/τ_k ratio is 4.6/12.12 = 0.38. For laminar flow, the centerline sees τ/2 = 2.3 min, which is much less than τ_kinetics. The RTD effect will significantly reduce the effective conversion below the predicted 0.32. The final τ decision rule: τ_final = max(τ_mixing_required, τ_lit/4). With τ_lit ~ 300 min, τ_lit/4 = 75 min. The proposed τ is far too short. The design is highly optimistic and risky.",
+      "kinetics_score": 0.3,
+      "tau_reduction_flow_value": 1.0,
+      "achieved_reduction_factor": 65.217,
+      "target_reduction_factor": 3.0,
+      "reduction_achievement": 21.739,
+      "IF_used": 29.0,
+      "IF_valid": false,
+      "tau_vs_literature": "τ=4.6 min vs τ_kinetics=12.12 min. IF=29x exceeds thermal class (8-15x). WARNING.",
+      "X_estimated": 0.32,
+      "X_adequate": true,
+      "tau_mixing_required_min": 1.5,
+      "tau_proposed_final_min": 4.6,
+      "STY": 0.151,
+      "productivity_mg_h": 1941.2,
+      "t_steady_min": 13.8,
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "tau_min": 20.0
+      },
+      "concerns": [
+        "IF=29x exceeds thermal oxidation class limit (15x) without analogy.",
+        "Da_mass=3.17 > 1.0 indicates severe mixing limitations; X prediction is highly optimistic.",
+        "Laminar RTD: Centerline τ=2.3 min << τ_kinetics=12.12 min. Conversion likely < 0.30 in practice.",
+        "X=0.32 is dangerously close to X_floor=0.30. Any RTD broadening will cause failure."
+      ]
+    }
+  ],
+  "fluidics_overall": "Both candidates suffer from severe mixing limitations (dual-criterion fail) and impractical geometry (L=24 m). Candidate 1 has acceptable Re and ΔP but fails mixing due to high Da_mass and r_mix > 0.20. Candidate 2 has worse mixing (r_mix=1.34) and lower conversion. Both require d_mm reduction to fix mixing, but this will increase ΔP and potentially Re. The 24 m length is a hard geometry penalty. Pump headroom is excellent for both. Primary risk is mixing-limited selectivity loss. Both candidates suffer from severe mixing limitations (dual-criterion fail) and impractical geometry (L=24 m). Candidate 3 has better flow regime (Re=30) and lower pressure drop, but still fails mixing due to high Da_mass. Candidate 4 is worse with higher Re, higher r_mix, and lower conversion. Both require diameter reduction to fix mixing, but this will increase pressure drop and length, exacerbating geometry issues. The 24 m coil length is in the warning zone (15-30 m), requiring multi-coil builds. Pump headroom is excellent for both, but the mixing failure is the critical blocker.",
+  "fluidics_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Re=29.89 (laminar, safe). ΔP=0.488 bar (well below 2 bar soft cap). Pump headroom: (1 - 0.488/400)*100 = 99.88% — excellent. r_mix=0.228 > 0.20 AND Da_mass=1.78 > 1.0 → dual-criterion mixing fail. Mixing is reaction-limiting. To fix: d_fix = 0.75 * sqrt(0.15/0.228) = 0.75 * 0.811 = 0.608 mm → round to 0.6 mm. L=24 m exceeds 15 m soft cap → geometry penalty. Tubing: PFA (photochem-compatible). Pump: syringe pump (Q=1.03 mL/min < 2 mL/min). Dead volume impact negligible. Blockage risk: d=0.75 mm > 0.5 mm, Q > 0.08 mL/min → low risk.",
+      "fluidics_score": 0.45,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 29.89,
+      "flow_regime": "laminar",
+      "De": 4.2,
+      "dP_bar": 0.488,
+      "pump_headroom_pct": 99.88,
+      "t_mix_s": 14.06,
+      "r_mix": 0.228,
+      "dual_criterion_mixing_fail": true,
+      "d_change_direction": "decrease",
+      "d_fix_mm": 0.6,
+      "tau_mixing_required_min": null,
+      "L_m": 24.0,
+      "geometry_feasible": false,
+      "pump_type": "syringe pump (Q=1.03 mL/min < 2 mL/min)",
+      "tubing_material": "PFA",
+      "dead_volume_mL": 0.1,
+      "dead_volume_impact": "V_dead/Q = 0.1/1.03 = 0.097 min = 0.94% of τ=10.3 min — negligible",
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "d_mm": 0.6
+      },
+      "concerns": [
+        "Dual-criterion mixing fail: r_mix=0.228 > 0.20 AND Da_mass=1.78 > 1.0",
+        "L=24 m exceeds 15 m soft cap — geometry penalty",
+        "X=0.57 < 0.85 — undersized τ for kinetics"
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Re=132.4 (laminar, safe). ΔP=0.912 bar (below 2 bar soft cap). Pump headroom: (1 - 0.912/400)*100 = 99.77% — excellent. r_mix=1.344 >> 0.20 AND Da_mass=3.17 > 1.0 → severe dual-criterion mixing fail. Mixing is strongly reaction-limiting. To fix: d_fix = 1.0 * sqrt(0.15/1.344) = 1.0 * 0.334 = 0.334 mm → round to 0.35 mm (commercial). L=24 m exceeds 15 m soft cap → geometry penalty. Tubing: PFA. Pump: HPLC piston (Q=6.08 mL/min, 2–10 range). Dead volume impact negligible. Blockage risk: d=1.0 mm > 0.5 mm, Q > 0.08 mL/min → low risk. Note: reducing d to 0.35 mm will increase ΔP significantly (ΔP ∝ 1/d⁴) and may push Re higher.",
+      "fluidics_score": 0.3,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 132.4,
+      "flow_regime": "laminar",
+      "De": 5.8,
+      "dP_bar": 0.912,
+      "pump_headroom_pct": 99.77,
+      "t_mix_s": 25.0,
+      "r_mix": 1.344,
+      "dual_criterion_mixing_fail": true,
+      "d_change_direction": "decrease",
+      "d_fix_mm": 0.35,
+      "tau_mixing_required_min": null,
+      "L_m": 24.0,
+      "geometry_feasible": false,
+      "pump_type": "HPLC piston (Q=6.08 mL/min, 2–10 range)",
+      "tubing_material": "PFA",
+      "dead_volume_mL": 0.1,
+      "dead_volume_impact": "V_dead/Q = 0.1/6.08 = 0.016 min = 0.52% of τ=3.1 min — negligible",
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "d_mm": 0.35
+      },
+      "concerns": [
+        "Severe dual-criterion mixing fail: r_mix=1.344 >> 0.20 AND Da_mass=3.17 > 1.0",
+        "L=24 m exceeds 15 m soft cap — geometry penalty",
+        "X=0.23 < 0.50 — insufficient conversion",
+        "Reducing d to 0.35 mm will increase ΔP significantly (ΔP ∝ 1/d⁴)"
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Re=29.6 (laminar, safe). ΔP=0.483 bar (well below 2 bar soft cap). Pump headroom: (1 - 0.483/400)*100 = 99.88% — excellent. r_mix=0.225 > 0.20 AND Da_mass=1.78 > 1.0 → dual-criterion mixing fail. Mixing is reaction-limiting. To fix: d_fix = 0.75 * sqrt(0.15/0.225) = 0.75 * sqrt(0.667) = 0.75 * 0.816 = 0.612 mm → round to 0.6 mm. L=24 m is in warning zone (15-30 m), requires multi-coil build. Pump type: syringe pump (Q=1.02 mL/min < 2 mL/min). Tubing: PFA (photochem-compatible, though photochem=False, PFA is acceptable). Dead volume impact: V_dead/Q ≈ 0.1 mL / 1.02 mL/min = 0.098 min = 0.94% of τ=10.4 min — negligible. Blockage risk: d=0.75 mm > 0.5 mm, Q > 0.08 mL/min — low risk.",
+      "fluidics_score": 0.45,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 29.6,
+      "flow_regime": "laminar",
+      "De": null,
+      "dP_bar": 0.483,
+      "pump_headroom_pct": 99.88,
+      "t_mix_s": 14.06,
+      "r_mix": 0.225,
+      "dual_criterion_mixing_fail": true,
+      "d_change_direction": "decrease",
+      "d_fix_mm": 0.6,
+      "tau_mixing_required_min": null,
+      "L_m": 24.0,
+      "geometry_feasible": false,
+      "pump_type": "syringe pump (Q=1.02 mL/min < 2 mL/min)",
+      "tubing_material": "PFA",
+      "dead_volume_mL": 0.1,
+      "dead_volume_impact": "V_dead/Q = 0.098 min = 0.94% of τ=10.4 min — negligible",
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "d_mm": 0.6
+      },
+      "concerns": [
+        "Dual-criterion mixing fail: r_mix=0.225 > 0.20 AND Da_mass=1.78 > 1.0",
+        "L=24 m exceeds 15 m soft cap — multi-coil build required",
+        "d reduction to 0.6 mm will increase ΔP and L, need re-evaluation"
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Re=89.2 (laminar, safe). ΔP=0.614 bar (well below 2 bar soft cap). Pump headroom: (1 - 0.614/400)*100 = 99.85% — excellent. r_mix=0.906 > 0.20 AND Da_mass=3.17 > 1.0 → severe dual-criterion mixing fail. Mixing is strongly reaction-limiting. To fix: d_fix = 1.0 * sqrt(0.15/0.906) = 1.0 * sqrt(0.1656) = 1.0 * 0.407 = 0.407 mm → round to 0.4 mm. L=24 m is in warning zone (15-30 m), requires multi-coil build. Pump type: HPLC piston (Q=4.10 mL/min, 2-10 mL/min range). Tubing: PFA. Dead volume impact: V_dead/Q ≈ 0.1 mL / 4.10 mL/min = 0.024 min = 0.52% of τ=4.6 min — negligible. Blockage risk: d=1.0 mm > 0.5 mm, Q > 0.08 mL/min — low risk. However, d_fix=0.4 mm is ≤ 0.5 mm, which raises particulate/crystal blockage risk at low Q.",
+      "fluidics_score": 0.3,
+      "heat_transfer_flow_value": 1.0,
+      "Re": 89.2,
+      "flow_regime": "laminar",
+      "De": null,
+      "dP_bar": 0.614,
+      "pump_headroom_pct": 99.85,
+      "t_mix_s": 25.0,
+      "r_mix": 0.906,
+      "dual_criterion_mixing_fail": true,
+      "d_change_direction": "decrease",
+      "d_fix_mm": 0.4,
+      "tau_mixing_required_min": null,
+      "L_m": 24.0,
+      "geometry_feasible": false,
+      "pump_type": "HPLC piston (Q=4.10 mL/min, 2-10 mL/min range)",
+      "tubing_material": "PFA",
+      "dead_volume_mL": 0.1,
+      "dead_volume_impact": "V_dead/Q = 0.024 min = 0.52% of τ=4.6 min — negligible",
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "d_mm": 0.4
+      },
+      "concerns": [
+        "Severe dual-criterion mixing fail: r_mix=0.906 > 0.20 AND Da_mass=3.17 > 1.0",
+        "L=24 m exceeds 15 m soft cap — multi-coil build required",
+        "d_fix=0.4 mm ≤ 0.5 mm raises blockage risk at low Q",
+        "X=0.32 < 0.50 — insufficient conversion, undersized τ"
+      ]
+    }
+  ],
+  "safety_overall": "The safety landscape is dominated by chemical hazards (DMF, AcOH) and process control risks (O₂ sensitivity) rather than thermal runaway, as the reaction is isothermal and non-photochemical. Both candidates currently have a BPR setting of 0.0 bar, which is a critical safety failure for a pressurized flow system handling volatile solvents (AcOH) and requiring inert atmosphere integrity; this must be corrected to at least 1.5–2.0 bar to ensure system pressurization and prevent air ingress. Material compatibility is acceptable with PFA tubing, which is robust against the acidic DMF/AcOH mixture at 20°C. The primary safety mandate is to enforce a positive back-pressure to maintain liquid phase stability and exclude oxygen, alongside standard PPE for DMF handling. The safety landscape is dominated by chemical hazards (DMF, AcOH) and a critical pressure safety gap rather than thermal risks. Both candidates operate at 20°C with low exothermicity, resulting in negligible thermal runaway risk (Da_thermal << 0.1). However, both candidates currently have a Back Pressure Regulator (BPR) setting of 0.0 bar, which is a BLOCK condition for any pressurized flow process involving volatile solvents like AcOH and DMF. The system requires a minimum BPR of ~1.8 bar to prevent solvent vaporization and ensure stable flow, with a recommended setting of 3.0 bar for robustness. Material compatibility is acceptable with PFA tubing, provided the system is fully inert to prevent oxidation of the solvent or catalyst. The primary safety mandate is to install and set a BPR to at least 1.8 bar (recommended 3.0 bar) and ensure strict inert atmosphere handling due to O₂ sensitivity.",
+  "safety_scores": [
+    {
+      "candidate_id": 1,
+      "reasoning": "Thermal risk is negligible (Da_thermal << 0.1) due to low exotherm and isothermal operation. However, the current BPR of 0.0 bar is inadequate; for a liquid system with AcOH (volatile), a minimum BPR of 1.5 bar is required to maintain positive pressure, prevent vapor lock, and ensure O₂ exclusion. PFA is fully compatible with DMF/AcOH at 20°C. The system is single-stage, so atmosphere isolation is managed by maintaining inert gas blanket on feeds and positive system pressure. Hazards include DMF (reproductive toxin) and AcOH (corrosive/irritant).",
+      "safety_score": 0.65,
+      "safety_delta_flow_value": 0.4,
+      "Da_thermal": 0.01,
+      "thermal_safe": true,
+      "BPR_required_bar": 1.5,
+      "BPR_current_bar": 0.0,
+      "BPR_adequate": false,
+      "system_type": "liquid",
+      "material_compatible": true,
+      "material_recommendation": "PFA",
+      "material_rationale": "DMF/AcOH (1:2) at 20°C, pH < 2. PFA is chemically resistant to both solvents and acids at this temperature. No halides present to attack PFA. Pressure is low (< 2 bar), so PFA is sufficient.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A — single stage, inert N₂ atmosphere throughout",
+      "hazard_flags": [
+        "DMF — SVHC reproductive toxin (REACH); use fume hood, closed system, PPE (nitrile gloves + goggles)",
+        "AcOH — Corrosive/Irritant; handle with care, ensure no leaks",
+        "O₂-sensitive — Risk of peroxide formation or catalyst deactivation if air ingress occurs; positive pressure mandatory"
+      ],
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "BPR_bar": 1.5
+      },
+      "blocking_issues": [
+        "BPR set to 0.0 bar: Risk of air ingress (O₂ sensitivity) and vapor formation. Must increase to ≥ 1.5 bar."
+      ],
+      "conditions": [
+        "Set BPR to 1.5 bar minimum to ensure positive pressure and O₂ exclusion.",
+        "Verify all fittings are leak-tight before pressurizing.",
+        "Use N₂ blanket on all solvent reservoirs."
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "reasoning": "Thermal risk is negligible (Da_thermal << 0.1). Similar to Candidate 1, the BPR of 0.0 bar is a critical safety deficiency. A BPR of 1.5 bar is required to maintain system integrity, prevent air ingress (critical for O₂-sensitive reaction), and handle the volatility of AcOH. PFA is compatible with the solvent system. The higher flow rate (6.08 mL/min) increases the potential leak volume, making pressure control even more critical. Hazards remain DMF and AcOH.",
+      "safety_score": 0.65,
+      "safety_delta_flow_value": 0.4,
+      "Da_thermal": 0.01,
+      "thermal_safe": true,
+      "BPR_required_bar": 1.5,
+      "BPR_current_bar": 0.0,
+      "BPR_adequate": false,
+      "system_type": "liquid",
+      "material_compatible": true,
+      "material_recommendation": "PFA",
+      "material_rationale": "DMF/AcOH (1:2) at 20°C, pH < 2. PFA is chemically resistant to both solvents and acids at this temperature. No halides present to attack PFA. Pressure is low (< 2 bar), so PFA is sufficient.",
+      "atmosphere_isolation_required": false,
+      "isolation_method": "N/A — single stage, inert N₂ atmosphere throughout",
+      "hazard_flags": [
+        "DMF — SVHC reproductive toxin (REACH); use fume hood, closed system, PPE (nitrile gloves + goggles)",
+        "AcOH — Corrosive/Irritant; handle with care, ensure no leaks",
+        "O₂-sensitive — Risk of peroxide formation or catalyst deactivation if air ingress occurs; positive pressure mandatory"
+      ],
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "BPR_bar": 1.5
+      },
+      "blocking_issues": [
+        "BPR set to 0.0 bar: Risk of air ingress (O₂ sensitivity) and vapor formation. Must increase to ≥ 1.5 bar."
+      ],
+      "conditions": [
+        "Set BPR to 1.5 bar minimum to ensure positive pressure and O₂ exclusion.",
+        "Verify all fittings are leak-tight before pressurizing.",
+        "Use N₂ blanket on all solvent reservoirs."
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "reasoning": "Candidate 3 operates at 20°C with a low Da_thermal (0.02), indicating isothermal conditions and no thermal runaway risk. The solvent mixture (DMF/AcOH) has a significant vapor pressure component; at 20°C, P_vap is approx 0.15 bar. The calculated minimum BPR (P_min) is 1.8 bar to maintain liquid phase and provide safety margin. The current BPR setting of 0.0 bar is inadequate and poses a cavitation/vaporization risk. PFA tubing is compatible with DMF/AcOH at 20°C. The system is O₂-sensitive, requiring strict inert atmosphere isolation. Hazard flags include DMF (reproductive toxin) and AcOH (corrosive/irritant).",
+      "safety_score": 0.65,
+      "safety_delta_flow_value": 0.4,
+      "Da_thermal": 0.02,
+      "thermal_safe": true,
+      "BPR_required_bar": 1.8,
+      "BPR_current_bar": 0.0,
+      "BPR_adequate": false,
+      "system_type": "liquid",
+      "material_compatible": true,
+      "material_recommendation": "PFA",
+      "material_rationale": "DMF/AcOH (1:2) at 20°C, pH ~2-3 (acidic), ambient pressure. PFA is fully compatible with organic acids and polar aprotic solvents at this temperature. No halides present to attack PFA.",
+      "atmosphere_isolation_required": true,
+      "isolation_method": "Inert N₂ blanket on all feed reservoirs and reactor coil; degasser recommended if O₂ ingress is suspected",
+      "hazard_flags": [
+        "DMF — SVHC reproductive toxin (REACH); use fume hood, closed system, PPE (nitrile gloves + goggles)",
+        "AcOH — Corrosive/Irritant; handle with care, avoid skin contact",
+        "O₂-sensitive reaction — Risk of peroxide formation or catalyst deactivation if air enters; maintain positive N₂ pressure"
+      ],
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "BPR_bar": 3.0
+      },
+      "blocking_issues": [
+        "BPR_current (0.0 bar) < BPR_required (1.8 bar). Risk of solvent vaporization and flow instability."
+      ],
+      "conditions": [
+        "Install BPR set to 3.0 bar to ensure liquid phase stability and safety margin.",
+        "Ensure all connections are leak-tight to prevent DMF exposure.",
+        "Maintain inert N₂ atmosphere throughout the system."
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "reasoning": "Candidate 4 operates at 20°C with a low Da_thermal (0.02), indicating isothermal conditions and no thermal runaway risk. The solvent mixture (DMF/AcOH) has a significant vapor pressure component; at 20°C, P_vap is approx 0.15 bar. The calculated minimum BPR (P_min) is 1.8 bar to maintain liquid phase and provide safety margin. The current BPR setting of 0.0 bar is inadequate and poses a cavitation/vaporization risk. PFA tubing is compatible with DMF/AcOH at 20°C. The system is O₂-sensitive, requiring strict inert atmosphere isolation. Hazard flags include DMF (reproductive toxin) and AcOH (corrosive/irritant).",
+      "safety_score": 0.65,
+      "safety_delta_flow_value": 0.4,
+      "Da_thermal": 0.02,
+      "thermal_safe": true,
+      "BPR_required_bar": 1.8,
+      "BPR_current_bar": 0.0,
+      "BPR_adequate": false,
+      "system_type": "liquid",
+      "material_compatible": true,
+      "material_recommendation": "PFA",
+      "material_rationale": "DMF/AcOH (1:2) at 20°C, pH ~2-3 (acidic), ambient pressure. PFA is fully compatible with organic acids and polar aprotic solvents at this temperature. No halides present to attack PFA.",
+      "atmosphere_isolation_required": true,
+      "isolation_method": "Inert N₂ blanket on all feed reservoirs and reactor coil; degasser recommended if O₂ ingress is suspected",
+      "hazard_flags": [
+        "DMF — SVHC reproductive toxin (REACH); use fume hood, closed system, PPE (nitrile gloves + goggles)",
+        "AcOH — Corrosive/Irritant; handle with care, avoid skin contact",
+        "O₂-sensitive reaction — Risk of peroxide formation or catalyst deactivation if air enters; maintain positive N₂ pressure"
+      ],
+      "verdict": "REVISE",
+      "proposed_changes": {
+        "BPR_bar": 3.0
+      },
+      "blocking_issues": [
+        "BPR_current (0.0 bar) < BPR_required (1.8 bar). Risk of solvent vaporization and flow instability."
+      ],
+      "conditions": [
+        "Install BPR set to 3.0 bar to ensure liquid phase stability and safety margin.",
+        "Ensure all connections are leak-tight to prevent DMF exposure.",
+        "Maintain inert N₂ atmosphere throughout the system."
+      ]
+    }
+  ],
+  "tool_calls": {
+    "chemistry": [],
+    "kinetics": [],
+    "fluidics": [],
+    "safety": []
+  },
+  "blocked_by_scoring": [
+    2,
+    3,
+    4
+  ],
+  "process_value_scores": [
+    {
+      "candidate_id": 1,
+      "PVS": 0.77,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.4
+    },
+    {
+      "candidate_id": 2,
+      "PVS": 0.77,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.4
+    },
+    {
+      "candidate_id": 3,
+      "PVS": 0.77,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.4
+    },
+    {
+      "candidate_id": 4,
+      "PVS": 0.77,
+      "selectivity_flow_value": 0.6,
+      "tau_reduction_flow_value": 1.0,
+      "heat_transfer_flow_value": 1.0,
+      "safety_delta_flow_value": 0.4
+    }
+  ]
+}

@@ -12,6 +12,16 @@ def test_autosave_gui_result_writes_jsons_and_diagrams(tmp_path):
 
     result = {
         "confidence": "MEDIUM",
+        "recommended_disposition": "BLOCK",
+        "disposition_rationale": "Inventory conflict.",
+        "design_disposition": {
+            "hard_failures": [
+                {
+                    "finding_id": "INVENTORY-TEST",
+                    "message": "No compatible reactor.",
+                }
+            ]
+        },
         "svg_path": str(svg),
         "png_path": str(png),
         "chemistry_plan": {"reaction_name": "test reaction"},
@@ -47,6 +57,8 @@ def test_autosave_gui_result_writes_jsons_and_diagrams(tmp_path):
     assert summary["source"] == "test_gui"
     assert summary["residence_time_min"] == 12.5
     assert summary["gas_flow_sccm"] == 1.2
+    assert summary["recommended_disposition"] == "BLOCK"
+    assert summary["hard_failures"][0]["finding_id"] == "INVENTORY-TEST"
 
 
 def test_autosave_gui_result_creates_unique_run_dirs(tmp_path):

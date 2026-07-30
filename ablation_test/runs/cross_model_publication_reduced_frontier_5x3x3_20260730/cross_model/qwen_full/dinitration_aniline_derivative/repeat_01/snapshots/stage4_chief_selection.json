@@ -1,0 +1,153 @@
+{
+  "weighted_scores": [
+    {
+      "candidate_id": 1,
+      "combined": 0.7295,
+      "legacy_domain_combined": 0.7614,
+      "domain_mean": 0.8,
+      "PVS": 0.77,
+      "chemistry": 0.85,
+      "kinetics": 0.85,
+      "fluidics": 0.65,
+      "safety": 0.85,
+      "geometry": 0.5258,
+      "objective_boosted": "chemistry",
+      "disqualified": false,
+      "intensification_penalty_applied": false
+    },
+    {
+      "candidate_id": 4,
+      "combined": 0.7182,
+      "legacy_domain_combined": 0.7364,
+      "domain_mean": 0.7775,
+      "PVS": 0.77,
+      "chemistry": 0.71,
+      "kinetics": 0.95,
+      "fluidics": 0.6,
+      "safety": 0.85,
+      "geometry": 0.5258,
+      "objective_boosted": "chemistry",
+      "disqualified": false,
+      "intensification_penalty_applied": false
+    },
+    {
+      "candidate_id": 2,
+      "combined": 0.4886,
+      "legacy_domain_combined": 0.2797,
+      "domain_mean": 0.2625,
+      "PVS": 0.77,
+      "chemistry": 0.3,
+      "kinetics": 0.55,
+      "fluidics": 0.0,
+      "safety": 0.2,
+      "geometry": 0.3649,
+      "objective_boosted": "chemistry",
+      "disqualified": true,
+      "intensification_penalty_applied": false
+    },
+    {
+      "candidate_id": 3,
+      "combined": 0.4098,
+      "legacy_domain_combined": 0.1185,
+      "domain_mean": 0.075,
+      "PVS": 0.77,
+      "chemistry": 0.2,
+      "kinetics": 0.1,
+      "fluidics": 0.0,
+      "safety": 0.0,
+      "geometry": 0.3234,
+      "objective_boosted": "chemistry",
+      "disqualified": true,
+      "intensification_penalty_applied": false
+    }
+  ],
+  "chief_data": {
+    "selected_candidate_id": 1,
+    "runner_up_ids": [
+      4
+    ],
+    "selection_justification": "Selected Candidate 1 as the only viable flow design that meets the intensification mandate (3.0x tau reduction) while maintaining sufficient conversion (X=0.70) and acceptable safety margins. Candidates 2 and 3 were disqualified due to critical BPR violations and insufficient conversion. Candidate 4, while safe, fails the intensification mandate by increasing residence time compared to batch. Warning: no concrete flow advantage identified. This design may not justify flow over batch.",
+    "selection_flag": "REQUIRES_HUMAN_REVIEW",
+    "selection_rationale": "Candidate 1 is selected as the winner with a combined score of 0.730, narrowly beating Candidate 4 (0.718). Candidates 2 and 3 were disqualified due to critical safety violations (BPR < ΔP) and insufficient conversion (X < 0.50). Candidate 1 achieves the required 3.0x residence-time reduction (23.4 min vs ~70 min batch estimate) with acceptable selectivity and safety. Candidate 4 was rejected because it increases residence time (37.6 min), violating the intensification mandate despite higher conversion. The primary uncertainty is the exact selectivity gain at reduced tau, which must be verified experimentally. The first bench experiment should verify conversion and selectivity at τ=23.4 min to confirm the kinetic model.",
+    "weighted_scores": {
+      "1": 0.73,
+      "4": 0.718
+    },
+    "resolved_tradeoffs": [
+      "id=1 vs id=4: id=1 has higher combined score (0.730 vs 0.718) primarily due to better kinetics score (0.850 vs 0.950 is false, wait. Kinetics: 1=0.85, 4=0.95. Chemistry: 1=0.85, 4=0.71. Fluidics: 1=0.65, 4=0.60. Safety: 1=0.85, 4=0.85. Geometry: 1=0.526, 4=0.526. PVS: 1=0.77, 4=0.77. The difference is driven by Chemistry (selectivity) and Fluidics. Candidate 1 offers better selectivity control (Chemistry 0.85 vs 0.71) which is the primary flow advantage for EAS. Candidate 4 has better kinetics score but fails the intensification mandate.",
+      "id=1 vs id=2/3: id=2 and id=3 are disqualified due to critical BPR violations (BPR < ΔP) and insufficient conversion (X < 0.50). They pose boiling/phase-separation risks and fail the minimum conversion gate."
+    ],
+    "overridden_concerns": [
+      {
+        "agent": "DR. FLUIDICS",
+        "concern": "r_mix=0.100 for id=1 is slightly elevated but acceptable",
+        "override_reason": "Da_mass < 1.0 and mixing regime is enhanced laminar, sufficient for EAS selectivity control"
+      }
+    ],
+    "remaining_uncertainties": [
+      "Selectivity at τ=23.4 min needs experimental verification to confirm 3.0x intensification benefit",
+      "Pressure drop stability at Q=0.45 mL/min over long runs"
+    ],
+    "requires_new_experiment": true,
+    "experiment_recommendation": "Run reaction at τ=23.4 min (Q=0.45 mL/min) and analyze conversion and selectivity. Compare to batch results at equivalent conversion to validate selectivity improvement.",
+    "design_envelope": {
+      "tau_range_min": [
+        20,
+        26
+      ],
+      "Q_range_mL_min": [
+        0.4,
+        0.5
+      ],
+      "d_range_mm": [
+        0.7,
+        0.8
+      ],
+      "T_range_C": [
+        55,
+        65
+      ],
+      "BPR_range_bar": [
+        1.5,
+        2.5
+      ]
+    },
+    "final_consensus": {
+      "tau_min": 23.4,
+      "Q_mL_min": 0.453,
+      "d_mm": 0.75,
+      "V_R_mL": 10.6,
+      "L_m": 24.0,
+      "BPR_bar": 1.5,
+      "material": "PFA",
+      "X_estimated": 0.7,
+      "productivity_mg_h": 473.2
+    },
+    "pump_flowrates": [
+      {
+        "stream_label": "A",
+        "role": "substrate",
+        "Q_mL_min": 0.227,
+        "derivation": "Assuming 1:1 stoichiometry and equal concentrations. Q_total = 0.453 mL/min. Q_A = Q_total / 2 = 0.227 mL/min. C_feed = 0.1 M.",
+        "C_feed_M": 0.1,
+        "molar_equiv": 1.0
+      },
+      {
+        "stream_label": "B",
+        "role": "reagent",
+        "Q_mL_min": 0.227,
+        "derivation": "Assuming 1:1 stoichiometry and equal concentrations. Q_total = 0.453 mL/min. Q_B = Q_total / 2 = 0.227 mL/min. C_feed = 0.1 M.",
+        "C_feed_M": 0.1,
+        "molar_equiv": 1.0
+      }
+    ],
+    "n_limiting_mmol_min": 0.0227,
+    "Q_total_mL_min": 0.453,
+    "ask_expert": null,
+    "ask_expert_question": null
+  },
+  "disqualify_ids": [
+    2,
+    3
+  ]
+}

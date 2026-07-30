@@ -18,6 +18,7 @@ class PumpSpec(BaseModel):
     max_pressure_bar: float
     max_flow_rate_mL_min: float
     min_flow_rate_mL_min: float
+    compatible_systems: list[str] = Field(default_factory=list)
 
 
 class TubingSpec(BaseModel):
@@ -35,6 +36,19 @@ class LightSourceSpec(BaseModel):
     compatible_reactor: str  # "coil" / "chip" / "both"
     intensity_mW_cm2: Optional[float] = None
     distance_cm: Optional[float] = None
+
+
+class GasHardwareSpec(BaseModel):
+    """One gas-delivery or gas-liquid-contacting inventory item."""
+
+    name: str
+    type: str = ""
+    gas: str = ""
+    min_flow_sccm: Optional[float] = None
+    max_flow_sccm: Optional[float] = None
+    max_pressure_bar: Optional[float] = None
+    service_status: str = "available"
+    notes: str = ""
 
 
 class ReactorSpec(BaseModel):
@@ -56,14 +70,17 @@ class ReactorSpec(BaseModel):
     min_pressure_bar: Optional[float] = None
     max_pressure_bar: Optional[float] = None
     notes: str = ""
+    configuration: str = ""
+    component_volumes_mL: list[float] = Field(default_factory=list)
 
 
 class LabInventory(BaseModel):
-    pumps: list[PumpSpec] = []
-    tubing: list[TubingSpec] = []
-    BPR_available: list[float] = []
-    light_sources: list[LightSourceSpec] = []
-    reactors: list[ReactorSpec] = []
+    pumps: list[PumpSpec] = Field(default_factory=list)
+    tubing: list[TubingSpec] = Field(default_factory=list)
+    BPR_available: list[float] = Field(default_factory=list)
+    light_sources: list[LightSourceSpec] = Field(default_factory=list)
+    gas_hardware: list[GasHardwareSpec] = Field(default_factory=list)
+    reactors: list[ReactorSpec] = Field(default_factory=list)
 
     @classmethod
     def from_json(cls, path: str) -> LabInventory:

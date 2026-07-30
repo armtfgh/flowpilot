@@ -1,0 +1,67 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 2.0,
+  "temperature_C": 50.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 0.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Sparging with inert gas (Ar/N2) prior to reaction",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Main feed",
+      "contents": [
+        "Aromatic Bromide (1.0 equiv)",
+        "Phenylboronic Acid Derivative (1.0 equiv)",
+        "Base (1.0 equiv)",
+        "Palladium Catalyst (loading TBD)"
+      ],
+      "solvent": "DMF",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "Chemistry Plan specifies single stream logic. Calculation Step 1 sets C0 = 0.1 M. Calculation Step 2 sets Q_total = 0.5 mL/min."
+    }
+  ],
+  "mixer_type": "Static Micromixer",
+  "mixing_order_reasoning": "Chemistry Plan allows pre-mixing. Calculation Step 6 indicates severe mass-transfer limitation (Da = 60.2), necessitating a micromixer to ensure rapid homogenization before reaction onset.",
+  "pre_reactor_steps": [
+    "Degas DMF solution via sparging with Argon or Nitrogen for 15 minutes prior to pumping to remove dissolved oxygen, as Pd catalysts are oxygen-sensitive (Chemistry Plan)."
+  ],
+  "post_reactor_steps": [
+    "Collect effluent. No quench required per Chemistry Plan."
+  ],
+  "chemistry_notes": "Suzuki-Miyaura coupling in DMF. Batch used microwave heating; flow uses thermal heating. Calculation Step 6 highlights mixing as the bottleneck (Da >> 1), so a micromixer is critical. Calculation Step 3 warns of axial dispersion (Pe=8) with 1.0 mm ID; while 1.0 mm is used for inventory compliance, conversion may be lower than ideal PFR. Temperature 50 C is mild, allowing standard PFA/FEP tubing. No BPR needed as T << bp(DMF).",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 estimated tau = 0.7 min (range 0.4-1.0 min) based on 15x intensification factor. Selected 0.7 min as target.",
+    "residence_time_basis": "Single-phase liquid system. Basis is liquid volume / liquid flow.",
+    "temperature_C": "Same as batch (50 C) to maintain comparable kinetics and selectivity.",
+    "BPR_bar": "Calculation Step 8: BPR not required. DMF bp (153 C) is much higher than reaction temp (50 C).",
+    "tubing_material": "PFA selected for chemical compatibility with DMF and thermal stability at 50 C. FEP also acceptable but PFA is standard for thermal flow.",
+    "concentration_M": "Calculation Step 1: C0 = 0.1 M derived from batch scale (1.6 mmol in implied volume).",
+    "reactor_volume_mL": "Calculation Step 3: V_R = 0.33 mL. Rounded to 0.35 mL to match standard inventory coil sizes (e.g., 1.0 mm ID, ~44 cm length).",
+    "tubing_ID_mm": "Calculation Step 3: d = 1.00 mm. Note: Pe=8 indicates significant dispersion; smaller ID would improve Pe but 1.0 mm is standard for this flow rate to avoid clogging and high pressure drop.",
+    "flow_rate_mL_min": "Calculation Step 2: Q_total = 0.500 mL/min derived from tau and V_R."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

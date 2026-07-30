@@ -96,6 +96,10 @@ def render():
     if result.get("autosave_dir"):
         st.caption(f"Autosaved run folder: {result['autosave_dir']}")
 
+    from components.design_disposition import render_design_disposition
+
+    render_design_disposition(result)
+
     # Confidence badge
     conf = result.get("confidence", "LOW")
     conf_color = {"HIGH": "green", "MEDIUM": "orange", "LOW": "red"}.get(conf, "gray")

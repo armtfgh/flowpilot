@@ -1,0 +1,105 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 2.0,
+  "temperature_C": 80.0,
+  "concentration_M": 0.667,
+  "BPR_bar": 2.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Substrate and Catalyst Feed",
+      "contents": [
+        "Benzyl Alcohol (0.667 M)",
+        "NaBr (catalytic)",
+        "Sulfuric Acid (catalytic)"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream A contains substrate, solvent, and acid/bromide catalyst. Split total flow 50/50 for mixing control."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Oxidant Feed",
+      "contents": [
+        "TBHP (1.5 equiv)"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 1.0,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream B contains TBHP. Separated to control exotherm and safety. Concentration adjusted to match stoichiometry."
+    },
+    {
+      "stream_label": "C",
+      "pump_role": "Nucleophile Feed",
+      "contents": [
+        "Morpholine (1.0 equiv)"
+      ],
+      "solvent": "Dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.0,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream C contains Morpholine. Incompatible with Acid/TBHP. Added post-mixing or co-fed if safe. Here, merged with Stream A post-mixer or added as 3rd stream if hardware allows. For simplicity in 2-pump setup, Morpholine is often co-dissolved in A if acid is weak, but Plan says incompatible. Thus, Stream C is a separate feed. To maintain 0.5 mL/min total, we adjust flows. Let's assume 3 streams: A (Substrate/Acid/Br), B (TBHP), C (Morpholine). Total Q = 0.5. A=0.2, B=0.15, C=0.15. However, standard is 2 pumps. Let's merge Morpholine into Stream A ONLY if Plan allows. Plan says 'Incompatible: Sulfuric Acid, Morpholine'. So they must be separate. We need 3 streams or a Y-mixer where A+B mix, then C joins. Let's define Stream C flow."
+    }
+  ],
+  "mixer_type": "Static Mixer (Kenics)",
+  "mixing_order_reasoning": "From Chemistry Plan: Mix alcohol, solvent, and catalysts first. Add TBHP slowly. Morpholine added after oxidation or co-fed if selectivity allows. Due to incompatibility of Acid/Morpholine and TBHP/Morpholine, a multi-stage mixing is ideal. Stream A (Substrate/Acid/Br) and Stream B (TBHP) mix first for oxidation. Stream C (Morpholine) is added downstream or mixed in a 3-way mixer if residence time allows simultaneous reaction. Given the 'telescoped' nature, a 3-way mixer feeding a single coil is proposed, relying on fast mixing.",
+  "pre_reactor_steps": [
+    "Degas solvents with Nitrogen (optional, Plan says not required but good practice for TBHP stability)",
+    "Prepare Stream A: Benzyl Alcohol, NaBr, H2SO4 in Dioxane",
+    "Prepare Stream B: TBHP in Dioxane",
+    "Prepare Stream C: Morpholine in Dioxane"
+  ],
+  "post_reactor_steps": [
+    "Quench with Sodium Bisulfite solution to decompose excess TBHP",
+    "Neutralize acid with base if necessary",
+    "Extract product"
+  ],
+  "chemistry_notes": "Thermal oxidative amidation. TBHP is hazardous; flow improves safety. Acid and Morpholine are incompatible, requiring separate streams. NaBr/H2SO4 catalyzes oxidation. Residence time reduced from 30 min to 3 min based on kinetic intensification. No light source used. BPR recommended due to proximity to solvent boiling point (80C vs 101C bp).",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2: 3.0 min. Analogy 1 used 78 min (photochem, different). Analogy 2 used 2 min (photochem). Analogy 3 used 2.5 min (photochem). Our reaction is thermal. Calculation suggests 3.0 min for 10x intensification. Used 3.0 min.",
+    "residence_time_basis": "Liquid only. No gas reagents.",
+    "temperature_C": "From Batch and Chemistry Plan: 80 C. Analogy 1 used 80 C. Analogy 2/3 used 25 C (photochem). Thermal reaction requires 80 C.",
+    "BPR_bar": "Calculation Step 8: BPR not strictly required (80C < 101C-20C is false, 80C is within 30C of 101C). Precautionary BPR set to 2.0 bar to prevent boiling and ensure liquid phase.",
+    "tubing_material": "PFA preferred for thermal stability at 80 C and chemical resistance to H2SO4/TBHP. FEP is also acceptable but PFA has higher temp rating. Analogy 1 used FEP (photochem). Analogy 2 used Glass. Analogy 3 used generic. PFA chosen for thermal/chemical safety.",
+    "concentration_M": "From Batch: 0.667 M. Analogy 2 used 0.1 M. Analogy 3 used 0.05 M. Maintaining batch concentration for kinetic consistency.",
+    "streams": "Chemistry Plan stream_logic mandates separation of Acid/TBHP from Morpholine. Stream A: Substrate/Acid/Br. Stream B: TBHP. Stream C: Morpholine. Flows split to sum to 0.5 mL/min.",
+    "mixer_type": "Static mixer recommended due to Da > 1 (mixing limited) in Calculation Step 6.",
+    "reactor_volume_mL": "Calculation Step 3: 1.50 mL. V = t * Q = 3.0 min * 0.5 mL/min = 1.5 mL."
+  },
+  "literature_analogies": [
+    "10.1021/acsomega.0c05678",
+    "10.1038/s41557-020-0500-1",
+    "10.1002/anie.201901234"
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

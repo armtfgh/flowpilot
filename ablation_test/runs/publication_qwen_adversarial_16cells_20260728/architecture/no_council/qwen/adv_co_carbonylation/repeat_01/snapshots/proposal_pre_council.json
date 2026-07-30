@@ -1,0 +1,84 @@
+{
+  "residence_time_min": 9.0,
+  "flow_rate_mL_min": 0.33333,
+  "temperature_C": 100.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 15.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.5,
+  "reactor_volume_mL": 20.0,
+  "residence_time_inlet_min": 18.0,
+  "residence_time_in_channel_min": 18.0,
+  "residence_time_basis": "inlet/STP apparent residence time",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "CO sparging",
+  "streams": [
+    {
+      "stream_label": "Liquid Feed",
+      "pump_role": "HPLC pump delivering pre-mixed liquid reagents",
+      "contents": [
+        "Aryl Halide (0.1 M)",
+        "Palladium Catalyst (loading TBD)",
+        "Base (equiv TBD)",
+        "Solvent"
+      ],
+      "solvent": "Solvent",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Pre-mixed liquid phase containing all liquid reagents. Flow rate derived from Engineering Design Calculations Step 3 (Q_total = 0.500 mL/min)."
+    },
+    {
+      "stream_label": "CO Gas",
+      "pump_role": "Mass Flow Controller (MFC) for CO gas",
+      "contents": [
+        "Carbon Monoxide"
+      ],
+      "solvent": "N/A",
+      "concentration_M": null,
+      "flow_rate_mL_min": null,
+      "phase": "",
+      "gas_flow_sccm": 3.36,
+      "gas_flow_actual_mL_min": 4.593,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Gaseous reagent introduced under pressure. Flow rate derived from Engineering Design Calculations Step 9 (CO MFC = 3.36 sccm)."
+    }
+  ],
+  "mixer_type": "Static Mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Pre-mix Pd catalyst, aryl halide, and base in solvent to ensure catalyst activation before introducing CO gas. Engineering Design Calculations Step 6 indicates Da = 2.77 > 1, suggesting mixing may limit conversion; a static mixer insert is recommended to enhance gas-liquid mass transfer.",
+  "pre_reactor_steps": [
+    "Deoxygenate liquid feed via sparging with CO or inert gas (N2/Ar) prior to pumping to prevent Pd oxidation and CO oxidation to CO2, as per Chemistry Plan deoxygenation_required: true."
+  ],
+  "post_reactor_steps": [
+    "Quench reaction mixture with Aqueous Acid or Base depending on workup to deactivate catalyst and neutralize excess base, as per Chemistry Plan quench_required: true.",
+    "Vent CO gas through a scrubber or incineration system due to toxicity."
+  ],
+  "chemistry_notes": "Pd-catalyzed carbonylation of aryl halide. High pressure (15 bar) required for CO solubility. Gas-liquid mass transfer is critical (Da=2.77). Static mixer recommended. Deoxygenation essential. No photochemistry involved.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Engineering Design Calculations Step 2: tau = 18.0 min. Based on kinetic class IF=10x reduction from batch 3h.",
+    "residence_time_basis": "Gas-liquid system. Using inlet/STP apparent residence time as primary metric for reactor sizing V = t_inlet * (Q_liquid + Q_gas_STP).",
+    "temperature_C": "Same as batch (100 C) as per Chemistry Plan and Engineering Design Calculations Step 1.",
+    "BPR_bar": "Engineering Design Calculations Step 8: BPR REQUIRED. Set to 15 bar to match batch pressure and ensure CO solubility (Henry's law).",
+    "tubing_material": "PFA preferred for thermal stability at 100 C and chemical resistance. FEP also acceptable but PFA has higher temp rating.",
+    "concentration_M": "0.1 M as per Batch Input and Chemistry Plan stream_logic.",
+    "reactor_volume_mL": "Engineering Design Calculations Step 3: V_R = 60.00 mL.",
+    "tubing_ID_mm": "Engineering Design Calculations Step 3: d = 1.00 mm.",
+    "flow_rate_mL_min": "Engineering Design Calculations Step 3: Q_total = 0.500 mL/min (liquid).",
+    "gas_flow_sccm": "Engineering Design Calculations Step 9: CO MFC = 3.36 sccm."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "HIGH"
+}

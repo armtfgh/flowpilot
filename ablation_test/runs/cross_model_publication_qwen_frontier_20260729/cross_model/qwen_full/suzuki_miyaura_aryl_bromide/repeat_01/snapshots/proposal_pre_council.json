@@ -1,0 +1,69 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 2.0,
+  "temperature_C": 50.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 0.0,
+  "reactor_type": "Coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Nitrogen sparging",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Main reaction feed",
+      "contents": [
+        "Aromatic Bromide (1.0 equiv)",
+        "Phenylboronic Acid Derivative (1.2 equiv)",
+        "Base (2.0 equiv)",
+        "Palladium Catalyst (2.0 mol%)"
+      ],
+      "solvent": "DMF",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "Chemistry Plan specifies single stream logic. Concentration 0.1 M from Engineering Design Calculations Step 1. Flow rate 0.5 mL/min derived from target residence time and reactor volume."
+    }
+  ],
+  "mixer_type": "Static Mixer",
+  "mixing_order_reasoning": "Chemistry Plan indicates all reagents can be premixed. Static mixer ensures homogeneity before entering heated zone, addressing mass-transfer limitations (Da=70) identified in calculations.",
+  "pre_reactor_steps": [
+    "Sparging with Nitrogen for 15 minutes to remove dissolved oxygen (Chemistry Plan: deoxygenation_required=true, Pd sensitive to O2)",
+    "Pre-heating coil to 50°C to minimize thermal shock"
+  ],
+  "post_reactor_steps": [
+    "Quench with water (standard workup for Suzuki)",
+    "Extraction with ethyl acetate"
+  ],
+  "chemistry_notes": "Suzuki-Miyaura coupling is thermally driven, not photochemical. Batch used microwave heating; flow uses thermal oil bath/heater. Reaction is oxygen-sensitive; strict inert atmosphere required. Engineering calculations indicate mass-transfer limitation (Da=70), necessitating efficient mixing. Residence time reduced from 10 min (batch) to 0.6 min (flow) based on kinetic intensification factor. No light source required.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Engineering Calculation Step 2 suggests 0.6 min (range 0.3-1.0 min) for 18x intensification. Analogies used 12-60 min but were photochemical/slower kinetics. Thermal Suzuki is faster. 0.6 min is within calculated range.",
+    "residence_time_basis": "Single phase liquid system. Basis is liquid volume / liquid flow.",
+    "temperature_C": "50°C matches batch condition. DMF bp 153°C allows operation at 50°C without BPR.",
+    "BPR_bar": "Engineering Calculation Step 8: BPR not required (T=50°C << bp=153°C). Set to 0.",
+    "tubing_material": "PFA preferred for thermal stability and chemical resistance to DMF/Pd. FEP is also acceptable but PFA has higher temp rating. No light transmission needed.",
+    "concentration_M": "0.1 M from Engineering Calculation Step 1. Analogies used 0.05-0.5 M. 0.1 M balances solubility and viscosity.",
+    "reactor_volume_mL": "Calculated as V = t * Q = 0.6 min * 0.5 mL/min = 0.3 mL. Closest standard coil size.",
+    "tubing_ID_mm": "1.0 mm from Engineering Calculation Step 3. Balances pressure drop and axial dispersion (Pe=7 warning, but acceptable for short residence time).",
+    "flow_rate_mL_min": "0.5 mL/min derived from V=0.3mL and t=0.6min. Matches Engineering Calculation Step 3."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

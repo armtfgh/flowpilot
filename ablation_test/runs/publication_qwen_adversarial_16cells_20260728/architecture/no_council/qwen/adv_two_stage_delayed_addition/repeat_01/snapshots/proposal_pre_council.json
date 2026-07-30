@@ -1,0 +1,80 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 2.0,
+  "temperature_C": 40.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 0.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Syringe pump or HPLC pump for oxidation mixture",
+      "contents": [
+        "Alcohol (1.0 equiv)",
+        "Organic Peroxide (1.0 equiv)"
+      ],
+      "solvent": "Solvent",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream A contains Alcohol, Organic Peroxide, and Solvent. Flow rate set to half total to allow 1:1 mixing with Stream B if needed, or full flow if Stream B is added later. Here, Stream A is the sole feed to Stage 1."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Syringe pump or HPLC pump for amine addition",
+      "contents": [
+        "Amine (1.0 equiv)"
+      ],
+      "solvent": "Solvent",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream B contains Amine. Added after Stage 1 to avoid contact with peroxide. Flow rate matches Stream A to maintain concentration."
+    }
+  ],
+  "mixer_type": "T-mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Amine must be added after peroxide is consumed to prevent side reactions or hazards. Stream A (Alcohol/Peroxide) goes through Stage 1 reactor first. Stream B (Amine) is mixed with the outlet of Stage 1 before entering Stage 2.",
+  "pre_reactor_steps": [
+    "Degas solvents if sensitive (though plan says not required, standard practice for peroxides)",
+    "Pump Stream A into Stage 1 reactor"
+  ],
+  "post_reactor_steps": [
+    "Mix Stage 1 outlet with Stream B (Amine)",
+    "Pump mixture into Stage 2 reactor",
+    "Collect product"
+  ],
+  "chemistry_notes": "Two-stage sequence. Stage 1: Oxidation of alcohol to aldehyde using organic peroxide at 40°C. Critical constraint: Amine cannot contact peroxide. Therefore, Amine is added via Stream B only after Stage 1 residence time is complete. Stage 2: Condensation of aldehyde with amine at 80°C. No light source required. BPR not required as temperatures are below solvent boiling points (assuming standard organic solvents like DCM/DCM or EtOAc, bp > 40-80°C with margin, or if high bp solvent used). Calculations suggest mass transfer limitation in Stage 1, so efficient mixing at the inlet of Stage 1 is crucial.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation estimated 2.0 min for Stage 1 (kinetic IF 10x). Stage 2 requires 45 min batch, likely reduced in flow but not specified in calculation. Using 2.0 min for Stage 1 as primary design parameter. Note: Total system residence time is sum of Stage 1 and Stage 2.",
+    "residence_time_basis": "Liquid-only system. No gas feeds.",
+    "temperature_C": "Stage 1 is 40°C per Chemistry Plan. Stage 2 is 80°C. The hardware parameters listed are for Stage 1. Stage 2 would require a second heating zone.",
+    "BPR_bar": "Calculation says BPR not required. Temperatures 40°C and 80°C are likely below solvent bp + 20°C for common solvents (e.g., DCM bp 40°C, but 40°C op is borderline; if DCM used, BPR might be needed. Assuming higher bp solvent like EtOAc or THF for safety with peroxides). Setting to 0 as per calculation.",
+    "tubing_material": "PFA preferred for thermal stability at 80°C and chemical resistance to peroxides. FEP is also acceptable but PFA has higher temp rating.",
+    "concentration_M": "Calculation used 0.1 M. Maintained for safety with peroxides."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

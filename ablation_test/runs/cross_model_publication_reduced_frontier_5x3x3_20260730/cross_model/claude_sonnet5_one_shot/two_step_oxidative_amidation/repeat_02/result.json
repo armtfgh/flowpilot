@@ -1,0 +1,113 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 30,
+    "flow_rate_mL_min": 3.0,
+    "temperature_C": {
+      "stage_1_oxidation": 70,
+      "stage_2_amidation": 80
+    },
+    "concentration_M": 0.667,
+    "BPR_bar": 10,
+    "reactor_type": "Two-stage coiled tubular reactor with in-line static mixers (T-mixer -> coil 1 -> T-mixer -> coil 2), fully liquid-phase, no gas headspace",
+    "tubing_material": "PFA (chemically resistant to TBHP, H2SO4, NaBr, dioxane)",
+    "tubing_ID_mm": 1.5,
+    "reactor_volume_mL": {
+      "stage_1": 30,
+      "stage_2": 60,
+      "total": 90
+    },
+    "residence_time_basis": "Total liquid channel volume divided by combined outlet flow rate (post-mixing), consistent with batch's reported 30 min total reaction time",
+    "residence_time_inlet_min": 0.5,
+    "residence_time_in_channel_min": {
+      "stage_1": 10,
+      "stage_2": 20
+    },
+    "light_setup": "None (thermal, non-photochemical reaction)",
+    "wavelength_nm": null,
+    "streams": [
+      {
+        "stream_label": "Stream A (Amine)",
+        "pump_role": "Delivers morpholine to second mixer after aldehyde intermediate forms",
+        "contents": "Morpholine",
+        "solvent": "Dioxane",
+        "phase": "liquid",
+        "flow_rate_mL_min": 1.0,
+        "concentration_M": 2.0,
+        "molar_equiv": 1.0
+      },
+      {
+        "stream_label": "Stream B (Alcohol + Catalysts)",
+        "pump_role": "Delivers benzyl alcohol, NaBr, and H2SO4 to first mixer",
+        "contents": "Benzyl alcohol, NaBr (10 mol%), H2SO4 (10 mol%)",
+        "solvent": "Dioxane",
+        "phase": "liquid",
+        "flow_rate_mL_min": 1.0,
+        "concentration_M": 2.0,
+        "molar_equiv": 1.0
+      },
+      {
+        "stream_label": "Stream C (Oxidant)",
+        "pump_role": "Delivers TBHP oxidant to first mixer (initiates oxidation/bromination cycle)",
+        "contents": "TBHP (70% aq, diluted in dioxane)",
+        "solvent": "Dioxane/water",
+        "phase": "liquid",
+        "flow_rate_mL_min": 1.0,
+        "concentration_M": 4.4,
+        "molar_equiv": 2.2
+      }
+    ],
+    "mixer_type": "Two sequential low-dead-volume PEEK T-mixers (0.5 mm bore) for staged reagent introduction",
+    "mixing_order_reasoning": "Benzyl alcohol, NaBr, and H2SO4 are combined with TBHP first (Stage 1) to generate the active hypobromite/bromide oxidant in situ and oxidize BnOH to benzaldehyde without premature amine oxidation. Morpholine is introduced only at the second mixer (Stage 2) so that it reacts with the pre-formed aldehyde to give the hemiaminal, which is then oxidized further by residual TBHP/NaBr to the amide. This mirrors the batch 'two-step' sequence and minimizes direct TBHP-amine side reactions (e.g., N-oxidation) that can occur if all reagents are mixed simultaneously.",
+    "pre_reactor_steps": [
+      "Sparge all dioxane stock solutions with N2 to remove dissolved O2 (limits TBHP autodecomposition)",
+      "Pre-heat Stream B/C mixing zone to 70°C before entering Stage 1 coil",
+      "Pre-heat Stream A to 80°C before Stage 2 mixer to avoid thermal shock and maintain reaction temperature immediately upon amine addition",
+      "In-line filters (2 µm) on all pumps to prevent NaBr solid particulates from clogging micromixers"
+    ],
+    "post_reactor_steps": [
+      "In-line quench with saturated Na2S2O3 (aq) stream at reactor outlet to destroy excess TBHP",
+      "Cool to room temperature via post-reactor heat exchanger before BPR",
+      "Liquid-liquid separation (aqueous NaBr/H2SO4/thiosulfate salts vs. organic dioxane/product)",
+      "Concentrate organic phase and purify by silica chromatography or recrystallization to isolate benzoylmorpholine"
+    ],
+    "chemistry_notes": "Mechanism: NaBr is oxidized by TBHP to an electrophilic bromine species (Br+/hypobromite), which oxidizes benzyl alcohol to benzaldehyde (Stage 1). Morpholine then condenses with benzaldehyde to form a hemiaminal (Stage 2), which is further oxidized by the TBHP/NaBr system to the tertiary amide (benzoylmorpholine). Sulfuric acid facilitates both alcohol activation and hemiaminal dehydration/oxidation steps. Excess TBHP (2.2 equiv) is required to drive both oxidation events to completion.",
+    "stage_parameters": {
+      "stage_1": {
+        "purpose": "Alcohol oxidation to aldehyde via NaBr/TBHP/H2SO4",
+        "temperature_C": 70,
+        "residence_time_min": 10,
+        "volume_mL": 30,
+        "flow_rate_mL_min": 2.0
+      },
+      "stage_2": {
+        "purpose": "Amidative oxidation via hemiaminal intermediate to benzoylmorpholine",
+        "temperature_C": 80,
+        "residence_time_min": 20,
+        "volume_mL": 60,
+        "flow_rate_mL_min": 3.0
+      }
+    },
+    "reasoning_per_field": {
+      "flow_rate_mL_min": "Total 3.0 mL/min chosen to give a practical, lab-scale reactor volume (~90 mL) matching the 30 min total batch reaction time while keeping tubing length manageable (~50 m at 1.5 mm ID).",
+      "reactor_volume_mL": "Derived directly from residence time × flow rate for each stage (10 min × 2.0 mL/min = 20→30 mL rounded for mixer dead volume; 20 min × 3.0 mL/min = 60 mL).",
+      "concentration_M": "Matches batch protocol's 0.667 M substrate concentration in dioxane; back-calculated stock concentrations assume equal-volume 3-stream mixing.",
+      "BPR_bar": "10 bar back-pressure ensures single-phase liquid flow at 80°C (dioxane bp 101°C, but TBHP decomposition can generate O2/gaseous byproducts requiring pressurization to suppress bubble formation and maintain stable residence time).",
+      "tubing_ID_mm": "1.5 mm selected to balance reasonable coil length (~50 m) against mixing efficiency and pressure drop for a 90 mL total reactor volume."
+    },
+    "literature_analogies": [
+      "Continuous-flow NaBr/TBHP oxidative amidation protocols adapted from batch oxidative coupling methods (e.g., Maulide/Jiao-type TBHP/NaBr alcohol-to-amide couplings), translated to segmented-flow architecture to control reaction staging.",
+      "General flow chemistry precedent for staged oxidant/nucleophile addition to prevent nucleophile overoxidation (analogous to flow protocols for Swern/TEMPO/NaOCl oxidations coupled with in-line amidation)."
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      "TBHP is a peroxide oxidant; risk of exothermic decomposition and gas evolution — use dilute (≤4.4 M) TBHP stream, in-line pressure relief, and thermocouples with automatic shutoff at >100°C.",
+      "NaBr/H2SO4/TBHP combination may generate trace Br2 or HOBr; ensure fume hood/scrubber on reactor outlet.",
+      "Concentrated H2SO4 stream requires corrosion-resistant pump heads (PTFE/ceramic).",
+      "Post-reactor thiosulfate quench essential to prevent peroxide accumulation in waste stream.",
+      "All dioxane streams must be handled under inert atmosphere; dioxane is a peroxide-forming solvent and flammable (flash point 12°C)."
+    ],
+    "confidence": "medium – core stoichiometry and staged mixing rationale are consistent with known NaBr/TBHP oxidative amidation chemistry, but exact intermediate stage temperatures and residence-time split are inferred assumptions since the original batch report only specifies overall 80°C/30 min conditions."
+  },
+  "schema_valid": false
+}

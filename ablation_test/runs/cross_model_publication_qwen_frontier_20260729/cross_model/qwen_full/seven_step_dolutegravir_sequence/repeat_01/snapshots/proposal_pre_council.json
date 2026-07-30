@@ -1,0 +1,68 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 2.0,
+  "temperature_C": 80.0,
+  "concentration_M": 0.2,
+  "BPR_bar": 0.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "N2 sparging",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Main feed",
+      "contents": [
+        "methyl 4-methoxyacetoacetate (1.0 equiv)",
+        "dimethylformamide dimethylacetal (1.6 equiv)"
+      ],
+      "solvent": "acetic acid",
+      "concentration_M": 0.2,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Homogeneous solution of all reagents and solvent. Concentration matches batch (0.2 M). Flow rate derived from calculation to achieve target residence time."
+    }
+  ],
+  "mixer_type": "T-mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: All components can be mixed simultaneously in acetic acid. Single stream feed implies pre-mixing or single pump inlet.",
+  "pre_reactor_steps": [
+    "Degas acetic acid solvent with N2 sparging to remove dissolved O2, as DMF-DMA is moisture/oxygen sensitive per Chemistry Plan."
+  ],
+  "post_reactor_steps": [
+    "Collect effluent directly; no quench required per Chemistry Plan."
+  ],
+  "chemistry_notes": "Knoevenagel condensation of methyl 4-methoxyacetoacetate with DMF-DMA in acetic acid. Thermal reaction at 80°C. Single stream feed used for simplicity. Residence time reduced from 60 min (batch) to 6 min (flow) based on kinetic intensification factor of 10x. Axial dispersion (Pe=69) is significant but acceptable for this condensation. No BPR required as T=80°C is below acetic acid bp (118°C) with sufficient margin.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 estimated 6.0 min (10x intensification). Analogy 2 used 9 min for similar Knoevenagel at RT; our T=80°C allows faster kinetics. 6 min is within calculated range [4.0-85.3] min.",
+    "residence_time_basis": "Single-phase liquid system. Basis is liquid volume / liquid flow.",
+    "temperature_C": "Same as batch (80°C) per Chemistry Plan and Batch Input. Analogy 1 used 250°C but was SNAr; Analogy 2 used 25°C but was RT Knoevenagel. 80°C is optimal for this specific substrate/solvent pair.",
+    "BPR_bar": "Calculation Step 8: BPR not required. Acetic acid bp ~118°C. Operating at 80°C provides >20°C margin. No gas generation.",
+    "tubing_material": "PFA selected for thermal stability at 80°C and chemical resistance to acetic acid. FEP is also acceptable but PFA has higher temp rating. SS not required as no high pressure/corrosive halides.",
+    "concentration_M": "0.2 M from Batch Input and Chemistry Plan. Analogy 2 used 0.25 M; 0.2 M is conservative and matches batch success.",
+    "reactor_volume_mL": "Calculated as V = t * Q = 6.0 min * 0.5 mL/min = 3.0 mL. Matches Calculation Step 3.",
+    "tubing_ID_mm": "1.0 mm from Calculation Step 3. Provides Pe=69. Smaller ID would improve Pe but increase pressure drop; 1.0 mm is standard for this flow rate.",
+    "flow_rate_mL_min": "0.5 mL/min derived from V=3.0 mL and t=6.0 min. Matches Calculation Step 3."
+  },
+  "literature_analogies": [
+    "Analogy 2 (Knoevenagel condensation, 9 min RT)",
+    "Analogy 3 (Knoevenagel condensation, 60 min RT)"
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "HIGH"
+}

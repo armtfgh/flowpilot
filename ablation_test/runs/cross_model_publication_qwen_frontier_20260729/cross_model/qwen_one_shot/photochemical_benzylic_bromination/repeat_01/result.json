@@ -1,0 +1,118 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 480,
+    "flow_rate_mL_min": 0.1,
+    "temperature_C": 30,
+    "concentration_M": 0.2,
+    "BPR_bar": 5.0,
+    "reactor_type": "Coiled PFA tubing in heating/cooling bath with external UV irradiation",
+    "tubing_material": "PFA (Perfluoroalkoxy alkane)",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 48.0,
+    "residence_time_basis": "Total liquid volume / Total liquid flow rate",
+    "residence_time_inlet_min": 480,
+    "residence_time_in_channel_min": 480,
+    "light_setup": "External UV lamp array (365 nm) surrounding the reactor coil",
+    "wavelength_nm": 365,
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Syringe Pump 1",
+        "contents": "Methyl N,N-bis(tert-butoxycarbonyl)-L-phenylalaninate",
+        "solvent": "Carbon tetrachloride",
+        "phase": "Liquid",
+        "flow_rate_mL_min": 0.05,
+        "concentration_M": 0.4,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": 0,
+        "gas_flow_actual_mL_min": 0
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "Syringe Pump 2",
+        "contents": "N-bromosuccinimide (NBS)",
+        "solvent": "Carbon tetrachloride",
+        "phase": "Liquid",
+        "flow_rate_mL_min": 0.05,
+        "concentration_M": 0.8,
+        "molar_equiv": 2.0,
+        "gas_flow_sccm": 0,
+        "gas_flow_actual_mL_min": 0
+      }
+    ],
+    "mixer_type": "T-mixer (PTFE)",
+    "mixing_order_reasoning": "Simultaneous mixing of substrate and reagent to initiate radical chain reaction immediately upon contact. NBS is sparingly soluble in CCl4; pre-dissolution or slight warming of Stream B may be required to ensure homogeneity before mixing.",
+    "pre_reactor_steps": [
+      "Dissolve Methyl N,N-bis(tert-butoxycarbonyl)-L-phenylalaninate in CCl4 to 0.4 M.",
+      "Dissolve NBS in CCl4 to 0.8 M. Note: NBS solubility in CCl4 is low (~0.1-0.2 M at RT). If 0.8 M is not achievable, increase flow rates proportionally or use a co-solvent compatible with radical bromination (e.g., small amount of DCM, though CCl4 is preferred for selectivity). For this design, we assume a saturated solution or slight heating of Stream B reservoir to 40C to achieve target concentration, then cooled to 30C before mixing.",
+      "Load solutions into syringe pumps."
+    ],
+    "post_reactor_steps": [
+      "Quench excess NBS with aqueous sodium thiosulfate.",
+      "Extract with ethyl acetate.",
+      "Dry over MgSO4, filter, and concentrate.",
+      "Purify by flash chromatography."
+    ],
+    "chemistry_notes": "Radical bromination of benzylic positions using NBS is a classic Hunsdiecker-type or Wohl-Ziegler reaction. In flow, the long residence time (8h) is critical. CCl4 is toxic and environmentally hazardous; consider if a safer solvent like DCM or chlorobenzene can be used, but CCl4 is specified in the batch protocol for high selectivity and solubility of intermediates. The reaction is exothermic; temperature control is vital.",
+    "stage_parameters": {
+      "mixing": {
+        "component": "T-mixer",
+        "material": "PTFE",
+        "volume_mL": 0.05
+      },
+      "reaction": {
+        "component": "Coiled Tubing",
+        "material": "PFA",
+        "length_m": 6.1,
+        "ID_mm": 1.0,
+        "volume_mL": 48.0,
+        "temp_C": 30,
+        "irradiation": "UV 365 nm"
+      },
+      "backpressure": {
+        "component": "Restrictor or BPR",
+        "setpoint_bar": 5.0
+      }
+    },
+    "reasoning_per_field": {
+      "residence_time_min": "Batch time is 8 hours (480 min). Flow reactions often require similar or slightly longer times for radical chains to complete, especially with low light intensity. 480 min is chosen to match batch kinetics.",
+      "flow_rate_mL_min": "Low flow rate (0.1 mL/min) chosen to allow for a manageable reactor volume (48 mL) while maintaining laminar flow and good heat/mass transfer. Higher flow rates would require a much larger reactor coil.",
+      "temperature_C": "Matched to batch protocol (30 C).",
+      "concentration_M": "0.2 M total substrate concentration is a reasonable compromise between solubility of NBS and reaction rate. Stream A is 0.4 M, Stream B is 0.8 M, mixing to 0.2 M and 0.4 M respectively in the reactor.",
+      "BPR_bar": "5 bar is sufficient to keep CCl4 (bp 76.7 C) in liquid phase at 30 C and prevent vapor lock, while not being excessively high for PFA tubing.",
+      "reactor_type": "Coiled tubing is standard for photochemical reactions to maximize surface area for light penetration.",
+      "tubing_material": "PFA is transparent to UV light and chemically resistant to CCl4 and bromine species.",
+      "tubing_ID_mm": "1.0 mm ID provides a good balance between light penetration depth (short path length) and reactor volume.",
+      "reactor_volume_mL": "Calculated as Flow Rate * Residence Time = 0.1 mL/min * 480 min = 48 mL.",
+      "light_setup": "External UV lamps are standard. 365 nm is commonly used for NBS radical initiation.",
+      "wavelength_nm": "365 nm is effective for NBS homolysis.",
+      "streams": "Two liquid streams mixed 1:1 volumetrically to achieve 1:2 molar ratio.",
+      "mixer_type": "T-mixer is simple and effective for liquid-liquid mixing.",
+      "pre_reactor_steps": "Ensures reagents are in solution before entering the reactor.",
+      "post_reactor_steps": "Standard workup for bromination reactions.",
+      "chemistry_notes": "Highlights safety and selectivity concerns.",
+      "stage_parameters": "Detailed breakdown of the flow path.",
+      "reasoning_per_field": "Explains the choices made.",
+      "literature_analogies": "Similar to flow photochemical brominations reported in literature (e.g., using NBS or Br2).",
+      "engine_validated": false,
+      "safety_flags": [
+        "CCl4 is toxic, carcinogenic, and environmentally hazardous. Use in a fume hood with proper waste disposal.",
+        "NBS is an oxidizer and irritant.",
+        "UV light can damage eyes and skin. Use appropriate shielding.",
+        "Bromine species are corrosive and toxic. Ensure all connections are compatible."
+      ],
+      "confidence": 0.8
+    },
+    "literature_analogies": "Flow photochemical reactions using NBS have been reported for benzylic bromination. The long residence time is typical for radical chain reactions in flow when light intensity is not extremely high.",
+    "engine_validated": false,
+    "safety_flags": [
+      "CCl4 is toxic, carcinogenic, and environmentally hazardous. Use in a fume hood with proper waste disposal.",
+      "NBS is an oxidizer and irritant.",
+      "UV light can damage eyes and skin. Use appropriate shielding.",
+      "Bromine species are corrosive and toxic. Ensure all connections are compatible."
+    ],
+    "confidence": 0.8
+  },
+  "schema_valid": false
+}

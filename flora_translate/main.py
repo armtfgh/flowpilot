@@ -19,13 +19,15 @@ from pathlib import Path
 
 from flora_translate.analogy_selector import AnalogySelector
 from flora_translate.config import LAB_INVENTORY_PATH, RECORDS_DIR
+from flora_translate.design_calculator import GAS_LIQUID_MIN_BPR_BAR
+from flora_translate.design_disposition import apply_design_disposition_gate
 from flora_translate.engine.council_v4 import CouncilV4
 from flora_translate.intake_agent import (
     batch_input_from_package,
     historical_text_from_package,
     intake_context_block,
 )
-from flora_translate.inventory_constraints import enforce_reactor_inventory
+from flora_translate.final_design_validator import finalize_design
 from flora_translate.lightweight_upstream import analyze_batch_chemistry, parse_batch_input
 from flora_translate.output_formatter import OutputFormatter
 from flora_translate.prompt_builder import TranslationPromptBuilder
@@ -253,7 +255,7 @@ def _reconcile_final_bpr(result: dict, design_candidate=None) -> None:
 
     proposal_bpr = _safe_float(proposal.get("BPR_bar"))
     calc_bpr = _safe_float(calc.get("bpr_pressure_bar"))
-    final_bpr = max(proposal_bpr, 5.0)
+    final_bpr = max(proposal_bpr, GAS_LIQUID_MIN_BPR_BAR)
 
     note = ""
     if calc_bpr > final_bpr + 0.1:
@@ -350,7 +352,10 @@ def _sync_final_stream_flowrates(result: dict, design_candidate=None) -> None:
     gas_sccm = calc.get("gas_flow_sccm")
     gas_actual = calc.get("gas_flow_actual_mL_min")
     target_gas_equiv = _safe_float(calc.get("target_gas_equiv_inlet"))
-    supplied_gas_equiv = _safe_float(calc.get("o2_equiv_supplied"))
+    supplied_gas_equiv = _safe_float(
+        calc.get("gas_equiv_supplied"),
+        _safe_float(calc.get("o2_equiv_supplied")),
+    )
     for s in streams:
         if not _stream_dict_is_gas(s):
             continue
@@ -364,10 +369,10 @@ def _sync_final_stream_flowrates(result: dict, design_candidate=None) -> None:
             s["molar_equiv"] = round(target_gas_equiv, 4)
             s["reasoning"] = (
                 "Deterministic gas stoichiometry: inlet/STP MFC flow was "
-                f"recomputed from target O2 equivalents ({target_gas_equiv:.2f} equiv), "
+                f"recomputed from target gas equivalents ({target_gas_equiv:.2f} equiv), "
                 f"liquid flow {target_liquid_q:.5f} mL/min, and substrate concentration. "
                 f"Pressure-corrected in-channel gas flow is reported separately; "
-                f"supplied O2 equiv = {supplied_gas_equiv:.2f}."
+                f"supplied gas equiv = {supplied_gas_equiv:.2f}."
             )
 
     # Mirror the synchronized dict streams back into the Pydantic proposal used
@@ -424,15 +429,19 @@ def _apply_final_design_guards(result: dict, design_candidate=None) -> None:
             )
 
     target_equiv = _safe_float(calc.get("target_gas_equiv_inlet"))
-    supplied_equiv = _safe_float(calc.get("o2_equiv_supplied"))
+    supplied_equiv = _safe_float(
+        calc.get("gas_equiv_supplied"),
+        _safe_float(calc.get("o2_equiv_supplied")),
+    )
     if calc.get("is_gas_liquid") and target_equiv > 0:
         if supplied_equiv <= 0 or supplied_equiv < target_equiv * 0.95:
             proposal["engine_validated"] = False
             flags.append(
-                "BLOCKED: final O2 feed does not meet the target inlet/STP equivalents "
+                "BLOCKED: final reagent-gas feed does not meet the target inlet/STP equivalents "
                 f"({supplied_equiv:.2f} supplied vs {target_equiv:.2f} target)."
             )
         proposal.setdefault("multiphase_metrics", {})["target_gas_equiv_inlet"] = target_equiv
+        proposal.setdefault("multiphase_metrics", {})["gas_equiv_supplied"] = supplied_equiv
         proposal.setdefault("multiphase_metrics", {})["o2_equiv_supplied"] = supplied_equiv
 
     try:
@@ -1492,56 +1501,38 @@ def translate(
     except Exception as exc:
         logger.warning("Evidence-calibrated closed-loop refinement skipped: %s", exc)
 
-    # Enforce discrete inventory hardware after all model/campaign refinements.
-    # The inventory is a hard physical constraint: final reactor volume/ID/material
-    # must be one of the available options, and flow rates are recalculated from
-    # the selected volume and target residence time.
+    # Atomically enforce inventory, gas basis, and geometry after all model and
+    # campaign refinements.
+    final_validation = None
     try:
-        inventory_proposal, inventory_report = enforce_reactor_inventory(
+        inventory_proposal, calculations, final_validation = finalize_design(
             design_candidate.proposal,
-            inventory,
+            batch_record=batch_record,
+            chemistry_plan=chemistry_plan,
+            analogies=analogies,
+            inventory=inventory,
         )
-        if inventory_report.get("applied"):
-            enforced_volume = inventory_proposal.reactor_volume_mL
-            enforced_bpr = inventory_proposal.BPR_bar
-            logger.info(
-                "Step 6c: Enforced inventory reactor %s",
-                inventory_report.get("selected_reactor", {}).get("name")
-                or inventory_report.get("selected_reactor", {}).get("system")
-                or inventory_report.get("selected_reactor", {}),
-            )
-            design_candidate.proposal = inventory_proposal
-            calculations = DesignCalculator().run(
-                batch_record,
-                chemistry_plan=chemistry_plan,
-                proposal=design_candidate.proposal,
-                inventory=inventory,
-                analogies=analogies,
-                target_flow_rate_mL_min=design_candidate.proposal.flow_rate_mL_min or None,
-                target_tubing_ID_mm=design_candidate.proposal.tubing_ID_mm or None,
-                target_residence_time_min=design_candidate.proposal.residence_time_min or None,
-            )
-            design_candidate.proposal = DesignCalculator.annotate_proposal_with_calculations(
-                design_candidate.proposal,
-                calculations,
-            )
-            if enforced_volume:
-                design_candidate.proposal.reactor_volume_mL = enforced_volume
-            if enforced_bpr:
-                design_candidate.proposal.BPR_bar = enforced_bpr
-            result["proposal"] = design_candidate.proposal.model_dump()
-            result["design_calculations"] = asdict(calculations)
-            result["inventory_enforcement"] = inventory_report
-            result["explanation"] = (
-                (result.get("explanation") or "").rstrip()
-                + "\n\nInventory enforcement: final reactor hardware was snapped to "
-                + str(inventory_report.get("selected_reactor", {}))
-                + "."
-            ).strip()
-            _reconcile_final_bpr(result, design_candidate)
-            _sync_final_stream_flowrates(result, design_candidate)
+        design_candidate.proposal = inventory_proposal
+        result["proposal"] = design_candidate.proposal.model_dump()
+        result["design_calculations"] = asdict(calculations)
+        result["inventory_enforcement"] = final_validation.get(
+            "inventory_enforcement", {}
+        )
+        result["final_validation"] = final_validation
+        result["explanation"] = (
+            (result.get("explanation") or "").rstrip()
+            + "\n\nFinal engineering validation: "
+            + final_validation["status"]
+            + "."
+        ).strip()
+        logger.info(
+            "Step 6c: Final engineering validation %s",
+            final_validation["status"],
+        )
+        _reconcile_final_bpr(result, design_candidate)
+        _sync_final_stream_flowrates(result, design_candidate)
     except Exception as exc:
-        logger.warning("Inventory enforcement skipped: %s", exc)
+        logger.warning("Final engineering validation skipped: %s", exc)
 
     # Attach design space grid search results
     result["design_space"] = candidates_to_dicts(design_candidates)
@@ -1564,6 +1555,33 @@ def translate(
             )
 
     _apply_final_design_guards(result, design_candidate)
+
+    # One deterministic top-level decision is authoritative after every model,
+    # council, campaign, inventory, and engineering revision. Hard conflicts
+    # cannot be downgraded to a generic experimental screen.
+    disposition = apply_design_disposition_gate(
+        result,
+        proposal=design_candidate.proposal,
+        final_validation=final_validation,
+        inventory=inventory,
+        batch_record=batch_record,
+        chemistry_plan=chemistry_plan,
+        objective=objectives,
+        hard_constraints=(intake.operating_limits if intake else None),
+        council_safety_report=design_candidate.safety_report,
+    )
+    result["explanation"] = (
+        (result.get("explanation") or "").rstrip()
+        + "\n\nFinal design disposition: "
+        + disposition.recommended_disposition
+        + ". "
+        + disposition.rationale
+    ).strip()
+    logger.info(
+        "Step 6d: Final design disposition %s (%d hard failures)",
+        disposition.recommended_disposition,
+        len(disposition.hard_failures),
+    )
 
     # Store analogies for the revision agent (confidence + context)
     result["_analogies"] = analogies

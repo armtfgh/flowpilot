@@ -1,0 +1,98 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 15,
+    "flow_rate_mL_min": 2.0,
+    "temperature_C": 80,
+    "concentration_M": 0.5,
+    "BPR_bar": 10,
+    "reactor_type": "PFA coil tubular reactor with in-line static micromixer, submerged in a thermostated oil/heat-transfer bath",
+    "tubing_material": "PFA (main coil); Hastelloy C-276 fittings and mixer body for concentrated HNO3 contact zones",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 30,
+    "residence_time_basis": "Total reactor coil volume (30 mL) divided by combined flow rate (2.0 mL/min) = 15 min nominal residence time at reaction temperature/pressure",
+    "residence_time_inlet_min": 0.2,
+    "residence_time_in_channel_min": 15,
+    "light_setup": "Not applicable (thermal, non-photochemical nitration)",
+    "wavelength_nm": null,
+    "streams": [
+      {
+        "stream_label": "Stream A - Substrate feed",
+        "pump_role": "Substrate delivery pump (HPLC-type, corrosion-resistant head)",
+        "contents": "Aniline derivative (assumed protected/stabilized against oxidation, e.g. as acetanilide or sulfonate-protected amine; free aniline is highly oxidation-prone under neat HNO3 and is not recommended)",
+        "solvent": "Glacial acetic acid (chosen as inert, HNO3-miscible carrier; batch protocol did not specify solvent explicitly, so acetic acid is assumed as the 'industrial batch solvent')",
+        "phase": "liquid",
+        "flow_rate_mL_min": 1.0,
+        "concentration_M": 0.5,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      {
+        "stream_label": "Stream B - Nitrating agent",
+        "pump_role": "Oxidizer/acid delivery pump (PTFE-wetted, precooled)",
+        "contents": "Fuming nitric acid (~21 M, ~90-98% w/w), serving simultaneously as nitrating reagent and Brønsted acid catalyst per batch description",
+        "solvent": "Neat (no additional solvent; excess HNO3 itself acts as reaction medium)",
+        "phase": "liquid",
+        "flow_rate_mL_min": 1.0,
+        "concentration_M": 21.0,
+        "molar_equiv": 5.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      }
+    ],
+    "mixer_type": "PTFE/PEEK T-mixer (0.4 mL internal volume) feeding into a SiC or PTFE static mixer chip before the main coil",
+    "mixing_order_reasoning": "Substrate stream is dosed into the excess nitric acid stream (not vice versa) to maintain a locally high NO2+ concentration, favor rapid electrophilic attack, and minimize contact time of free amine with dilute acid, which could otherwise promote oxidative decomposition/tar formation. Immediate high-shear mixing suppresses hot-spot formation from the strongly exothermic nitration.",
+    "pre_reactor_steps": [
+      "Pre-cool nitric acid stream to 0-5 C before mixing to offset heat of mixing and reduce risk of thermal runaway upon contact with substrate stream",
+      "Filter/degas substrate solution to remove particulates that could cause channel blockage",
+      "Inert-gas (N2) blanket on both feed reservoirs to prevent moisture ingress and control off-gassing of NOx"
+    ],
+    "post_reactor_steps": [
+      "In-line quench into a stirred vessel of cold aqueous NaHCO3/ice (3-5x reactor volume) immediately after the BPR to neutralize excess HNO3 and halt reaction",
+      "Phase separation (organic dinitro product vs. aqueous acid) via liquid-liquid separator",
+      "Off-gas scrubber (aqueous NaOH trap) downstream of BPR to capture any NOx released upon depressurization",
+      "In-line FTIR or UV monitoring for reaction completion/dinitro selectivity"
+    ],
+    "chemistry_notes": "Batch process ran at 60 C for 4 h with HNO3 as both nitrating agent and acid catalyst, giving 89% dinitrated product. In flow, superior heat/mass transfer allows intensification: higher effective temperature (80 C) with drastically shorter residence time (~15 min total) while maintaining safety via small reactor holdup. Dinitration proceeds via sequential mono- then di-substitution; the first nitration is fast and highly exothermic (~-150 kJ/mol), the second slower and more temperature-dependent, so a two-stage reactor design is proposed (see stage_parameters). Elevated temperature and pressure (BPR) keep the reaction mixture liquid and suppress NOx off-gassing/cavitation in the tubing. Corrosion-resistant materials are mandatory given concentrated/fuming HNO3 at 80 C; standard stainless steel is unsuitable long-term.",
+    "stage_parameters": {
+      "stage_1_mononitration": {
+        "temperature_C": 40,
+        "residence_time_min": 2,
+        "reactor_volume_mL": 4,
+        "purpose": "Fast, controlled mono-nitration under moderate temperature to avoid runaway before full mixing is achieved"
+      },
+      "stage_2_dinitration": {
+        "temperature_C": 80,
+        "residence_time_min": 13,
+        "reactor_volume_mL": 26,
+        "purpose": "Slower second nitration requiring elevated temperature and longer residence for full conversion to dinitro product"
+      }
+    },
+    "reasoning_per_field": {
+      "residence_time_min": "Batch used 4 h; flow intensification via improved heat/mass transfer typically reduces nitration residence times to minutes-scale, consistent with literature precedent for aromatic nitrations in flow.",
+      "temperature_C": "Raised from 60 C (batch) to 80 C to compensate for shorter residence time while remaining below HNO3 boiling/decomposition onset under back-pressure.",
+      "concentration_M": "0.5 M substrate assumed as a practical, pumpable concentration for a solid aniline derivative in acetic acid; not specified in batch protocol.",
+      "BPR_bar": "10 bar back-pressure selected to suppress NOx bubble formation and maintain single liquid phase at 80 C, standard practice in continuous nitration processes.",
+      "tubing_material": "PFA/Hastelloy chosen for compatibility with concentrated/fuming nitric acid; standard steel or PTFE alone insufficiassistant for long-term concentrated HNO3 exposure at elevated T.",
+      "reactor_volume_mL": "Sized to deliver ~15 min total residence at 2 mL/min combined flow, split across two thermal zones for staged mono/di-nitration control.",
+      "mixer_type": "High-shear low-volume mixer chosen to rapidly homogenize immiscible/reactive streams and minimize local hot spots given high exothermicity."
+    },
+    "literature_analogies": [
+      "Bogdan, A. R.; Jamison, T. F. et al., continuous-flow nitration of aromatics with fuming HNO3 in PFA reactors, demonstrating residence times of minutes vs. hours in batch.",
+      "Ducry, L.; Roberge, D. M. Org. Process Res. Dev. - continuous nitration of aromatic substrates showing improved safety and selectivity via microreactor heat transfer.",
+      "Industrial continuous nitroaromatic (e.g., DNT/TNT precursor) processes using staged temperature zones to control mono- vs di-nitration selectivity."
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      "Highly exothermic nitration reaction - runaway risk if flow stops or cooling fails; automated interlocks (flow/temperature sensors triggering emergency quench) required.",
+      "Fuming/concentrated HNO3 is a strong oxidizer and corrosive; use of compatible wetted materials only (PFA, Hastelloy); avoid stainless steel above dilute HNO3 concentrations.",
+      "NOx gas evolution possible during reaction and upon depressurization; requires closed system with vented scrubber, not to be opened without proper ventilation.",
+      "Possible oxidative side reactions/tar formation with free (unprotected) aniline in strong HNO3; substrate should be protected (e.g., acylated) or process re-verified for the specific derivative.",
+      "Small reactor holdup volume (30 mL total) intentionally limits worst-case thermal excursion compared to batch reactor, but pressure relief and containment (blast shield) still recommended given oxidizer/organic combination.",
+      "This is a conceptual/derived design; the batch protocol did not specify solvent, exact acid strength, or safety data (e.g., DSC/ARC), all of which should be experimentally verified before scale-up."
+    ],
+    "confidence": 0.55
+  },
+  "schema_valid": false
+}

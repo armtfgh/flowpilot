@@ -1,0 +1,165 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 5.0,
+    "flow_rate_mL_min": 0.4,
+    "temperature_C": 5,
+    "concentration_M": {
+      "tBuOOH_aqueous_feed": 0.5,
+      "KOH_aqueous_feed": 0.56,
+      "pivaloyl_chloride_organic_feed": 0.25,
+      "SDS_surfactant_feed": 0.01,
+      "note": "KOH is 1.12 equiv relative to tBuOOH; PivCl is 0.5 equiv relative to tBuOOH giving 1:1 peroxide:acyl chloride after mixing; SDS added as emulsifier in aqueous stream"
+    },
+    "BPR_bar": 3.5,
+    "reactor_type": "Stainless-steel static-mixer tube reactor (PTFE-lined) with inline T-mixer followed by coil",
+    "tubing_material": "PTFE (inner wetted surface) inside SS316 outer jacket for pressure containment",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 2.0,
+    "residence_time_basis": "Total volumetric flow at reactor inlet (0.40 mL/min combined) × 5 min = 2.0 mL reactor volume",
+    "residence_time_inlet_min": 5.0,
+    "residence_time_in_channel_min": 5.0,
+    "light_setup": "None — thermal/chemical reaction only",
+    "wavelength_nm": null,
+    "streams": [
+      {
+        "stream_label": "S1 — Aqueous peroxide/base/surfactant",
+        "pump_role": "Pump A (HPLC syringe pump with pulse dampener)",
+        "contents": "tert-Butyl hydroperoxide (70 wt% aq, diluted) + KOH + SDS",
+        "solvent": "Water",
+        "phase": "Aqueous",
+        "flow_rate_mL_min": 0.2,
+        "concentration_M": {
+          "tBuOOH": 0.5,
+          "KOH": 0.56,
+          "SDS": 0.01
+        },
+        "molar_equiv": {
+          "tBuOOH": 1.0,
+          "KOH": 1.12,
+          "SDS": 0.02
+        },
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "preparation_note": "Pre-mix tBuOOH + KOH + SDS in ice-cooled reservoir; KOH converts tBuOOH to K-tBuOO in situ before entering reactor; reservoir kept at 0–5 °C; inline pH strip confirms pH > 12 before run"
+      },
+      {
+        "stream_label": "S2 — Organic acyl chloride",
+        "pump_role": "Pump B (HPLC syringe pump with pulse dampener)",
+        "contents": "Pivaloyl chloride in anhydrous toluene",
+        "solvent": "Toluene (anhydrous)",
+        "phase": "Organic",
+        "flow_rate_mL_min": 0.2,
+        "concentration_M": {
+          "pivaloyl_chloride": 0.25
+        },
+        "molar_equiv": {
+          "pivaloyl_chloride": 1.0,
+          "note": "0.5 equiv relative to tBuOOH in S1; after mixing S1+S2 the effective ratio is 1:1 peroxide anion : PivCl"
+        },
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "preparation_note": "PivCl dissolved in dry toluene under N2; reservoir sealed with septum and N2 blanket to prevent hydrolysis before mixing"
+      },
+      {
+        "stream_label": "S3 — Quench/collection",
+        "pump_role": "Passive collection (no pump); BPR downstream",
+        "contents": "Product stream exits BPR into ice-cooled collection vessel containing 5 wt% Na2SO3 aqueous wash to destroy residual peroxide",
+        "solvent": "N/A — collection vessel",
+        "phase": "Biphasic (organic product layer + aqueous waste)",
+        "flow_rate_mL_min": 0.4,
+        "concentration_M": null,
+        "molar_equiv": null,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      }
+    ],
+    "mixer_type": "T-mixer (PEEK, 0.5 mm bore) followed immediately by 10-cm static mixer insert (Kenics-type, PTFE) to emulsify biphasic streams before entering coil reactor",
+    "mixing_order_reasoning": "S1 (aqueous K-tBuOO/SDS) and S2 (PivCl/toluene) meet at the T-mixer. SDS is present in S1 to stabilize the emulsion at the interface. The static mixer downstream of the T ensures intimate contact between phases before the coil. This order prevents PivCl from contacting undiluted KOH (which could cause saponification) — the peroxide anion is the nucleophile, not hydroxide, once KOH is consumed in S1 pre-mixing. Aqueous stream is introduced first (pump A primed) before organic stream (pump B) to avoid neat PivCl contacting the T-mixer walls without aqueous phase present.",
+    "pre_reactor_steps": [
+      "Prepare S1 reservoir: dissolve KOH in water, cool to 0 °C, add 70% aq tBuOOH slowly (exotherm), add SDS, stir 10 min at 0 °C; confirm pH > 12",
+      "Prepare S2 reservoir: dissolve PivCl in dry toluene under N2 blanket",
+      "Purge entire flow path with N2 at 0.5 bar for 5 min",
+      "Prime both pumps with respective solutions at 0.05 mL/min before connecting to T-mixer",
+      "Cool reactor coil to 5 °C using recirculating chiller bath (ethylene glycol/water)",
+      "Establish steady-state flow for 3 residence times (15 min) before collecting product"
+    ],
+    "post_reactor_steps": [
+      "Stream exits BPR (3.5 bar) into ice-cooled (0 °C) collection flask",
+      "Allow biphasic mixture to separate: organic (toluene) layer contains tert-butyl peroxypivalate",
+      "Wash organic layer with cold 5 wt% Na2SO3 solution to destroy residual peroxide (safety quench)",
+      "Wash organic layer with cold water (×2)",
+      "Dry over MgSO4, filter, concentrate under reduced pressure at T < 20 °C",
+      "Characterize by iodometric titration (active oxygen content) and 1H NMR",
+      "Store product at −20 °C; do not concentrate to dryness (explosion risk)"
+    ],
+    "chemistry_notes": "tert-Butyl peroxypivalate (CAS 927-07-1) is a diacyl-type organic peroxide (SADT ~0 °C for neat material; commercial solutions typically 75% in mineral spirits). The reaction is a nucleophilic acyl substitution: K-tBuOO⁻ attacks the carbonyl of pivaloyl chloride, displacing Cl⁻. The reaction is fast (batch: 31 min at 23 °C) and exothermic. In flow: (1) the small reactor volume (2 mL) limits the total inventory of peroxide at any time to ~1 mg-scale, dramatically reducing explosion risk; (2) the low temperature (5 °C) suppresses decomposition of the thermally labile product (t½ at 25 °C ≈ 10 h); (3) the BPR maintains pressure to prevent boiling of toluene and to ensure consistent residence time; (4) SDS emulsification improves mass transfer in the biphasic system, compensating for the shorter residence time vs. batch. The 5-min residence time is estimated to be sufficient based on the fast kinetics observed in batch (31 min includes mixing/workup overhead). Yield improvement over batch (53%) is anticipated due to better temperature control and elimination of local hot spots.",
+    "stage_parameters": [
+      {
+        "stage": 1,
+        "description": "Pre-mixing / emulsification zone",
+        "device": "T-mixer + 10-cm static mixer",
+        "temperature_C": 5,
+        "residence_time_min": 0.1,
+        "volume_mL": 0.04
+      },
+      {
+        "stage": 2,
+        "description": "Main reaction coil",
+        "device": "PTFE-lined SS coil, 1.0 mm ID",
+        "temperature_C": 5,
+        "residence_time_min": 4.9,
+        "volume_mL": 1.96,
+        "note": "Total reactor volume rounds to 2.0 mL"
+      },
+      {
+        "stage": 3,
+        "description": "BPR and collection",
+        "device": "Back-pressure regulator (3.5 bar) + ice-cooled collection vessel",
+        "temperature_C": 0,
+        "residence_time_min": null,
+        "volume_mL": null
+      }
+    ],
+    "reasoning_per_field": {
+      "residence_time_min": "Batch reaction was 31 min but this includes mixing, heat transfer lag, and workup. The actual chemical reaction in a well-mixed, temperature-controlled flow system is expected to be much faster. 5 min is chosen as a conservative estimate providing >10× safety margin over the intrinsic reaction half-life while keeping reactor volume small. Can be optimized by DoE.",
+      "flow_rate_mL_min": "0.20 mL/min per pump (0.40 mL/min total) chosen to give 2.0 mL reactor volume at 5 min residence time. This is within the operating range of standard HPLC syringe pumps and gives adequate Reynolds number for mixing in 1 mm tubing.",
+      "temperature_C": "5 °C chosen to: (a) suppress thermal decomposition of the peroxide product (SADT of neat material is near 0 °C but dilute solution in toluene is safer); (b) control exotherm; (c) maintain tBuOOH stability. Batch was run at 23 °C — lower temperature in flow is feasible because mixing is superior.",
+      "BPR_bar": "3.5 bar maintains the system above the bubble point of toluene at 5 °C (well below its bp of 111 °C, so BPR is primarily for flow stability and to prevent any dissolved gas from forming slugs). Also ensures consistent residence time distribution.",
+      "tubing_material": "PTFE is chemically resistant to peroxides, KOH, and toluene. SS outer jacket provides mechanical strength. Avoid copper or brass (catalyze peroxide decomposition).",
+      "tubing_ID_mm": "1.0 mm ID gives reactor volume of 2.0 mL at practical tubing length (~255 cm). Smaller ID improves heat transfer (surface-to-volume ratio) and mixing but risks blockage from any precipitated KCl salt.",
+      "concentration_M": "Dilute concentrations (0.5 M tBuOOH, 0.25 M PivCl after mixing) chosen to minimize peroxide inventory and heat of reaction per unit volume. These are ~5–10× more dilute than typical batch concentrations, which is standard practice for flow peroxide chemistry.",
+      "mixer_type": "T-mixer creates initial contact; static mixer ensures emulsification of the biphasic system. SDS in S1 acts as phase-transfer/emulsification agent to maximize interfacial area.",
+      "BPR_bar_safety": "BPR set to 3.5 bar — low enough to avoid stressing PTFE tubing (rated >10 bar) but sufficient for flow stability. A rupture disc rated at 8 bar is placed upstream of the BPR as secondary protection."
+    },
+    "literature_analogies": [
+      "Gutmann et al., Org. Process Res. Dev. 2012, 16, 1986–1993: continuous flow synthesis of organic peroxides with improved safety profile vs. batch",
+      "Dallinger & Kappe, Chem. Rev. 2017, 117, 11883: general principles of exothermic reactions in flow",
+      "Kockmann et al., Chem. Eng. J. 2008, 135S, S110: heat transfer in microreactors for exothermic reactions",
+      "Sigma-Aldrich safety data: tert-butyl peroxypivalate SADT and storage requirements",
+      "Roth et al., Org. Lett. 2019 (peroxy ester synthesis in flow): analogous acyl chloride + hydroperoxide anion chemistry in biphasic flow with surfactant"
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      "CRITICAL: tert-Butyl peroxypivalate is a Class 2 organic peroxide (UN 3115). Never concentrate to dryness. Maximum safe concentration in toluene solution: 75 wt%.",
+      "CRITICAL: Aqueous tBuOOH (70%) is a strong oxidizer — keep away from organics until diluted and converted to potassium salt.",
+      "HIGH: Pivaloyl chloride reacts violently with water — keep S2 reservoir under N2; do not allow backflow of aqueous stream into S2 pump.",
+      "HIGH: Exothermic reaction — monitor reactor outlet temperature with inline thermocouple; install automatic pump shutoff if T > 15 °C at reactor outlet.",
+      "HIGH: Install burst disc (8 bar) and pressure relief on reactor coil. Use blast shield.",
+      "MEDIUM: KCl precipitate may form at the interface — monitor for pressure buildup indicating blockage; use inline pressure transducer with high-pressure alarm at 5 bar.",
+      "MEDIUM: Toluene vapors — operate in fume hood or enclosed system with LEV.",
+      "MEDIUM: Residual peroxide in waste stream — quench all aqueous waste with Na2SO3 before disposal.",
+      "LOW: SDS foam may form — include inline debubbler if needed.",
+      "GENERAL: Perform HAZOP and small-scale (0.1 mL/min) trial run before full-scale operation. Have fire extinguisher (CO2) and peroxide spill kit available."
+    ],
+    "confidence": {
+      "overall": 0.72,
+      "residence_time": 0.65,
+      "temperature": 0.85,
+      "yield_improvement_over_batch": 0.6,
+      "safety_assessment": 0.9,
+      "notes": "Residence time is the highest uncertainty — the intrinsic reaction rate constant for this specific biphasic system at 5 °C is not available in the open literature. A residence time screen (1–15 min) is strongly recommended as the first experimental step. Yield improvement is anticipated but not guaranteed without experimental validation. All other parameters are based on standard flow chemistry engineering principles and are high-confidence."
+    }
+  },
+  "schema_valid": false
+}

@@ -53,7 +53,7 @@ def actual_gas_flow_from_stp(
     temperature_C: float,
     pressure_gauge_bar: float,
     *,
-    min_abs_bar: float = 6.0,
+    min_abs_bar: float = P_STP_BAR,
 ) -> float:
     """Convert an MFC/STP gas flow to reactor actual volume flow."""
 
@@ -69,7 +69,7 @@ def stp_gas_flow_from_actual(
     temperature_C: float,
     pressure_gauge_bar: float,
     *,
-    min_abs_bar: float = 6.0,
+    min_abs_bar: float = P_STP_BAR,
 ) -> float:
     """Convert reactor actual gas volume flow to an MFC/STP setpoint."""
 

@@ -1,0 +1,166 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 10,
+    "flow_rate_mL_min": 0.5,
+    "temperature_C": 120,
+    "concentration_M": 0.25,
+    "BPR_bar": 10,
+    "reactor_type": "Packed-bed reactor (PBR) with Cu/C heterogeneous catalyst",
+    "tubing_material": "Stainless steel 316L (reactor section); PTFE (pre- and post-reactor sections)",
+    "tubing_ID_mm": 4.6,
+    "reactor_volume_mL": 5.0,
+    "residence_time_basis": "Reactor volume divided by total volumetric flow rate; void fraction of packed bed assumed 0.4, giving effective liquid residence time ~4 min in interstitial volume; nominal residence time based on total reactor volume = 10 min",
+    "residence_time_inlet_min": 10,
+    "residence_time_in_channel_min": 4,
+    "light_setup": "None – thermal CuAAC, no photochemistry",
+    "wavelength_nm": null,
+    "streams": [
+      {
+        "stream_label": "Stream A – Benzyl azide solution",
+        "pump_role": "Pump A (HPLC syringe pump)",
+        "contents": "Benzyl azide",
+        "solvent": "Acetone",
+        "phase": "Liquid",
+        "flow_rate_mL_min": 0.25,
+        "concentration_M": 0.5,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      {
+        "stream_label": "Stream B – Phenylacetylene solution",
+        "pump_role": "Pump B (HPLC syringe pump)",
+        "contents": "Phenylacetylene",
+        "solvent": "Acetone",
+        "phase": "Liquid",
+        "flow_rate_mL_min": 0.25,
+        "concentration_M": 0.5,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      }
+    ],
+    "mixer_type": "T-mixer (PTFE, 0.5 mm bore) upstream of packed bed",
+    "mixing_order_reasoning": "Streams A and B are mixed immediately before entering the Cu/C packed bed. Keeping the azide and alkyne separated until the point of catalytic contact minimises any uncatalysed thermal Huisgen cycloaddition (which would give a regioisomeric mixture) and avoids prolonged contact of the neat azide with metal surfaces at elevated temperature. The T-mixer is placed at room temperature; the combined stream enters the pre-heated reactor zone within seconds.",
+    "pre_reactor_steps": [
+      "Prepare 0.50 M benzyl azide in acetone (Stream A) and 0.50 M phenylacetylene in acetone (Stream B) separately; degas both solutions with N2 sparging for 10 min to remove dissolved O2 that could oxidise Cu(0) to inactive Cu(II).",
+      "Pack a 316L SS column (4.6 mm ID × 30 cm, ~5 mL geometric volume) with Cu/C catalyst (10 mol% Cu relative to substrate throughput; catalyst loading calculated from expected hourly substrate mass). Void fraction assumed 0.40.",
+      "Condition the packed bed by flowing pure acetone at 0.5 mL/min at 120 °C for 15 min to equilibrate temperature and wet the catalyst.",
+      "Set BPR to 10 bar to keep acetone (bp 56 °C) fully liquid at 120 °C (vapour pressure ~3.5 bar at 120 °C; 10 bar provides >2× safety margin).",
+      "Verify system pressure hold at 10 bar with solvent only before introducing substrates."
+    ],
+    "post_reactor_steps": [
+      "Effluent passes through BPR (10 bar) and depressurises to atmosphere.",
+      "Collect effluent; allow 2 residence times (20 min) of steady-state operation before collecting product fractions to discard transient start-up material.",
+      "Filter collected solution through a short pad of Celite to remove any Cu/C fines that may have eluted.",
+      "Evaporate acetone under reduced pressure (rotary evaporator, 40 °C, 200 mbar).",
+      "Recrystallise or column-chromatograph crude solid to isolate 1-benzyl-4-phenyl-1,2,3-triazole.",
+      "Analyse by 1H NMR (singlet ~8.0 ppm for triazole H-5) and HPLC to confirm regioselectivity (>99:1 1,4:1,5 expected with Cu catalysis) and yield."
+    ],
+    "chemistry_notes": "The reaction is a copper-catalysed azide–alkyne cycloaddition (CuAAC), a 'click' reaction that is strictly regioselective for the 1,4-disubstituted 1,2,3-triazole when a Cu(I) catalyst is present. Cu/C provides Cu(0) which is oxidised in situ to the active Cu(I) species; no exogenous reductant or ligand is required. The batch protocol used microwave heating at 150 °C for 3 min; in flow, the superior heat/mass transfer allows a lower temperature (120 °C) with a longer residence time (10 min nominal, ~4 min effective interstitial) to achieve comparable conversion, reducing thermal stress on the catalyst and minimising azide decomposition risk. Acetone is retained as solvent for direct comparison; it is compatible with Cu/C and dissolves both substrates well. No copper leaching additive is used; ICP-MS analysis of the effluent is recommended to quantify Cu contamination in the product stream.",
+    "stage_parameters": [
+      {
+        "stage": 1,
+        "description": "Pre-mixing / pre-heating zone",
+        "temperature_C": 25,
+        "pressure_bar": 10,
+        "residence_time_min": "<0.5",
+        "notes": "T-mixer at ambient temperature; streams equilibrate pressure before entering heated zone"
+      },
+      {
+        "stage": 2,
+        "description": "Cu/C packed-bed reactor",
+        "temperature_C": 120,
+        "pressure_bar": 10,
+        "residence_time_min": "10 (nominal); ~4 (interstitial)",
+        "notes": "Isothermal zone maintained by column oven or aluminium heating block; thermocouple at inlet and outlet"
+      },
+      {
+        "stage": 3,
+        "description": "Cooling / BPR",
+        "temperature_C": 25,
+        "pressure_bar": "10 → 1",
+        "residence_time_min": "<1",
+        "notes": "Stainless steel cooling coil (25 cm, 1/16 in OD) in ice-water bath before BPR to prevent flash evaporation of acetone"
+      }
+    ],
+    "reasoning_per_field": {
+      "residence_time_min": "Batch: 3 min at 150 °C. Flow systems have superior heat transfer but lack microwave superheating effects. Literature CuAAC flow examples (Bogdan & Sach 2009; Fuchs et al. 2013) use 10–20 min at 100–130 °C for comparable substrates. 10 min at 120 °C is a conservative starting point; can be reduced after yield optimisation.",
+      "flow_rate_mL_min": "Total 0.5 mL/min (0.25 + 0.25) gives 10 min nominal residence in 5 mL reactor. Practical for standard HPLC pumps; back-pressure manageable.",
+      "temperature_C": "120 °C chosen to keep acetone liquid at 10 bar (bp 56 °C; at 10 bar, liquid phase stable well above 120 °C). Lower than batch 150 °C to reduce azide thermal decomposition risk in continuous operation.",
+      "concentration_M": "0.25 M in the reactor (each stream is 0.50 M, diluted 1:1 at T-mixer). Matches batch concentration exactly for direct comparison.",
+      "BPR_bar": "Acetone vapour pressure at 120 °C ≈ 3.5 bar. BPR set to 10 bar provides ~2.9× safety margin to ensure single liquid phase throughout. Standard BPR range for flow chemistry.",
+      "reactor_type": "Packed-bed with Cu/C mirrors the batch heterogeneous catalyst format. Avoids need for catalyst filtration after each batch. Cu/C is commercially available in granular form suitable for column packing.",
+      "tubing_material": "316L SS for reactor (pressure, temperature, chemical resistance). PTFE for pre/post sections (azide compatibility; PTFE is inert to organic azides at moderate temperatures).",
+      "tubing_ID_mm": "4.6 mm ID is standard HPLC column diameter; compatible with off-the-shelf column hardware and fittings.",
+      "reactor_volume_mL": "5 mL geometric volume. At 0.5 mL/min total flow, nominal τ = 10 min. Void fraction 0.40 → effective liquid volume 2 mL → effective τ ≈ 4 min. Assumption: Cu/C particle size 100–300 µm, typical void fraction 0.35–0.45.",
+      "residence_time_inlet_min": "Same as residence_time_min = 10 min (nominal, based on total reactor volume).",
+      "residence_time_in_channel_min": "~4 min based on interstitial void volume (5 mL × 0.40 void fraction = 2 mL; 2 mL / 0.5 mL/min = 4 min). This is the actual liquid contact time with catalyst.",
+      "light_setup": "Not applicable; CuAAC is a thermal reaction.",
+      "wavelength_nm": "Not applicable.",
+      "mixer_type": "T-mixer: simple, low dead volume, adequate for miscible liquid–liquid mixing at 0.5 mL/min total flow (Re ~50–100 in 0.5 mm bore; mixing by diffusion sufficient for small molecules in acetone).",
+      "BPR_bar_safety": "10 bar chosen; system rated to 100 bar (standard SS flow components). Pressure relief valve set at 20 bar as secondary protection."
+    },
+    "literature_analogies": [
+      {
+        "reference": "Bogdan, A. R.; Sach, N. W. Adv. Synth. Catal. 2009, 351, 849–854",
+        "description": "CuAAC in continuous flow using Cu tubing as catalyst source; 100 °C, 10 min residence time, >90% yield for benzyl azide / phenylacetylene analogues. Validates temperature and residence time range."
+      },
+      {
+        "reference": "Fuchs, M. et al. Beilstein J. Org. Chem. 2013, 9, 2372–2382",
+        "description": "Heterogeneous Cu/C packed-bed flow reactor for CuAAC; 80–120 °C, acetonitrile solvent, 5–15 min residence time, >95% yield. Directly analogous to proposed design."
+      },
+      {
+        "reference": "Molla, R. A. et al. Green Chem. 2014, 16, 3518",
+        "description": "Cu/C catalysed CuAAC in batch and flow; confirms 10 mol% Cu/C loading and acetone compatibility."
+      },
+      {
+        "reference": "Lipshutz, B. H.; Taft, B. R. Angew. Chem. Int. Ed. 2006, 45, 8235",
+        "description": "Cu-in-charcoal (Cu/C) as heterogeneous CuAAC catalyst; establishes catalyst activity and reusability."
+      }
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      {
+        "hazard": "Organic azide (benzyl azide)",
+        "severity": "HIGH",
+        "mitigation": "Benzyl azide is a primary organic azide; shock- and heat-sensitive above ~150 °C. Keep concentration ≤0.5 M in solution (never handle neat). Store at 4 °C under N2. Use PTFE tubing in azide-containing sections (avoid copper contact before mixing point to prevent premature decomposition). Limit inventory in syringe to <5 mL at any time. Install blast shield around pump/syringe area. Perform DSC/ARC analysis of benzyl azide solution before scale-up. Do not heat azide solution above 80 °C before mixing with alkyne."
+      },
+      {
+        "hazard": "Elevated temperature and pressure (120 °C, 10 bar)",
+        "severity": "MEDIUM",
+        "mitigation": "Use pressure-rated SS components (rated ≥100 bar). Install pressure relief valve at 20 bar upstream of reactor. Use secondary containment tray. Verify all fittings torqued to specification before heating. Do not open system while pressurised or hot."
+      },
+      {
+        "hazard": "Acetone solvent (flammable, bp 56 °C)",
+        "severity": "MEDIUM",
+        "mitigation": "Operate in fume hood or ventilated enclosure. BPR at 10 bar prevents boiling in reactor. Ensure no ignition sources near effluent collection. Ground all metal components to prevent static discharge."
+      },
+      {
+        "hazard": "Copper leaching into product stream",
+        "severity": "LOW-MEDIUM",
+        "mitigation": "Analyse effluent by ICP-MS for Cu content. If Cu >5 ppm, pass product solution through short pad of Quadrasil AP (metal scavenger) or treat with EDTA wash. Monitor catalyst bed for channelling (pressure drop increase)."
+      },
+      {
+        "hazard": "Azide accumulation / decomposition in packed bed",
+        "severity": "MEDIUM",
+        "mitigation": "Do not allow azide solution to stagnate in hot reactor (e.g., during pump failure). Install flow sensor with automatic shut-off and reactor cooling on flow loss. Flush reactor with pure acetone immediately on shutdown."
+      },
+      {
+        "hazard": "Phenylacetylene (irritant, low flash point)",
+        "severity": "LOW",
+        "mitigation": "Handle in fume hood. Avoid skin/eye contact. Store under N2."
+      }
+    ],
+    "confidence": {
+      "overall": 0.82,
+      "residence_time": 0.78,
+      "temperature": 0.85,
+      "BPR": 0.92,
+      "yield_prediction": 0.75,
+      "notes": "Confidence is moderate-high. The design is well-supported by literature analogies for CuAAC in packed-bed flow reactors. Main uncertainties: (1) exact void fraction of the specific Cu/C batch used affects true residence time; (2) catalyst deactivation rate under continuous flow is not characterised for this substrate pair; (3) benzyl azide thermal stability at 120 °C in flow has not been independently verified by DSC in this study – assumed safe based on literature precedent at ≤130 °C in solution. Recommend DoE optimisation of temperature (100–130 °C) and residence time (5–20 min) on small scale before preparative runs."
+    }
+  },
+  "schema_valid": false
+}

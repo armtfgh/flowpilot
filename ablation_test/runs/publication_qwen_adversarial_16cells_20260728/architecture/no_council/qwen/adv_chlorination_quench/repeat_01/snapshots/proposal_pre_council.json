@@ -1,0 +1,96 @@
+{
+  "residence_time_min": 5.0,
+  "flow_rate_mL_min": 2.0,
+  "temperature_C": 0.0,
+  "concentration_M": 0.2,
+  "BPR_bar": 1.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": 3.0,
+  "residence_time_in_channel_min": 3.0,
+  "residence_time_basis": "inlet/STP apparent residence time",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Liquid substrate feed",
+      "contents": [
+        "Alkene (0.2 M)"
+      ],
+      "solvent": "DCM",
+      "concentration_M": 0.2,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Alkene in solvent. Flow rate derived from calculation Q_total = 0.5 mL/min."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Gas reagent feed",
+      "contents": [
+        "Chlorine gas"
+      ],
+      "solvent": "",
+      "concentration_M": null,
+      "flow_rate_mL_min": null,
+      "phase": "",
+      "gas_flow_sccm": 10.5,
+      "gas_flow_actual_mL_min": 0.004,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Cl2 gas. 1.05 equiv relative to 0.2 M * 0.5 mL/min = 0.1 mmol/min alkene. 0.105 mmol/min Cl2 ~ 10.5 sccm (STP). Actual volume negligible at 1 bar."
+    },
+    {
+      "stream_label": "C",
+      "pump_role": "Quench feed",
+      "contents": [
+        "Sodium thiosulfate (1.0 M)",
+        "Water"
+      ],
+      "solvent": "Water",
+      "concentration_M": 1.0,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Aqueous quench. Flow rate matched to liquid stream A for efficient mixing and phase separation."
+    }
+  ],
+  "mixer_type": "Static mixer (gas-liquid) followed by T-mixer (liquid-liquid)",
+  "mixing_order_reasoning": "From Chemistry Plan: Alkene solution mixed with Cl2 gas stream first (Stage 1). Quench stream C added after reaction coil (Stage 2). Incompatible pair Cl2/Thiosulfate kept separate until post-reactor.",
+  "pre_reactor_steps": [
+    "Degas DCM solvent to remove O2 (good practice, though not strictly required by plan).",
+    "Pre-cool Stream A and Stream C to 0 C using heat exchanger."
+  ],
+  "post_reactor_steps": [
+    "Mix reactor effluent with Stream C (Na2S2O3) in static mixer.",
+    "Hold for 1 min to ensure complete quenching of Cl2.",
+    "Phase separation (organic/aqueous).",
+    "Off-gas scrubbing with NaOH or Na2S2O3 solution to trap any escaped Cl2."
+  ],
+  "chemistry_notes": "Electrophilic addition of Cl2 to alkene. Exothermic reaction requires 0 C control. Cl2 is toxic/corrosive; gas dosing via MFC. Quench with Na2S2O3 mandatory. No light required. Gas-liquid mass transfer is critical; small ID tubing and static mixer used to enhance mixing. BPR not strictly required by calculation but recommended for safety and gas solubility control.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation estimated 3.0 min (range 2.0-4.5 min). Batch was 30 min. Flow advantage ~10x. Using 3.0 min based on calculation Step 2.",
+    "residence_time_basis": "Gas-liquid system. Using inlet/STP basis as per universal physics rules for gas-liquid feeds. Q_gas is negligible volume-wise at 1 bar, so inlet and in-channel times are nearly identical.",
+    "temperature_C": "From Chemistry Plan: 0 C required for selectivity and safety (exothermic).",
+    "BPR_bar": "Calculation Step 8 says BPR not required. However, setting 1 bar BPR to ensure positive pressure for gas handling and safety with Cl2. Solvent bp (DCM ~40 C) > T (0 C) + 20 C, so boiling not an issue.",
+    "tubing_material": "PFA preferred for chemical resistance to Cl2 and low temperature. FEP also acceptable but PFA has better chemical resistance.",
+    "concentration_M": "From Batch Input: 0.2 M. Maintained for flow."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "HIGH"
+}

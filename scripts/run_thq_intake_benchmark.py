@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import sys
 from pathlib import Path
 
@@ -23,14 +24,15 @@ from flora_translate.main import translate  # noqa: E402
 from flora_translate.schemas import IntakeAnswer  # noqa: E402
 
 
-OUT_DIR = Path("outputs/thq_intake_claude_gpt4o_20260629")
+OUT_DIR = Path("outputs/thq_intake_claude_gpt4o_30mL_20260715_cycle6")
 INVENTORY_PATH = Path("flora_translate/data/lab_inventory_thq.json")
+SOURCE_IMAGE = Path("profpark_latest_july26.png")
 
 PROTOCOL = """A flame-dried screw-cap reaction tube (13 x 100 mm, 8 mL) equipped with a magnetic stir bar was charged with 6-methyl-1,2,3,4-tetrahydroquinoline (1a, 0.20 mmol, 1.0 equiv, 29.4 mg, MW = 147.22 g/mol) and dimethyl sulfoxide (DMSO, 0.40 mL, 0.50 M) as solvent. No photocatalyst, transition metal, or any additive was used. Oxygen gas (O2, 1 atm, 0.4 mmol, 2.0 equiv, 12.8 mg, MW = 32 g/mol) was bubbled through the reaction mixture for 10 minutes using an oxygen-filled balloon to saturate the solution prior to irradiation. The sealed reaction tube was placed between two MR16 blue LED lamps (lambda = 450 +/- 15 nm, 5 W x 2) and irradiated from both sides simultaneously with no external cooling applied, allowing the reaction temperature to rise naturally to 40 C driven by the heat output of the LEDs. The reaction mixture was stirred continuously at 40 C under blue LED irradiation for 15 hours. This protocol afforded 6-methylquinoline (2a, MW = 143.19 g/mol) in 75% isolated yield (21.5 mg)."""
 
 KRICT_HISTORY = """Use only these KRICT experimental results as measured feedback. Do not use collaborator or hidden benchmark data.
 
-Entry 1, KRICT 2:
+Entry 3, KRICT 2:
 T = 40 C
 c = 0.50 M
 P = 6 bar
@@ -44,7 +46,7 @@ reactor volume = 10.74 mL
 product = 12%
 tubing ID = 0.75 mm
 
-Entry 2, KRICT 6:
+Entry 4, KRICT 6:
 T = 40 C
 c = 0.50 M
 P = 6 bar
@@ -58,18 +60,48 @@ reactor volume = 13.27 mL
 product = 10%
 tubing ID = 1.00 mm
 
-Entry 3, KRICT 2-1:
+Entry 5, KRICT 2-1:
 T = 40 C
 c = 0.50 M
 P = 6 bar
-substrate flow = 0.01047 mL/min
-O2 in-channel = 0.0489 mL/min
-O2 inlet/STP = 0.2492 mL/min
+substrate flow = 0.0264 mL/min
+O2 in-channel = 0.1214 mL/min
+O2 inlet/STP = 0.7327 mL/min
 O2 equiv inlet = 2.0
-t inlet = 38.6 min
-t in-channel = 168.43 min
+t inlet = 13.17 min
+t in-channel = 67.65 min
 reactor volume = 10.00 mL
-product = 27%
+starting material = 58%
+product = 26%
+tubing ID = 1.016 mm
+
+Entry 6, KRICT 2-2:
+T = 40 C
+c = 0.50 M
+P = 3 bar
+substrate flow = 0.00470 mL/min
+O2 in-channel = 0.0325 mL/min
+O2 inlet/STP = 0.11175 mL/min
+O2 equiv inlet = 2.0
+t inlet = 85.9 min
+t in-channel = 268.88 min
+reactor volume = 10.00 mL
+product = unavailable; this entry has no measured result and must not be used as evidence
+tubing ID = 1.016 mm
+
+Entry 7, KRICT 3-1:
+T = 40 C
+c = 0.50 M
+P = 3 bar
+substrate flow = 0.01123 mL/min
+O2 in-channel = 0.0811 mL/min
+O2 inlet/STP = 0.2792 mL/min
+O2 equiv inlet = 2.0
+t inlet = 68.9 min
+t in-channel = 216.38 min
+reactor volume = 20.00 mL
+starting material = 16%
+product = 51%
 tubing ID = 1.016 mm
 """
 
@@ -92,11 +124,15 @@ def _build_intake_package():
             question_id="Q-OBJ-001",
             answer=(
                 "Use evidence-calibrated closed-loop refinement for the next "
-                "longer KRICT-only screening design. Avoid another main design "
-                "near the failed short screen. Use inlet/STP apparent residence "
+                "KRICT-only screening design after the measured 51% product result "
+                "at 68.9 min. Use inlet/STP apparent residence "
                 "time as the primary design and calibration basis because O2 "
                 "equivalents are controlled by the MFC/STP inlet flow. Report "
-                "both inlet and pressure-corrected in-channel residence times."
+                "both inlet and pressure-corrected in-channel residence times. "
+                "Prefer a single-factor residence-time refinement on the same "
+                "manual platform. The 30 mL serial manual configuration may be "
+                "used when it enables the evidence-calibrated residence time "
+                "without violating the pump minimum."
             ),
         ),
         IntakeAnswer(question_id="Q-HIST-001", answer=KRICT_HISTORY),
@@ -106,20 +142,23 @@ def _build_intake_package():
             answer=(
                 "Use only the provided inventory. Operate within 0-8 bar, "
                 "0.1-0.5 M, and the temperature limits of the selected reactor. "
-                "Preserve KRICT O2 inlet/STP-to-liquid ratio when scaling flows "
-                "unless there is a clear reason to change it."
+                "Use only 10, 15, 20, or 30 mL inventory reactors. The 30 mL "
+                "manual reactor is one 20 mL and one 10 mL coil connected in series. The manual syringe "
+                "pump liquid-flow minimum is 0.010 mL/min. Supply at least 2.0 "
+                "equiv O2 calculated from the inlet/STP MFC flow. Preserve the "
+                "successful 40 C, 0.50 M, and 3 bar condition for the next "
+                "single-factor screen unless safety requires a change."
             ),
         ),
         IntakeAnswer(
             question_id="Q-HYP-001",
             answer=(
-                "The KRICT short screens had only 7.7-8.5 min inlet/STP apparent "
-                "residence time and low product. The next KRICT run at 38.6 min "
-                "inlet/STP apparent residence time improved product to 27%, so "
-                "the next design should not shorten residence time below that "
-                "measured anchor unless there is direct evidence for overreaction. "
-                "Oxygen delivery and photon flux should be treated as possible "
-                "secondary limitations."
+                "Measured KRICT product increased from 10-12% at 7.71-8.51 min, "
+                "to 26% at 13.17 min, and to 51% at 68.9 min inlet/STP apparent "
+                "residence time. There is no evidence of overreaction, so the next "
+                "design must not shorten residence time below the 68.9 min measured "
+                "anchor. Entry 6 has no result and is not evidence. Keep O2 at 2.0 "
+                "equiv and treat photon flux as a secondary hypothesis."
             ),
         ),
         IntakeAnswer(
@@ -180,6 +219,7 @@ def _summary(result: dict, package: dict) -> dict:
         "light_setup": proposal.get("light_setup"),
         "inventory_selection": proposal.get("inventory_selection"),
         "inventory_constraints": proposal.get("inventory_constraints"),
+        "pump_constraint": (proposal.get("inventory_constraints") or {}).get("selected_pump"),
         "gas_holdup": calc.get("gas_holdup"),
         "pressure_drop_bar": calc.get("pressure_drop_bar"),
         "calibration": {
@@ -213,6 +253,8 @@ def main() -> int:
 
     package = _build_intake_package()
     (OUT_DIR / "prompt.txt").write_text(PROTOCOL)
+    if SOURCE_IMAGE.exists():
+        shutil.copy2(SOURCE_IMAGE, OUT_DIR / SOURCE_IMAGE.name)
     (OUT_DIR / "intake_package.json").write_text(
         json.dumps(package.model_dump(), indent=2, default=str)
     )

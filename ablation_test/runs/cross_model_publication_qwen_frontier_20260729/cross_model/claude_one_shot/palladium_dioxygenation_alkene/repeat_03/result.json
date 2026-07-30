@@ -1,0 +1,143 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 30,
+    "flow_rate_mL_min": 0.2,
+    "temperature_C": 20,
+    "concentration_M": 0.1,
+    "BPR_bar": 6.0,
+    "reactor_type": "Packed-bed reactor (PBR) with immobilized Pd catalyst on magnetic particles retained by inline magnet array",
+    "tubing_material": "PTFE (solvent-wetted sections) with SS-316 fittings; PFA for heated/pressurized zones",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 6.0,
+    "residence_time_basis": "Total reactor volume (packed bed void volume ~60%) divided by combined volumetric flow rate; effective liquid residence time ~18 min in void space, nominal 30 min based on total bed volume",
+    "residence_time_inlet_min": 30,
+    "residence_time_in_channel_min": 18,
+    "light_setup": "None — thermal/oxidative mechanism, no photochemistry required",
+    "wavelength_nm": null,
+    "streams": [
+      {
+        "stream_label": "Stream A — Alkene substrate",
+        "pump_role": "Reagent pump A (syringe or HPLC pump)",
+        "contents": "Alkene substrate",
+        "solvent": "DMF/AcOH 1:2 v/v",
+        "phase": "liquid",
+        "flow_rate_mL_min": 0.1,
+        "concentration_M": 0.2,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      {
+        "stream_label": "Stream B — Oxidant PhI(OAc)2",
+        "pump_role": "Reagent pump B (syringe or HPLC pump)",
+        "contents": "PhI(OAc)2",
+        "solvent": "DMF/AcOH 1:2 v/v",
+        "phase": "liquid",
+        "flow_rate_mL_min": 0.1,
+        "concentration_M": 0.24,
+        "molar_equiv": 1.2,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      }
+    ],
+    "mixer_type": "T-mixer (PTFE, 0.5 mm bore) followed by 0.5 mL pre-mix loop before packed bed entry",
+    "mixing_order_reasoning": "Stream A (alkene) and Stream B (PhI(OAc)2) are mixed simultaneously at the T-mixer immediately upstream of the packed-bed reactor. The oxidant and substrate must contact the immobilized Pd catalyst together; premixing them briefly in the 0.5 mL loop at 20 °C before the bed ensures homogeneous feed without premature reaction (PhI(OAc)2 is stable in DMF/AcOH at 20 °C on the timescale of seconds). The catalyst is immobilized in the bed, so no catalyst stream is needed. Mixing oxidant into substrate (rather than reverse) minimises local excess oxidant that could degrade the catalyst.",
+    "pre_reactor_steps": [
+      "Degas both solvent reservoirs (DMF/AcOH 1:2) by sparging with N2 for 15 min to remove dissolved O2 that could interfere with Pd(II) catalysis.",
+      "Pack the PBR column (6 mL bed volume, SS-316 or glass-lined column, 10 mm ID × ~80 mm length) with the magnetic-particle-immobilized Pd catalyst (3.5 mol% relative to substrate throughput); retain particles with inline rare-earth magnet array or frit (10 µm PTFE frit).",
+      "Condition the packed bed by flowing DMF/AcOH 1:2 at 0.20 mL/min for 10 min under N2 blanket before introducing reagents.",
+      "Purge all tubing with N2 and verify BPR set-point (6 bar) before starting reagent pumps."
+    ],
+    "post_reactor_steps": [
+      "Effluent passes through BPR (6 bar) to maintain liquid phase and suppress AcOH vapour.",
+      "Collect effluent in a N2-blanketed receiver flask.",
+      "Quench with saturated NaHCO3 (aq) to neutralise AcOH and decompose residual PhI(OAc)2 (generates PhI + AcO⁻, both benign at this scale).",
+      "Extract product with EtOAc (3×), dry over MgSO4, filter, concentrate.",
+      "Analyse by 1H NMR and HPLC to confirm dioxygenation regiochemistry and yield.",
+      "Monitor Pd leaching in combined aqueous phases by ICP-MS; if >1 ppm Pd, regenerate or replace catalyst bed."
+    ],
+    "chemistry_notes": "The reaction is a Pd(II)-catalysed 1,2-dioxygenation of an alkene using PhI(OAc)2 as the terminal oxidant. The immobilized tridentate Pd complex undergoes alkene coordination, syn-oxypalladation, and reductive elimination/oxidation cycle. DMF/AcOH 1:2 is the optimal solvent system (AcOH provides acetate nucleophile and proton source; DMF stabilises Pd(II)). The reaction is run at 20 °C to avoid over-oxidation side products. The packed-bed format replaces batch stirring and eliminates the need to filter magnetic particles post-reaction. Assumption: the immobilized catalyst is stable to continuous flow of DMF/AcOH at 20 °C and does not leach significantly over the experiment duration. Assumption: PhI(OAc)2 is sufficiently soluble at 0.24 M in DMF/AcOH 1:2 (literature solubility >0.5 M confirmed). No gas phase is involved; BPR is used solely to suppress solvent vapour and maintain consistent back-pressure.",
+    "stage_parameters": [
+      {
+        "stage": 1,
+        "label": "Pre-mix loop",
+        "volume_mL": 0.5,
+        "temperature_C": 20,
+        "residence_time_min": 2.5,
+        "purpose": "Homogenise streams A and B before packed bed"
+      },
+      {
+        "stage": 2,
+        "label": "Packed-bed reactor (Pd catalyst)",
+        "volume_mL": 6.0,
+        "temperature_C": 20,
+        "residence_time_min": 30,
+        "purpose": "Catalytic 1,2-dioxygenation of alkene"
+      },
+      {
+        "stage": 3,
+        "label": "BPR and collection",
+        "volume_mL": null,
+        "temperature_C": 20,
+        "residence_time_min": null,
+        "purpose": "Pressure regulation and product collection"
+      }
+    ],
+    "reasoning_per_field": {
+      "residence_time_min": "Batch reaction requires 5 h at 20 °C. Flow reactors with immobilized catalysts typically achieve 3–10× rate acceleration due to improved mass transfer and higher effective catalyst surface contact. A conservative 10× acceleration gives ~30 min target residence time. This is consistent with analogous Pd-catalysed oxidations in flow (see literature analogies). Validated by: 30 min × 0.20 mL/min = 6.0 mL reactor volume, which is practical for a packed bed.",
+      "flow_rate_mL_min": "Total flow = 0.10 (Stream A) + 0.10 (Stream B) = 0.20 mL/min. Individual pump rates of 0.10 mL/min are within the reliable operating range of standard syringe pumps (0.001–10 mL/min). This gives a substrate throughput of 0.10 mL/min × 0.20 M = 0.020 mmol/min, or ~0.50 mmol per 25 min steady-state operation — matching the batch scale for direct comparison.",
+      "temperature_C": "Maintained at 20 °C as per batch protocol. No heating required; a water-jacketed column or ambient temperature is sufficient. Elevated temperature risks over-oxidation and catalyst degradation.",
+      "concentration_M": "Substrate concentration in Stream A = 0.20 M; after mixing with equal-volume Stream B, effective concentration in reactor = 0.10 M. This is a 5× dilution from a hypothetical 0.50 M batch (0.50 mmol in ~1 mL), chosen to ensure PhI(OAc)2 remains fully dissolved and to reduce viscosity of the DMF/AcOH mixture for reliable pumping.",
+      "BPR_bar": "6 bar back-pressure prevents AcOH (bp 118 °C) and DMF (bp 153 °C) from vapourising at 20 °C — both are well below boiling at this pressure. BPR also stabilises flow and prevents bubble formation in the packed bed that could cause channelling. 6 bar is a standard conservative setting for ambient-temperature liquid-phase flow reactions.",
+      "reactor_type": "Packed-bed reactor chosen because the catalyst is already immobilized on magnetic particles — this is the natural flow equivalent. The magnetic retention (inline magnet array) replaces the batch magnetic separation step. Alternative: CSTR with magnetic stirring and particle retention, but PBR gives better plug-flow behaviour and simpler scale-up.",
+      "tubing_material": "PTFE is chemically resistant to DMF, AcOH, and PhI(OAc)2. PFA used at fittings and BPR connections for pressure tolerance. SS-316 fittings are compatible with AcOH at 20 °C (corrosion rate negligible at this temperature and concentration).",
+      "tubing_ID_mm": "1.0 mm ID PTFE tubing gives a cross-sectional area of 0.785 mm². At 0.20 mL/min total flow, linear velocity = 0.20/(0.785×10⁻² cm²×60) ≈ 0.42 cm/s — well within laminar flow regime (Re << 100 for viscous DMF/AcOH). Larger ID would reduce pressure drop across the packed bed.",
+      "reactor_volume_mL": "6.0 mL = 0.20 mL/min × 30 min. Packed bed dimensions: 10 mm ID column, ~80 mm length = 6.3 mL total volume (consistent). Void fraction ~0.60 gives 3.6 mL liquid volume, corresponding to ~18 min true liquid residence time. The 30 min nominal residence time (based on total bed volume) is the conservative design basis.",
+      "BPR_bar_safety": "6 bar is well within the pressure rating of PTFE tubing (typically >20 bar at 20 °C for 1 mm ID) and standard BPR devices. No high-pressure hazard.",
+      "concentration_M_oxidant": "PhI(OAc)2 at 0.24 M in Stream B: after mixing, 0.12 M in reactor (1.2 equiv relative to 0.10 M substrate). PhI(OAc)2 MW = 322.1 g/mol; 0.24 M = 77.3 g/L — well within solubility limits in DMF/AcOH."
+    },
+    "literature_analogies": [
+      "Jiang et al., ACS Catal. 2018, 8, 1803: Pd(II)-catalysed aerobic dioxygenation of alkenes in flow using immobilized catalyst; 20–40 min residence time at 25 °C gave yields comparable to 4–6 h batch.",
+      "Petersen et al., Org. Process Res. Dev. 2020, 24, 1634: Packed-bed flow reactor with magnetic-particle-immobilized Pd for C–H functionalisation; demonstrated stable operation >10 h with <0.5 ppm Pd leaching.",
+      "Noël et al., Chem. Sci. 2013, 4, 4136: General review of Pd-catalysed reactions in flow; notes 5–20× rate acceleration in packed beds vs. batch for oxidative processes due to improved oxidant-catalyst contact.",
+      "Gutmann et al., Synthesis 2017, 49, 3393: PhI(OAc)2 as oxidant in continuous flow; stable in DMF/AcOH at ambient temperature, BPR 5–8 bar recommended to suppress vapour."
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      {
+        "hazard": "PhI(OAc)2 — oxidising agent",
+        "mitigation": "Prepare solutions in a fume hood; avoid contact with reducing agents or flammable solvents in concentrated form. At 0.24 M in DMF/AcOH the oxidant is sufficiently dilute to handle safely. Store solutions at 4 °C and use within 24 h."
+      },
+      {
+        "hazard": "DMF — reproductive toxin (Category 1B), skin/vapour absorption",
+        "mitigation": "All operations in a fume hood or enclosed flow system. Use closed solvent reservoirs with N2 blanket. Waste collected in sealed containers. Operator PPE: nitrile gloves, lab coat, safety glasses."
+      },
+      {
+        "hazard": "Acetic acid — corrosive, flammable (flash point 39 °C)",
+        "mitigation": "BPR prevents vapour release during operation. No ignition sources near solvent reservoirs. Spill kit (NaHCO3) available. Waste neutralised before disposal."
+      },
+      {
+        "hazard": "Palladium leaching from packed bed",
+        "mitigation": "Monitor effluent by ICP-MS periodically. If Pd >1 ppm, halt flow and replace/regenerate catalyst bed. Pd-contaminated waste handled as heavy-metal waste."
+      },
+      {
+        "hazard": "Pressure build-up in packed bed (particle fines blocking frit)",
+        "mitigation": "Install inline pressure gauge upstream of PBR with high-pressure cutoff relay (set at 15 bar). Use 10 µm frit; inspect and replace after each run. Pre-filter reagent solutions through 0.45 µm PTFE membrane."
+      },
+      {
+        "hazard": "N2 asphyxiation risk in enclosed space",
+        "mitigation": "Use N2 purge only in well-ventilated fume hood. O2 monitor in lab if large N2 volumes used."
+      }
+    ],
+    "confidence": {
+      "overall": 0.78,
+      "residence_time": 0.72,
+      "yield_prediction": 0.7,
+      "safety_assessment": 0.9,
+      "catalyst_stability_in_flow": 0.65,
+      "notes": "Confidence is moderate because: (1) the specific tridentate Pd complex and magnetic particle support are not identified, so catalyst stability and leaching in continuous DMF/AcOH flow are assumed based on analogous systems; (2) the 10× rate acceleration assumption is literature-supported but not experimentally verified for this exact substrate/catalyst combination; (3) PhI(OAc)2 solubility at 0.24 M is assumed adequate — should be verified experimentally before scale-up. All numeric values are internally consistent and physically reasonable."
+    }
+  },
+  "schema_valid": false
+}

@@ -1,0 +1,85 @@
+{
+  "residence_time_min": 2.9,
+  "flow_rate_mL_min": 0.5,
+  "temperature_C": 21.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 3.0,
+  "reactor_type": "photocoil",
+  "tubing_material": "FEP",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 1.45,
+  "residence_time_inlet_min": 0.4,
+  "residence_time_in_channel_min": 0.37,
+  "residence_time_basis": "inlet/STP apparent residence time",
+  "light_setup": "420 nm LED, 20 W, 100 mW/cm2",
+  "wavelength_nm": 420.0,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "Liquid",
+      "pump_role": "Syringe pump A",
+      "contents": [
+        "Fmoc-L-methionine (0.1 M)",
+        "4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%)"
+      ],
+      "solvent": "acetonitrile",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Homogeneous solution of substrate, catalyst, and solvent. Flow rate derived from calculation (Q_total = 0.5 mL/min) to achieve target residence time."
+    },
+    {
+      "stream_label": "Gas",
+      "pump_role": "Mass Flow Controller (MFC)",
+      "contents": [
+        "Air"
+      ],
+      "solvent": "",
+      "concentration_M": null,
+      "flow_rate_mL_min": null,
+      "phase": "",
+      "gas_flow_sccm": 5.34,
+      "gas_flow_actual_mL_min": 5.75,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Air is the oxidant. Flow rate derived from calculation (5.34 sccm) to ensure sufficient O2 transfer (Da >> 1)."
+    }
+  ],
+  "mixer_type": "Static mixer or T-mixer with gas sparging",
+  "mixing_order_reasoning": "From Chemistry Plan: Dissolve substrate and catalyst in solvent before irradiation. Gas-liquid mixing required for mass transfer; static mixer preferred to create segmented flow for enhanced O2 transfer.",
+  "pre_reactor_steps": [
+    "Degas acetonitrile is NOT required; reaction requires air.",
+    "Pre-mix Fmoc-L-methionine and photocatalyst in acetonitrile to ensure homogeneous solution before entering flow system."
+  ],
+  "post_reactor_steps": [
+    "Depressurize via BPR.",
+    "Collect product solution; no quench required as product is stable."
+  ],
+  "chemistry_notes": "Photo-oxidation of methionine using air as terminal oxidant. Mass transfer is the bottleneck (Da = 176). Gas-liquid segmented flow in FEP tubing ensures high interfacial area. BPR required to maintain gas solubility (Henry's Law) and prevent degassing. 420 nm LED matches photocatalyst absorption. Residence time reduced from 5 min (batch) to ~0.4 min (flow) due to enhanced mass transfer and light penetration, consistent with 11x intensification factor.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation estimated 0.4 min (range 0.3-0.8 min) based on 11x intensification factor. Analogy 3 used 16 min but had poor mass transfer; our design uses pressurized gas-liquid flow to reduce time significantly. Using inlet/STP basis for gas-liquid systems.",
+    "residence_time_basis": "Gas-liquid system. O2 equivalents based on inlet/STP MFC flow. In-channel time corrected for pressure (3 bar).",
+    "temperature_C": "Same as batch (21 C). No thermal advantage needed; photocatalyst stability and enzyme-like sensitivity (if any) favor mild conditions. Analogy 1 used 50 C but for different catalyst.",
+    "BPR_bar": "Calculation Step 8: BPR REQUIRED at 3.0 bar to maintain gas solubility and prevent uncontrolled degassing in gas-liquid system. Inventory allows 5 or 10 bar; 3.0 bar is conservative and sufficient.",
+    "tubing_material": "FEP selected for photochemical transparency (420 nm) and chemical compatibility with acetonitrile. Inventory specifies FEP photocoils.",
+    "concentration_M": "0.1 M from batch protocol and Chemistry Plan. Analogy 2 used 0.5 M but for different reaction; maintaining batch concentration for conservative screen.",
+    "reactor_volume_mL": "Calculated as 1.45 mL (V = t * Q = 0.4 min * 0.5 mL/min + gas volume). Inventory has 5 mL and 10 mL coils. Using 1.45 mL implies coiling 1.85 m of 1.0 mm ID tubing. This fits within the 5 mL inventory reactor capacity if we use a subset of the coil or adjust length. However, inventory lists fixed volumes. To strictly use inventory, we must select the 5 mL reactor and adjust flow rate or residence time. Let's re-evaluate: If we use the 5 mL reactor, and keep Q=0.5 mL/min, t = 10 min. This is longer than batch. To achieve intensification, we should increase flow rate. If we use 5 mL reactor and target t=0.4 min, Q = 12.5 mL/min, which exceeds pump max (5.0 mL/min). Therefore, we must use the calculated volume (1.45 mL) by coiling the appropriate length of the 1.0 mm ID tubing available in the inventory (which is listed as tubing, not just fixed reactors). The inventory lists 'reactors' as fixed volumes but also 'tubing'. We will use the tubing to create the 1.45 mL volume.",
+    "light_setup": "420 nm LED from inventory. Matches Chemistry Plan recommended wavelength.",
+    "deoxygenation_method": "None. Reaction requires air."
+  },
+  "literature_analogies": [
+    "Analogy 3 (Photooxidation with air, PFA tubing, BPR)",
+    "Analogy 1 (Photoredox, FEP tubing, LED)"
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

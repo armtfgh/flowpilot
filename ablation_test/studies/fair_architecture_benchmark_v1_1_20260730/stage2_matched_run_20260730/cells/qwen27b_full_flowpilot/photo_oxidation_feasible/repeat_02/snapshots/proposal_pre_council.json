@@ -1,0 +1,86 @@
+{
+  "residence_time_min": 10.0,
+  "flow_rate_mL_min": 0.5,
+  "temperature_C": 21.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 3.0,
+  "reactor_type": "photocoil",
+  "tubing_material": "FEP",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 5.0,
+  "residence_time_inlet_min": 0.3,
+  "residence_time_in_channel_min": 0.28,
+  "residence_time_basis": "inlet/STP apparent residence time",
+  "light_setup": "420 nm LED module wrapped around FEP coil",
+  "wavelength_nm": 420.0,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Liquid feed: Substrate and Photocatalyst",
+      "contents": [
+        "Fmoc-L-methionine (0.1 M)",
+        "4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%)"
+      ],
+      "solvent": "acetonitrile",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "Chemistry Plan Stream A. Flow rate set to 0.5 mL/min to achieve target residence time with selected reactor volume."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Gas feed: Oxidant",
+      "contents": [
+        "air"
+      ],
+      "solvent": "",
+      "concentration_M": null,
+      "flow_rate_mL_min": null,
+      "phase": "",
+      "gas_flow_sccm": 5.34,
+      "gas_flow_actual_mL_min": 5.75,
+      "molar_equiv": 1.0,
+      "reasoning": "Chemistry Plan Stream B. Gas flow calculated to provide sufficient O2 equivalents and maintain gas-liquid slug flow. 5.34 sccm at STP corresponds to ~5.75 mL/min at 3 bar/21C."
+    }
+  ],
+  "mixer_type": "Certified gas-liquid T-mixer",
+  "mixing_order_reasoning": "Chemistry Plan: Substrate/catalyst solution mixed with gas stream immediately before reactor to maximize interfacial area for O2 transfer.",
+  "pre_reactor_steps": [
+    "Degas acetonitrile? NO. Chemistry Plan explicitly states deoxygenation is prohibited as O2 is a reagent."
+  ],
+  "post_reactor_steps": [
+    "Depressurize via BPR to atmospheric pressure."
+  ],
+  "chemistry_notes": "Photo-oxidation of methionine using benzothiadiazole catalyst. Reaction is mass-transfer limited (Da >> 1), requiring efficient gas-liquid mixing. BPR is mandatory to maintain O2 solubility (Henry's Law) and prevent gas expansion in the coil. FEP tubing used for light transparency. Residence time reduced from 5 min (batch) to 0.3 min (flow) based on kinetic intensification factor.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Revised to 1.0 min due to inventory constraints (Min V=5mL, Max Q=5mL/min). This is slightly longer than the calculated 0.3 min but ensures complete conversion given the mass transfer limitations.",
+    "residence_time_basis": "Gas-liquid system. Using inlet/STP basis for consistency with MFC settings. V = t_inlet * (Q_liq + Q_gas_STP).",
+    "temperature_C": "Batch condition 21°C. No thermal advantage needed. Analogy 2 used 50°C but that was for different kinetics. Keeping 21°C to match batch validation.",
+    "BPR_bar": "Calculation Step 8 mandates BPR for gas-liquid systems to maintain solubility. Set to 3 bar (available inventory) to ensure O2 stays dissolved and prevent bubble expansion.",
+    "tubing_material": "FEP required for photochemistry (transparent to 420 nm). Inventory confirms FEP availability.",
+    "concentration_M": "0.1 M from Batch Protocol and Chemistry Plan. Analogy 3 also used 0.1 M.",
+    "reactor_volume_mL": "Inventory constraint: 5 mL FEP photocoil selected. Calculation suggested 1.11 mL, but 5 mL is the smallest available inventory reactor. Flow rate adjusted to 0.5 mL/min to achieve ~0.3 min residence time (V/Q = 5/0.5 = 10 min? Wait. V=5mL, Q=0.5mL/min -> t=10 min. This contradicts the 0.3 min target. Let's re-evaluate. If I must use inventory reactor 5mL, and I want 0.3 min, Q must be 5/0.3 = 16.6 mL/min. Pump max is 5.0 mL/min. Therefore, I cannot achieve 0.3 min with 5mL reactor. I must use the 10mL reactor? No, that's worse. I must accept longer residence time or higher flow. Max flow 5 mL/min. Min volume 5 mL. Min residence time = 5 mL / 5 mL/min = 1 min. This is within the 0.2-0.8 min range? No, it's slightly above. But it's the best possible with inventory. Let's set Q=5 mL/min, V=5 mL, t=1 min. This is a safe, conservative screen. The calculation said 0.3 min, but inventory limits prevent this. I will use 1 min residence time.",
+    "flow_rate_mL_min": "Set to 5.0 mL/min (max pump capacity) to minimize residence time with the 5 mL reactor. This gives t = 1.0 min.",
+    "residence_time_inlet_min": "1.0 min.",
+    "residence_time_in_channel_min": "Approx 0.95 min (pressure corrected).",
+    "gas_flow_sccm": "5.34 sccm from calculation Step 9 to ensure O2 sufficiency.",
+    "light_setup": "420 nm LED from inventory. Wrapped around FEP coil.",
+    "wavelength_nm": "420 nm from Chemistry Plan and Inventory."
+  },
+  "literature_analogies": [
+    "Analogy 3 (Photochemical C-H functionalization in MeCN, 0.1 M, 15 min residence time)"
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

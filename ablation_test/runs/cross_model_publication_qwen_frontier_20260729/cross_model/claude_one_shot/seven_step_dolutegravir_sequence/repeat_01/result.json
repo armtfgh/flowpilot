@@ -1,0 +1,161 @@
+{
+  "variant": "general_one_shot",
+  "proposal": {
+    "residence_time_min": 60,
+    "flow_rate_mL_min": 0.333,
+    "temperature_C": 80,
+    "concentration_M": 0.2,
+    "BPR_bar": 3.5,
+    "reactor_type": "Tubular PFA coil reactor (single-pass, thermostated oil bath or Syrris Asia/Vapourtec R-series equivalent)",
+    "tubing_material": "PFA (perfluoroalkoxy alkane)",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 20.0,
+    "residence_time_basis": "Reactor volume divided by total volumetric flow rate: 20.0 mL / 0.333 mL·min⁻¹ ≈ 60 min",
+    "residence_time_inlet_min": 60,
+    "residence_time_in_channel_min": 60,
+    "light_setup": "None required — thermal condensation only",
+    "wavelength_nm": null,
+    "streams": [
+      {
+        "stream_label": "S1 — Substrate",
+        "pump_role": "Pump A (syringe or HPLC pump)",
+        "contents": "Methyl 4-methoxyacetoacetate (1.0 equiv)",
+        "solvent": "Glacial acetic acid",
+        "phase": "Liquid, homogeneous",
+        "flow_rate_mL_min": 0.167,
+        "concentration_M": 0.4,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "notes": "Stock solution: 0.40 M in AcOH. At 0.167 mL·min⁻¹ delivers 0.0668 mmol·min⁻¹ substrate."
+      },
+      {
+        "stream_label": "S2 — Reagent",
+        "pump_role": "Pump B (syringe or HPLC pump)",
+        "contents": "Dimethylformamide dimethylacetal (DMFDMA, 1.6 equiv)",
+        "solvent": "Glacial acetic acid",
+        "phase": "Liquid, homogeneous",
+        "flow_rate_mL_min": 0.167,
+        "concentration_M": 0.64,
+        "molar_equiv": 1.6,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "notes": "Stock solution: 0.64 M in AcOH. At 0.167 mL·min⁻¹ delivers 0.1069 mmol·min⁻¹ DMFDMA, giving 1.6 equiv relative to substrate. Combined flow = 0.333 mL·min⁻¹; combined [substrate] = 0.20 M as specified."
+      }
+    ],
+    "mixer_type": "T-mixer or Y-mixer (PEEK or PFA, 0.5 mm bore), followed immediately by the heated PFA coil",
+    "mixing_order_reasoning": "Both streams are dissolved in the same solvent (AcOH) and are miscible; no exotherm or precipitation is expected on mixing at room temperature. A simple T-mixer upstream of the heated zone is sufficient. The reagent (DMFDMA) is added to the substrate stream rather than the reverse to avoid local excess of the electrophilic reagent before dilution, minimising oligomeric side-products. The combined stream enters the 80 °C zone immediately after mixing.",
+    "pre_reactor_steps": [
+      "Prepare S1: dissolve methyl 4-methoxyacetoacetate in glacial AcOH to 0.40 M; degas with N₂ sparging for 5 min.",
+      "Prepare S2: dissolve DMFDMA in glacial AcOH to 0.64 M; degas with N₂ sparging for 5 min.",
+      "Prime both pump lines and the T-mixer at room temperature until steady flow is confirmed (≥3 reactor volumes, ~60 mL).",
+      "Equilibrate the oil bath or reactor heater to 80 °C before introducing reagent streams.",
+      "Set BPR to 3.5 bar to suppress solvent vapour (AcOH bp 118 °C; 3.5 bar absolute provides ample margin at 80 °C) and ensure liquid-filled reactor."
+    ],
+    "post_reactor_steps": [
+      "Reactor effluent passes through the BPR (3.5 bar) and is collected in a cooled (0–5 °C) collection vessel.",
+      "Inline quench option: a third pump (Pump C) can introduce a dilute NaHCO₃ aqueous stream (0.5 M, 0.10 mL·min⁻¹) after the BPR to neutralise AcOH and facilitate workup — this is optional for the isolated step but recommended for integration into the seven-step sequence.",
+      "Solvent removal: rotary evaporation or continuous thin-film evaporation to remove AcOH and methanol (by-product from DMFDMA).",
+      "The vinylogous amide intermediate can be used directly in the next step (fluoropyridone formation) without further purification, consistent with the reported 96% yield.",
+      "Analytical check: aliquot from steady-state collection (after ≥3 residence times, i.e., ≥180 min from start) analysed by ¹H NMR or HPLC to confirm ≥95% conversion before committing to downstream steps."
+    ],
+    "chemistry_notes": "This is Step 1 of the dolutegravir (GSK1349572) synthesis. Methyl 4-methoxyacetoacetate undergoes condensation with DMFDMA (an enaminone-forming reagent) at the active methylene position alpha to both carbonyls. The reaction proceeds via nucleophilic addition of the enol to the electrophilic carbon of DMFDMA, followed by elimination of methanol, to give the (E)-enaminone (vinylogous amide). Acetic acid serves as both solvent and mild proton-transfer catalyst. The reaction is clean and high-yielding (96% batch); the continuous-flow translation is straightforward because: (1) no gas is generated, (2) no solids precipitate, (3) the reaction is thermally driven with a well-defined rate at 80 °C, and (4) both reagents are stable in AcOH. The 60-min residence time matches the batch hold time exactly, which is conservative — kinetic profiling in flow could likely reduce this to 30–40 min, but 60 min is used here to match the validated batch yield. DMFDMA bp = 103 °C; at 3.5 bar and 80 °C it remains fully in solution. Methanol is the only volatile by-product (bp 64.7 °C) and is kept in solution by the BPR pressure.",
+    "stage_parameters": {
+      "stage_number": 1,
+      "stage_name": "Enaminone formation (vinylogous amide synthesis)",
+      "reaction": "Methyl 4-methoxyacetoacetate + DMFDMA → (E)-methyl 2-((dimethylamino)methylene)-4-methoxyacetoacetate + 2 MeOH",
+      "temperature_C": 80,
+      "residence_time_min": 60,
+      "total_flow_rate_mL_min": 0.333,
+      "reactor_volume_mL": 20.0,
+      "substrate_concentration_M": 0.2,
+      "reagent_equiv": 1.6,
+      "solvent": "Glacial acetic acid",
+      "BPR_bar": 3.5,
+      "expected_yield_percent": 96,
+      "throughput_mmol_per_min": 0.0668,
+      "throughput_mmol_per_h": 4.0,
+      "scale_note": "At 0.0668 mmol·min⁻¹ substrate, 2.0 mmol batch equivalent is processed in ~30 min of steady-state operation. For preparative scale, run for 60 min steady-state to collect ~4 mmol product."
+    },
+    "reasoning_per_field": {
+      "residence_time_min": "Directly taken from the batch protocol (80 °C, 60 min, 96% yield). No kinetic data in flow are available to justify reduction; 60 min is used as a safe, validated value. Future optimisation could use inline IR or UV to find the minimum residence time.",
+      "flow_rate_mL_min": "Derived from reactor_volume / residence_time = 20.0 mL / 60 min = 0.333 mL·min⁻¹ total. Split equally between two pumps (0.167 each) to achieve 1:1 volumetric mixing and the target 0.20 M combined concentration.",
+      "temperature_C": "Matches batch protocol exactly. 80 °C is well below the boiling points of AcOH (118 °C) and DMFDMA (103 °C) at atmospheric pressure; the BPR ensures no vapour formation.",
+      "concentration_M": "0.20 M is specified in the batch protocol. Achieved by preparing each stream at 2× concentration (0.40 M substrate, 0.64 M DMFDMA) and mixing 1:1 by volume.",
+      "BPR_bar": "3.5 bar absolute chosen to keep all components (AcOH, DMFDMA, MeOH by-product) in the liquid phase at 80 °C. Antoine equation for MeOH gives Pvap ≈ 1.8 bar at 80 °C; 3.5 bar provides a 2× safety margin. Standard BPR cartridges (e.g., Zaiput, Swagelok) are available at this pressure.",
+      "reactor_type": "PFA coil is the standard choice for thermally driven reactions in AcOH at 80 °C. PFA is chemically resistant to AcOH and DMFDMA. A coil in an oil bath provides uniform temperature. Chip reactors are not preferred here due to the 20 mL volume requirement.",
+      "tubing_material": "PFA chosen for chemical resistance to acetic acid and compatibility with temperatures up to 150 °C. PTFE would also be acceptable but PFA is more transparent for visual inspection.",
+      "tubing_ID_mm": "1.0 mm ID gives a cross-sectional area of 0.785 mm². At 0.333 mL·min⁻¹, linear velocity = 0.333/(0.785×10⁻² cm²×60) ≈ 0.71 cm·s⁻¹, which is in the laminar-flow regime (Re << 2000) but sufficient for plug-flow approximation in a coil (Dean number effects enhance radial mixing). Coil length = 20.0 mL / (π×(0.05 cm)²) ≈ 2546 cm ≈ 25.5 m.",
+      "reactor_volume_mL": "20.0 mL = 0.333 mL·min⁻¹ × 60 min. This is a practical coil volume achievable with ~25 m of 1 mm ID PFA tubing.",
+      "BPR_bar_rationale": "See BPR_bar field above.",
+      "mixer_type": "T-mixer is standard for two miscible liquid streams. PEEK or PFA construction for AcOH compatibility. 0.5 mm bore gives sufficient mixing energy at these flow rates.",
+      "streams_rationale": "Two-pump design is the simplest and most reliable. Equal volumetric split achieves the target concentration upon mixing. Preparing each reagent at 2× the target concentration is standard practice.",
+      "light_setup": "No photochemistry involved in this step.",
+      "wavelength_nm": "Not applicable.",
+      "pre_reactor_steps_rationale": "Degassing prevents bubble formation in the reactor. Priming ensures steady-state is reached before collection. BPR pre-equilibration prevents pressure transients.",
+      "post_reactor_steps_rationale": "Cooling the collection vessel prevents product degradation. AcOH removal is necessary before the next step. The 3-residence-time rule ensures only steady-state material is collected."
+    },
+    "literature_analogies": [
+      {
+        "reference": "Federsel, H.-J. et al. (2013) Org. Process Res. Dev. 17, 1472–1478 — continuous-flow enaminone synthesis using DMFDMA in acetic acid; residence times of 30–90 min at 70–90 °C in PFA coils.",
+        "relevance": "Direct precedent for DMFDMA condensations in flow; confirms PFA compatibility and BPR use."
+      },
+      {
+        "reference": "Dolutegravir synthesis: Kaur, P. et al. (2014) Org. Lett. 16, 3986 and Langille, J. D. et al. (2015) Org. Process Res. Dev. 19, 1299 — batch Step 1 conditions (80 °C, AcOH, 60 min, 96%).",
+        "relevance": "Source of the batch protocol being translated."
+      },
+      {
+        "reference": "Gutmann, B. et al. (2015) Angew. Chem. Int. Ed. 54, 6688 — general review of continuous-flow translation of batch thermal reactions; recommends matching batch residence time as starting point.",
+        "relevance": "Supports the 60-min residence time choice."
+      },
+      {
+        "reference": "Noël, T. & Buchwald, S. L. (2011) Chem. Soc. Rev. 40, 5010 — PFA tubing selection and BPR use for reactions at elevated temperature in flow.",
+        "relevance": "Supports material and pressure choices."
+      }
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      {
+        "hazard": "Acetic acid vapour",
+        "severity": "Moderate",
+        "mitigation": "Operate in a fume hood. BPR at 3.5 bar keeps AcOH in liquid phase throughout the reactor. Collection vessel should be sealed or vented to scrubber."
+      },
+      {
+        "hazard": "DMFDMA — moisture-sensitive, releases methanol and dimethylamine on hydrolysis",
+        "severity": "Low–Moderate",
+        "mitigation": "Prepare stock solutions under N₂ blanket. Dimethylamine (bp 7 °C) is a gas at room temperature but is present only in trace amounts as a by-product; ensure adequate ventilation. DMFDMA is flammable (flash point 17 °C); keep away from ignition sources during stock preparation."
+      },
+      {
+        "hazard": "Methanol by-product accumulation",
+        "severity": "Low",
+        "mitigation": "Methanol is kept in solution by BPR pressure. Released only upon depressurisation at BPR outlet; collection vessel should be vented."
+      },
+      {
+        "hazard": "Elevated temperature (80 °C) and pressure (3.5 bar)",
+        "severity": "Moderate",
+        "mitigation": "Use rated PFA tubing (rated to >10 bar at 80 °C for 1 mm ID). Install pressure relief valve upstream of BPR set at 8 bar. Use insulated oil bath with over-temperature cutoff. Perform pressure test with solvent before introducing reagents."
+      },
+      {
+        "hazard": "Pump failure / blockage leading to pressure excursion",
+        "severity": "Moderate",
+        "mitigation": "Install inline pressure transducers on each pump outlet with automatic pump shutoff at >6 bar. Use check valves on each pump outlet to prevent backflow."
+      },
+      {
+        "hazard": "Methyl 4-methoxyacetoacetate — irritant, potential sensitiser",
+        "severity": "Low",
+        "mitigation": "Handle with nitrile gloves and eye protection. Prepare stock solutions in a fume hood."
+      }
+    ],
+    "confidence": {
+      "overall": 0.88,
+      "residence_time": 0.95,
+      "concentration": 0.98,
+      "temperature": 0.98,
+      "BPR": 0.9,
+      "reactor_volume": 0.95,
+      "yield_prediction": 0.85,
+      "notes": "High confidence in the direct translation of batch conditions (temperature, time, concentration, solvent) to flow. Moderate uncertainty in whether 60 min is the minimum required residence time in flow (could be shorter due to improved heat transfer); this is conservative. BPR value is calculated from vapour pressure data with a safety margin. No flow-specific kinetic data for this exact substrate/reagent pair were found in the literature; the analogy to related DMFDMA condensations supports the design."
+    }
+  },
+  "schema_valid": false
+}

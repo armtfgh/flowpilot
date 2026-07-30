@@ -1,0 +1,85 @@
+{
+  "residence_time_min": 7.7,
+  "flow_rate_mL_min": 1.2987,
+  "temperature_C": 60.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 0.0,
+  "reactor_type": "Coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 10.0,
+  "residence_time_inlet_min": null,
+  "residence_time_in_channel_min": null,
+  "residence_time_basis": "liquid-only reactor volume / liquid flow",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Substrate feed",
+      "contents": [
+        "Aniline Derivative (1.0 equiv)"
+      ],
+      "solvent": "Industrial Batch Solvent",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream A contains substrate and solvent. Flow rate set to half of total to match 1:1 volumetric mixing with Stream B for simplicity, assuming similar densities."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Nitrating agent feed",
+      "contents": [
+        "Nitric Acid (2.0 equiv)"
+      ],
+      "solvent": "Industrial Batch Solvent",
+      "concentration_M": 0.2,
+      "flow_rate_mL_min": 0.25,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Stream B contains Nitric Acid. Concentration doubled relative to Stream A to maintain 2.0 equiv ratio. Flow rate matches Stream A."
+    }
+  ],
+  "mixer_type": "Static Mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Add nitric acid to substrate to control exotherm and prevent over-nitration. Static mixer ensures rapid mixing to manage the exotherm and Da > 1 condition.",
+  "pre_reactor_steps": [
+    "Degas streams if solvent is volatile (optional, not strictly required by plan)",
+    "Heat streams to 60 C before mixing"
+  ],
+  "post_reactor_steps": [
+    "Quench with Water or Base to neutralize excess acid and stop reaction",
+    "Separate organic phase"
+  ],
+  "chemistry_notes": "Nitration is highly exothermic. Flow chemistry provides superior heat transfer (Da_th = 0.001) and mixing control (Da = 1.95, requiring static mixer). Residence time reduced from 4 h (batch) to 18.8 min (flow) based on kinetic intensification factor. No light source used. BPR not required as T=60C is likely below solvent bp + 20C margin, but low pressure may be applied for stability.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 estimated 18.8 min (range 10.3-36.0 min) based on 13x intensification factor. Analogy 1 used 60 min at 120C; our T is lower (60C) but flow mixing is better. We trust the calculation derived from batch kinetics.",
+    "residence_time_basis": "Single-phase liquid system. Basis is liquid volume / liquid flow.",
+    "temperature_C": "Same as batch (60 C) to maintain selectivity and safety, as per Chemistry Plan and Batch Input.",
+    "BPR_bar": "Calculation Step 8 states BPR not required. T=60C is moderate. Set to 0.",
+    "tubing_material": "PFA is chemically resistant to nitric acid and transparent enough for visual inspection, though not photochemical. SS is also an option but PFA is standard for corrosive acids in flow.",
+    "concentration_M": "Batch input implied 0.1 M (Step 1). Analogy 1 used 1.0 M, but we stick to batch concentration to avoid viscosity/mixing issues unless specified otherwise.",
+    "reactor_volume_mL": "Calculated in Step 3: V = t * Q = 18.8 min * 0.5 mL/min = 9.4 mL. Rounded to 9.41 mL.",
+    "tubing_ID_mm": "1.0 mm ID used in Calculation Step 3 to achieve Re=10.6 (laminar) and Pe=217 (plug flow).",
+    "mixer_type": "Static mixer chosen because Da=1.95 indicates mixing is significant and may limit conversion. Enhanced laminar mixing is mandated by Chemistry Plan."
+  },
+  "literature_analogies": [
+    "Analogy 1: Solid acid catalyzed nitration in flow. Similar mechanism (EAS nitration). Key difference: Analogy used 120C and packed bed. We use 60C and coil. Adjusted residence time based on our kinetic calculation rather than analogy's 60 min.",
+    "Analogy 2: SNAr condensation. Not chemically similar. Used only for general flow reactor sizing context (Vapourtec R4+).",
+    "Analogy 3: Cross-coupling. Not chemically similar. Used for context on BPR usage at elevated T."
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

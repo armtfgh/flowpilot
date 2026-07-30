@@ -14,6 +14,8 @@ class BenchmarkCase:
     cached_result_path: str | None = None
     batch_record_data: dict | None = None
     tags: tuple[str, ...] = field(default_factory=tuple)
+    objective: str = ""
+    hard_constraints: tuple[str, ...] = field(default_factory=tuple)
 
 
 CASES: dict[str, BenchmarkCase] = {

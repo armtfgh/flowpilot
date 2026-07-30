@@ -1,0 +1,330 @@
+{
+  "steps": [
+    {
+      "step": 1,
+      "name": "Batch Conditions",
+      "status": "PASS",
+      "summary": "T = 150 °C, C₀ = 0.25 M, t_batch = 0.1 h (180 s), X = 0.94",
+      "values": {
+        "T_C": 150.0,
+        "T_K": 423.15,
+        "C_M": 0.25,
+        "t_batch_h": 0.05,
+        "t_batch_s": 180.0,
+        "X": 0.94
+      },
+      "equations": [],
+      "warnings": [],
+      "adjustments": [],
+      "assumptions": [
+        "Intensification policy active downstream → tau_flow must remain ≤ 3.0 min"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "Kinetics & Residence Time",
+      "status": "PASS",
+      "summary": "τ = 0.5 min, range [0.3–0.8] min, via class (kinetic) (IF = 6×)",
+      "values": {
+        "tau_primary_min": 0.5,
+        "tau_range_low": 0.33,
+        "tau_range_high": 0.75,
+        "method": "class (kinetic)",
+        "IF_primary": 6.0,
+        "IF_class": 6.0,
+        "tau_class_min": 0.5,
+        "chemistry_type": "photochem",
+        "k_batch": 0.01563005953755575,
+        "k_flow": 0.09378035722533451
+      },
+      "equations": [
+        "k_{\\mathrm{batch}} = \\frac{-\\ln(1-X)}{t_{\\mathrm{batch}}} = \\frac{2.8134}{180} = 1.5630e-02\\;\\mathrm{s^{-1}}",
+        "\\tau_{\\mathrm{class}} = \\frac{t_{\\mathrm{batch}}}{IF_{\\mathrm{class}}} = \\frac{3}{6} = 0.5\\;\\mathrm{min}\\quad (IF_{\\mathrm{class}} = 6\\times,\\;\\text{photochem median})"
+      ],
+      "warnings": [],
+      "adjustments": [],
+      "assumptions": [
+        "First-order kinetics assumed (n = 1)",
+        "IF = 6× from photochem class median (no analogy data available)"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "Reactor Sizing",
+      "status": "WARNING",
+      "summary": "V_R = 0.25 mL, d = 1.00 mm, L = 0.32 m, Pe = 6 (⚠ axial dispersion)",
+      "values": {
+        "V_R_mL": 0.25,
+        "liquid_holdup_mL": 0.25,
+        "gas_holdup": 0.0,
+        "d_mm": 1.0,
+        "L_m": 0.3183098861837907,
+        "Q_mL_min": 0.5,
+        "v_m_s": 0.01061032953945969,
+        "residence_time_basis": "unknown",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "Pe": 5.8,
+        "Pe_adequate": false
+      },
+      "equations": [
+        "V_R = \\tau \\times Q = 30.0 \\times 8.333e-09 = 2.500e-07\\;\\mathrm{m^3} = 0.25\\;\\mathrm{mL}",
+        "L = \\frac{4\\,V_R}{\\pi\\,d^2} = \\frac{4 \\times 2.500e-07}{\\pi \\times (0.0010)^2} = 0.32\\;\\mathrm{m}",
+        "Pe = \\frac{192\\,\\tau\\,D_{\\mathrm{mol}}}{d^2} = \\frac{192 \\times 30.0 \\times 1e-09}{0.0010^2} = 6\\;\\mathbf{WARNING}"
+      ],
+      "warnings": [
+        "Pe = 6 < 100 — significant axial dispersion. Reactor behaves closer to CSTR than PFR. Reduce d (smaller d → higher Pe) or accept lower conversion efficiency."
+      ],
+      "adjustments": [],
+      "assumptions": []
+    },
+    {
+      "step": 4,
+      "name": "Fluid Dynamics",
+      "status": "PASS",
+      "summary": "Re = 26.8 (laminar), v = 0.0106 m/s",
+      "values": {
+        "Re": 26.833865673988377,
+        "regime": "laminar",
+        "v_m_s": 0.01061032953945969,
+        "mu_Pa_s": 0.00031,
+        "rho_kg_m3": 784.0,
+        "mu_cP": 0.31,
+        "rho_g_mL": 0.784
+      },
+      "equations": [
+        "v = \\frac{4\\,Q}{\\pi\\,d^2} = \\frac{4 \\times 8.333e-09}{\\pi \\times (0.0010)^2} = 0.0106\\;\\mathrm{m/s}",
+        "Re = \\frac{\\rho\\,v\\,d}{\\mu} = \\frac{784 \\times 0.0106 \\times 0.0010}{3.1000e-04} = 26.8"
+      ],
+      "warnings": [],
+      "adjustments": [],
+      "assumptions": []
+    },
+    {
+      "step": 5,
+      "name": "Pressure Drop",
+      "status": "PASS",
+      "summary": "ΔP = 0.0003 bar (pump max = 400 bar, margin = 100 %)",
+      "values": {
+        "dP_bar": 0.0003350353805773302,
+        "dP_Pa": 33.50353805773302,
+        "pump_max_bar": 400.0,
+        "margin_pct": 99.99991624115485
+      },
+      "equations": [
+        "\\Delta P = \\frac{128\\,\\mu\\,L\\,Q}{\\pi\\,d^4} = \\frac{128 \\times 3.1000e-04 \\times 0.32 \\times 8.333e-09}{\\pi \\times (0.0010)^4} \\times \\phi^2_{2p} = 0.0003\\;\\mathrm{bar}"
+      ],
+      "warnings": [],
+      "adjustments": [],
+      "assumptions": []
+    },
+    {
+      "step": 6,
+      "name": "Mass Transfer",
+      "status": "WARNING",
+      "summary": "t_mix = 101.3 s, Da = 93.780 — Mass-transfer limited — mixing is the bottleneck",
+      "values": {
+        "t_mix_s": 101.32118364233777,
+        "Da_mass": 93.7803572253345,
+        "D_m2_s": 1e-09,
+        "interpretation": "Mass-transfer limited — mixing is the bottleneck"
+      },
+      "equations": [
+        "t_{\\mathrm{mix}} \\approx \\frac{d^2}{D \\cdot \\pi^2} = \\frac{(0.0010)^2}{1.0e-09 \\times \\pi^2} = 101.3\\;\\mathrm{s}",
+        "Da = \\frac{k \\cdot d^2}{D} = \\frac{9.378e-02 \\times (0.0010)^2}{1.0e-09} = 93.780"
+      ],
+      "warnings": [
+        "Da = 93.8 ≫ 1: severely mass-transfer limited. Need micromixer, smaller d, or pre-mixed streams."
+      ],
+      "adjustments": [],
+      "assumptions": [
+        "D = 1e-09 m²/s (typical for small organic molecules in liquid)"
+      ]
+    },
+    {
+      "step": 7,
+      "name": "Heat Transfer",
+      "status": "PASS",
+      "summary": "Q_gen = 0.2931 W, Q_rem = 2.9999 W, Da_th = 0.0977 — Thermally safe",
+      "values": {
+        "Q_gen_W": 0.29306361632917033,
+        "Q_rem_W": 2.999906824912894,
+        "Da_th": 0.09769090622928923,
+        "S_V_m_inv": 4000.0,
+        "U_W_m2K": 300,
+        "A_wall_m2": 0.0009999689416376313,
+        "UA_W_K": 0.299991,
+        "heat_transfer_score": 1.0,
+        "dH_J_mol": -50000,
+        "dT_lm_C": 10.0,
+        "r_mol_m3_s": 23.445089306333628
+      },
+      "equations": [
+        "\\dot{Q}_{\\mathrm{rxn}} = |\\Delta H_r| \\cdot r \\cdot V_R = 50000 \\times 23.445 \\times 2.500e-07 = 0.2931\\;\\mathrm{W}",
+        "A_{\\mathrm{wall}} = \\pi\\,d\\,L = \\pi \\times 0.0010 \\times 0.32 = 0.00100\\;\\mathrm{m^2}",
+        "\\dot{Q}_{\\mathrm{rem}} = U \\cdot A \\cdot \\Delta T_{\\mathrm{lm}} = 300 \\times 0.00100 \\times 10 = 2.9999\\;\\mathrm{W}",
+        "Da_{\\mathrm{th}} = \\frac{\\dot{Q}_{\\mathrm{rxn}}}{\\dot{Q}_{\\mathrm{rem}}} = \\frac{0.2931}{2.9999} = 0.0977",
+        "\\frac{S}{V} = \\frac{4}{d} = \\frac{4}{0.0010} = 4000\\;\\mathrm{m^{-1}}"
+      ],
+      "warnings": [],
+      "adjustments": [],
+      "assumptions": [
+        "ΔH_r ≈ -50 kJ/mol (estimated for photochem)",
+        "U ≈ 300 W/m²·K (coil in temperature-controlled bath)",
+        "ΔT_lm ≈ 10.0 °C (conservative estimate)"
+      ]
+    },
+    {
+      "step": 8,
+      "name": "Back-Pressure Regulator",
+      "status": "PASS",
+      "summary": "BPR REQUIRED: 11.8 bar (P_vap = 11.307337804795877 bar at 150.0 °C)",
+      "values": {
+        "bpr_required": true,
+        "bpr_bar": 11.8,
+        "P_vapor_bar": 11.307337804795877,
+        "dP_system_bar": 0.000335,
+        "solvent_bp_C": 56,
+        "gas_liquid": false,
+        "gas_species": "",
+        "gas_pressure_abs_bar": 1.01325,
+        "gas_flow_sccm": 0.0,
+        "dissolved_o2_mM": 0.0
+      },
+      "equations": [
+        "P_{\\mathrm{BPR}} \\geq P_{\\mathrm{vap}}(T) + \\Delta P_{\\mathrm{sys}} + 0.5 = 11.31 + 0.000 + 0.5 = 11.81\\;\\mathrm{bar}"
+      ],
+      "warnings": [],
+      "adjustments": [],
+      "assumptions": []
+    },
+    {
+      "step": 9,
+      "name": "Process Metrics",
+      "status": "PASS",
+      "summary": "STY = 28.2000 mol/(L·h), P = 7.050 mmol/h, startup waste = 0.8 mL, IF = 6×",
+      "values": {
+        "STY_mol_L_h": 28.2,
+        "productivity_mmol_h": 7.05,
+        "IF": 6.0,
+        "n_molar_flow_mmol_min": null,
+        "P_batch_mmol_h": null,
+        "P_flow_mmol_h": null,
+        "C_reactor_M": null,
+        "startup_waste_mL": 0.8,
+        "productivity_closure_ok": null,
+        "is_gas_liquid": false,
+        "liquid_flow_rate_mL_min": 0.5,
+        "gas_flow_sccm": 0.0,
+        "gas_holdup": 0.0,
+        "liquid_holdup_volume_mL": 0.0,
+        "total_reactor_volume_mL": 0.25
+      },
+      "equations": [
+        "STY = \\frac{C_0 \\cdot X \\cdot 60}{\\tau} = \\frac{0.25 \\times 0.94 \\times 60}{0.5} = 28.2000\\;\\mathrm{mol/(L \\cdot h)}",
+        "P = Q \\cdot C_0 \\cdot X \\cdot 60 = 0.500 \\times 0.25 \\times 0.94 \\times 60 = 7.050\\;\\mathrm{mmol/h}",
+        "V_{\\mathrm{startup}} = 3 \\cdot \\tau \\cdot Q = 3 \\times 0.5 \\times 0.500 = 0.8\\;\\mathrm{mL}",
+        "IF = \\frac{t_{\\mathrm{batch}}}{\\tau_{\\mathrm{flow}}} = \\frac{180}{30.0} = 6.0\\times"
+      ],
+      "warnings": [],
+      "adjustments": [],
+      "assumptions": []
+    }
+  ],
+  "temperature_C": 150.0,
+  "temperature_K": 423.15,
+  "concentration_M": 0.25,
+  "batch_time_s": 180.0,
+  "target_conversion": 0.94,
+  "rate_constant": 0.09378035722533451,
+  "reaction_order": 1,
+  "kinetics_method": "class (kinetic)",
+  "residence_time_s": 30.0,
+  "residence_time_min": 0.5,
+  "residence_time_inlet_min": 0.0,
+  "residence_time_in_channel_min": 0.0,
+  "residence_time_basis": "",
+  "residence_time_range_min": [
+    0.33,
+    0.75
+  ],
+  "intensification_factor": 6.0,
+  "tau_analogy_min": null,
+  "tau_class_min": 0.5,
+  "tau_kinetics_min": 0.41,
+  "if_analogy": null,
+  "if_class": 6.0,
+  "n_analogy_datapoints": 0,
+  "arrhenius_correction": null,
+  "flow_rate_mL_min": 0.5,
+  "flow_rate_m3_s": 8.333333333333334e-09,
+  "reactor_volume_mL": 0.25,
+  "reactor_volume_m3": 2.5e-07,
+  "tubing_ID_mm": 1.0,
+  "tubing_ID_m": 0.001,
+  "tubing_length_m": 0.3183,
+  "velocity_m_s": 0.01061032953945969,
+  "reynolds_number": 26.83,
+  "flow_regime": "laminar",
+  "viscosity_Pa_s": 0.00031,
+  "density_kg_m3": 784.0,
+  "pressure_drop_bar": 0.000335,
+  "pump_max_bar": 400.0,
+  "pump_adequate": true,
+  "is_gas_liquid": false,
+  "gas_species": "",
+  "gas_oxygen_fraction": 0.0,
+  "gas_reagent_fraction": 0.0,
+  "liquid_flow_rate_mL_min": 0.5,
+  "gas_flow_sccm": 0.0,
+  "gas_sccm_uncapped": 0.0,
+  "gas_flow_actual_mL_min": 0.0,
+  "gas_actual_uncapped_mL_min": 0.0,
+  "gas_flow_capped_by_holdup": false,
+  "gas_pressure_abs_bar": 1.01325,
+  "gas_liquid_ratio": 0.0,
+  "gas_holdup": 0.0,
+  "liquid_holdup_volume_mL": 0.0,
+  "two_phase_multiplier": 1.0,
+  "two_phase_pressure_drop_bar": 0.0,
+  "o2_supply_mmol_min": 0.0,
+  "o2_required_mmol_min": 0.0,
+  "gas_supply_mmol_min": 0.0,
+  "gas_required_mmol_min": 0.0,
+  "target_gas_equiv_inlet": 0.0,
+  "explicit_gas_equiv_inlet": 0.0,
+  "o2_equiv_supplied": 0.0,
+  "gas_equiv_supplied": 0.0,
+  "gas_flow_recomputed_from_equiv": false,
+  "dissolved_o2_mM": 0.0,
+  "kLa_s": 0.0,
+  "o2_transfer_capacity_mmol_min": 0.0,
+  "o2_transfer_sufficiency": 0.0,
+  "mixing_time_s": 101.32,
+  "damkohler_mass": 93.7804,
+  "mass_transfer_limited": true,
+  "heat_generation_W": 0.293064,
+  "heat_removal_W": 2.999907,
+  "thermal_damkohler": 0.097691,
+  "thermal_safe": true,
+  "surface_to_volume": 4000.0,
+  "heat_transfer_area_m2": 0.00099997,
+  "UA_W_K": 0.299991,
+  "heat_transfer_score": 1.0,
+  "bpr_required": true,
+  "bpr_pressure_bar": 11.8,
+  "vapor_pressure_bar": 11.3073,
+  "space_time_yield_mol_L_h": 28.2,
+  "productivity_mmol_h": 7.05,
+  "n_molar_flow_mmol_min": null,
+  "P_batch_mmol_h": null,
+  "P_flow_mmol_h": null,
+  "C_reactor_M": null,
+  "startup_waste_mL": 0.8,
+  "productivity_closure_ok": null,
+  "Pe": 5.8,
+  "Pe_adequate": false,
+  "consistent": true,
+  "consistency_notes": [],
+  "material_warnings": []
+}

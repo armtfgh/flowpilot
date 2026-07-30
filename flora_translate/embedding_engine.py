@@ -13,7 +13,9 @@ logger = logging.getLogger("flora.embedding")
 
 
 def _get_openai():
-    return OpenAI()
+    from flora_translate.engine.llm_agents import build_verified_httpx_client
+
+    return OpenAI(http_client=build_verified_httpx_client())
 
 SUMMARY_SYSTEM = (
     "You are a chemistry expert. Summarize this flow chemistry process record "

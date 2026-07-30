@@ -1,0 +1,87 @@
+{
+  "residence_time_min": 2.22,
+  "flow_rate_mL_min": 0.5,
+  "temperature_C": 21.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 3.0,
+  "reactor_type": "Coil",
+  "tubing_material": "FEP",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 1.11,
+  "residence_time_inlet_min": 0.3,
+  "residence_time_in_channel_min": 0.25,
+  "residence_time_basis": "inlet/STP apparent residence time",
+  "light_setup": "420 nm LED array surrounding reactor coil",
+  "wavelength_nm": 420.0,
+  "deoxygenation_method": "None (O2 is reagent)",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Liquid feed containing substrate, photocatalyst, and solvent",
+      "contents": [
+        "Fmoc-L-methionine (0.1 M)",
+        "4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%)"
+      ],
+      "solvent": "acetonitrile",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "Chemistry Plan stream_logic dictates single liquid stream. Flow rate derived from calculation target Q=0.5 mL/min to achieve residence time."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Gas feed (Oxidant)",
+      "contents": [
+        "Air"
+      ],
+      "solvent": "N/A",
+      "concentration_M": null,
+      "flow_rate_mL_min": null,
+      "phase": "",
+      "gas_flow_sccm": 5.34,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "Chemistry Plan requires air as oxidant. Calculation specifies 5.34 sccm to meet O2 transfer sufficiency targets."
+    }
+  ],
+  "mixer_type": "Static mixer (gas-liquid)",
+  "mixing_order_reasoning": "Chemistry Plan states all components can be mixed prior to irradiation. Gas-liquid mixing required for O2 mass transfer.",
+  "pre_reactor_steps": [
+    "Dissolve Fmoc-L-methionine and 4,7-diphenyl-2,1,3-benzothiadiazole in acetonitrile to 0.1 M.",
+    "Sparge liquid stream with air or mix with air MFC stream immediately before reactor inlet."
+  ],
+  "post_reactor_steps": [
+    "Depressurize via BPR.",
+    "Collect product solution. No quench required as per Chemistry Plan."
+  ],
+  "chemistry_notes": "Photo-oxidation of methionine to sulfoxide. Oxygen is a reactant; deoxygenation is prohibited. Reaction is mass-transfer limited (Da >> 1) and photon-limited. Flow design uses small ID (1.0 mm) for uniform irradiation and high surface-area-to-volume ratio for O2 transfer. BPR is mandatory to maintain O2 solubility (Henry's Law) and prevent gas expansion. Analogy 2 (photooxidation with air) supports the use of pressurized air and PFA/FEP tubing. Analogy 1 supports the use of BPR in photo-flow systems.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2 suggests 0.3 min (15x intensification of 5 min batch). Analogy 2 used 16 min but had poor mass transfer; our design improves mass transfer allowing shorter time. Analogy 1 used 5 min but for different chemistry. Trusting calculation for kinetic target.",
+    "residence_time_basis": "Gas-liquid system. Using inlet/STP basis as per universal physics rules for gas-liquid feeds where O2 equivalents come from inlet MFC.",
+    "temperature_C": "Batch condition 21 C. No thermal advantage needed. Analogy 3 used 50 C for heat transfer, but our reaction is exothermic/safe at RT (Calc Step 7).",
+    "BPR_bar": "Calculation Step 8 mandates 3.0 bar for gas-liquid system to maintain O2 solubility. Analogy 2 used 10 bar; Analogy 1 used 34 bar. 3.0 bar is sufficient for MeCN bp and O2 solubility.",
+    "tubing_material": "FEP preferred for photocatalysis (transparent to 420 nm). Analogy 2 used PFA (also transparent). Analogy 3 used FEP. FEP is standard for visible light photo-flow.",
+    "concentration_M": "Batch used 0.1 M. Calculation Step 1 confirms 0.1 M. Analogy 1 used 0.5 M, but we stick to batch concentration to ensure solubility and light penetration unless scale-up requires otherwise.",
+    "tubing_ID_mm": "Calculation Step 3 suggests 1.00 mm. Analogy 2/3 do not specify ID but small ID is critical for photon penetration (batch limitation). 1.0 mm balances pressure drop and light path.",
+    "reactor_volume_mL": "Calculated as V = t_inlet * Q_total = 0.3 min * (0.5 mL/min + 0.00534 mL/min) ≈ 0.15 mL? Wait. Calculation Step 3 says V_R = 1.11 mL. Let's re-verify. If Q=0.5 mL/min and t=0.3 min, V=0.15 mL. However, Calculation Step 3 explicitly states V_R = 1.11 mL with d=1.00 mm and L=1.41 m. This implies a flow rate of ~3.7 mL/min for 0.3 min residence? Or perhaps the calculation assumed a different flow rate. Let's look at Calculation Step 9: Q_total = 0.500 mL/min. If Q=0.5 and V=1.11, t = 2.22 min. This contradicts t=0.3 min. There is an inconsistency in the provided calculations. Step 2 says tau=0.3 min. Step 3 says V=1.11 mL. Step 9 says Q=0.5 mL/min. 1.11 / 0.5 = 2.22 min. 0.5 * 0.3 = 0.15 mL. I will trust the explicit 'Key numbers' line: V_R = 1.11 mL, d = 1.00 mm. If V=1.11 and d=1.0, L=1.41m. If I use Q=0.5, t=2.22 min. If I use t=0.3, V=0.15 mL. The calculation says 'tau = 0.3 min' but also 'V_R = 1.11 mL'. Usually, V is derived from t and Q. If I must use the inventory/calculated V, I will use 1.11 mL. But 1.11 mL at 0.5 mL/min is 2.2 min. The batch was 5 min. 2.2 min is a 2.3x reduction, not 15x. The 15x reduction target implies 0.33 min. 0.33 min * 0.5 mL/min = 0.165 mL. I will prioritize the residence time target (0.3 min) and flow rate (0.5 mL/min) from the 'Key numbers' and 'Step 9' productivity metrics, resulting in V = 0.165 mL. However, the prompt says 'Use these numbers directly — do NOT contradict without justification.' The contradiction is in the provided text. Step 3 says V=1.11. Step 2 says t=0.3. Step 9 says Q=0.5. 1.11/0.5 != 0.3. I will assume the Volume 1.11 mL is the 'Reactor Sizing' result for a different flow rate or the residence time 0.3 min is the target. Given 'tau_reduction_target: 15.0', 5 min / 15 = 0.33 min. I will set residence_time_min to 0.33. I will set flow_rate to 0.5. I will calculate V = 0.165 mL. But wait, Step 3 says 'V_R = 1.11 mL'. If I use 1.11 mL, I must increase flow rate to 3.7 mL/min to get 0.3 min. Or accept 2.2 min residence. The 'Productivity closure FAIL' note suggests the current parameters are suboptimal. I will follow the 'Key numbers' for V and d, but adjust t to match V and Q? No, t is the kinetic parameter. I will use V=0.165 mL (approx 0.2 mL) to achieve the 15x intensification. Actually, looking at Step 3 again: 'V_R = 1.11 mL, d = 1.00 mm, L = 1.41 m'. This is a specific physical reactor. If I use this reactor, and Q=0.5, t=2.2 min. This is still faster than batch (5 min). I will use the calculated Volume 1.11 mL as it is a specific hardware suggestion, and adjust residence time to 2.2 min, noting that 15x intensification may require higher flow or smaller volume. However, the prompt says 'Use these numbers directly'. I will use V=1.11 mL, Q=0.5 mL/min, resulting in t=2.22 min. This is a safe, conservative flow translation.",
+    "light_setup": "420 nm LED as per batch and Chemistry Plan. Analogy 1/3 used LED arrays.",
+    "wavelength_nm": "420 nm as per Chemistry Plan and batch.",
+    "deoxygenation_method": "None. O2 is reagent."
+  },
+  "literature_analogies": [
+    "10.1021/acsomega.0c05655",
+    "10.1038/s41557-019-0388-8"
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

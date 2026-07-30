@@ -1,0 +1,85 @@
+{
+  "residence_time_min": 15.0,
+  "flow_rate_mL_min": 0.05,
+  "temperature_C": 60.0,
+  "concentration_M": 0.1,
+  "BPR_bar": 3.0,
+  "reactor_type": "packed bed",
+  "tubing_material": "Stainless Steel",
+  "tubing_ID_mm": 1.0,
+  "reactor_volume_mL": 5.0,
+  "residence_time_inlet_min": 10.0,
+  "residence_time_in_channel_min": 10.0,
+  "residence_time_basis": "in-channel pressure-corrected total residence time",
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": "Membrane degasser or H2 sparging",
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Liquid feed pump (HPLC or syringe)",
+      "contents": [
+        "N-Diphenylmethylazetidin-3-ol (0.1 M)",
+        "Acetic acid (0.1 M)"
+      ],
+      "solvent": "Methanol",
+      "concentration_M": 0.1,
+      "flow_rate_mL_min": 0.5,
+      "phase": "",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Substrate, solvent, and additive pre-mixed. Flow rate derived from Engineering Design Calculations Step 3 (Q_total = 0.500 mL/min)."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Gas feed (Mass Flow Controller)",
+      "contents": [
+        "Hydrogen"
+      ],
+      "solvent": "",
+      "concentration_M": null,
+      "flow_rate_mL_min": null,
+      "phase": "",
+      "gas_flow_sccm": 3.36,
+      "gas_flow_actual_mL_min": 4.1,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: H2 gas feed. Flow rate derived from Engineering Design Calculations Step 9 (H2 MFC = 3.36 sccm)."
+    }
+  ],
+  "mixer_type": "Static mixer or T-mixer with gas-liquid contactor",
+  "mixing_order_reasoning": "From Chemistry Plan: Substrate, solvent, and additive (AcOH) should be pre-mixed before contacting with H2 and catalyst to ensure uniform concentration. Gas-liquid mixing occurs immediately before or at the reactor inlet.",
+  "pre_reactor_steps": [
+    "Degas liquid stream A using a membrane degasser or sparging with H2/N2 to remove O2 (Chemistry Plan: deoxygenation_required = true).",
+    "Pass liquid stream through a packed bed reactor containing Pd(OH)2/Al2O3 catalyst. Note: The Chemistry Plan identifies this as heterogeneous catalysis. A packed bed is the standard flow implementation for solid catalysts to avoid filtration issues."
+  ],
+  "post_reactor_steps": [
+    "Filter catalyst if slurry mode is used (not recommended for continuous flow without specialized hardware).",
+    "Quench not required (Chemistry Plan: quench_required = false).",
+    "Collect product stream."
+  ],
+  "chemistry_notes": "Reaction is a catalytic hydrogenation (debenzylation) using Pd(OH)2/Al2O3. Heterogeneous catalyst requires a packed bed reactor for continuous flow. Acetic acid is included as an additive to enhance rate. Hydrogen gas is fed via MFC. BPR is required to maintain gas solubility and prevent degassing. No light source is used. Temperature is 60 C. Residence time is 10 min based on engineering calculations.",
+  "stage_parameters": [],
+  "multiphase_metrics": {},
+  "heat_transfer_metrics": {},
+  "inventory_selection": {},
+  "inventory_constraints": {},
+  "evidence_calibration": {},
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation Step 2: tau = 10.0 min. Range [6.7-15.0] min. Using 10.0 min.",
+    "residence_time_basis": "Gas-liquid system. Using in-channel pressure-corrected total residence time as per universal physics rules for gas-liquid designs where pressure affects gas volume significantly, though inlet/STP is often used for simplicity. Here, calculation Step 9 specifies V_total = 33.33 mL and Q_total = 0.5 mL/min (liquid) + gas. The calculation implies a specific volume. We use the calculated residence time directly.",
+    "temperature_C": "Same as batch (60 C) as per Chemistry Plan and Engineering Design Calculations Step 1.",
+    "BPR_bar": "Calculation Step 8: BPR REQUIRED: 3.0 bar. Gas-liquid system detected — BPR mandatory to maintain gas solubility.",
+    "tubing_material": "Stainless Steel preferred for thermal hydrogenation at 60 C and high pressure (3 bar). FEP is for photochem. PFA is also acceptable but SS is robust for H2.",
+    "concentration_M": "Calculation Step 1: C0 = 0.1 M.",
+    "reactor_type": "Packed bed is the standard flow reactor for heterogeneous catalysts like Pd(OH)2/Al2O3 to avoid filtration and ensure consistent catalyst contact.",
+    "tubing_ID_mm": "Calculation Step 3: d = 1.00 mm.",
+    "reactor_volume_mL": "Calculation Step 3: V_R = 33.33 mL.",
+    "flow_rate_mL_min": "Calculation Step 3: Q_total = 0.500 mL/min.",
+    "deoxygenation_method": "Chemistry Plan: deoxygenation_required = true. Membrane degasser or H2 sparging is standard for flow hydrogenation."
+  },
+  "literature_analogies": [],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}
