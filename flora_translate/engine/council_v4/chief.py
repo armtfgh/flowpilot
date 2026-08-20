@@ -36,6 +36,7 @@ from flora_translate.engine.flow_value import attach_flow_sense_reports, pvs_for
 from flora_translate.engine.llm_agents import call_llm, call_llm_with_tools
 from flora_translate.engine.tool_definitions import CHIEF_TOOLS, execute_tool
 from flora_translate.engine.council_v4.designer import (
+    V4_GAS_LIQUID_MAX_BPR_BAR,
     _apply_v4_hard_gates,
     run_designer_v4,
     run_problem_framing,
@@ -50,7 +51,7 @@ from flora_translate.engine.council_v4.scoring import (
 from flora_translate.engine.council_v4.skeptic import run_skeptic_audit
 from flora_translate.engine.sampling import compute_metrics, format_candidate_table, hard_filter
 from flora_translate.intake_agent import historical_text_from_package, intake_context_block
-from flora_translate.inventory_constraints import enforce_reactor_inventory
+from flora_translate.inventory_constraints import available_pressure_settings, enforce_reactor_inventory
 from flora_translate.schemas import (
     BatchRecord, ChemistryPlan, DesignInputPackage, FlowProposal, LabInventory,
     DesignCandidate, CouncilMessage, DeliberationLog,
@@ -186,6 +187,32 @@ def compute_weighted_scores(
             )
 
     return results
+
+
+def _resolve_disqualify_ids(
+    candidates: list[dict],
+    scoring: dict,
+    audit: dict,
+) -> tuple[set[int], set[int]]:
+    """Keep stochastic scoring blocks from erasing every audited option."""
+    candidate_ids = {
+        int(candidate.get("id") or 0)
+        for candidate in candidates
+        if int(candidate.get("id") or 0) > 0
+    }
+    audit_disqualified = {
+        int(candidate_id)
+        for candidate_id in (audit.get("disqualify_ids") or [])
+    }
+    scoring_blocked = {
+        int(candidate_id)
+        for candidate_id in (scoring.get("blocked_by_scoring") or [])
+    }
+    audit_eligible = candidate_ids - audit_disqualified
+    scoring_eligible = audit_eligible - scoring_blocked
+    if audit_eligible and not scoring_eligible:
+        return audit_disqualified, scoring_blocked & audit_eligible
+    return audit_disqualified | scoring_blocked, set()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -941,6 +968,25 @@ def _extract_explicit_patch(
     for field, value in raw.items():
         if _FIELD_OWNER.get(field) != domain:
             continue
+        if field == "d_mm":
+            try:
+                proposed_d = float(value)
+            except (TypeError, ValueError):
+                continue
+            if proposed_d < _COMMERCIAL_D_MM[0] or proposed_d > _COMMERCIAL_D_MM[-1]:
+                rationale["d_mm_rejected"] = (
+                    f"Proposed d={proposed_d:.3f} mm is outside the supported "
+                    f"commercial range {_COMMERCIAL_D_MM[0]:.2f}-"
+                    f"{_COMMERCIAL_D_MM[-1]:.2f} mm."
+                )
+                continue
+            commercial_d = _round_down_commercial_d(proposed_d)
+            patch[field] = commercial_d
+            rationale[field] = (
+                f"Explicit diameter patch normalized to commercial size "
+                f"{commercial_d:.2f} mm."
+            )
+            continue
         if field == "concentration_M":
             try:
                 new_c = float(value)
@@ -1232,6 +1278,8 @@ def _materialize_revised_candidate(
     new_id: int,
     parent_id: int,
     variant_mode: str,
+    gas_liquid_max_bpr_bar: float,
+    pump_max_flow_mL_min: Optional[float],
 ) -> dict:
     new_tau = _positive_float(
         patch.get("tau_min"),
@@ -1272,6 +1320,16 @@ def _materialize_revised_candidate(
         is_photochem=is_photochem,
         extinction_coeff_M_cm=extinction_coeff_M_cm,
         tau_source="preselection_revision_loop",
+        is_gas_liquid=is_gas_liquid,
+        BPR_bar=new_bpr,
+        target_gas_equiv_inlet=_positive_float(
+            candidate.get("target_gas_equiv_inlet"),
+            1.0,
+        ),
+        gas_reagent_fraction=_positive_float(
+            candidate.get("gas_reagent_fraction"),
+            1.0,
+        ),
     )
     feasible, violations, warnings = hard_filter(
         revised,
@@ -1279,6 +1337,8 @@ def _materialize_revised_candidate(
         is_gas_liquid=is_gas_liquid,
         pump_max_bar=pump_max_bar,
         BPR_bar=new_bpr,
+        max_flow_rate_mL_min=pump_max_flow_mL_min,
+        gas_liquid_max_bpr_bar=gas_liquid_max_bpr_bar,
     )
     revised["id"] = new_id
     revised["parent_id"] = parent_id
@@ -1317,6 +1377,9 @@ def _run_candidate_refinement_loop(
     max_descendants_per_candidate: int = 2,
     max_total_revised_candidates: Optional[int] = None,
     batch_concentration_M: Optional[float] = None,
+    kinetic_x_minimum: float = 0.50,
+    gas_liquid_max_bpr_bar: float = V4_GAS_LIQUID_MAX_BPR_BAR,
+    pump_max_flow_mL_min: Optional[float] = None,
 ) -> tuple[list[dict], dict]:
     blocked_domains = _build_domain_blocklist(audit)
     revised_candidates: list[dict] = []
@@ -1394,6 +1457,7 @@ def _run_candidate_refinement_loop(
         primary_rationale: dict = {}
         primary_domains: list[str] = []
         descendant_ids: list[int] = []
+        rejected_variants: list[dict] = []
         for idx, variant in enumerate(variants):
             new_id = cid if (idx == 0 and not branching_revision_mode) else next_candidate_id
             if new_id != cid or branching_revision_mode:
@@ -1415,14 +1479,36 @@ def _run_candidate_refinement_loop(
                 new_id=new_id,
                 parent_id=cid,
                 variant_mode=variant["mode"],
+                gas_liquid_max_bpr_bar=gas_liquid_max_bpr_bar,
+                pump_max_flow_mL_min=pump_max_flow_mL_min,
             )
+            if not revised.get("feasible", False):
+                rejected_variants.append(
+                    {
+                        "variant_key": variant["variant_key"],
+                        "patch": variant["patch"],
+                        "violations": revised.get("violations") or [],
+                    }
+                )
+                continue
             revised_candidates.append(revised)
             descendant_ids.append(new_id)
             if not primary_changes:
                 primary_changes = variant["patch"]
                 primary_rationale = variant["rationale"]
                 primary_domains = variant["domains"]
-        changed_ids.append(cid)
+        if not descendant_ids and not branching_revision_mode:
+            original = dict(candidate)
+            original["revision_applied_preselection"] = False
+            original["revision_domains_preselection"] = []
+            original["revision_rationale_preselection"] = {
+                "rejected_revision_variants": rejected_variants,
+            }
+            original["parent_id"] = cid
+            original["variant_mode"] = "original_after_rejected_revision"
+            revised_candidates.append(original)
+        if descendant_ids:
+            changed_ids.append(cid)
         change_rows.append({
             "candidate_id": cid,
             "changes": primary_changes,
@@ -1431,6 +1517,8 @@ def _run_candidate_refinement_loop(
             "skipped_domains": skipped_domains,
             "descendant_ids": descendant_ids,
             "descendant_count": len(descendant_ids),
+            "rejected_variants": rejected_variants,
+            "rejected_variant_count": len(rejected_variants),
             "branching_revision_mode": branching_revision_mode,
         })
 
@@ -1468,7 +1556,7 @@ def _run_candidate_refinement_loop(
             is_photochem=is_photochem,
             is_gas_liquid=is_gas_liquid,
             BPR_bar=float(revised.get("BPR_bar", 0.0)),
-            X_minimum=0.50,
+            X_minimum=kinetic_x_minimum,
             tubing_material=str(revised.get("tubing_material", "FEP")),
         )
     _tag_pareto_front(revised_candidates)
@@ -2731,14 +2819,44 @@ class CouncilV4:
             or (getattr(calc, "batch_time_s", 0.0) or 0.0) / 60.0
         )
         translation_policy = FLOW_TRANSLATION_POLICY
+        kinetic_x_minimum = (
+            0.50 if (translation_policy or "").lower() == "intensify" else 0.0
+        )
         IF_used = calc.intensification_factor or 6.0
         assumed_MW = getattr(batch_record, "product_MW", None) or 250.0
         pump_max = calc.pump_max_bar or 20.0
+        target_gas_equiv = _positive_float(
+            getattr(calc, "target_gas_equiv_inlet", None),
+            1.0,
+        )
+        gas_reagent_fraction = _positive_float(
+            getattr(calc, "gas_reagent_fraction", None),
+            1.0,
+        )
+        inventory_bpr_values = [
+            _positive_float(value)
+            for value in available_pressure_settings(inventory)
+            if _positive_float(value) > 0
+        ]
+        gas_liquid_max_bpr = (
+            max(inventory_bpr_values)
+            if inventory_bpr_values
+            else min(pump_max, V4_GAS_LIQUID_MAX_BPR_BAR)
+        )
         selected_pump = (current.inventory_constraints or {}).get("selected_pump") or {}
         pump_min_flow = _positive_float(
             selected_pump.get("min_flow_rate_mL_min"),
             0.05,
         )
+        inventory_pump_max_flows = [
+            _positive_float(getattr(pump, "max_flow_rate_mL_min", None))
+            for pump in (getattr(inventory, "pumps", None) or [])
+            if _positive_float(getattr(pump, "max_flow_rate_mL_min", None)) > 0
+        ]
+        pump_max_flow = _positive_float(
+            selected_pump.get("max_flow_rate_mL_min"),
+            max(inventory_pump_max_flows) if inventory_pump_max_flows else 0.0,
+        ) or None
         ext_coeff = _extract_extinction_coeff(batch_record, chemistry_plan)
         chem_brief = _build_chemistry_brief(batch_record, chemistry_plan, current)
         intake_block = intake_context_block(intake_package) if intake_package is not None else ""
@@ -2900,16 +3018,20 @@ class CouncilV4:
                 assumed_MW=assumed_MW, IF_used=IF_used,
                 pump_max_bar=pump_max,
                 pump_min_flow_mL_min=pump_min_flow,
+                pump_max_flow_mL_min=pump_max_flow,
                 BPR_bar=current.BPR_bar or 0.0,
                 batch_time_min=batch_time_min,
                 translation_policy=translation_policy,
                 extinction_coeff_M_cm=ext_coeff,
                 tubing_material=current.tubing_material or "FEP",
-                X_minimum=0.0 if uncertain_kinetics_screen else 0.50,
+                X_minimum=0.0 if uncertain_kinetics_screen else kinetic_x_minimum,
                 N_target=candidate_budget,
                 problem_statement=problem_statement,
                 intensification_mandate=intensification_mandate,
                 redesign_instructions=uncertain_redesign_instructions,
+                target_gas_equiv_inlet=target_gas_equiv,
+                gas_reagent_fraction=gas_reagent_fraction,
+                gas_liquid_max_bpr_bar=gas_liquid_max_bpr,
             )
             if (
                 feasibility_diagnostic is not None
@@ -3012,7 +3134,7 @@ class CouncilV4:
                     seed_pool, pump_max_bar=pump_max,
                     is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,
                     BPR_bar=current.BPR_bar or 0.0,
-                    X_minimum=0.0 if uncertain_kinetics_screen else 0.50,
+                    X_minimum=0.0 if uncertain_kinetics_screen else kinetic_x_minimum,
                     tubing_material=current.tubing_material or "FEP",
                 )
                 if seed_survivors:
@@ -3369,6 +3491,9 @@ class CouncilV4:
             max_descendants_per_candidate=benchmark_max_descendants_per_candidate,
             max_total_revised_candidates=benchmark_max_total_revised_candidates,
             batch_concentration_M=getattr(batch_record, "concentration_M", None) or getattr(calc, "concentration_M", None),
+            kinetic_x_minimum=kinetic_x_minimum,
+            gas_liquid_max_bpr_bar=gas_liquid_max_bpr,
+            pump_max_flow_mL_min=pump_max_flow,
         )
         _bench_snapshot(benchmark_recorder, "stage3_5_refinement_summary", refinement_summary)
         attach_flow_sense_reports(
@@ -3446,10 +3571,31 @@ class CouncilV4:
 
         # Collect disqualified IDs — hard-gate flags are NOT removals; only scoring
         # blocks and Skeptic CRITICAL/HIGH disqualifications actually remove a candidate.
-        disqualify_ids = (
-            set(final_scoring.get("blocked_by_scoring", []))
-            | set(final_audit.get("disqualify_ids", []))
+        disqualify_ids, scoring_block_overrides = _resolve_disqualify_ids(
+            survivors_for_selection,
+            final_scoring,
+            final_audit,
         )
+        if scoring_block_overrides:
+            final_audit["scoring_block_overrides"] = sorted(
+                scoring_block_overrides
+            )
+            final_audit.setdefault("all_errors", []).append({
+                "agent": "CHIEF",
+                "candidate_id": None,
+                "error_type": "ALL_SCORING_BLOCKS_OVERRIDDEN",
+                "description": (
+                    "All candidates were blocked only by stochastic domain "
+                    "verdicts despite passing deterministic audit. Blocks were "
+                    "retained as concerns but not used to erase the full pool."
+                ),
+                "severity": "WARNING",
+            })
+            logger.warning(
+                "Council v4: preserving %d deterministic-audit candidates "
+                "because scoring blocks covered the entire eligible pool",
+                len(scoring_block_overrides),
+            )
         valid_candidate_ids = {
             cid for cid in (int(c.get("id") or 0) for c in survivors_for_selection)
             if cid and cid not in disqualify_ids
@@ -3633,6 +3779,15 @@ class CouncilV4:
             extinction_coeff_M_cm = ext_coeff,
             batch_yield_fraction = _batch_yield_fraction,
             batch_time_min   = batch_time_min,
+            translation_policy = translation_policy,
+            measured_evidence_available = bool(evidence_calibration),
+            measured_tau_floor_min = (
+                _positive_float(evidence_calibration.get("best_tau_min"))
+                if evidence_calibration
+                else None
+            ),
+            pump_max_flow_mL_min = pump_max_flow,
+            gas_liquid_max_bpr_bar = gas_liquid_max_bpr,
         )
         if revision_result is not None:
             winner_before_revision = winner

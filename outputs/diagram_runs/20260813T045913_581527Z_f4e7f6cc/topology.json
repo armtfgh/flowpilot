@@ -1,0 +1,343 @@
+{
+  "topology_id": "translate",
+  "unit_operations": [
+    {
+      "op_id": "pump_a",
+      "op_type": "pump",
+      "label": "Pump A \u2014 Organic substrate feed",
+      "parameters": {
+        "stream": "A",
+        "contents": [
+          "N-(1-ethylpropyl)-3,4-xylidine (0.1 M)"
+        ],
+        "solvent": "1,2-dichloroethane",
+        "flow_rate_mL_min": 0.33332,
+        "phase": "liquid",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "inventory_assignment_status": "unresolved",
+        "unresolved_inventory_category": "pumps"
+      },
+      "required": true,
+      "rationale": "From Chemistry Plan stream_logic: Organic substrate feed. Concentration set to 0.1 M per Engineering Design Calculations Step 1. Flow rate set to 0.25 mL/min to achieve total flow of 0.5 mL/min (within pump range 0.5-10 mL/min, note: min flow is 0.5, so we must adjust. Wait, pump min is 0.5. If total flow is 0.5, each stream is 0.25. This violates pump min flow. I must increase flow. Let's double flow to 1.0 mL/min total. Stream A = 0.5 mL/min, Stream B = 0.5 mL/min. This satisfies pump min flow 0.5 mL/min. Residence time will adjust accordingly or volume is fixed. Volume is fixed at 0.2 mL. If Q=1.0 mL/min, tau = 0.2 min. This is much shorter than batch. This is a screening design. The calculation suggested 24 min, but inventory forces 0.2 mL reactor. I must use the inventory reactor. The prompt says 'Use exactly two liquid feeds... integrated mixer-reactor is the only available reaction device'. I cannot change volume. I must use V=0.2 mL. I will set flow rates to satisfy pump constraints. Min flow 0.5 mL/min per pump. Total Q = 1.0 mL/min. Tau = 0.2 mL / 1.0 mL/min = 0.2 min. This is a very short residence time, appropriate for a fast nitration screening or requires high conversion per pass? Nitration is fast. The batch was 4h, but flow intensifies. The calculation said tau=24min, but that was for a hypothetical 12mL reactor. I am constrained to 0.2mL. I will proceed with Q=1.0 mL/min total (0.5 each) to satisfy pump constraints. This gives tau=0.2 min. This is a 'SCREEN' design.\nFinal synchronization: liquid pump rate set to 0.09243 mL/min so \u03a3 liquid reactor feeds = final Q_liquid 0.27730 mL/min.",
+      "inventory_item_id": null,
+      "inventory_item_ids": [],
+      "instrument_name": "",
+      "inventory_category": "pumps",
+      "assignment_status": "unresolved",
+      "capability_checks": {}
+    },
+    {
+      "op_id": "pump_b",
+      "op_type": "pump",
+      "label": "Pump B \u2014 Nitrating agent feed | Organic-feed HPLC pump",
+      "parameters": {
+        "stream": "B",
+        "contents": [
+          "Nitric Acid (dilute)",
+          "Water"
+        ],
+        "solvent": "Water",
+        "flow_rate_mL_min": 0.66668,
+        "phase": "liquid",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "inventory_item_id": "pump_nit_org",
+        "inventory_item_ids": [
+          "pump_nit_org"
+        ],
+        "instrument_name": "Organic-feed HPLC pump"
+      },
+      "required": true,
+      "rationale": "From Chemistry Plan stream_logic: Nitrating agent feed. 1.1 equiv HNO3. Flow rate 0.5 mL/min to match Stream A and satisfy pump min flow constraint.\nFinal synchronization: liquid pump rate set to 0.18487 mL/min so \u03a3 liquid reactor feeds = final Q_liquid 0.27730 mL/min.",
+      "inventory_item_id": "pump_nit_org",
+      "inventory_item_ids": [
+        "pump_nit_org"
+      ],
+      "instrument_name": "Organic-feed HPLC pump",
+      "inventory_category": "pumps",
+      "assignment_status": "assigned",
+      "capability_checks": {
+        "available": true,
+        "quantity": true,
+        "settings": true
+      }
+    },
+    {
+      "op_id": "mixer_1",
+      "op_type": "mixer",
+      "label": "micropore mixer | Integrated acid-compatible micropore mixer",
+      "parameters": {
+        "type": "micropore mixer",
+        "material": "not specified",
+        "inventory_item_id": "mixer_nit_mp",
+        "inventory_item_ids": [
+          "mixer_nit_mp"
+        ],
+        "instrument_name": "Integrated acid-compatible micropore mixer"
+      },
+      "required": true,
+      "rationale": "From Chemistry Plan: Acid added to organic substrate to control exotherm. Inventory uses integrated mixer-reactor.",
+      "inventory_item_id": "mixer_nit_mp",
+      "inventory_item_ids": [
+        "mixer_nit_mp"
+      ],
+      "instrument_name": "Integrated acid-compatible micropore mixer",
+      "inventory_category": "mixers",
+      "assignment_status": "assigned",
+      "capability_checks": {
+        "available": true,
+        "quantity": true,
+        "settings": true
+      }
+    },
+    {
+      "op_id": "reactor_1",
+      "op_type": "coil_reactor",
+      "label": "acid-compatible alloy Flow Reactor Coil | Integrated acid-compatible micropore mixer/microchannel reactor",
+      "parameters": {
+        "material": "acid-compatible alloy",
+        "ID_mm": 0.5,
+        "volume_mL": 0.2,
+        "Q_inlet_mL_min": 1.0,
+        "temperature_C": 40.0,
+        "wavelength_nm": null,
+        "length_m": 1.02,
+        "residence_time_min": 0.2,
+        "reactor_type": "microchannel",
+        "inventory_item_id": "reactor_nit_020",
+        "inventory_item_ids": [
+          "reactor_nit_020"
+        ],
+        "instrument_name": "Integrated acid-compatible micropore mixer/microchannel reactor"
+      },
+      "required": true,
+      "rationale": "Flow reactor",
+      "inventory_item_id": "reactor_nit_020",
+      "inventory_item_ids": [
+        "reactor_nit_020"
+      ],
+      "instrument_name": "Integrated acid-compatible micropore mixer/microchannel reactor",
+      "inventory_category": "reactors",
+      "assignment_status": "assigned",
+      "capability_checks": {
+        "available": true,
+        "quantity": true,
+        "settings": true
+      }
+    },
+    {
+      "op_id": "bpr_1",
+      "op_type": "bpr",
+      "label": "BPR",
+      "parameters": {
+        "pressure_bar": 3.0,
+        "inventory_assignment_status": "unresolved",
+        "unresolved_inventory_category": "pressure_controllers"
+      },
+      "required": true,
+      "rationale": "Maintain liquid phase",
+      "inventory_item_id": null,
+      "inventory_item_ids": [],
+      "instrument_name": "",
+      "inventory_category": "pressure_controllers",
+      "assignment_status": "unresolved",
+      "capability_checks": {}
+    },
+    {
+      "op_id": "pump_q",
+      "op_type": "pump",
+      "label": "Pump Q \u2014 Inline quench",
+      "parameters": {
+        "stream": "Q",
+        "contents": [
+          "Water/Aqueous Base"
+        ],
+        "solvent": "H\u2082O",
+        "flow_rate_mL_min": 0.1,
+        "phase": "liquid",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "inventory_assignment_status": "unresolved",
+        "unresolved_inventory_category": "pumps"
+      },
+      "required": true,
+      "rationale": "To neutralize residual nitric acid and stop exothermic reaction.",
+      "inventory_item_id": null,
+      "inventory_item_ids": [],
+      "instrument_name": "",
+      "inventory_category": "pumps",
+      "assignment_status": "unresolved",
+      "capability_checks": {}
+    },
+    {
+      "op_id": "quench_mixer",
+      "op_type": "mixer",
+      "label": "Quench T-Mixer",
+      "parameters": {
+        "type": "T-mixer",
+        "material": "not specified",
+        "Q_inlet_mL_min": 1.1,
+        "quench_flow_rate_mL_min": 0.1,
+        "reactor_outlet_flow_rate_mL_min": 1.0,
+        "role": "inline safety neutralization, not a reaction stage",
+        "inventory_assignment_status": "unresolved",
+        "unresolved_inventory_category": "mixers"
+      },
+      "required": true,
+      "rationale": "Mix reactor outlet with quench stream(s)",
+      "inventory_item_id": null,
+      "inventory_item_ids": [],
+      "instrument_name": "",
+      "inventory_category": "mixers",
+      "assignment_status": "unresolved",
+      "capability_checks": {}
+    },
+    {
+      "op_id": "collector_1",
+      "op_type": "collector",
+      "label": "Product Collection | Cooled stirred aqueous quench collector",
+      "parameters": {
+        "inventory_item_id": "collector_nit_quench",
+        "inventory_item_ids": [
+          "collector_nit_quench"
+        ],
+        "instrument_name": "Cooled stirred aqueous quench collector"
+      },
+      "required": true,
+      "rationale": "Outlet",
+      "inventory_item_id": "collector_nit_quench",
+      "inventory_item_ids": [
+        "collector_nit_quench"
+      ],
+      "instrument_name": "Cooled stirred aqueous quench collector",
+      "inventory_category": "collectors",
+      "assignment_status": "assigned",
+      "capability_checks": {
+        "available": true,
+        "quantity": true,
+        "settings": true
+      }
+    }
+  ],
+  "streams": [
+    {
+      "stream_id": "s1",
+      "from_op": "pump_a",
+      "to_op": "mixer_1",
+      "stream_type": "liquid",
+      "label": ""
+    },
+    {
+      "stream_id": "s2",
+      "from_op": "pump_b",
+      "to_op": "mixer_1",
+      "stream_type": "liquid",
+      "label": ""
+    },
+    {
+      "stream_id": "s3",
+      "from_op": "mixer_1",
+      "to_op": "reactor_1",
+      "stream_type": "liquid",
+      "label": ""
+    },
+    {
+      "stream_id": "s4",
+      "from_op": "reactor_1",
+      "to_op": "bpr_1",
+      "stream_type": "liquid",
+      "label": ""
+    },
+    {
+      "stream_id": "s5",
+      "from_op": "bpr_1",
+      "to_op": "quench_mixer",
+      "stream_type": "liquid",
+      "label": ""
+    },
+    {
+      "stream_id": "s6",
+      "from_op": "pump_q",
+      "to_op": "quench_mixer",
+      "stream_type": "liquid",
+      "label": ""
+    },
+    {
+      "stream_id": "s7",
+      "from_op": "quench_mixer",
+      "to_op": "collector_1",
+      "stream_type": "liquid",
+      "label": ""
+    }
+  ],
+  "total_flow_rate_mL_min": 1.1,
+  "residence_time_min": 0.2,
+  "reactor_volume_mL": 0.2,
+  "pid_description": "Pump A \u2014 Organic substrate feed -> Pump B \u2014 Nitrating agent feed | Organic-feed HPLC pump -> micropore mixer | Integrated acid-compatible micropore mixer -> acid-compatible alloy Flow Reactor Coil | Integrated acid-compatible micropore mixer/microchannel reactor -> BPR -> Pump Q \u2014 Inline quench -> Quench T-Mixer -> Product Collection | Cooled stirred aqueous quench collector",
+  "literature_support": [],
+  "topology_confidence": "LOW",
+  "compilation_status": "inventory_incomplete",
+  "inventory_schema_version": "flowpilot_lab_inventory_v3.0",
+  "inventory_sha256": "9536d41d4901edb7483c874f6323d46888db82803b4421d7e6740e901e065326",
+  "instrument_manifest": [
+    {
+      "equipment_id": "pump_nit_org",
+      "name": "Organic-feed HPLC pump",
+      "category": "pumps",
+      "quantity_used": 1,
+      "roles": [
+        "Pump B \u2014 Nitrating agent feed"
+      ],
+      "settings": [
+        {
+          "flow_rate_mL_min": 0.66668
+        }
+      ]
+    },
+    {
+      "equipment_id": "mixer_nit_mp",
+      "name": "Integrated acid-compatible micropore mixer",
+      "category": "mixers",
+      "quantity_used": 1,
+      "roles": [
+        "micropore mixer"
+      ],
+      "settings": [
+        {
+          "input_count": 2,
+          "total_flow_mL_min": 1.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "reactor_nit_020",
+      "name": "Integrated acid-compatible micropore mixer/microchannel reactor",
+      "category": "reactors",
+      "quantity_used": 1,
+      "roles": [
+        "acid-compatible alloy Flow Reactor Coil"
+      ],
+      "settings": [
+        {
+          "equipment_id": null,
+          "volume_mL": 0.2,
+          "ID_mm": 0.5,
+          "temperature_C": 40.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "collector_nit_quench",
+      "name": "Cooled stirred aqueous quench collector",
+      "category": "collectors",
+      "quantity_used": 1,
+      "roles": [
+        "Product Collection"
+      ],
+      "settings": [
+        {}
+      ]
+    }
+  ]
+}

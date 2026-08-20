@@ -40,6 +40,71 @@ class TranslationLLM:
     @staticmethod
     def _normalize_proposal_data(data: dict) -> dict:
         """Keep basic reactor-volume/flow/residence-time consistency."""
+        scalar_defaults = {
+            "residence_time_min": 0.0,
+            "flow_rate_mL_min": 0.0,
+            "temperature_C": 25.0,
+            "concentration_M": 0.1,
+            "BPR_bar": 0.0,
+            "tubing_ID_mm": 1.0,
+            "reactor_volume_mL": 0.0,
+        }
+        string_defaults = {
+            "reactor_type": "coil",
+            "tubing_material": "FEP",
+            "residence_time_basis": "",
+            "light_setup": "",
+            "mixer_type": "T-mixer",
+            "mixing_order_reasoning": "",
+            "chemistry_notes": "",
+            "confidence": "LOW",
+        }
+        list_defaults = (
+            "streams",
+            "pre_reactor_steps",
+            "post_reactor_steps",
+            "stage_parameters",
+            "literature_analogies",
+            "safety_flags",
+        )
+        dict_defaults = (
+            "multiphase_metrics",
+            "heat_transfer_metrics",
+            "inventory_selection",
+            "inventory_constraints",
+            "evidence_calibration",
+            "reasoning_per_field",
+        )
+        for key, default in scalar_defaults.items():
+            if data.get(key) is None:
+                data[key] = default
+        for key, default in string_defaults.items():
+            if data.get(key) is None:
+                data[key] = default
+        for key in list_defaults:
+            if data.get(key) is None:
+                data[key] = []
+        for key in dict_defaults:
+            if data.get(key) is None:
+                data[key] = {}
+        reasoning = data.get("reasoning_per_field") or {}
+        if isinstance(reasoning, dict):
+            data["reasoning_per_field"] = {
+                str(key): (
+                    value
+                    if isinstance(value, str)
+                    else json.dumps(value, sort_keys=True, ensure_ascii=True)
+                )
+                for key, value in reasoning.items()
+            }
+        if data.get("engine_validated") is None:
+            data["engine_validated"] = False
+        for stream in data.get("streams") or []:
+            if not isinstance(stream, dict):
+                continue
+            if stream.get("molar_equiv") is None:
+                stream["molar_equiv"] = 1.0
+
         def _as_float(value) -> float:
             try:
                 return float(value)

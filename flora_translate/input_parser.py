@@ -50,7 +50,12 @@ class InputParser:
     def parse(self, batch_input: str | dict) -> BatchRecord:
         # If already a dict or JSON string representing a dict, try direct parse
         if isinstance(batch_input, dict):
-            normalized = enrich_batch_record_dict(batch_input, batch_input.get("raw_text"))
+            raw_text = batch_input.get("raw_text") or json.dumps(
+                batch_input,
+                sort_keys=True,
+                default=str,
+            )
+            normalized = enrich_batch_record_dict(batch_input, raw_text)
             return BatchRecord(**normalized)
 
         # Try parsing as JSON first

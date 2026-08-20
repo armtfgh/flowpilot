@@ -33,7 +33,10 @@ def render_error(exception: Exception, context: str = "FLORA"):
         fix = "Install cairosvg: `pip install cairosvg`"
     elif "validation error" in err_str.lower() or "pydantic" in err_str.lower():
         title = "Data validation error"
-        fix = "The LLM returned an unexpected format. Try running again."
+        fix = (
+            "One or more fields still use an unsupported structure. Check the "
+            "field names shown above; rerunning alone may not correct malformed JSON."
+        )
     else:
         title = f"Error in {context}"
         fix = "See technical details below."

@@ -129,6 +129,7 @@ class VectorRetriever:
         top_k: int = TOP_K_ANALOGIES,
         chemistry_plan: ChemistryPlan | None = None,
         exclude_record_ids: set[str] | None = None,
+        retrieval_mode: str = "semantic",
     ) -> list[dict]:
         """Retrieve top-k analogies for a batch record.
 
@@ -147,7 +148,42 @@ class VectorRetriever:
         else:
             query_text = self.engine.generate_query_summary(batch_record)
         logger.info(f"Query summary: {query_text[:120]}...")
-        query_vector = self.engine.embed(query_text)
+        if retrieval_mode not in {"semantic", "lexical"}:
+            raise ValueError("retrieval_mode must be 'semantic' or 'lexical'")
+        query_vector = None
+        if retrieval_mode == "semantic":
+            try:
+                query_vector = self.engine.embed(query_text)
+            except Exception as exc:
+                logger.warning(
+                    "Embedding provider unavailable; using deterministic lexical "
+                    "retrieval fallback: %s",
+                    exc,
+                )
+        else:
+            logger.info("Using deterministic lexical retrieval (remote embeddings disabled)")
+
+        def query_store(
+            *,
+            pairs_only: bool,
+            mechanism_type: str = "",
+            phase_regime: str = "",
+        ) -> dict:
+            if query_vector is not None:
+                return self.store.query(
+                    query_embedding=query_vector,
+                    n_results=TOP_K_RETRIEVAL,
+                    pairs_only=pairs_only,
+                    mechanism_type=mechanism_type,
+                    phase_regime=phase_regime,
+                )
+            return self.store.query_lexical(
+                query_text=query_text,
+                n_results=TOP_K_RETRIEVAL,
+                pairs_only=pairs_only,
+                mechanism_type=mechanism_type,
+                phase_regime=phase_regime,
+            )
 
         # Stage A: semantic search with hard metadata filters
         # Extract hard filters from ChemistryPlan if available
@@ -166,9 +202,7 @@ class VectorRetriever:
                 hard_phase = phase
 
         # Try 1: hard filters + pairs only
-        results = self.store.query(
-            query_embedding=query_vector,
-            n_results=TOP_K_RETRIEVAL,
+        results = query_store(
             pairs_only=True,
             mechanism_type=hard_mechanism,
             phase_regime=hard_phase,
@@ -185,20 +219,12 @@ class VectorRetriever:
                     f"Relaxing to soft filtering."
                 )
             # Try 2: no hard filters, pairs only
-            results = self.store.query(
-                query_embedding=query_vector,
-                n_results=TOP_K_RETRIEVAL,
-                pairs_only=True,
-            )
+            results = query_store(pairs_only=True)
 
         if not results["ids"] or not results["ids"][0]:
             logger.warning("No results from pairs search. Trying all records.")
             # Try 3: no filters, all records
-            results = self.store.query(
-                query_embedding=query_vector,
-                n_results=TOP_K_RETRIEVAL,
-                pairs_only=False,
-            )
+            results = query_store(pairs_only=False)
 
         if not results["ids"] or not results["ids"][0]:
             logger.warning("No records in vector store")

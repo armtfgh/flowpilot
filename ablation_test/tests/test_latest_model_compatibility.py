@@ -11,6 +11,13 @@ def test_latest_models_use_provider_compatible_token_limit():
     }
 
 
+def test_latest_openai_models_disable_reasoning_for_chat_tools():
+    assert llm_agents._openai_tool_kwargs("gpt-5.6-terra") == {
+        "reasoning_effort": "none"
+    }
+    assert llm_agents._openai_tool_kwargs("gpt-4o") == {}
+
+
 def test_latest_models_omit_unsupported_temperature(monkeypatch):
     monkeypatch.setattr(
         llm_agents,

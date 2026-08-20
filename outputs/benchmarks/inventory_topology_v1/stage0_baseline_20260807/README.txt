@@ -1,0 +1,1 @@
+Stage 0 captures the pre-fix global diagram artifacts and a representative KHU no-degasser result. The pre-fix implementation writes every run to outputs/translate_process.{svg,png}, creating overwrite and stale-path risk.

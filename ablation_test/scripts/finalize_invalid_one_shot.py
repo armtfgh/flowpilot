@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ablation_test.src.cases import load_cases
 from ablation_test.src.metrics import score_run
+from ablation_test.src.paths import resolve_artifact_path
 from ablation_test.src.runner import write_checksums
 
 
@@ -74,7 +75,7 @@ def finalize_invalid_outputs(experiment: Path) -> list[Path]:
         rows = list(csv.DictReader(handle))
     finalized_resolved = {str(path.resolve()) for path in finalized}
     for row in rows:
-        if row["run_dir"] in finalized_resolved:
+        if str(resolve_artifact_path(row["run_dir"]).resolve()) in finalized_resolved:
             row["status"] = "completed"
             row["error"] = ""
     with manifest_path.open("w", encoding="utf-8", newline="") as handle:

@@ -427,6 +427,7 @@ def run_designer_v4(
     IF_used: float,
     pump_max_bar: float,
     pump_min_flow_mL_min: float = 0.05,
+    pump_max_flow_mL_min: Optional[float] = None,
     BPR_bar: float = 0.0,
     batch_time_min: Optional[float] = None,
     translation_policy: str = FLOW_TRANSLATION_POLICY,
@@ -437,6 +438,9 @@ def run_designer_v4(
     problem_statement: Optional[dict] = None,
     intensification_mandate: Optional[dict] = None,
     redesign_instructions: Optional[dict] = None,
+    target_gas_equiv_inlet: float = 3.0,
+    gas_reagent_fraction: float = 0.21,
+    gas_liquid_max_bpr_bar: float = V4_GAS_LIQUID_MAX_BPR_BAR,
 ) -> dict:
     """Run Stage 1: Designer candidate matrix for v4.
 
@@ -460,8 +464,15 @@ def run_designer_v4(
         f"tau_kinetics(90% X)={tau_kinetics_min:.1f} min | IF={IF_used:.1f}\n"
         f"d_center={d_center_mm} mm | Q_center={Q_center_mL_min:.3f} mL/min\n"
         f"solvent={solvent} | T={temperature_C}°C | C={concentration_M} M | "
-        f"MW={assumed_MW:.0f} g/mol | pump_max={pump_max_bar} bar"
+        f"MW={assumed_MW:.0f} g/mol | pump_max={pump_max_bar} bar\n"
+        f"translation_policy={translation_policy}"
     )
+    if (translation_policy or "").lower() == "evidence_first":
+        chem_brief += (
+            "\nPredicted intensification is a soft screening hypothesis. "
+            "Preserve practical, evidence-anchored candidates even when they "
+            "do not meet the predicted residence-time reduction target."
+        )
     if is_photochem:
         chem_brief += (
             f"\nε(photocatalyst)={extinction_coeff_M_cm or 'not provided'} M⁻¹cm⁻¹"
@@ -554,6 +565,10 @@ def run_designer_v4(
         max_tau_min=max_tau_min,
         min_tau_min=min_tau_min,
         min_flow_rate_mL_min=pump_min_flow_mL_min,
+        max_flow_rate_mL_min=pump_max_flow_mL_min,
+        target_gas_equiv_inlet=target_gas_equiv_inlet,
+        gas_reagent_fraction=gas_reagent_fraction,
+        gas_liquid_max_bpr_bar=gas_liquid_max_bpr_bar,
     )
 
     # Re-assign sequential IDs to all_feasible
@@ -581,6 +596,8 @@ def run_designer_v4(
         intensification_mandate=mandate,
     )
 
+    intensify_mode = (translation_policy or "").lower() == "intensify"
+
     def _self_challenge(candidates: list[dict]) -> tuple[list[dict], dict]:
         kept: list[dict] = []
         dropped: list[dict] = []
@@ -588,12 +605,20 @@ def run_designer_v4(
             report = candidate.get("flow_sense_report") or {}
             reasons: list[str] = []
             tau_ratio = report.get("tau_ratio")
-            if tau_ratio is not None and float(tau_ratio) >= cfg.BATCH_PROXIMITY_THRESHOLD:
+            if (
+                intensify_mode
+                and tau_ratio is not None
+                and float(tau_ratio) >= cfg.BATCH_PROXIMITY_THRESHOLD
+            ):
                 reasons.append("tau_flow too close to batch_time; no meaningful intensification")
-            if float(report.get("process_value_score") or 0.0) < 0.15:
+            if (
+                intensify_mode
+                and float(report.get("process_value_score") or 0.0) < 0.15
+            ):
                 reasons.append("no measurable flow advantage identified")
             if (
-                report.get("boundary_hugging")
+                intensify_mode
+                and report.get("boundary_hugging")
                 and float(report.get("primary_advantage_proxy_score") or 0.0) <= 0.4
             ):
                 reasons.append("candidate is batch-equivalent; not a flow design")
@@ -618,7 +643,8 @@ def run_designer_v4(
 
     filtered_feasible, pool_metadata = _self_challenge(all_feasible)
     if (
-        not redesign_instructions
+        intensify_mode
+        and not redesign_instructions
         and all_feasible
         and pool_metadata["drop_fraction"] >= cfg.POOL_REJECTION_THRESHOLD
         and batch_time_min
@@ -647,6 +673,10 @@ def run_designer_v4(
             max_tau_min=regen_tau_ceiling,
             min_tau_min=min_tau_min,
             min_flow_rate_mL_min=pump_min_flow_mL_min,
+            max_flow_rate_mL_min=pump_max_flow_mL_min,
+            target_gas_equiv_inlet=target_gas_equiv_inlet,
+            gas_reagent_fraction=gas_reagent_fraction,
+            gas_liquid_max_bpr_bar=gas_liquid_max_bpr_bar,
         )
         for i, c in enumerate(regen_feasible, 1):
             c["id"] = i

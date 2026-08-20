@@ -10,6 +10,7 @@ from flora_translate.engine.llm_agents import call_model_text
 from flora_translate.schemas import BatchRecord, ProcessRecord
 
 logger = logging.getLogger("flora.embedding")
+_embedding_provider_available: bool | None = None
 
 
 def _get_openai():
@@ -64,16 +65,36 @@ class EmbeddingEngine:
 
     def embed(self, text: str) -> list[float]:
         """Generate a vector embedding using OpenAI text-embedding-3-small."""
-        resp = _get_openai().embeddings.create(
-            input=text,
-            model=cfg.EMBEDDING_MODEL,
-        )
+        global _embedding_provider_available
+        if _embedding_provider_available is False:
+            raise RuntimeError(
+                "embedding provider disabled after an earlier request failure"
+            )
+        try:
+            resp = _get_openai().embeddings.create(
+                input=text,
+                model=cfg.EMBEDDING_MODEL,
+            )
+        except Exception:
+            _embedding_provider_available = False
+            raise
+        _embedding_provider_available = True
         return resp.data[0].embedding
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Embed multiple texts in one API call."""
-        resp = _get_openai().embeddings.create(
-            input=texts,
-            model=cfg.EMBEDDING_MODEL,
-        )
+        global _embedding_provider_available
+        if _embedding_provider_available is False:
+            raise RuntimeError(
+                "embedding provider disabled after an earlier request failure"
+            )
+        try:
+            resp = _get_openai().embeddings.create(
+                input=texts,
+                model=cfg.EMBEDDING_MODEL,
+            )
+        except Exception:
+            _embedding_provider_available = False
+            raise
+        _embedding_provider_available = True
         return [item.embedding for item in resp.data]

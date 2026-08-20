@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
+import re
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -12,51 +14,133 @@ from pydantic import BaseModel, Field, field_validator
 # ---------------------------------------------------------------------------
 
 
-class PumpSpec(BaseModel):
-    name: str
+LAB_INVENTORY_SCHEMA_VERSION = "flowpilot_lab_inventory_v3.0"
+LEGACY_LAB_INVENTORY_SCHEMA_VERSION = "flowpilot_lab_inventory_legacy"
+
+
+_GAS_SPECIES_PATTERN = re.compile(
+    r"^\s*(?:o2|oxygen(?:\s+gas)?|h2|hydrogen(?:\s+gas)?|co2|carbon dioxide|"
+    r"carbon monoxide|n2|nitrogen(?:\s+gas)?|argon|air|cl2|chlorine|nh3|ammonia)"
+    r"(?:\s|\(|$)",
+    re.IGNORECASE,
+)
+
+
+def normalized_stream_phase(
+    phase: Any,
+    species: list[Any] | None = None,
+    *,
+    gas_flow_sccm: Any = None,
+    gas_flow_actual_mL_min: Any = None,
+) -> str:
+    """Return a stable stream phase using structured fields, never prose.
+
+    LLM reasoning often mentions gases that must be excluded from a liquid
+    stream. Reasoning text is therefore intentionally not an input here.
+    """
+
+    declared = str(phase or "").strip().lower().replace("-", "_")
+    aliases = {
+        "g": "gas",
+        "vapour": "gas",
+        "vapor": "gas",
+        "l": "liquid",
+        "solution": "liquid",
+        "slurry": "solid_liquid",
+        "suspension": "solid_liquid",
+        "s": "solid",
+    }
+    declared = aliases.get(declared, declared)
+    if declared in {"gas", "liquid", "solid", "solid_liquid", "liquid_liquid"}:
+        return declared
+    if gas_flow_sccm not in (None, "", 0, 0.0) or gas_flow_actual_mL_min not in (
+        None,
+        "",
+        0,
+        0.0,
+    ):
+        return "gas"
+    identities = [str(item or "").strip() for item in species or []]
+    if any("(gas" in item.lower() for item in identities) or any(
+        _GAS_SPECIES_PATTERN.search(item)
+        and not re.match(r"(?i)^\s*hydrogen\s+peroxide\b", item)
+        for item in identities
+    ):
+        return "gas"
+    return "liquid"
+
+
+class InventoryItemSpec(BaseModel):
+    """Common identity and availability fields for physical lab equipment."""
+
+    equipment_id: str = ""
+    name: str = ""
+    quantity: int = Field(default=1, ge=1)
+    service_status: str = "available"
+    compatible_systems: list[str] = Field(default_factory=list)
+    notes: str = ""
+
+    @model_validator(mode="after")
+    def _assign_stable_id(self):
+        if not self.equipment_id:
+            payload = self.model_dump(exclude={"equipment_id", "notes"})
+            identity = "|".join(
+                str(payload.get(key) or "")
+                for key in (
+                    "name", "system", "type", "material", "volume_mL", "ID_mm",
+                    "wavelength_nm", "gas",
+                )
+            )
+            slug = re.sub(r"[^a-z0-9]+", "_", identity.lower()).strip("_")[:48]
+            digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:8]
+            prefix = self.__class__.__name__.replace("Spec", "").lower()
+            self.equipment_id = f"{prefix}_{slug or 'item'}_{digest}"
+        return self
+
+
+class PumpSpec(InventoryItemSpec):
     type: str  # "HPLC" / "syringe" / "peristaltic"
     max_pressure_bar: float
     max_flow_rate_mL_min: float
     min_flow_rate_mL_min: float
-    compatible_systems: list[str] = Field(default_factory=list)
+    compatible_materials: list[str] = Field(default_factory=list)
 
 
-class TubingSpec(BaseModel):
+class TubingSpec(InventoryItemSpec):
     material: str  # "FEP" / "PFA" / "SS" / "PTFE"
     ID_mm: float
     max_pressure_bar: float
     max_temperature_C: float
-    transparent: bool
+    transparent: Optional[bool] = None
+    length_m: Optional[float] = None
 
 
-class LightSourceSpec(BaseModel):
-    name: str
+class LightSourceSpec(InventoryItemSpec):
     wavelength_nm: float
-    power_W: float
+    power_W: Optional[float] = None
     compatible_reactor: str  # "coil" / "chip" / "both"
     intensity_mW_cm2: Optional[float] = None
     distance_cm: Optional[float] = None
+    min_temperature_C: Optional[float] = None
+    max_temperature_C: Optional[float] = None
+    allowed_temperatures_C: list[float] = Field(default_factory=list)
 
 
-class GasHardwareSpec(BaseModel):
+class GasHardwareSpec(InventoryItemSpec):
     """One gas-delivery or gas-liquid-contacting inventory item."""
 
-    name: str
     type: str = ""
     gas: str = ""
     min_flow_sccm: Optional[float] = None
     max_flow_sccm: Optional[float] = None
     max_pressure_bar: Optional[float] = None
-    service_status: str = "available"
-    notes: str = ""
 
 
-class ReactorSpec(BaseModel):
+class ReactorSpec(InventoryItemSpec):
     type: str
     material: str
     volume_mL: float
     ID_mm: float
-    name: str = ""
     system: str = ""
     light_source: str = ""
     wavelength_nm: Optional[float] = None
@@ -69,18 +153,127 @@ class ReactorSpec(BaseModel):
     max_concentration_M: Optional[float] = None
     min_pressure_bar: Optional[float] = None
     max_pressure_bar: Optional[float] = None
-    notes: str = ""
     configuration: str = ""
     component_volumes_mL: list[float] = Field(default_factory=list)
 
 
+class MixerSpec(InventoryItemSpec):
+    type: str = "T-mixer"
+    material: str = ""
+    max_inputs: int = Field(default=2, ge=2)
+    min_total_flow_mL_min: Optional[float] = None
+    max_total_flow_mL_min: Optional[float] = None
+    max_pressure_bar: Optional[float] = None
+    supported_ID_mm: list[float] = Field(default_factory=list)
+
+
+class PressureControllerSpec(InventoryItemSpec):
+    type: str = "BPR"
+    setpoints_bar: list[float] = Field(default_factory=list)
+    min_pressure_bar: Optional[float] = None
+    max_pressure_bar: Optional[float] = None
+
+
+class DegasserSpec(InventoryItemSpec):
+    type: str = "inline_degasser"
+    method: str = ""
+    min_flow_mL_min: Optional[float] = None
+    max_flow_mL_min: Optional[float] = None
+    max_pressure_bar: Optional[float] = None
+    compatible_solvents: list[str] = Field(default_factory=list)
+
+
+class FilterSpec(InventoryItemSpec):
+    type: str = "inline_filter"
+    material: str = ""
+    pore_size_um: Optional[float] = None
+    max_flow_mL_min: Optional[float] = None
+    max_pressure_bar: Optional[float] = None
+
+
+class SeparatorSpec(InventoryItemSpec):
+    type: str = "phase_separator"
+    supported_phases: list[str] = Field(default_factory=list)
+    max_flow_mL_min: Optional[float] = None
+    max_pressure_bar: Optional[float] = None
+
+
+class ConnectorSpec(InventoryItemSpec):
+    type: str = "union"
+    material: str = ""
+    supported_ID_mm: list[float] = Field(default_factory=list)
+    max_pressure_bar: Optional[float] = None
+
+
+class TemperatureControllerSpec(InventoryItemSpec):
+    type: str = "heater_chiller"
+    min_temperature_C: Optional[float] = None
+    max_temperature_C: Optional[float] = None
+    allowed_temperatures_C: list[float] = Field(default_factory=list)
+
+
+class CollectorSpec(InventoryItemSpec):
+    type: str = "collection_vessel"
+    volume_mL: Optional[float] = None
+    max_pressure_bar: Optional[float] = None
+
+
+class ReactorTrainSpec(InventoryItemSpec):
+    configuration: str = "serial"
+    component_reactor_ids: list[str] = Field(default_factory=list)
+    connector_ids: list[str] = Field(default_factory=list)
+    total_volume_mL: Optional[float] = None
+    max_pressure_bar: Optional[float] = None
+
+
+class SafetyAccessorySpec(InventoryItemSpec):
+    """Safety hardware or facility capability required by executable controls."""
+
+    type: str = "safety_accessory"
+    capabilities: list[str] = Field(default_factory=list)
+    max_pressure_bar: Optional[float] = None
+    compatible_hazards: list[str] = Field(default_factory=list)
+
+
 class LabInventory(BaseModel):
+    schema_version: str = LEGACY_LAB_INVENTORY_SCHEMA_VERSION
+    strict_assignment: bool = False
     pumps: list[PumpSpec] = Field(default_factory=list)
     tubing: list[TubingSpec] = Field(default_factory=list)
     BPR_available: list[float] = Field(default_factory=list)
     light_sources: list[LightSourceSpec] = Field(default_factory=list)
     gas_hardware: list[GasHardwareSpec] = Field(default_factory=list)
     reactors: list[ReactorSpec] = Field(default_factory=list)
+    mixers: list[MixerSpec] = Field(default_factory=list)
+    pressure_controllers: list[PressureControllerSpec] = Field(default_factory=list)
+    degassers: list[DegasserSpec] = Field(default_factory=list)
+    filters: list[FilterSpec] = Field(default_factory=list)
+    separators: list[SeparatorSpec] = Field(default_factory=list)
+    connectors: list[ConnectorSpec] = Field(default_factory=list)
+    temperature_controllers: list[TemperatureControllerSpec] = Field(default_factory=list)
+    collectors: list[CollectorSpec] = Field(default_factory=list)
+    reactor_trains: list[ReactorTrainSpec] = Field(default_factory=list)
+    safety_accessories: list[SafetyAccessorySpec] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _ensure_unique_equipment_ids(self):
+        seen: dict[str, int] = {}
+        for item in self.all_equipment():
+            base = item.equipment_id
+            seen[base] = seen.get(base, 0) + 1
+            if seen[base] > 1:
+                item.equipment_id = f"{base}_{seen[base]}"
+        return self
+
+    def all_equipment(self) -> list[InventoryItemSpec]:
+        categories = (
+            self.pumps, self.tubing, self.light_sources, self.gas_hardware,
+            self.reactors, self.mixers, self.pressure_controllers, self.degassers,
+            self.filters, self.separators, self.connectors,
+            self.temperature_controllers, self.collectors, self.reactor_trains,
+            self.safety_accessories,
+        )
+        return [item for category in categories for item in category]
 
     @classmethod
     def from_json(cls, path: str) -> LabInventory:
@@ -150,7 +343,9 @@ class DesignInputPackage(BaseModel):
     inventory_constraints: Any = None
     hypotheses: list[str] = Field(default_factory=list)
     operating_limits: Any = None
+    inventory_profile_snapshot: dict[str, Any] = Field(default_factory=dict)
     output_preferences: str = ""
+    chemistry_identity_confirmation: dict[str, Any] = Field(default_factory=dict)
     question_log: list[IntakeQuestion] = Field(default_factory=list)
     answers: list[IntakeAnswer] = Field(default_factory=list)
     missing_question_ids: list[str] = Field(default_factory=list)
@@ -271,6 +466,18 @@ class StreamLogic(BaseModel):
     phase: str = ""                      # "liquid" | "gas" | "solid" | ""
     gas_flow_sccm: Optional[float] = None
     gas_flow_actual_mL_min: Optional[float] = None
+    introduction_stage: Optional[int] = Field(default=None, ge=1)
+    delivery_mode: Literal["new_feed", "carried_from_previous"] = "new_feed"
+
+    @model_validator(mode="after")
+    def _normalize_phase(self):
+        self.phase = normalized_stream_phase(
+            self.phase,
+            self.reagents,
+            gas_flow_sccm=self.gas_flow_sccm,
+            gas_flow_actual_mL_min=self.gas_flow_actual_mL_min,
+        )
+        return self
 
 
 class IntensificationMandate(BaseModel):
@@ -390,6 +597,55 @@ class ChemistryPlan(BaseModel):
     # Explicit process-intensification target for downstream design.
     intensification_mandate: IntensificationMandate = Field(default_factory=IntensificationMandate)
 
+    @model_validator(mode="after")
+    def _normalize_stage_semantics(self):
+        self.n_stages = max(int(self.n_stages or 1), len(self.stages or []), 1)
+        global_streams = {
+            str(feed.stream_label or "").strip().upper(): feed
+            for feed in self.stream_logic or []
+            if str(feed.stream_label or "").strip()
+        }
+        for stage in self.stages or []:
+            for feed in stage.feed_streams or []:
+                authoritative = global_streams.get(
+                    str(feed.stream_label or "").strip().upper()
+                )
+                if authoritative is None:
+                    continue
+                feed.phase = authoritative.phase
+                if authoritative.concentration_M is not None:
+                    feed.concentration_M = authoritative.concentration_M
+                if authoritative.molar_equiv is not None:
+                    feed.molar_equiv = authoritative.molar_equiv
+                feed.introduction_stage = (
+                    authoritative.introduction_stage
+                    or feed.introduction_stage
+                    or stage.stage_number
+                )
+        feeds = [
+            *list(self.stream_logic or []),
+            *[
+                feed
+                for stage in self.stages or []
+                for feed in stage.feed_streams or []
+            ],
+        ]
+        oxygen_reagent_found = False
+        for feed in feeds:
+            if normalized_stream_phase(
+                feed.phase,
+                feed.reagents,
+                gas_flow_sccm=feed.gas_flow_sccm,
+                gas_flow_actual_mL_min=feed.gas_flow_actual_mL_min,
+            ) != "gas":
+                continue
+            identity = " ".join(str(item or "") for item in feed.reagents)
+            if re.search(r"(?:^|[^a-z0-9])(?:o2|oxygen|air)(?:[^a-z0-9]|$)", identity, re.I):
+                oxygen_reagent_found = True
+        if feeds:
+            self.o2_is_reagent = oxygen_reagent_found
+        return self
+
 
 # ---------------------------------------------------------------------------
 # Output — Flow Proposal
@@ -403,14 +659,27 @@ class StreamAssignment(BaseModel):
     contents: list[str] = Field(default_factory=list)  # e.g. ["sulfenamide (0.1M)", "Ir(ppy)3 (1 mol%)"]
     solvent: str = ""
     concentration_M: Optional[float] = None
+    concentration_basis: str = ""       # protocol_fact | chemistry_plan | screening_assumption
     flow_rate_mL_min: Optional[float] = None
     phase: str = ""                      # "liquid" | "gas" | ""
     gas_flow_sccm: Optional[float] = None # MFC set point at STP for gas streams
     gas_flow_actual_mL_min: Optional[float] = None # gas volume flow at reactor T/P
     molar_equiv: float = 1.0            # stoichiometric equivalents relative to limiting reagent (substrate=1.0)
+    molar_equiv_basis: str = ""          # protocol_fact | chemistry_plan | screening_assumption
+    pump_equipment_id: Optional[str] = None  # deterministic inventory assignment
+    introduction_stage: int = Field(default=1, ge=1)
     reasoning: str = ""                 # why these go together
 
-    @field_validator("stream_label", "pump_role", "solvent", "phase", "reasoning", mode="before")
+    @field_validator(
+        "stream_label",
+        "pump_role",
+        "solvent",
+        "phase",
+        "reasoning",
+        "concentration_basis",
+        "molar_equiv_basis",
+        mode="before",
+    )
     @classmethod
     def _none_to_empty_string(cls, value):
         return "" if value is None else value
@@ -424,6 +693,16 @@ class StreamAssignment(BaseModel):
             return [value]
         return value
 
+    @model_validator(mode="after")
+    def _normalize_phase(self):
+        self.phase = normalized_stream_phase(
+            self.phase,
+            self.contents,
+            gas_flow_sccm=self.gas_flow_sccm,
+            gas_flow_actual_mL_min=self.gas_flow_actual_mL_min,
+        )
+        return self
+
 
 class FlowProposal(BaseModel):
     # Proposed flow conditions
@@ -432,6 +711,8 @@ class FlowProposal(BaseModel):
     temperature_C: float = 25
     concentration_M: float = 0.1
     BPR_bar: float = 0
+    BPR_basis: str = "gauge"
+    pressure_absolute_bar: Optional[float] = None
     reactor_type: str = "coil"
     tubing_material: str = "FEP"
     tubing_ID_mm: float = 1.0
@@ -510,6 +791,12 @@ class UnitOperation(BaseModel):
     parameters: dict = Field(default_factory=dict)
     required: bool = True
     rationale: str = ""
+    inventory_item_id: Optional[str] = None
+    inventory_item_ids: list[str] = Field(default_factory=list)
+    instrument_name: str = ""
+    inventory_category: str = ""
+    assignment_status: str = "unassigned"
+    capability_checks: dict[str, bool] = Field(default_factory=dict)
 
 
 class StreamConnection(BaseModel):
@@ -518,6 +805,7 @@ class StreamConnection(BaseModel):
     from_op: str = ""
     to_op: str = ""
     stream_type: str = "liquid"
+    connection_type: Literal["process", "control", "utility", "waste"] = "process"
     label: Optional[str] = None
 
 
@@ -532,6 +820,188 @@ class ProcessTopology(BaseModel):
     pid_description: str = ""
     literature_support: list[str] = Field(default_factory=list)
     topology_confidence: str = "MEDIUM"
+    compilation_status: str = "abstract"
+    inventory_schema_version: str = ""
+    inventory_sha256: str = ""
+    instrument_manifest: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ExecutableFeed(BaseModel):
+    """One inventory-assigned feed edge in the executable process graph."""
+
+    operation_id: str = Field(min_length=1)
+    equipment_id: str = Field(min_length=1)
+    stream_label: str = Field(min_length=1)
+    phase: Literal["liquid", "gas", "solid", "solid_liquid", "liquid_liquid"]
+    contents: list[str] = Field(default_factory=list)
+    solvent: str = ""
+    flow_rate_mL_min: Optional[float] = Field(default=None, gt=0)
+    gas_flow_sccm: Optional[float] = Field(default=None, gt=0)
+    gas_flow_actual_mL_min: Optional[float] = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def _require_phase_flow(self):
+        if self.phase == "gas":
+            if self.gas_flow_sccm is None and self.gas_flow_actual_mL_min is None:
+                raise ValueError("gas feeds require STP or in-channel gas flow")
+        elif self.flow_rate_mL_min is None:
+            raise ValueError("non-gas feeds require volumetric flow")
+        return self
+
+
+class ExecutableStage(BaseModel):
+    """One inventory-assigned reactor stage with a closed flow-time-volume basis."""
+
+    stage_number: int = Field(ge=1)
+    reactor_operation_id: str = Field(min_length=1)
+    reactor_equipment_id: str = Field(min_length=1)
+    mixer_operation_id: Optional[str] = None
+    mixer_equipment_id: Optional[str] = None
+    temperature_C: float
+    reactor_volume_mL: float = Field(gt=0)
+    residence_flow_mL_min: float = Field(gt=0)
+    residence_time_min: float = Field(gt=0)
+    residence_time_basis: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _close_residence_time(self):
+        expected = self.reactor_volume_mL / self.residence_flow_mL_min
+        scale = max(abs(expected), abs(self.residence_time_min), 1e-9)
+        if abs(expected - self.residence_time_min) / scale > 0.02:
+            raise ValueError(
+                "stage residence time does not close with reactor volume and flow"
+            )
+        return self
+
+
+class ExecutableProcessGraph(BaseModel):
+    """Typed, authoritative process graph published as an executable design."""
+
+    schema_version: Literal["flowpilot_executable_process_v1.0"] = (
+        "flowpilot_executable_process_v1.0"
+    )
+    topology: ProcessTopology
+    feeds: list[ExecutableFeed] = Field(min_length=1)
+    stages: list[ExecutableStage] = Field(min_length=1)
+    total_liquid_flow_mL_min: float = Field(gt=0)
+    total_reactor_volume_mL: float = Field(gt=0)
+    total_residence_time_min: float = Field(gt=0)
+
+    @model_validator(mode="after")
+    def _validate_graph(self):
+        if self.topology.compilation_status not in {
+            "inventory_assigned",
+            "inventory_assigned_with_accessories",
+        }:
+            raise ValueError("process graph is not inventory compiled")
+        operation_ids = {item.op_id for item in self.topology.unit_operations}
+        if len(operation_ids) != len(self.topology.unit_operations):
+            raise ValueError("process graph contains duplicate operation IDs")
+        for connection in self.topology.streams:
+            if connection.from_op not in operation_ids or connection.to_op not in operation_ids:
+                raise ValueError("process graph contains a dangling stream endpoint")
+
+        feed_ids = {item.operation_id for item in self.feeds}
+        stage_ids = {item.reactor_operation_id for item in self.stages}
+        if not feed_ids <= operation_ids or not stage_ids <= operation_ids:
+            raise ValueError("typed feeds or stages are absent from the topology")
+        if len({item.stage_number for item in self.stages}) != len(self.stages):
+            raise ValueError("process graph contains duplicate stage numbers")
+
+        stage_volume = sum(item.reactor_volume_mL for item in self.stages)
+        volume_scale = max(stage_volume, self.total_reactor_volume_mL, 1e-9)
+        if abs(stage_volume - self.total_reactor_volume_mL) / volume_scale > 0.02:
+            raise ValueError("stage volumes do not close with total reactor volume")
+
+        stage_time = sum(item.residence_time_min for item in self.stages)
+        time_scale = max(stage_time, self.total_residence_time_min, 1e-9)
+        if abs(stage_time - self.total_residence_time_min) / time_scale > 0.02:
+            raise ValueError("stage times do not close with total residence time")
+        return self
+
+
+class CanonicalStreamComponent(BaseModel):
+    """One chemical component with execution-relevant quantitative provenance."""
+
+    stream_label: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    role: str = "unknown"
+    source_text: str = ""
+    concentration_M: Optional[float] = Field(default=None, gt=0)
+    molar_equiv: Optional[float] = Field(default=None, gt=0)
+    loading_mol_pct: Optional[float] = Field(default=None, gt=0)
+    quantification_required: bool = True
+    quantified: bool = False
+    provenance: list[str] = Field(default_factory=list)
+
+
+class ExecutableChemistryIdentity(BaseModel):
+    """Frozen chemistry identity that downstream agents may not rewrite."""
+
+    reaction_name: str = ""
+    reaction_class: str = ""
+    transformation_family: str = "unknown"
+    protocol_transformation_family: str = "unknown"
+    bond_formed: str = ""
+    bond_broken: str = ""
+    protocol_sha256: str = Field(min_length=64, max_length=64)
+    chemistry_plan_sha256: str = Field(min_length=64, max_length=64)
+    authority_source: Literal[
+        "protocol_fact", "chemist_confirmed", "model_inference", "legacy_unavailable"
+    ] = "model_inference"
+    confirmed: bool = False
+
+
+class ExecutableSafetyControl(BaseModel):
+    control_id: str = Field(min_length=1)
+    category: str = Field(min_length=1)
+    description: str = Field(min_length=1)
+    required: bool = True
+    satisfied: bool = False
+    evidence: list[str] = Field(default_factory=list)
+    equipment_ids: list[str] = Field(default_factory=list)
+
+
+class ExecutableSafetyContract(BaseModel):
+    hazards: list[str] = Field(default_factory=list)
+    controls: list[ExecutableSafetyControl] = Field(default_factory=list)
+    complete: bool = False
+    missing_control_ids: list[str] = Field(default_factory=list)
+
+
+class ExecutableProcedureStep(BaseModel):
+    step_id: str = Field(min_length=1)
+    section: Literal[
+        "preparation", "setup", "startup", "steady_state", "collection",
+        "shutdown", "emergency", "waste",
+    ]
+    instruction: str = Field(min_length=1)
+    required: bool = True
+    equipment_ids: list[str] = Field(default_factory=list)
+    parameter_bindings: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExecutableValidationExperiment(BaseModel):
+    experiment_id: str = Field(min_length=1)
+    purpose: str = Field(min_length=1)
+    procedure: str = Field(min_length=1)
+    equipment_ids: list[str] = Field(default_factory=list)
+    parameter_bindings: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExecutableArtifactBundle(BaseModel):
+    """Non-numeric executable artifacts compiled from one realized design."""
+
+    schema_version: Literal["flowpilot_executable_artifacts_v1.0"] = (
+        "flowpilot_executable_artifacts_v1.0"
+    )
+    chemistry_identity: ExecutableChemistryIdentity
+    stream_components: list[CanonicalStreamComponent] = Field(default_factory=list)
+    safety: ExecutableSafetyContract
+    operating_procedure: list[ExecutableProcedureStep] = Field(default_factory=list)
+    validation_experiments: list[ExecutableValidationExperiment] = Field(
+        default_factory=list
+    )
 
 
 class DesignResult(BaseModel):
@@ -542,6 +1012,10 @@ class DesignResult(BaseModel):
     design_candidate: Optional[DesignCandidate] = None
     svg_path: str = ""
     png_path: str = ""
+    diagram_artifacts: dict = Field(default_factory=dict)
+    diagram_render_manifest: dict = Field(default_factory=dict)
+    inventory_allocation: dict = Field(default_factory=dict)
+    instrument_manifest: list[dict[str, Any]] = Field(default_factory=list)
     explanation: str = ""
     retrieved_records: list[str] = Field(default_factory=list)
     alternatives: list[ProcessTopology] = Field(default_factory=list)

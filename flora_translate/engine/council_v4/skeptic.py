@@ -54,15 +54,17 @@ def _verify_beer_lambert(
     LED wavelength is typically 20–200 M⁻¹cm⁻¹.
     """
     errors: list[dict] = []
-    # Threshold depends on whether a photocatalyst is in play. Direct
-    # substrate photoexcitation has ε ≪ 1000; transition-metal photocatalysts
-    # routinely have ε in 500–5000.
-    eps_implausible_threshold = 1000.0 if not has_photocatalyst else 5000.0
+    # This gate checks gross unit/order-of-magnitude mistakes, not whether a
+    # chromophore lies in an arbitrarily narrow "typical" range. Visible-light
+    # photocatalysts can legitimately have extinction coefficients in the
+    # tens of thousands, so 5,000 created systematic false HIGH findings for
+    # the same 20,000 value used by FlowPilot's photochemical calculator.
+    eps_implausible_threshold = 1000.0 if not has_photocatalyst else 100000.0
     eps_implausible_reason = (
         "unusually high — chemistry plan reports no photocatalyst; direct substrate "
         "photoexcitation has ε ~ 20–200 M⁻¹cm⁻¹"
         if not has_photocatalyst else
-        "unusually high for a standard transition-metal photocatalyst at LED wavelength"
+        "outside the broad screening range for a molecular photocatalyst; verify source and units"
     )
     for entry in chemistry_scores:
         cid = entry.get("candidate_id")
@@ -688,7 +690,10 @@ def _build_weak_pool_report(
     batch_time_min: Optional[float],
     intensification_mandate: dict,
     pool_metadata: dict,
+    translation_policy: str = FLOW_TRANSLATION_POLICY,
 ) -> Optional[dict]:
+    if (translation_policy or "").lower() != "intensify":
+        return None
     if not candidates:
         return None
 
@@ -849,6 +854,7 @@ def run_skeptic_audit(
         batch_time_min=batch_time_min,
         intensification_mandate=mandate,
         pool_metadata=pool_metadata or {},
+        translation_policy=translation_policy,
     )
     if weak_pool_report:
         all_errors.append({

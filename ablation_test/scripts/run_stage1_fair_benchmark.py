@@ -17,6 +17,7 @@ from typing import Any
 
 from ablation_test.src.cases import ROOT, load_cases_from_path, select_cases
 from ablation_test.src.providers import endpoint_health
+from ablation_test.src.paths import BENCHMARKS_ROOT, STUDIES_ROOT
 from ablation_test.src.runner import execute_cell, write_checksums
 from ablation_test.src.stage1_oracle import (
     score_scenario,
@@ -25,7 +26,8 @@ from ablation_test.src.stage1_oracle import (
 )
 
 
-DEFAULT_STUDY_DIR = ROOT / "studies" / "fair_architecture_benchmark_v1_20260730"
+DEFAULT_STUDY_DIR = BENCHMARKS_ROOT / "fair_architecture_benchmark_v1_20260730"
+DEFAULT_OUTPUT_DIR = STUDIES_ROOT / "fair_architecture_benchmark_v1_20260730"
 BASE_CONFIG_PATH = ROOT / "configs" / "benchmark.json"
 ORACLE_PATH = ROOT / "src" / "stage1_oracle.py"
 LEGACY_SCORER_PATH = ROOT / "src" / "metrics.py"
@@ -150,8 +152,11 @@ def _safe_attempt_dir(study_dir: Path) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the Stage 1 fair-benchmark gate.")
     parser.add_argument("--study-dir", type=Path, default=DEFAULT_STUDY_DIR)
+    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     args = parser.parse_args()
     study_dir = args.study_dir.resolve()
+    output_dir = args.output_dir.resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
     config_path = study_dir / "benchmark_config.json"
     if not config_path.is_file():
         raise FileNotFoundError(config_path)
@@ -161,7 +166,7 @@ def main() -> None:
     all_cases = load_cases_from_path(scenario_path)
     smoke_cases = select_cases(all_cases, config["smoke_scenario_ids"])
     bundles = base_config["model_bundles"]
-    run_root = _safe_attempt_dir(study_dir)
+    run_root = _safe_attempt_dir(output_dir)
 
     logging.basicConfig(
         level=logging.INFO,

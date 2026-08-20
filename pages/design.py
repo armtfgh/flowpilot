@@ -67,6 +67,7 @@ def render():
         "Process Design",
         "Flow Diagram",
         "Engineering Checks",
+        "Equipment & Inventory",
         "Literature",
         "Raw JSON",
     ])
@@ -92,7 +93,12 @@ def render():
 
     with tabs[1]:
         from components.process_diagram import render_process_diagram
-        render_process_diagram(result.svg_path, result.png_path)
+        render_process_diagram(
+            result.svg_path,
+            result.png_path,
+            topology=result.topology.model_dump(),
+            render_manifest=result.diagram_render_manifest,
+        )
 
         if show_alt and result.alternatives:
             st.divider()
@@ -115,6 +121,11 @@ def render():
                 pass
 
     with tabs[3]:
+        from components.inventory_result import render_inventory_result
+
+        render_inventory_result(result.model_dump())
+
+    with tabs[4]:
         if result.retrieved_records:
             st.markdown(f"**{len(result.retrieved_records)} records** used:")
             for doi in result.retrieved_records:
@@ -129,7 +140,7 @@ def render():
         with st.expander("Chemistry features (raw)"):
             st.json(feats.model_dump(exclude_none=True))
 
-    with tabs[4]:
+    with tabs[5]:
         st.json(result.model_dump(exclude_none=True))
 
     # Feedback

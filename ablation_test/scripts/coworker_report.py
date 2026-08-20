@@ -18,6 +18,7 @@ import seaborn as sns
 
 from ablation_test.src.cases import ROOT
 from ablation_test.src.metrics import DEPLOYMENT_CAPS_V2
+from ablation_test.src.paths import resolve_artifact_path
 
 
 CONDITION_ORDER = [
@@ -154,7 +155,9 @@ def enrich_raw_outputs(frame: pd.DataFrame) -> pd.DataFrame:
     gas_equiv: list[float] = []
     for run_dir in enriched["run_dir"]:
         result = json.loads(
-            (Path(str(run_dir)) / "result.json").read_text(encoding="utf-8")
+            (resolve_artifact_path(str(run_dir)) / "result.json").read_text(
+                encoding="utf-8"
+            )
         )
         proposal = _proposal(result)
         for field in CATEGORICAL_FIELDS:

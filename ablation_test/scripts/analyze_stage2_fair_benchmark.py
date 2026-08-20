@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 from collections import Counter, defaultdict
@@ -53,6 +54,19 @@ def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
+
+
+def _write_checksums(output: Path) -> None:
+    lines = []
+    for path in sorted(output.rglob("*")):
+        if not path.is_file() or path.name == "checksums.sha256":
+            continue
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        lines.append(f"{digest}  {path.relative_to(output)}")
+    (output / "checksums.sha256").write_text(
+        "\n".join(lines) + "\n",
+        encoding="utf-8",
+    )
 
 
 def load_cells(manifest: Path) -> list[dict[str, Any]]:
@@ -208,11 +222,25 @@ def build_figures(
     fig, ax = plt.subplots(figsize=(8.2, 4.8))
     values = [100 * row["joint_success_rate"] for row in summaries]
     lower = [
-        100 * (row["joint_success_rate"] - row["joint_success_wilson95_low"])
+        max(
+            0.0,
+            100
+            * (
+                row["joint_success_rate"]
+                - row["joint_success_wilson95_low"]
+            ),
+        )
         for row in summaries
     ]
     upper = [
-        100 * (row["joint_success_wilson95_high"] - row["joint_success_rate"])
+        max(
+            0.0,
+            100
+            * (
+                row["joint_success_wilson95_high"]
+                - row["joint_success_rate"]
+            ),
+        )
         for row in summaries
     ]
     ax.bar(x, values, color=[COLORS[item] for item in conditions], width=0.66)
@@ -232,20 +260,32 @@ def build_figures(
     ax.bar(x - width / 2, feasible, width, color="#2A9D8F", label="Feasible: valid design")
     ax.bar(x + width / 2, blocked, width, color="#E76F51", label="Infeasible: correct block")
     ax.set_xticks(x, [LABELS[item] for item in conditions])
-    ax.set_ylim(0, 105)
+    ax.set_ylim(0, 115)
     ax.set_ylabel("Success (%)")
-    ax.set_title("The architecture advantage reverses under infeasible inventory")
+    ax.set_title("Performance on feasible and infeasible inventory scenarios")
     ax.legend(frameon=False, ncol=2, loc="upper center")
     ax.grid(axis="y", color="#D9D9D9", linewidth=0.7)
     ax.set_axisbelow(True)
     _save(fig, output, "02_feasible_vs_infeasible")
 
     if pairwise:
-        fig, ax = plt.subplots(figsize=(8.2, 4.4))
+        fig, ax = plt.subplots(figsize=(8.2, 3.4))
         y = np.arange(len(pairwise))
         values = np.array([100 * row["mean_joint_success_delta"] for row in pairwise])
-        low = values - np.array([100 * row["cluster_bootstrap95_low"] for row in pairwise])
-        high = np.array([100 * row["cluster_bootstrap95_high"] for row in pairwise]) - values
+        low = np.maximum(
+            0.0,
+            values
+            - np.array(
+                [100 * row["cluster_bootstrap95_low"] for row in pairwise]
+            ),
+        )
+        high = np.maximum(
+            0.0,
+            np.array(
+                [100 * row["cluster_bootstrap95_high"] for row in pairwise]
+            )
+            - values,
+        )
         ax.errorbar(values, y, xerr=[low, high], fmt="o", color="#264653", capsize=5)
         ax.axvline(0, color="#777777", linewidth=1)
         ax.set_yticks(
@@ -300,7 +340,7 @@ def build_figures(
     ax.bar(x - width / 2, agreement, width, color="#F4A261", label="Disposition agreement")
     ax.bar(x + width / 2, reliable, width, color="#457B9D", label="All repeats successful")
     ax.set_xticks(x, [LABELS[item] for item in conditions])
-    ax.set_ylim(0, 105)
+    ax.set_ylim(0, 115)
     ax.set_ylabel("Scenario clusters (%)")
     ax.set_title("Three-repeat outcome consistency")
     ax.legend(frameon=False, ncol=2, loc="upper center")
@@ -523,6 +563,7 @@ def main() -> None:
         json.dumps(summary, indent=2) + "\n",
         encoding="utf-8",
     )
+    _write_checksums(output)
     print(json.dumps(summary, indent=2))
 
 

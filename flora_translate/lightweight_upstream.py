@@ -13,7 +13,11 @@ import re
 import time
 
 import flora_translate.config as cfg
-from flora_translate.batch_normalization import apply_authoritative_batch_evidence, enrich_batch_record_dict
+from flora_translate.batch_normalization import (
+    apply_authoritative_batch_evidence,
+    enrich_batch_record_dict,
+    normalize_batch_scalar_fields,
+)
 from flora_translate.chemistry_agent import _parse_json_from_tagged
 from flora_translate.engine.llm_agents import call_model_text, infer_provider_for_model
 from flora_translate.intake_agent import intake_context_block
@@ -277,17 +281,7 @@ def _normalize_batch_record_data(data: dict, raw_text: str) -> dict:
         elif not isinstance(value, list):
             normalized[field] = []
 
-    numeric_fields = (
-        "catalyst_loading_mol_pct",
-        "temperature_C",
-        "reaction_time_h",
-        "concentration_M",
-        "scale_mmol",
-        "yield_pct",
-        "wavelength_nm",
-    )
-    for field in numeric_fields:
-        normalized[field] = _coerce_float(normalized.get(field))
+    normalized = normalize_batch_scalar_fields(normalized)
 
     scalar_fields = (
         "reaction_description",
@@ -650,7 +644,12 @@ class LocalInputParser:
 
     def parse(self, batch_input: str | dict) -> BatchRecord:
         if isinstance(batch_input, dict):
-            normalized = _normalize_batch_record_data(batch_input, batch_input.get("raw_text") or "")
+            raw_text = batch_input.get("raw_text") or json.dumps(
+                batch_input,
+                sort_keys=True,
+                default=str,
+            )
+            normalized = _normalize_batch_record_data(batch_input, raw_text)
             return BatchRecord(**normalized)
 
         try:
@@ -684,7 +683,12 @@ class EvidenceBackedInputParser:
     """Fair lightweight parser with deterministic protocol-text arithmetic."""
 
     def parse(self, batch_input: str | dict) -> BatchRecord:
-        raw_text = batch_input.get("raw_text") or "" if isinstance(batch_input, dict) else str(batch_input)
+        raw_text = (
+            batch_input.get("raw_text")
+            or json.dumps(batch_input, sort_keys=True, default=str)
+            if isinstance(batch_input, dict)
+            else str(batch_input)
+        )
         if isinstance(batch_input, dict):
             data = dict(batch_input)
         else:

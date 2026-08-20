@@ -1,0 +1,81 @@
+{
+  "schema_version": "flowpilot_qwen_outcome_scoring_v1.0",
+  "benchmark_type": "retrospective_paired_architecture_pilot",
+  "conditions": [
+    "qwen27b_one_shot",
+    "qwen27b_full_flowpilot"
+  ],
+  "primary_endpoints": [
+    "feasible_executable_design_rate",
+    "paired_lexicographic_win_tie_loss",
+    "infeasible_correct_block_rate"
+  ],
+  "quality_dimensions": {
+    "inventory_compliance": 0.30,
+    "numerical_closure": 0.30,
+    "chemistry_fidelity": 0.20,
+    "process_completeness": 0.20
+  },
+  "thresholds": {
+    "relative_closure_tolerance": 0.05,
+    "gas_relative_tolerance": 0.10,
+    "temperature_tolerance_C": 0.1,
+    "wavelength_tolerance_nm": 1.0,
+    "pairwise_quality_tie_points": 5.0,
+    "bootstrap_iterations": 10000,
+    "bootstrap_seed": 20260731
+  },
+  "executable_definition": [
+    "The expected disposition is SCREEN.",
+    "A structured proposal is present.",
+    "Every applicable critical deterministic check passes.",
+    "No unlisted equipment is explicitly assumed."
+  ],
+  "paired_ranking": [
+    "An executable design outranks a non-executable design.",
+    "If both are executable, the higher quality score wins when the absolute difference exceeds five points.",
+    "If neither is executable, the design with fewer critical failures wins.",
+    "Remaining pairs are ties."
+  ],
+  "mandatory_core_fields": [
+    "temperature_C",
+    "residence_time_min",
+    "flow_rate_mL_min",
+    "reactor_volume_mL",
+    "tubing_ID_mm",
+    "BPR_bar"
+  ],
+  "gas_requirements": [
+    "Gas identity is explicit.",
+    "STP gas flow is explicit.",
+    "Pressure-corrected in-channel gas flow is explicit.",
+    "Gas equivalents are explicit and close independently.",
+    "Inlet/STP and in-channel residence times are explicit and close independently."
+  ],
+  "topology_synonyms": {
+    "feed_pumps": ["pump", "stream"],
+    "liquid_pump": ["pump", "liquid stream"],
+    "separate_feed_pumps": ["stream a", "stream b", "separate feed", "two segregated feed"],
+    "mixer": ["mixer", "mixing"],
+    "gas_liquid_mixer": ["gas-liquid mixer", "gas liquid mixer", "t-mixer"],
+    "micromixer": ["micromixer", "micro-mixer"],
+    "heated_reactor": ["reactor", "temperature"],
+    "temperature_controlled_microreactor": ["microcoil", "microreactor", "microreactor"],
+    "photoreactor": ["photocoil", "photoreactor", "led"],
+    "back_pressure_regulator": ["bpr", "back pressure"],
+    "oxygen_mass_flow_controller": ["mass-flow controller", "mass flow controller", "mfc"],
+    "hydrogen_mass_flow_controller": ["mass-flow controller", "mass flow controller", "mfc"],
+    "packed_bed": ["packed bed", "packed-bed"],
+    "immediate_quench": ["immediate quench", "quench"],
+    "stage_1_oxidation": ["stage 1", "stage_1", "oxidation"],
+    "interstage_addition": ["interstage", "downstream addition"],
+    "stage_2_amidation": ["stage 2", "stage_2", "amidation"],
+    "quench": ["quench"]
+  },
+  "interpretation_boundary": [
+    "The evaluator measures constrained design outcome quality, not experimental yield.",
+    "The score does not establish global optimality.",
+    "Repeated calls are not treated as independent chemistry cases.",
+    "Because outputs already existed when this evaluator was created, this is a retrospective pilot rather than a prospective preregistered confirmation."
+  ]
+}

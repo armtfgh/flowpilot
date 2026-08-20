@@ -133,6 +133,17 @@ def _number(value: Any) -> float | None:
 
 
 def _proposal(result: dict[str, Any]) -> dict[str, Any]:
+    final_design = result.get("final_design")
+    if isinstance(final_design, dict):
+        if final_design.get("status") != "executable":
+            return {}
+        parameters = final_design.get("parameters")
+        if isinstance(parameters, dict):
+            proposal = dict(result.get("proposal") or {})
+            proposal.update(parameters)
+            proposal["streams"] = list(final_design.get("streams") or [])
+            proposal["stage_parameters"] = list(final_design.get("stages") or [])
+            return proposal
     proposal = result.get("proposal")
     if isinstance(proposal, dict):
         return proposal
@@ -219,8 +230,10 @@ def _geometry_metrics(proposal: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _inventory_metrics(proposal: dict[str, Any]) -> dict[str, Any]:
-    inventory = json.loads(
+def _inventory_metrics(
+    proposal: dict[str, Any], case: AblationCase
+) -> dict[str, Any]:
+    inventory = case.inventory or json.loads(
         (ROOT.parents[0] / "flora_translate" / "data" / "lab_inventory.json").read_text(
             encoding="utf-8"
         )
@@ -231,30 +244,63 @@ def _inventory_metrics(proposal: dict[str, Any]) -> dict[str, Any]:
     temperature = _number(proposal.get("temperature_C"))
     pressure = _number(proposal.get("BPR_bar")) or 0.0
 
-    pump_feasible = bool(
-        flow is not None
-        and any(
-            pump["min_flow_rate_mL_min"] <= flow <= pump["max_flow_rate_mL_min"]
-            and pressure <= pump["max_pressure_bar"]
-            for pump in inventory["pumps"]
+    pump_by_id = {item.get("equipment_id", ""): item for item in inventory.get("pumps", [])}
+    liquid_streams = [
+        stream for stream in proposal.get("streams") or []
+        if str(stream.get("phase") or "liquid").lower() != "gas"
+    ]
+    if liquid_streams and all(stream.get("pump_equipment_id") for stream in liquid_streams):
+        pump_feasible = all(
+            stream.get("pump_equipment_id") in pump_by_id
+            and pump_by_id[stream["pump_equipment_id"]]["min_flow_rate_mL_min"]
+            <= (_number(stream.get("flow_rate_mL_min")) or -1)
+            <= pump_by_id[stream["pump_equipment_id"]]["max_flow_rate_mL_min"]
+            and pressure <= pump_by_id[stream["pump_equipment_id"]]["max_pressure_bar"]
+            for stream in liquid_streams
         )
-    )
-    tubing_feasible = bool(
-        tubing_id is not None
-        and any(
-            abs(tube["ID_mm"] - tubing_id) <= 1e-6
-            and (temperature is None or temperature <= tube["max_temperature_C"])
-            and pressure <= tube["max_pressure_bar"]
-            for tube in inventory["tubing"]
+    else:
+        pump_feasible = bool(
+            flow is not None
+            and any(
+                pump["min_flow_rate_mL_min"] <= flow <= pump["max_flow_rate_mL_min"]
+                and pressure <= pump["max_pressure_bar"]
+                for pump in inventory.get("pumps", [])
+            )
         )
-    )
     reactor_match = bool(
         volume is not None
         and tubing_id is not None
         and any(
             abs(reactor["volume_mL"] - volume) <= 1e-3
             and abs(reactor["ID_mm"] - tubing_id) <= 1e-6
-            for reactor in inventory["reactors"]
+            for reactor in inventory.get("reactors", [])
+        )
+    )
+    selected_id = str((proposal.get("inventory_selection") or {}).get("equipment_id") or "")
+    selected_reactor = next(
+        (
+            reactor for reactor in inventory.get("reactors", [])
+            if reactor.get("equipment_id") == selected_id
+        ),
+        None,
+    )
+    integrated_path = bool(
+        selected_reactor
+        and any(
+            token in " ".join(
+                str(selected_reactor.get(key) or "")
+                for key in ("type", "configuration", "name")
+            ).lower()
+            for token in ("microchannel", "microreactor", "packed-bed", "packed bed", "integrated")
+        )
+    )
+    tubing_feasible = integrated_path or bool(
+        tubing_id is not None
+        and any(
+            abs(tube["ID_mm"] - tubing_id) <= 1e-6
+            and (temperature is None or temperature <= tube["max_temperature_C"])
+            and pressure <= tube["max_pressure_bar"]
+            for tube in inventory.get("tubing", [])
         )
     )
     return {
@@ -356,8 +402,18 @@ def _find_calculated_gas_equiv(result: dict[str, Any]) -> float | None:
         else None
     )
     if not isinstance(calculations, dict):
-        return None
+        calculations = result.get("design_calculations")
+    if not isinstance(calculations, dict):
+        calculations = {}
     values: list[float] = []
+    for key in (
+        "target_gas_equiv_inlet",
+        "gas_equiv_supplied",
+        "o2_equiv_supplied",
+    ):
+        number = _number(calculations.get(key))
+        if number is not None:
+            values.append(number)
     for step in calculations.get("steps") or []:
         step_values = step.get("values") if isinstance(step, dict) else None
         if not isinstance(step_values, dict):
@@ -370,6 +426,12 @@ def _find_calculated_gas_equiv(result: dict[str, Any]) -> float | None:
             number = _number(step_values.get(key))
             if number is not None:
                 values.append(number)
+    if not values:
+        for stream in _proposal(result).get("streams") or []:
+            if str(stream.get("phase") or "").lower() == "gas":
+                number = _number(stream.get("molar_equiv"))
+                if number is not None:
+                    values.append(number)
     return max(values) if values else None
 
 
@@ -415,7 +477,7 @@ def _quality_assurance_v2(
     final_candidate = final_candidate if isinstance(final_candidate, dict) else {}
     analogies = frozen.get("analogies")
     if not isinstance(analogies, list):
-        analogies = result.get("analogies")
+        analogies = result.get("analogies") or result.get("_analogies")
     analogies = analogies if isinstance(analogies, list) else []
     verified_analogies = [
         analogy
@@ -451,9 +513,23 @@ def _quality_assurance_v2(
             inventory_trace = Path(str(inventory_path)).resolve() == canonical_inventory
         except (OSError, RuntimeError):
             inventory_trace = False
-    calculation_trace = _is_nonempty(frozen.get("calculations"))
-    deliberation_trace = _is_nonempty(final_candidate.get("deliberation_log"))
-    safety_review = _is_nonempty(final_candidate.get("safety_report"))
+    allocation = result.get("inventory_allocation")
+    if isinstance(allocation, dict):
+        inventory_trace = inventory_trace or bool(
+            allocation.get("status") in {"complete", "complete_with_assumptions"}
+            and allocation.get("inventory_sha256")
+            and allocation.get("assignments")
+        )
+    calculation_trace = _is_nonempty(
+        frozen.get("calculations") or result.get("design_calculations")
+    )
+    deliberation_trace = _is_nonempty(
+        final_candidate.get("deliberation_log") or result.get("deliberation_log")
+    )
+    safety_review = _is_nonempty(
+        final_candidate.get("safety_report")
+        or (result.get("design_realization") or {}).get("safety_contract")
+    )
     final_audit = (run_dir / "snapshots" / "stage3_5_final_audit.json").exists()
     confidence_present = bool(str(proposal.get("confidence") or "").strip())
     assurance_checks = {
@@ -587,7 +663,7 @@ def score_run(
         HAZARD_KEYWORDS,
     )
     geometry = _geometry_metrics(proposal)
-    inventory = _inventory_metrics(proposal)
+    inventory = _inventory_metrics(proposal, case)
     reference = _reference_metrics(case, proposal)
     contamination = _prompt_contamination(case, run_dir)
 

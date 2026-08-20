@@ -1,0 +1,1236 @@
+{
+  "schema_version": "flowpilot_final_design_v2.0",
+  "status": "executable",
+  "parameters": {
+    "flow_rate_mL_min": 0.1,
+    "temperature_C": 60.0,
+    "concentration_M": 0.126,
+    "BPR_bar": 21.0,
+    "reactor_type": "packed-bed",
+    "tubing_material": "stainless steel",
+    "tubing_ID_mm": 4.35,
+    "wavelength_nm": null,
+    "residence_time_basis_code": "liquid_only",
+    "residence_time_basis": "liquid-only reactor volume / liquid flow",
+    "reactor_volume_mL": 3.0,
+    "residence_time_min": 30.0,
+    "residence_time_inlet_min": 1.025991,
+    "residence_time_in_channel_min": 11.603665
+  },
+  "stages": [],
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "substrate liquid feed to packed bed",
+      "contents": [
+        "N-diphenylmethylazetidin-3-ol (0.126 M)",
+        "methanol"
+      ],
+      "solvent": "methanol",
+      "concentration_M": 0.126,
+      "flow_rate_mL_min": 0.1,
+      "phase": "liquid",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "pump_equipment_id": "pump_h2_pilot",
+      "introduction_stage": 1,
+      "reasoning": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.1 mL/min; equiv=1, C=0.126 M; pump=pump_h2_pilot."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "reducing gas feed from certified MFC to packed bed inlet",
+      "contents": [
+        "hydrogen"
+      ],
+      "solvent": "",
+      "concentration_M": null,
+      "flow_rate_mL_min": 0.158539,
+      "phase": "gas",
+      "gas_flow_sccm": 2.824003,
+      "gas_flow_actual_mL_min": 0.158539,
+      "molar_equiv": 10.0,
+      "pump_equipment_id": "mfc_h2_100",
+      "introduction_stage": 1,
+      "reasoning": "MFC inlet/STP flow=2.824 sccm; pressure-corrected in-channel flow=0.158539 mL/min at 60 deg C and 21 bar absolute; supplied=10 equiv."
+    }
+  ],
+  "instrument_manifest": [
+    {
+      "equipment_id": "pump_h2_pilot",
+      "name": "Pressure-rated plunger pump",
+      "category": "pumps",
+      "quantity_used": 1,
+      "roles": [
+        "Pump A \u2014 substrate liquid feed to packed bed"
+      ],
+      "settings": [
+        {
+          "equipment_id": "pump_h2_pilot",
+          "flow_rate_mL_min": 0.1
+        }
+      ]
+    },
+    {
+      "equipment_id": "mfc_h2_100",
+      "name": "Hydrogen mass-flow controller",
+      "category": "gas_hardware",
+      "quantity_used": 1,
+      "roles": [
+        "MFC B \u2014 reducing gas feed from certified MFC to packed bed inlet"
+      ],
+      "settings": [
+        {
+          "equipment_id": "mfc_h2_100",
+          "gas": "hydrogen",
+          "flow_sccm": 2.824003
+        }
+      ]
+    },
+    {
+      "equipment_id": "mixer_h2_t",
+      "name": "Hydrogen-service T-mixer",
+      "category": "mixers",
+      "quantity_used": 1,
+      "roles": [
+        "T-mixer"
+      ],
+      "settings": [
+        {
+          "input_count": 2,
+          "total_flow_mL_min": 0.1
+        }
+      ]
+    },
+    {
+      "equipment_id": "reactor_h2_pbr_300",
+      "name": "Pd(OH)2/Al2O3 micro-packed bed",
+      "category": "reactors",
+      "quantity_used": 1,
+      "roles": [
+        "stainless steel Packed-Bed Reactor"
+      ],
+      "settings": [
+        {
+          "equipment_id": null,
+          "volume_mL": 3.0,
+          "ID_mm": 4.35,
+          "temperature_C": 60.0,
+          "integrated_flow_path": true
+        }
+      ]
+    },
+    {
+      "equipment_id": "bath_h2_60",
+      "name": "Packed-bed water bath",
+      "category": "temperature_controllers",
+      "quantity_used": 1,
+      "roles": [
+        "Temperature Control 60 deg C"
+      ],
+      "settings": [
+        {
+          "temperature_C": 60.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "bpr_h2_21",
+      "name": "Hydrogen-service BPR",
+      "category": "pressure_controllers",
+      "quantity_used": 1,
+      "roles": [
+        "BPR"
+      ],
+      "settings": [
+        {
+          "pressure_bar": 21.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "separator_h2_gl",
+      "name": "Vented gas-liquid separator",
+      "category": "separators",
+      "quantity_used": 1,
+      "roles": [
+        "Phase Separator"
+      ],
+      "settings": [
+        {}
+      ]
+    },
+    {
+      "equipment_id": "collector_h2_250",
+      "name": "Grounded vented liquid collection vessel",
+      "category": "collectors",
+      "quantity_used": 1,
+      "roles": [
+        "Product Collection"
+      ],
+      "settings": [
+        {}
+      ]
+    },
+    {
+      "equipment_id": "gas_n2_cylinder",
+      "name": "Nitrogen purge cylinder and regulator",
+      "category": "gas_hardware",
+      "quantity_used": 1,
+      "roles": [
+        "Safety control H2-INERT-PURGE"
+      ],
+      "settings": []
+    },
+    {
+      "equipment_id": "benchmark_h2_check_valve",
+      "name": "Hydrogen-service non-return check valve",
+      "category": "safety_accessories",
+      "quantity_used": 1,
+      "roles": [
+        "Safety control H2-BACKFLOW-PREVENTION"
+      ],
+      "settings": []
+    }
+  ],
+  "process_graph": {
+    "schema_version": "flowpilot_executable_process_v1.0",
+    "topology": {
+      "topology_id": "translate",
+      "unit_operations": [
+        {
+          "op_id": "pump_a",
+          "op_type": "pump",
+          "label": "Pump A \u2014 substrate liquid feed to packed bed | Pressure-rated plunger pump",
+          "parameters": {
+            "stream": "A",
+            "contents": [
+              "N-diphenylmethylazetidin-3-ol (0.126 M)",
+              "methanol"
+            ],
+            "solvent": "methanol",
+            "flow_rate_mL_min": 0.1,
+            "phase": "liquid",
+            "gas_flow_sccm": null,
+            "gas_flow_actual_mL_min": null,
+            "inventory_equipment_id": "pump_h2_pilot",
+            "inventory_item_id": "pump_h2_pilot",
+            "inventory_item_ids": [
+              "pump_h2_pilot"
+            ],
+            "instrument_name": "Pressure-rated plunger pump"
+          },
+          "required": true,
+          "rationale": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.1 mL/min; equiv=1, C=0.126 M; pump=pump_h2_pilot.",
+          "inventory_item_id": "pump_h2_pilot",
+          "inventory_item_ids": [
+            "pump_h2_pilot"
+          ],
+          "instrument_name": "Pressure-rated plunger pump",
+          "inventory_category": "pumps",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        },
+        {
+          "op_id": "pump_b",
+          "op_type": "mfc",
+          "label": "MFC B \u2014 reducing gas feed from certified MFC to packed bed inlet | Hydrogen mass-flow controller",
+          "parameters": {
+            "stream": "B",
+            "contents": [
+              "hydrogen"
+            ],
+            "solvent": "",
+            "flow_rate_mL_min": 0.158539,
+            "phase": "gas",
+            "gas_flow_sccm": 2.824003,
+            "gas_flow_actual_mL_min": 0.158539,
+            "inventory_equipment_id": "mfc_h2_100",
+            "delivery_hardware": "MFC",
+            "inventory_item_id": "mfc_h2_100",
+            "inventory_item_ids": [
+              "mfc_h2_100"
+            ],
+            "instrument_name": "Hydrogen mass-flow controller"
+          },
+          "required": true,
+          "rationale": "MFC inlet/STP flow=2.824 sccm; pressure-corrected in-channel flow=0.158539 mL/min at 60 deg C and 21 bar absolute; supplied=10 equiv.",
+          "inventory_item_id": "mfc_h2_100",
+          "inventory_item_ids": [
+            "mfc_h2_100"
+          ],
+          "instrument_name": "Hydrogen mass-flow controller",
+          "inventory_category": "gas_hardware",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        },
+        {
+          "op_id": "mixer_1",
+          "op_type": "mixer",
+          "label": "T-mixer | Hydrogen-service T-mixer",
+          "parameters": {
+            "type": "T-mixer",
+            "material": "not specified",
+            "inventory_item_id": "mixer_h2_t",
+            "inventory_item_ids": [
+              "mixer_h2_t"
+            ],
+            "instrument_name": "Hydrogen-service T-mixer"
+          },
+          "required": true,
+          "rationale": "From Chemistry Plan: prepare one DMAOL/methanol feed and combine with metered H2 immediately before the packed bed; no premixing in reservoir; omit optional acetic acid in first screen.",
+          "inventory_item_id": "mixer_h2_t",
+          "inventory_item_ids": [
+            "mixer_h2_t"
+          ],
+          "instrument_name": "Hydrogen-service T-mixer",
+          "inventory_category": "mixers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        },
+        {
+          "op_id": "reactor_1",
+          "op_type": "packed_bed_reactor",
+          "label": "stainless steel Packed-Bed Reactor | Pd(OH)2/Al2O3 micro-packed bed",
+          "parameters": {
+            "material": "stainless steel",
+            "ID_mm": 4.35,
+            "volume_mL": 3.0,
+            "Q_inlet_mL_min": 0.1,
+            "temperature_C": 60.0,
+            "wavelength_nm": null,
+            "length_m": 0.2,
+            "residence_time_min": 30.0,
+            "reactor_type": "packed-bed",
+            "inventory_item_id": "reactor_h2_pbr_300",
+            "inventory_item_ids": [
+              "reactor_h2_pbr_300"
+            ],
+            "instrument_name": "Pd(OH)2/Al2O3 micro-packed bed",
+            "temperature_controller_name": "Packed-bed water bath",
+            "temperature_controller_inventory_item_id": "bath_h2_60"
+          },
+          "required": true,
+          "rationale": "Flow reactor",
+          "inventory_item_id": "reactor_h2_pbr_300",
+          "inventory_item_ids": [
+            "reactor_h2_pbr_300"
+          ],
+          "instrument_name": "Pd(OH)2/Al2O3 micro-packed bed",
+          "inventory_category": "reactors",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true,
+            "integrated_flow_path": true
+          }
+        },
+        {
+          "op_id": "heater_1",
+          "op_type": "heater",
+          "label": "Temperature Control 60 deg C | Packed-bed water bath",
+          "parameters": {
+            "temperature_C": 60.0,
+            "inventory_item_id": "bath_h2_60",
+            "inventory_item_ids": [
+              "bath_h2_60"
+            ],
+            "instrument_name": "Packed-bed water bath"
+          },
+          "required": true,
+          "rationale": "Active reactor temperature control",
+          "inventory_item_id": "bath_h2_60",
+          "inventory_item_ids": [
+            "bath_h2_60"
+          ],
+          "instrument_name": "Packed-bed water bath",
+          "inventory_category": "temperature_controllers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        },
+        {
+          "op_id": "bpr_1",
+          "op_type": "bpr",
+          "label": "BPR | Hydrogen-service BPR",
+          "parameters": {
+            "pressure_bar": 21.0,
+            "inventory_item_id": "bpr_h2_21",
+            "inventory_item_ids": [
+              "bpr_h2_21"
+            ],
+            "instrument_name": "Hydrogen-service BPR"
+          },
+          "required": true,
+          "rationale": "Maintain liquid phase",
+          "inventory_item_id": "bpr_h2_21",
+          "inventory_item_ids": [
+            "bpr_h2_21"
+          ],
+          "instrument_name": "Hydrogen-service BPR",
+          "inventory_category": "pressure_controllers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        },
+        {
+          "op_id": "separator_1",
+          "op_type": "phase_separator",
+          "label": "Phase Separator | Vented gas-liquid separator",
+          "parameters": {
+            "phases": [
+              "liquid",
+              "liquid"
+            ],
+            "inventory_item_id": "separator_h2_gl",
+            "inventory_item_ids": [
+              "separator_h2_gl"
+            ],
+            "instrument_name": "Vented gas-liquid separator"
+          },
+          "required": true,
+          "rationale": "Separate product-containing and spent reagent phases.",
+          "inventory_item_id": "separator_h2_gl",
+          "inventory_item_ids": [
+            "separator_h2_gl"
+          ],
+          "instrument_name": "Vented gas-liquid separator",
+          "inventory_category": "separators",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        },
+        {
+          "op_id": "collector_1",
+          "op_type": "collector",
+          "label": "Product Collection | Grounded vented liquid collection vessel",
+          "parameters": {
+            "inventory_item_id": "collector_h2_250",
+            "inventory_item_ids": [
+              "collector_h2_250"
+            ],
+            "instrument_name": "Grounded vented liquid collection vessel"
+          },
+          "required": true,
+          "rationale": "Outlet",
+          "inventory_item_id": "collector_h2_250",
+          "inventory_item_ids": [
+            "collector_h2_250"
+          ],
+          "instrument_name": "Grounded vented liquid collection vessel",
+          "inventory_category": "collectors",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        }
+      ],
+      "streams": [
+        {
+          "stream_id": "s1",
+          "from_op": "pump_a",
+          "to_op": "mixer_1",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s2",
+          "from_op": "pump_b",
+          "to_op": "mixer_1",
+          "stream_type": "gas",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s3",
+          "from_op": "mixer_1",
+          "to_op": "reactor_1",
+          "stream_type": "gas_liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s4",
+          "from_op": "reactor_1",
+          "to_op": "bpr_1",
+          "stream_type": "gas_liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s5",
+          "from_op": "bpr_1",
+          "to_op": "separator_1",
+          "stream_type": "gas_liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s6",
+          "from_op": "separator_1",
+          "to_op": "collector_1",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        }
+      ],
+      "total_flow_rate_mL_min": 0.1,
+      "residence_time_min": 30.0,
+      "reactor_volume_mL": 3.0,
+      "pid_description": "Pump A \u2014 substrate liquid feed to packed bed | Pressure-rated plunger pump -[liquid]-> T-mixer | Hydrogen-service T-mixer | MFC B \u2014 reducing gas feed from certified MFC to packed bed inlet | Hydrogen mass-flow controller -[gas]-> T-mixer | Hydrogen-service T-mixer | T-mixer | Hydrogen-service T-mixer -[gas_liquid]-> stainless steel Packed-Bed Reactor | Pd(OH)2/Al2O3 micro-packed bed | stainless steel Packed-Bed Reactor | Pd(OH)2/Al2O3 micro-packed bed -[gas_liquid]-> BPR | Hydrogen-service BPR | BPR | Hydrogen-service BPR -[gas_liquid]-> Phase Separator | Vented gas-liquid separator | Phase Separator | Vented gas-liquid separator -[liquid]-> Product Collection | Grounded vented liquid collection vessel",
+      "literature_support": [],
+      "topology_confidence": "LOW",
+      "compilation_status": "inventory_assigned",
+      "inventory_schema_version": "flowpilot_lab_inventory_v3.0",
+      "inventory_sha256": "4157a635ed998889e7d1089d2f81b241e26e717acc30c876ab095fcb8a485451",
+      "instrument_manifest": [
+        {
+          "equipment_id": "pump_h2_pilot",
+          "name": "Pressure-rated plunger pump",
+          "category": "pumps",
+          "quantity_used": 1,
+          "roles": [
+            "Pump A \u2014 substrate liquid feed to packed bed"
+          ],
+          "settings": [
+            {
+              "equipment_id": "pump_h2_pilot",
+              "flow_rate_mL_min": 0.1
+            }
+          ]
+        },
+        {
+          "equipment_id": "mfc_h2_100",
+          "name": "Hydrogen mass-flow controller",
+          "category": "gas_hardware",
+          "quantity_used": 1,
+          "roles": [
+            "MFC B \u2014 reducing gas feed from certified MFC to packed bed inlet"
+          ],
+          "settings": [
+            {
+              "equipment_id": "mfc_h2_100",
+              "gas": "hydrogen",
+              "flow_sccm": 2.824003
+            }
+          ]
+        },
+        {
+          "equipment_id": "mixer_h2_t",
+          "name": "Hydrogen-service T-mixer",
+          "category": "mixers",
+          "quantity_used": 1,
+          "roles": [
+            "T-mixer"
+          ],
+          "settings": [
+            {
+              "input_count": 2,
+              "total_flow_mL_min": 0.1
+            }
+          ]
+        },
+        {
+          "equipment_id": "reactor_h2_pbr_300",
+          "name": "Pd(OH)2/Al2O3 micro-packed bed",
+          "category": "reactors",
+          "quantity_used": 1,
+          "roles": [
+            "stainless steel Packed-Bed Reactor"
+          ],
+          "settings": [
+            {
+              "equipment_id": null,
+              "volume_mL": 3.0,
+              "ID_mm": 4.35,
+              "temperature_C": 60.0,
+              "integrated_flow_path": true
+            }
+          ]
+        },
+        {
+          "equipment_id": "bath_h2_60",
+          "name": "Packed-bed water bath",
+          "category": "temperature_controllers",
+          "quantity_used": 1,
+          "roles": [
+            "Temperature Control 60 deg C"
+          ],
+          "settings": [
+            {
+              "temperature_C": 60.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "bpr_h2_21",
+          "name": "Hydrogen-service BPR",
+          "category": "pressure_controllers",
+          "quantity_used": 1,
+          "roles": [
+            "BPR"
+          ],
+          "settings": [
+            {
+              "pressure_bar": 21.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "separator_h2_gl",
+          "name": "Vented gas-liquid separator",
+          "category": "separators",
+          "quantity_used": 1,
+          "roles": [
+            "Phase Separator"
+          ],
+          "settings": [
+            {}
+          ]
+        },
+        {
+          "equipment_id": "collector_h2_250",
+          "name": "Grounded vented liquid collection vessel",
+          "category": "collectors",
+          "quantity_used": 1,
+          "roles": [
+            "Product Collection"
+          ],
+          "settings": [
+            {}
+          ]
+        }
+      ]
+    },
+    "feeds": [
+      {
+        "operation_id": "pump_a",
+        "equipment_id": "pump_h2_pilot",
+        "stream_label": "A",
+        "phase": "liquid",
+        "contents": [
+          "N-diphenylmethylazetidin-3-ol (0.126 M)",
+          "methanol"
+        ],
+        "solvent": "methanol",
+        "flow_rate_mL_min": 0.1,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      {
+        "operation_id": "pump_b",
+        "equipment_id": "mfc_h2_100",
+        "stream_label": "B",
+        "phase": "gas",
+        "contents": [
+          "hydrogen"
+        ],
+        "solvent": "",
+        "flow_rate_mL_min": null,
+        "gas_flow_sccm": 2.824003,
+        "gas_flow_actual_mL_min": 0.158539
+      }
+    ],
+    "stages": [
+      {
+        "stage_number": 1,
+        "reactor_operation_id": "reactor_1",
+        "reactor_equipment_id": "reactor_h2_pbr_300",
+        "mixer_operation_id": "mixer_1",
+        "mixer_equipment_id": "mixer_h2_t",
+        "temperature_C": 60.0,
+        "reactor_volume_mL": 3.0,
+        "residence_flow_mL_min": 0.1,
+        "residence_time_min": 30.0,
+        "residence_time_basis": "liquid-only"
+      }
+    ],
+    "total_liquid_flow_mL_min": 0.1,
+    "total_reactor_volume_mL": 3.0,
+    "total_residence_time_min": 30.0
+  },
+  "chemistry_identity": {
+    "reaction_name": "Hydrogenation/hydrogenolysis of N-diphenylmethylazetidin-3-ol to 3-azetidinol",
+    "reaction_class": "heterogeneous catalytic hydrogenation",
+    "transformation_family": "hydrogenolysis",
+    "protocol_transformation_family": "hydrogenolysis",
+    "bond_formed": "H-C/H-N",
+    "bond_broken": "C-N benzhydryl protecting-group bond",
+    "protocol_sha256": "1c7c8e96ad7134c1e3609536329f072f8f10b7eba75fcd0173e4034a30a0ec16",
+    "chemistry_plan_sha256": "5a12bd28fce799fdb36ea59ea73f93be36d92cded2d99d159fca5caee65cc778",
+    "authority_source": "chemist_confirmed",
+    "confirmed": true
+  },
+  "stream_components": [
+    {
+      "stream_label": "A",
+      "name": "N-diphenylmethylazetidin-3-ol",
+      "role": "substrate",
+      "source_text": "N-diphenylmethylazetidin-3-ol (0.126 M)",
+      "concentration_M": 0.126,
+      "molar_equiv": 1.0,
+      "loading_mol_pct": null,
+      "quantification_required": true,
+      "quantified": true,
+      "provenance": [
+        "component_text",
+        "single_reactive_component_stream_equivalents"
+      ]
+    },
+    {
+      "stream_label": "A",
+      "name": "methanol",
+      "role": "solvent",
+      "source_text": "methanol",
+      "concentration_M": null,
+      "molar_equiv": null,
+      "loading_mol_pct": null,
+      "quantification_required": false,
+      "quantified": true,
+      "provenance": []
+    },
+    {
+      "stream_label": "B",
+      "name": "hydrogen",
+      "role": "substrate",
+      "source_text": "hydrogen",
+      "concentration_M": null,
+      "molar_equiv": 10.0,
+      "loading_mol_pct": null,
+      "quantification_required": true,
+      "quantified": true,
+      "provenance": [
+        "single_reactive_component_stream_equivalents",
+        "gas_stream_equivalents"
+      ]
+    }
+  ],
+  "safety": {
+    "hazards": [
+      "flammable_hydrogen",
+      "pressurized_operation"
+    ],
+    "controls": [
+      {
+        "control_id": "GENERAL-PPE-CONTAINMENT",
+        "category": "general",
+        "description": "Use the laboratory-approved PPE and containment for every declared reagent.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:GENERAL-PPE-CONTAINMENT"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "GENERAL-EMERGENCY-STOP",
+        "category": "emergency",
+        "description": "Define and rehearse the emergency feed-stop sequence.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:GENERAL-EMERGENCY-STOP"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "GENERAL-WASTE",
+        "category": "waste",
+        "description": "Segregate and label all process and flush waste by hazard class.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:GENERAL-WASTE"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "PRESSURE-LEAK-TEST",
+        "category": "pressure",
+        "description": "Leak- and pressure-test the assembled system before reagent introduction.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:PRESSURE-LEAK-TEST"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "PRESSURE-OVERPRESSURE-RESPONSE",
+        "category": "pressure",
+        "description": "Define blockage and overpressure response without opening a pressurized line.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:PRESSURE-OVERPRESSURE-RESPONSE"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "PRESSURE-DEPRESSURIZE",
+        "category": "pressure",
+        "description": "Cool and depressurize through the controlled outlet before opening the system.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:PRESSURE-DEPRESSURIZE"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "H2-INERT-PURGE",
+        "category": "hydrogen",
+        "description": "Purge and verify oxygen removal before admitting hydrogen.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:H2-INERT-PURGE",
+          "inventory:gas_n2_cylinder"
+        ],
+        "equipment_ids": [
+          "gas_n2_cylinder"
+        ]
+      },
+      {
+        "control_id": "H2-BACKFLOW-PREVENTION",
+        "category": "hydrogen",
+        "description": "Use declared non-return or check-valve protection on the hydrogen feed.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:H2-BACKFLOW-PREVENTION",
+          "inventory:benchmark_h2_check_valve"
+        ],
+        "equipment_ids": [
+          "benchmark_h2_check_valve"
+        ]
+      },
+      {
+        "control_id": "H2-VENT-ROUTING",
+        "category": "hydrogen",
+        "description": "Route separator off-gas to a declared safe vent.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:H2-VENT-ROUTING",
+          "inventory:collector_h2_250",
+          "inventory:separator_h2_gl"
+        ],
+        "equipment_ids": [
+          "collector_h2_250",
+          "separator_h2_gl"
+        ]
+      },
+      {
+        "control_id": "H2-IGNITION-CONTROL",
+        "category": "hydrogen",
+        "description": "Use grounded ventilation and remove ignition sources.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:H2-IGNITION-CONTROL"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "H2-SHUTDOWN",
+        "category": "hydrogen",
+        "description": "Stop hydrogen, purge residual gas, and depressurize in a defined sequence.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:H2-SHUTDOWN"
+        ],
+        "equipment_ids": []
+      }
+    ],
+    "complete": true,
+    "missing_control_ids": []
+  },
+  "operating_procedure": [
+    {
+      "step_id": "PREP-A",
+      "section": "preparation",
+      "instruction": "Prepare Stream A: N-diphenylmethylazetidin-3-ol (0.126 M, 1 equiv), methanol (quantity unresolved); solvent=methanol.",
+      "required": true,
+      "equipment_ids": [
+        "pump_h2_pilot"
+      ],
+      "parameter_bindings": {
+        "stream_label": "A",
+        "flow_rate_mL_min": 0.1,
+        "gas_flow_sccm": null
+      }
+    },
+    {
+      "step_id": "PREP-B",
+      "section": "preparation",
+      "instruction": "Prepare Stream B: hydrogen (10 equiv); solvent=none declared.",
+      "required": true,
+      "equipment_ids": [
+        "mfc_h2_100"
+      ],
+      "parameter_bindings": {
+        "stream_label": "B",
+        "flow_rate_mL_min": 0.158539,
+        "gas_flow_sccm": 2.824003
+      }
+    },
+    {
+      "step_id": "SETUP-VERIFY",
+      "section": "setup",
+      "instruction": "Assemble only the inventory-assigned process graph and verify every equipment ID and connection against the final diagram.",
+      "required": true,
+      "equipment_ids": [
+        "bath_h2_60",
+        "bpr_h2_21",
+        "collector_h2_250",
+        "mfc_h2_100",
+        "mixer_h2_t",
+        "pump_h2_pilot",
+        "reactor_h2_pbr_300",
+        "separator_h2_gl"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "SETUP-PRIME",
+      "section": "startup",
+      "instruction": "Prime each liquid line with its declared solvent using its assigned pump until the outlet is bubble-free; do not introduce reactive feeds during priming.",
+      "required": true,
+      "equipment_ids": [
+        "pump_h2_pilot"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PRESSURE-LEAK-TEST",
+      "section": "startup",
+      "instruction": "Pressure-test with compatible inert fluid to the approved operating setpoint of 21 bar and verify stable pressure before reagents.",
+      "required": true,
+      "equipment_ids": [
+        "bath_h2_60",
+        "bpr_h2_21",
+        "collector_h2_250",
+        "mfc_h2_100",
+        "mixer_h2_t",
+        "pump_h2_pilot",
+        "reactor_h2_pbr_300",
+        "separator_h2_gl"
+      ],
+      "parameter_bindings": {
+        "BPR_bar": 21.0
+      }
+    },
+    {
+      "step_id": "H2-INERT-PURGE",
+      "section": "startup",
+      "instruction": "Purge the gas path with the inventory-declared nitrogen source, verify oxygen removal by the laboratory-approved method, then isolate nitrogen before hydrogen admission.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "H2-BACKFLOW-PREVENTION",
+      "section": "setup",
+      "instruction": "Verify the declared non-return/check valve is installed in the hydrogen feed in the correct flow direction.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "H2-VENT-ROUTING",
+      "section": "setup",
+      "instruction": "Verify the gas-liquid separator off-gas is connected to the declared safe vent before hydrogen admission.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "H2-IGNITION-CONTROL",
+      "section": "setup",
+      "instruction": "Confirm grounded ventilation is active and ignition sources are excluded.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "GENERAL-PPE-CONTAINMENT",
+      "section": "setup",
+      "instruction": "Use the laboratory-approved PPE and containment for every declared reagent.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "GENERAL-EMERGENCY-STOP",
+      "section": "emergency",
+      "instruction": "Define and rehearse the emergency feed-stop sequence.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "GENERAL-WASTE",
+      "section": "waste",
+      "instruction": "Segregate and label all process and flush waste by hazard class.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PRESSURE-OVERPRESSURE-RESPONSE",
+      "section": "emergency",
+      "instruction": "Define blockage and overpressure response without opening a pressurized line.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PRESSURE-DEPRESSURIZE",
+      "section": "shutdown",
+      "instruction": "Cool and depressurize through the controlled outlet before opening the system.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "H2-SHUTDOWN",
+      "section": "shutdown",
+      "instruction": "Stop hydrogen, purge residual gas, and depressurize in a defined sequence.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "START-FEEDS",
+      "section": "startup",
+      "instruction": "Start liquid feeds at the canonical setpoints; admit gas only after liquid flow, temperature, pressure, purge, and vent checks are stable.",
+      "required": true,
+      "equipment_ids": [
+        "pump_h2_pilot",
+        "mfc_h2_100"
+      ],
+      "parameter_bindings": {
+        "A": {
+          "equipment_id": "pump_h2_pilot",
+          "flow_rate_mL_min": 0.1,
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null
+        },
+        "B": {
+          "equipment_id": "mfc_h2_100",
+          "flow_rate_mL_min": null,
+          "gas_flow_sccm": 2.824003,
+          "gas_flow_actual_mL_min": 0.158539
+        }
+      }
+    },
+    {
+      "step_id": "STEADY-STATE",
+      "section": "steady_state",
+      "instruction": "Run for at least three canonical residence-time intervals (90 min) before product collection and document pressure, temperature, and flow stability.",
+      "required": true,
+      "equipment_ids": [
+        "bath_h2_60",
+        "bpr_h2_21",
+        "collector_h2_250",
+        "mfc_h2_100",
+        "mixer_h2_t",
+        "pump_h2_pilot",
+        "reactor_h2_pbr_300",
+        "separator_h2_gl"
+      ],
+      "parameter_bindings": {
+        "residence_time_min": 30.0,
+        "minimum_steady_state_time_min": 90.0,
+        "residence_time_basis": "liquid-only reactor volume / liquid flow"
+      }
+    },
+    {
+      "step_id": "COLLECT-PRODUCT",
+      "section": "collection",
+      "instruction": "After steady state, collect product for at least one canonical residence-time interval (30 min); record exact start/end times and collected mass or volume.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {
+        "minimum_collection_time_min": 30.0
+      }
+    },
+    {
+      "step_id": "NORMAL-SHUTDOWN",
+      "section": "shutdown",
+      "instruction": "Stop reactive feeds, flush each compatible line, cool the reactor to a safe handling temperature, and isolate energy sources.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    }
+  ],
+  "validation_experiments": [
+    {
+      "experiment_id": "VAL-HYDRAULIC-BASELINE",
+      "purpose": "Verify hydraulic stability at the final operating point before chemistry collection.",
+      "procedure": "Run compatible blank solvent at Q=0.1 mL/min, T=60.0 C, and BPR=21 bar for at least 30 min; record flow, temperature, pressure, leaks, and blockage indicators.",
+      "equipment_ids": [
+        "bath_h2_60",
+        "bpr_h2_21",
+        "collector_h2_250",
+        "mfc_h2_100",
+        "mixer_h2_t",
+        "pump_h2_pilot",
+        "reactor_h2_pbr_300",
+        "separator_h2_gl"
+      ],
+      "parameter_bindings": {
+        "flow_rate_mL_min": 0.1,
+        "temperature_C": 60.0,
+        "BPR_bar": 21.0,
+        "duration_min": 30.0
+      }
+    },
+    {
+      "experiment_id": "VAL-RTD",
+      "purpose": "Measure actual residence-time distribution against the canonical calculated basis.",
+      "procedure": "Introduce a compatible nonreactive tracer at Q=0.1 mL/min and compare measured mean residence time with 30 min.",
+      "equipment_ids": [
+        "bath_h2_60",
+        "bpr_h2_21",
+        "collector_h2_250",
+        "mfc_h2_100",
+        "mixer_h2_t",
+        "pump_h2_pilot",
+        "reactor_h2_pbr_300",
+        "separator_h2_gl"
+      ],
+      "parameter_bindings": {
+        "flow_rate_mL_min": 0.1,
+        "calculated_residence_time_min": 30.0,
+        "residence_time_basis": "liquid-only reactor volume / liquid flow"
+      }
+    },
+    {
+      "experiment_id": "VAL-FIRST-SCREEN",
+      "purpose": "Generate the first wet-lab response at the exact canonical design point.",
+      "procedure": "Execute the canonical operating procedure once and report conversion, isolated yield, selectivity, pressure trace, temperature trace, and any phase or blockage observations.",
+      "equipment_ids": [
+        "bath_h2_60",
+        "bpr_h2_21",
+        "collector_h2_250",
+        "mfc_h2_100",
+        "mixer_h2_t",
+        "pump_h2_pilot",
+        "reactor_h2_pbr_300",
+        "separator_h2_gl"
+      ],
+      "parameter_bindings": {
+        "flow_rate_mL_min": 0.1,
+        "temperature_C": 60.0,
+        "BPR_bar": 21.0,
+        "residence_time_min": 30.0,
+        "reactor_volume_mL": 3.0
+      }
+    },
+    {
+      "experiment_id": "VAL-H2-LEAK-PURGE",
+      "purpose": "Verify hydrogen leak integrity, purge effectiveness, backflow prevention, and vent routing before reagent service.",
+      "procedure": "Perform the laboratory-approved inert leak and purge qualification using the exact final gas path; do not introduce hydrogen until every safety control is signed off.",
+      "equipment_ids": [
+        "bath_h2_60",
+        "bpr_h2_21",
+        "collector_h2_250",
+        "mfc_h2_100",
+        "mixer_h2_t",
+        "pump_h2_pilot",
+        "reactor_h2_pbr_300",
+        "separator_h2_gl"
+      ],
+      "parameter_bindings": {
+        "BPR_bar": 21.0
+      }
+    }
+  ],
+  "canonical_sha256": "d4d8aaa4ee1ce71bf61828494e600cb7005da65b5cce02391bbc563c8736287b",
+  "artifact_provenance": {
+    "authority": "deterministic_post_realization_compiler",
+    "intermediate_agent_text_is_executable": false,
+    "canonical_sha256": "d4d8aaa4ee1ce71bf61828494e600cb7005da65b5cce02391bbc563c8736287b"
+  },
+  "intensification": {
+    "policy": "evidence_first",
+    "target_factor": null,
+    "hypothesis_factor": 20.0,
+    "target_role": "not applied under evidence-first policy",
+    "realized_factor": 10.0,
+    "applied_as_hard_constraint": false,
+    "basis": "Predicted screening target: 20.0x residence-time reduction; this is a hypothesis unless the run explicitly selects the intensify policy. Identified batch limitations: mass_transfer_gas_liquid. Primary flow advantage: mass_transfer. Mechanisms: gas-liquid kLa enhancement (segmented flow), selectivity-sensitive stream logic. Limitation-driven IF (20x) exceeds class default (2x)."
+  },
+  "consistency": {
+    "passed": true,
+    "issues": [],
+    "validation_checks": {
+      "design_realization_complete": true,
+      "reactor_inventory_match": true,
+      "pump_flow_feasible": true,
+      "stream_flow_closure": true,
+      "stoichiometric_flow_closure": true,
+      "pressure_inventory_match": true,
+      "tubing_feasible": true,
+      "geometry_closure": true,
+      "calculation_matches_serialized_design": true,
+      "gas_bookkeeping_complete": true,
+      "safety_contract_complete": true,
+      "topology_matches_serialized_design": true,
+      "inventory_topology_assignment_complete": true
+    },
+    "semantic_checks": {
+      "chemistry_identity_preserved": true,
+      "component_stoichiometry_complete": true,
+      "topology_phase_consistent": true,
+      "control_edges_not_in_process_path": true,
+      "safety_controls_complete": true,
+      "procedure_complete": true,
+      "no_unsupported_operations": true,
+      "diagram_matches_canonical_topology": true,
+      "residence_time_basis_unambiguous": true,
+      "mixing_regime_matches_topology": true
+    }
+  },
+  "diagnostic": {
+    "preliminary_candidate": {
+      "residence_time_min": 30.0,
+      "residence_time_inlet_min": 1.025991,
+      "residence_time_in_channel_min": 11.603665,
+      "flow_rate_mL_min": 0.1,
+      "reactor_volume_mL": 3.0,
+      "source": "pre-final council/inventory candidate"
+    },
+    "stage_requirements": [],
+    "unresolved_inventory": [],
+    "message": "No executable final design exists. Values in this diagnostic section are unapproved intermediate calculations."
+  }
+}

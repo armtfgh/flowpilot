@@ -64,7 +64,7 @@ GAS_LIQUID_ROUTINE_MAX_BPR_BAR = 10.0
 GAS_LIQUID_BPR_MARGIN_BAR = 1.5
 GAS_LIQUID_MIN_ID_MM = 0.50
 GAS_LIQUID_MAX_DELTA_P_BAR = 50.0
-GAS_LIQUID_MAX_BPR_BAR = GAS_LIQUID_ROUTINE_MAX_BPR_BAR
+GAS_LIQUID_MAX_BPR_BAR = 50.0
 GAS_LIQUID_DESIGN_LIQUID_HOLDUP_FRACTION = 0.18
 
 
@@ -224,6 +224,8 @@ def compute_metrics(
     tau_source: str = "",
     is_gas_liquid: bool = False,
     BPR_bar: float = 0.0,
+    target_gas_equiv_inlet: float = 3.0,
+    gas_reagent_fraction: float = 0.21,
 ) -> dict:
     """Compute the full metric set for a single (τ, d, Q) candidate."""
     d_m = d_mm * 1e-3
@@ -240,10 +242,10 @@ def compute_metrics(
     if is_gas_liquid and Q_mL_min > 0:
         P_abs_bar = max(float(BPR_bar or 0.0) + 1.01325, 6.0)
         n_substrate_mmol_min = Q_mL_min * max(concentration_M, 1e-9)
-        # Conservative air/O2 basis: 3 equiv O2 from air. This intentionally
-        # prevents gas-liquid candidates from passing on liquid-only geometry.
-        n_air_mmol_min = (n_substrate_mmol_min * 3.0) / 0.21
-        gas_sccm = n_air_mmol_min * 22.414
+        gas_equiv = max(float(target_gas_equiv_inlet or 0.0), 1e-9)
+        reagent_fraction = min(max(float(gas_reagent_fraction or 0.0), 1e-9), 1.0)
+        n_total_gas_mmol_min = (n_substrate_mmol_min * gas_equiv) / reagent_fraction
+        gas_sccm = n_total_gas_mmol_min * 22.414
         gas_flow_actual_mL_min = gas_sccm * (298.15 / 273.15) * (1.01325 / P_abs_bar)
         gas_liquid_ratio = gas_flow_actual_mL_min / max(Q_mL_min, 1e-9)
         gas_holdup = max(
@@ -321,6 +323,8 @@ def compute_metrics(
         "gas_liquid_ratio": round(gas_liquid_ratio, 4),
         "two_phase_multiplier": round(two_phase_multiplier, 4),
         "required_bpr_bar": round(required_bpr_bar, 2),
+        "target_gas_equiv_inlet": round(float(target_gas_equiv_inlet or 0.0), 4),
+        "gas_reagent_fraction": round(float(gas_reagent_fraction or 0.0), 4),
         # mixing
         "t_mix_s": round(t_mix_s, 3),
         "r_mix": round(r_mix, 5),
@@ -350,6 +354,8 @@ def hard_filter(
     BPR_bar: float = 0.0,
     max_tau_min: Optional[float] = None,
     min_flow_rate_mL_min: float = Q_MIN_ML_MIN,
+    max_flow_rate_mL_min: Optional[float] = None,
+    gas_liquid_max_bpr_bar: float = GAS_LIQUID_MAX_BPR_BAR,
 ) -> tuple[bool, list[str], list[str]]:
     """Apply hard bench/safety constraints.
 
@@ -398,6 +404,15 @@ def hard_filter(
             f"Q={m['Q_mL_min']:.4f} mL/min < {min_flow_rate_mL_min} "
             "(selected pump floor)"
         )
+    if (
+        max_flow_rate_mL_min is not None
+        and max_flow_rate_mL_min > 0
+        and m["Q_mL_min"] > max_flow_rate_mL_min
+    ):
+        violations.append(
+            f"Q={m['Q_mL_min']:.4f} mL/min > {max_flow_rate_mL_min} "
+            "(selected pump maximum)"
+        )
 
     if max_tau_min is not None and m["tau_min"] > max_tau_min:
         violations.append(
@@ -433,16 +448,23 @@ def hard_filter(
             f"BPR={BPR_bar} bar < {BPR_MIN_GAS_LIQUID_BAR} bar (gas-liquid hard rule — "
             f"Safety will enforce)"
         )
-    if is_gas_liquid and BPR_bar > GAS_LIQUID_MAX_BPR_BAR:
+    if is_gas_liquid and BPR_bar > gas_liquid_max_bpr_bar:
         violations.append(
-            f"BPR={BPR_bar:.1f} bar > {GAS_LIQUID_MAX_BPR_BAR:.0f} bar "
-            "(gas-service practical ceiling)"
+            f"BPR={BPR_bar:.1f} bar > {gas_liquid_max_bpr_bar:.0f} bar "
+            "(available gas-service pressure ceiling)"
         )
-    if is_gas_liquid and (m.get("required_bpr_bar") or 0.0) > GAS_LIQUID_ROUTINE_MAX_BPR_BAR:
+    required_bpr = float(m.get("required_bpr_bar") or 0.0)
+    if is_gas_liquid and required_bpr > gas_liquid_max_bpr_bar:
         violations.append(
-            f"required BPR={m['required_bpr_bar']:.1f} bar > "
-            f"{GAS_LIQUID_ROUTINE_MAX_BPR_BAR:.0f} bar routine gas-liquid ceiling; "
+            f"required BPR={required_bpr:.1f} bar > "
+            f"{gas_liquid_max_bpr_bar:.0f} bar available gas-service ceiling; "
             "increase ID/reduce gas load/reduce liquid throughput"
+        )
+    elif is_gas_liquid and required_bpr > GAS_LIQUID_ROUTINE_MAX_BPR_BAR:
+        warnings.append(
+            f"required BPR={required_bpr:.1f} bar > "
+            f"{GAS_LIQUID_ROUTINE_MAX_BPR_BAR:.0f} bar routine operating range; "
+            "use only certified high-pressure gas hardware"
         )
     if is_gas_liquid and m["d_mm"] < GAS_LIQUID_MIN_ID_MM:
         violations.append(
@@ -492,6 +514,10 @@ def generate_candidates(
     max_tau_min: Optional[float] = None,
     min_tau_min: Optional[float] = None,
     min_flow_rate_mL_min: float = Q_MIN_ML_MIN,
+    max_flow_rate_mL_min: Optional[float] = None,
+    target_gas_equiv_inlet: float = 3.0,
+    gas_reagent_fraction: float = 0.21,
+    gas_liquid_max_bpr_bar: float = GAS_LIQUID_MAX_BPR_BAR,
 ) -> tuple[list[dict], list[dict]]:
     """Generate → metrics → hard filter. Returns (feasible, infeasible).
 
@@ -530,11 +556,15 @@ def generate_candidates(
             tau_source=tau_source,
             is_gas_liquid=is_gas_liquid,
             BPR_bar=BPR_bar,
+            target_gas_equiv_inlet=target_gas_equiv_inlet,
+            gas_reagent_fraction=gas_reagent_fraction,
         )
         ok, viol, warns = hard_filter(
             m, is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,
             pump_max_bar=pump_max_bar, BPR_bar=BPR_bar, max_tau_min=max_tau_min,
             min_flow_rate_mL_min=min_flow_rate_mL_min,
+            max_flow_rate_mL_min=max_flow_rate_mL_min,
+            gas_liquid_max_bpr_bar=gas_liquid_max_bpr_bar,
         )
         m["feasible"] = ok
         m["violations"] = viol
@@ -560,6 +590,8 @@ def generate_candidates(
                     tags.append("d_photochem")
                 elif "tau=" in vl or "batch ceiling" in vl:
                     tags.append("τ_ceiling")
+                elif "q=" in vl and ("maximum" in vl or " > " in vl):
+                    tags.append("Q_ceiling")
                 elif "q=" in vl:
                     tags.append("Q_floor")
                 elif "v_r" in vl:

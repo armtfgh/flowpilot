@@ -11,7 +11,11 @@ from dataclasses import asdict
 from typing import Any
 
 from flora_translate.design_calculator import DesignCalculations, DesignCalculator
-from flora_translate.inventory_constraints import enforce_reactor_inventory
+from flora_translate.inventory_constraints import (
+    enforce_reactor_inventory,
+    equipment_system_compatible,
+    selected_process_systems,
+)
 from flora_translate.residence_time_basis import (
     INLET_STP_BASIS,
     normalize_residence_time_basis,
@@ -194,15 +198,11 @@ def _pump_feasible(
 ) -> bool:
     if inventory is None or not inventory.pumps:
         return True
-    selected_system = str(
-        (proposal.inventory_selection or {}).get("system") or ""
-    )
+    selected_systems = selected_process_systems(proposal, inventory)
     compatible = [
         pump
         for pump in inventory.pumps
-        if not pump.compatible_systems
-        or not selected_system
-        or selected_system in pump.compatible_systems
+        if equipment_system_compatible(pump, selected_systems)
     ]
     return any(
         pump.min_flow_rate_mL_min - 1e-12

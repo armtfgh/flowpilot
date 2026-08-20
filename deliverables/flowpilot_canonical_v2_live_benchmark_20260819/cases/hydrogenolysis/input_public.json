@@ -1,0 +1,199 @@
+{
+  "case_id": "hydrogenolysis_oprd_9b00416",
+  "scenario_id": "hydrogenolysis_oprd_9b00416",
+  "title": "Three-phase N-diphenylmethyl hydrogenolysis",
+  "protocol": "N-Diphenylmethylazetidin-3-ol (DMAOL; MW 239.32 g/mol) was prepared as a 3.8 wt% solution in methanol. For molarity conversion, explicitly use and label an assumed solution density of 0.792 g/mL, giving approximately 0.126 M DMAOL. A 200 mL charge was contacted with hydrogen over 0.5 g of 7 wt% Pd(OH)2/Al2O3 catalyst in a stirred batch reactor at 60 °C and 21 bar for 5 h. Conversion to 3-azetidinol was 38.1%. Translate this into one conservative continuous-flow packed-bed screening design. Acetic acid is optional and must not be introduced unless explicitly justified as a screening variable. Report feed preparation, gas-liquid mixing, packed-bed operation, temperature, pressure basis, liquid flow, hydrogen inlet/STP flow, pressure-corrected in-channel hydrogen flow, hydrogen equivalents, nominal empty-bed space time, liquid-holdup/contact residence-time basis, separation, collection, startup, shutdown, nitrogen purge, and hydrogen/methanol/pressure safety controls.",
+  "category": "gas_liquid_solid_packed_bed_hydrogenation",
+  "objective": "Produce one executable, inventory-constrained first gas-liquid-solid flow screen without using the held-out source answer.",
+  "hard_constraints": [
+    "Use only the authoritative inventory supplied below.",
+    "Hydrogen is the required reducing reagent and must be delivered through the certified H2 MFC.",
+    "Use a single DMAOL/methanol liquid feed and the declared gas-liquid mixer before the Pd(OH)2/Al2O3 packed bed.",
+    "Operate at 60 °C and the available 21 bar BPR setpoint; explicitly state whether gas compression uses 21 bar absolute or 21 bar gauge.",
+    "Report hydrogen flow at inlet/STP and pressure-corrected in-channel conditions, with the conversion calculation.",
+    "Report H2 equivalents from gas molar flow divided by DMAOL molar flow.",
+    "Distinguish nominal empty-bed space time from liquid-holdup/contact residence time; do not silently use total gas-plus-liquid flow as liquid reaction time.",
+    "Use the nitrogen line for startup leak/purge verification and shutdown displacement of residual hydrogen.",
+    "Return SCREEN unless the inventory cannot support a safe design."
+  ],
+  "inventory": {
+    "schema_version": "flowpilot_lab_inventory_v3.0",
+    "strict_assignment": true,
+    "pumps": [
+      {
+        "equipment_id": "pump_h2_pilot",
+        "name": "Pressure-rated plunger pump",
+        "type": "plunger",
+        "max_pressure_bar": 40.0,
+        "min_flow_rate_mL_min": 0.1,
+        "max_flow_rate_mL_min": 2.0,
+        "compatible_materials": [
+          "methanol",
+          "DMAOL"
+        ]
+      }
+    ],
+    "tubing": [
+      {
+        "equipment_id": "tube_h2_pilot_ss",
+        "name": "Hydrogen-service packed tube",
+        "material": "stainless steel",
+        "ID_mm": 4.35,
+        "max_pressure_bar": 40.0,
+        "max_temperature_C": 100.0,
+        "transparent": false,
+        "length_m": 0.2
+      }
+    ],
+    "BPR_available": [
+      21.0
+    ],
+    "light_sources": [],
+    "gas_hardware": [
+      {
+        "equipment_id": "gas_h2_cylinder",
+        "name": "Certified hydrogen cylinder and regulator",
+        "type": "gas_supply",
+        "gas": "H2",
+        "max_pressure_bar": 40.0
+      },
+      {
+        "equipment_id": "mfc_h2_100",
+        "name": "Hydrogen mass-flow controller",
+        "type": "MFC",
+        "gas": "H2",
+        "min_flow_sccm": 1.0,
+        "max_flow_sccm": 100.0,
+        "max_pressure_bar": 40.0
+      },
+      {
+        "equipment_id": "gas_n2_cylinder",
+        "name": "Nitrogen purge cylinder and regulator",
+        "type": "gas_supply",
+        "gas": "N2",
+        "max_pressure_bar": 40.0
+      }
+    ],
+    "reactors": [
+      {
+        "equipment_id": "reactor_h2_pbr_300",
+        "name": "Pd(OH)2/Al2O3 micro-packed bed",
+        "type": "packed-bed",
+        "material": "stainless steel",
+        "volume_mL": 3.0,
+        "ID_mm": 4.35,
+        "system": "hydrogenation skid",
+        "min_temperature_C": 20.0,
+        "max_temperature_C": 100.0,
+        "allowed_temperatures_C": [
+          60.0
+        ],
+        "min_pressure_bar": 0.0,
+        "max_pressure_bar": 40.0,
+        "configuration": "single 200 mm gas-liquid-solid packed tube"
+      }
+    ],
+    "mixers": [
+      {
+        "equipment_id": "mixer_h2_t",
+        "name": "Hydrogen-service T-mixer",
+        "type": "T-mixer",
+        "material": "stainless steel",
+        "max_inputs": 2,
+        "min_total_flow_mL_min": 0.1,
+        "max_total_flow_mL_min": 5.0,
+        "max_pressure_bar": 40.0,
+        "supported_ID_mm": [
+          4.35
+        ]
+      }
+    ],
+    "pressure_controllers": [
+      {
+        "equipment_id": "bpr_h2_21",
+        "name": "Hydrogen-service BPR",
+        "type": "BPR",
+        "setpoints_bar": [
+          21.0
+        ],
+        "min_pressure_bar": 21.0,
+        "max_pressure_bar": 21.0
+      }
+    ],
+    "degassers": [],
+    "filters": [],
+    "separators": [
+      {
+        "equipment_id": "separator_h2_gl",
+        "name": "Vented gas-liquid separator",
+        "type": "gas-liquid separator",
+        "supported_phases": [
+          "gas",
+          "liquid"
+        ],
+        "max_flow_mL_min": 10.0,
+        "max_pressure_bar": 25.0
+      }
+    ],
+    "connectors": [
+      {
+        "equipment_id": "connector_h2_pbr",
+        "name": "Hydrogen-rated packed-bed connector set",
+        "type": "packed-bed union",
+        "material": "stainless steel",
+        "supported_ID_mm": [
+          4.35
+        ],
+        "max_pressure_bar": 40.0
+      }
+    ],
+    "temperature_controllers": [
+      {
+        "equipment_id": "bath_h2_60",
+        "name": "Packed-bed water bath",
+        "type": "water bath",
+        "min_temperature_C": 20.0,
+        "max_temperature_C": 90.0,
+        "allowed_temperatures_C": [
+          60.0
+        ]
+      }
+    ],
+    "collectors": [
+      {
+        "equipment_id": "collector_h2_250",
+        "name": "Grounded vented liquid collection vessel",
+        "type": "collection vessel",
+        "volume_mL": 250.0,
+        "max_pressure_bar": 1.0
+      }
+    ],
+    "reactor_trains": [],
+    "safety_accessories": [
+      {
+        "equipment_id": "benchmark_hydrogenolysis_containment",
+        "name": "Declared hazard-compatible shield and secondary containment",
+        "type": "safety enclosure",
+        "capabilities": [
+          "shield_or_containment"
+        ]
+      },
+      {
+        "equipment_id": "benchmark_h2_check_valve",
+        "name": "Hydrogen-service non-return check valve",
+        "type": "check valve",
+        "capabilities": [
+          "backflow_prevention"
+        ]
+      }
+    ]
+  },
+  "chemistry_identity_confirmation": {
+    "transformation_family": "hydrogenolysis/debenzylation",
+    "chemist_description": "Hydrogenolysis/debenzylation of DMAOL to 3-azetidinol",
+    "confirmed": true,
+    "source": "frozen_benchmark_chemist_confirmation"
+  },
+  "design_input_text": "RAW BATCH PROTOCOL:\nN-Diphenylmethylazetidin-3-ol (DMAOL; MW 239.32 g/mol) was prepared as a 3.8 wt% solution in methanol. For molarity conversion, explicitly use and label an assumed solution density of 0.792 g/mL, giving approximately 0.126 M DMAOL. A 200 mL charge was contacted with hydrogen over 0.5 g of 7 wt% Pd(OH)2/Al2O3 catalyst in a stirred batch reactor at 60 °C and 21 bar for 5 h. Conversion to 3-azetidinol was 38.1%. Translate this into one conservative continuous-flow packed-bed screening design. Acetic acid is optional and must not be introduced unless explicitly justified as a screening variable. Report feed preparation, gas-liquid mixing, packed-bed operation, temperature, pressure basis, liquid flow, hydrogen inlet/STP flow, pressure-corrected in-channel hydrogen flow, hydrogen equivalents, nominal empty-bed space time, liquid-holdup/contact residence-time basis, separation, collection, startup, shutdown, nitrogen purge, and hydrogen/methanol/pressure safety controls.\n\nOBJECTIVE:\nProduce one executable, inventory-constrained first gas-liquid-solid flow screen without using the held-out source answer.\n\nHARD CONSTRAINTS:\n- Use only the authoritative inventory supplied below.\n- Hydrogen is the required reducing reagent and must be delivered through the certified H2 MFC.\n- Use a single DMAOL/methanol liquid feed and the declared gas-liquid mixer before the Pd(OH)2/Al2O3 packed bed.\n- Operate at 60 °C and the available 21 bar BPR setpoint; explicitly state whether gas compression uses 21 bar absolute or 21 bar gauge.\n- Report hydrogen flow at inlet/STP and pressure-corrected in-channel conditions, with the conversion calculation.\n- Report H2 equivalents from gas molar flow divided by DMAOL molar flow.\n- Distinguish nominal empty-bed space time from liquid-holdup/contact residence time; do not silently use total gas-plus-liquid flow as liquid reaction time.\n- Use the nitrogen line for startup leak/purge verification and shutdown displacement of residual hydrogen.\n- Return SCREEN unless the inventory cannot support a safe design.\n\nAVAILABLE INVENTORY (authoritative JSON):\n{\"BPR_available\":[21.0],\"collectors\":[{\"equipment_id\":\"collector_h2_250\",\"max_pressure_bar\":1.0,\"name\":\"Grounded vented liquid collection vessel\",\"type\":\"collection vessel\",\"volume_mL\":250.0}],\"connectors\":[{\"equipment_id\":\"connector_h2_pbr\",\"material\":\"stainless steel\",\"max_pressure_bar\":40.0,\"name\":\"Hydrogen-rated packed-bed connector set\",\"supported_ID_mm\":[4.35],\"type\":\"packed-bed union\"}],\"degassers\":[],\"filters\":[],\"gas_hardware\":[{\"equipment_id\":\"gas_h2_cylinder\",\"gas\":\"H2\",\"max_pressure_bar\":40.0,\"name\":\"Certified hydrogen cylinder and regulator\",\"type\":\"gas_supply\"},{\"equipment_id\":\"mfc_h2_100\",\"gas\":\"H2\",\"max_flow_sccm\":100.0,\"max_pressure_bar\":40.0,\"min_flow_sccm\":1.0,\"name\":\"Hydrogen mass-flow controller\",\"type\":\"MFC\"},{\"equipment_id\":\"gas_n2_cylinder\",\"gas\":\"N2\",\"max_pressure_bar\":40.0,\"name\":\"Nitrogen purge cylinder and regulator\",\"type\":\"gas_supply\"}],\"light_sources\":[],\"mixers\":[{\"equipment_id\":\"mixer_h2_t\",\"material\":\"stainless steel\",\"max_inputs\":2,\"max_pressure_bar\":40.0,\"max_total_flow_mL_min\":5.0,\"min_total_flow_mL_min\":0.1,\"name\":\"Hydrogen-service T-mixer\",\"supported_ID_mm\":[4.35],\"type\":\"T-mixer\"}],\"pressure_controllers\":[{\"equipment_id\":\"bpr_h2_21\",\"max_pressure_bar\":21.0,\"min_pressure_bar\":21.0,\"name\":\"Hydrogen-service BPR\",\"setpoints_bar\":[21.0],\"type\":\"BPR\"}],\"pumps\":[{\"compatible_materials\":[\"methanol\",\"DMAOL\"],\"equipment_id\":\"pump_h2_pilot\",\"max_flow_rate_mL_min\":2.0,\"max_pressure_bar\":40.0,\"min_flow_rate_mL_min\":0.1,\"name\":\"Pressure-rated plunger pump\",\"type\":\"plunger\"}],\"reactor_trains\":[],\"reactors\":[{\"ID_mm\":4.35,\"allowed_temperatures_C\":[60.0],\"configuration\":\"single 200 mm gas-liquid-solid packed tube\",\"equipment_id\":\"reactor_h2_pbr_300\",\"material\":\"stainless steel\",\"max_pressure_bar\":40.0,\"max_temperature_C\":100.0,\"min_pressure_bar\":0.0,\"min_temperature_C\":20.0,\"name\":\"Pd(OH)2/Al2O3 micro-packed bed\",\"system\":\"hydrogenation skid\",\"type\":\"packed-bed\",\"volume_mL\":3.0}],\"safety_accessories\":[{\"capabilities\":[\"shield_or_containment\"],\"equipment_id\":\"benchmark_hydrogenolysis_containment\",\"name\":\"Declared hazard-compatible shield and secondary containment\",\"type\":\"safety enclosure\"},{\"capabilities\":[\"backflow_prevention\"],\"equipment_id\":\"benchmark_h2_check_valve\",\"name\":\"Hydrogen-service non-return check valve\",\"type\":\"check valve\"}],\"schema_version\":\"flowpilot_lab_inventory_v3.0\",\"separators\":[{\"equipment_id\":\"separator_h2_gl\",\"max_flow_mL_min\":10.0,\"max_pressure_bar\":25.0,\"name\":\"Vented gas-liquid separator\",\"supported_phases\":[\"gas\",\"liquid\"],\"type\":\"gas-liquid separator\"}],\"strict_assignment\":true,\"temperature_controllers\":[{\"allowed_temperatures_C\":[60.0],\"equipment_id\":\"bath_h2_60\",\"max_temperature_C\":90.0,\"min_temperature_C\":20.0,\"name\":\"Packed-bed water bath\",\"type\":\"water bath\"}],\"tubing\":[{\"ID_mm\":4.35,\"equipment_id\":\"tube_h2_pilot_ss\",\"length_m\":0.2,\"material\":\"stainless steel\",\"max_pressure_bar\":40.0,\"max_temperature_C\":100.0,\"name\":\"Hydrogen-service packed tube\",\"transparent\":false}]}\n\nCHEMIST-CONFIRMED CHEMISTRY IDENTITY:\n{\"chemist_description\":\"Hydrogenolysis/debenzylation of DMAOL to 3-azetidinol\",\"confirmed\":true,\"source\":\"frozen_benchmark_chemist_confirmation\",\"transformation_family\":\"hydrogenolysis/debenzylation\"}",
+  "design_input_sha256": "1eaafca9866969d1b6be2cff10f65d646cad409d07a70f4948904f5b6e5db127"
+}

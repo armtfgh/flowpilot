@@ -1,0 +1,874 @@
+{
+  "proposal": {
+    "residence_time_min": 149.901,
+    "flow_rate_mL_min": 0.10787,
+    "temperature_C": 25.0,
+    "concentration_M": 0.1,
+    "BPR_bar": 7.0,
+    "reactor_type": "coil",
+    "tubing_material": "PFA",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 30.0,
+    "residence_time_inlet_min": 149.901,
+    "residence_time_in_channel_min": 201.4176,
+    "residence_time_basis": "sum of reconciled per-stage residence times",
+    "light_setup": "Stage 1: Vapourtec UV-150 photoreactor with 450 nm module (KHU-LIGHT-UV150-450), 24 W radiant power, 355 mW/cm2, measured 450 nm; KHU-REACTOR-PFA-1MM-10ML (10 mL PFA coil, 1 mm ID) installed in UV-150 cartridge slot with additional cooling to reach 25\u00b0C. Stage 2: KHU manual blue strip LED photoreactor (KHU-LIGHT-MANUAL-BLUE-448), 448 nm, 62 mW/cm2, fan mode (40\u00b0C); KHU-REACTOR-FEP-1MM-20ML (20 mL FEP coil, 1 mm ID) coiled around/within manual photoreactor, within 30 mL capacity limit.",
+    "wavelength_nm": 450.0,
+    "deoxygenation_method": "Offline Ar sparging of EtOH/pH 9 buffer (5:1 v/v) for \u226530 min in sealed reservoir prior to reagent dissolution. All Stage 1 reagents dissolved under Ar atmosphere. Feed loaded into gas-tight syringe or sealed reservoir. No inline degasser used (forbidden by lab constraints).",
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Single liquid feed pump delivering all Stage 1 reagents pre-mixed and pre-degassed to the Stage 1 reactor inlet",
+        "contents": [
+          "PMPSCH2TMS (1.0 equiv, 0.1 M)",
+          "acrylonitrile (2.0 equiv, 0.2 M)",
+          "Ir(dF(CF3)ppy)2(dtbpy)PF6 (0.5 mol%, 0.5 mM)"
+        ],
+        "solvent": "EtOH/pH 9 aqueous buffer (5:1 v/v), pre-degassed offline under Ar",
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.10787,
+        "phase": "",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "molar_equiv": 1.0,
+        "reasoning": "\u1e45_lim=0.0500 mmol/min \u00d7 eq=1.0 / C_feed=0.1 M = 0.500 mL/min \u2192 scaled \u00d70.282 to 0.1409 mL/min so \u03a3 reactor-feed pumps = Q_reactor_inlet = 0.1409 mL/min"
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "Bronkhorst O2 MFC delivering O2 gas to Stage 2 T-junction at inlet of Stage 2 reactor coil",
+        "contents": [
+          "O2 gas (excess, ~3 equiv relative to sulfide 3a, via Bronkhorst FLEXI-FLOW MFC)"
+        ],
+        "solvent": "gas phase",
+        "concentration_M": null,
+        "flow_rate_mL_min": 0.0761,
+        "phase": "gas",
+        "gas_flow_sccm": 0.2418,
+        "gas_flow_actual_mL_min": 0.0761,
+        "molar_equiv": 1.0,
+        "reasoning": "Deterministic gas stoichiometry: inlet/STP MFC flow was recomputed from target gas equivalents (1.00 equiv), liquid flow 0.10787 mL/min, and substrate concentration. Pressure-corrected in-channel gas flow is reported separately; supplied gas equiv = 1.00."
+      }
+    ],
+    "mixer_type": "T-junction (Stage 2 inlet: liquid from Stage 1 outlet + O2 from MFC)",
+    "mixing_order_reasoning": "Chemistry Plan: all liquid reagents pre-mixed in Stream A before Stage 1. O2 (Stream B) introduced only at Stage 2 inlet T-junction after Stage 1 is complete, to prevent quenching of \u03b1-thio carbon radical and Ir(II). Incompatible pairs O2/\u03b1-thio radical and O2/Ir(II) are enforced by sequential staging.",
+    "pre_reactor_steps": [
+      "Prepare EtOH/pH 9 buffer (5:1 v/v) offline. Sparge with Ar for \u226530 min in a sealed reservoir. Dissolve PMPSCH2TMS (1.0 equiv, 0.1 M), acrylonitrile (2.0 equiv), and Ir(dF(CF3)ppy)2(dtbpy)PF6 (0.5 mol%) under Ar. Load into gas-tight Hamilton syringe or sealed reservoir for Stage 1 pump feed. (Chemistry Plan deoxygenation_required: true; allowed method: pre-degassed solvent offline under Ar.)",
+      "Purge all Stage 1 tubing and reactor with Ar-sparged solvent before starting run to displace any dissolved O2.",
+      "Confirm Bronkhorst O2 MFC is set to 0 sccm and O2 feed valve is closed during Stage 1 operation. Open O2 valve and set MFC to 1.12 sccm only at Stage 2 inlet junction."
+    ],
+    "post_reactor_steps": [
+      "Collect Stage 2 reactor effluent via BPR (KHU-BPR-FIXED-7BAR, 7 bar) into a collection vial open to air \u2014 no special quench required (Chemistry Plan quench_required: false). Sulfoxide 4a is stable under aerobic conditions post-reaction.",
+      "Discard startup waste: first 3\u00d7\u03c4\u00d7Q_liquid = ~86 mL (3 \u00d7 28.6 min \u00d7 0.5 mL/min for combined stages) before collecting steady-state product fractions."
+    ],
+    "chemistry_notes": "Two-stage photoredox sequence. Stage 1 (anaerobic): Ir(III) MLCT excited state at 450 nm oxidizes PMPSCH2TMS via SET to generate \u03b1-thio carbon radical PMPS-CH2\u2022; Giese addition to acrylonitrile gives sulfide 3a. Stage 2 (aerobic): same Ir photocatalyst in the carried liquid stream, O2 introduced at Stage 2 inlet T-junction, photocatalytic aerobic oxidation of sulfide 3a to sulfoxide 4a via singlet O2 or direct SET. Key design decisions: (1) Single liquid stream A pre-degassed offline under Ar \u2014 no inline degasser available. (2) O2 introduced only at Stage 2 inlet to enforce incompatible pair separation. (3) Vapourtec UV-150 450 nm module (KHU-LIGHT-UV150-450, 450 nm measured, 355 mW/cm2, 24 W radiant) is exact match for Ir(dF(CF3)ppy)2(dtbpy)PF6 MLCT absorption. UV-150 max coil volume = 10 mL; selected KHU-REACTOR-PFA-1MM-10ML (10 mL, PFA, 1 mm ID) for Stage 1 within UV-150. Stage 2 uses KHU-REACTOR-FEP-1MM-20ML (20 mL, FEP, 1 mm ID) in KHU manual photoreactor (448 nm, 62 mW/cm2) \u2014 FEP transparent, 20 mL within 30 mL manual photoreactor capacity, T \u2264 50\u00b0C compatible with 25\u00b0C operation with fan at 40\u00b0C (slight elevation acceptable for aerobic oxidation). Total liquid reactor volume = 10 + 20 = 30 mL. O2 calculation: 1.12 sccm MFC \u2192 1.22 mL/min actual at 7 bar reactor pressure; gas void fraction 0.71. Calculation warns Da=1.75 (mixing transition zone) \u2014 acceptable for photon-limited reaction where mixing is secondary. BPR 7 bar required for gas-liquid system (calculation: 3.3 bar minimum, selected 7 bar to ensure adequate O2 solubility in EtOH/water and prevent uncontrolled degassing; 7 bar BPR is within UV-150 and manual photoreactor pressure limits and pump ratings). Residence time 28.6 min is blended estimate (21\u00d7 IF); analogies 1 and 2 (Ir photoredox, 30 min and 12 min respectively) bracket this value. Temperature: batch 25\u00b0C; UV-150 with additional cooling operates 10-35\u00b0C (25\u00b0C achievable); manual photoreactor with fan = 40\u00b0C for Stage 2 (slight increase acceptable for aerobic oxidation, no temperature sensitivity noted in Chemistry Plan).\nInventory enforced: KHU tubing reactor KHU PFA coil 10 mL, 1.0 mm ID: 10 mL, 1 mm ID, PFA, single.",
+    "stage_parameters": [
+      {
+        "stage_number": 1,
+        "residence_time_min": 92.7042,
+        "reactor_equipment_id": "KHU-REACTOR-PFA-1MM-10ML",
+        "reactor_name": "KHU PFA coil 10 mL, 1.0 mm ID",
+        "reactor_volume_mL": 10.0,
+        "V_R_mL": 10.0,
+        "d_mm": 1.0,
+        "material": "PFA",
+        "temperature_C": 25.0,
+        "Q_liquid_mL_min": 0.10787,
+        "Q_gas_sccm": 0.0,
+        "Q_gas_actual_mL_min": 0.0,
+        "residence_time_inlet_min": 92.7042,
+        "residence_time_in_channel_min": 92.7042,
+        "residence_time_basis": "liquid-only stage residence time",
+        "inventory_resolved": true,
+        "light_equipment_id": "KHU-LIGHT-UV150-450",
+        "light_name": "Vapourtec UV-150 450 nm module",
+        "target_wavelength_nm": 450.0,
+        "wavelength_nm": 450.0
+      },
+      {
+        "stage_number": 2,
+        "reactor_equipment_id": "KHU-REACTOR-FEP-1MM-20ML",
+        "reactor_name": "KHU FEP coil 20 mL, 1.0 mm ID",
+        "reactor_volume_mL": 20.0,
+        "V_R_mL": 20.0,
+        "d_mm": 1.0,
+        "material": "FEP",
+        "temperature_C": 40.0,
+        "Q_liquid_mL_min": 0.10787,
+        "Q_gas_sccm": 0.2418,
+        "Q_gas_actual_mL_min": 0.0761,
+        "residence_time_min": 57.1968,
+        "residence_time_inlet_min": 57.1968,
+        "residence_time_in_channel_min": 108.7134,
+        "residence_time_basis": "stage inlet/STP apparent residence time",
+        "inventory_resolved": true,
+        "light_equipment_id": "KHU-LIGHT-MANUAL-BLUE-448",
+        "light_name": "KHU manual blue strip LED photoreactor",
+        "target_wavelength_nm": 450.0,
+        "wavelength_nm": 448.0
+      }
+    ],
+    "multiphase_metrics": {
+      "gas_species": "O2",
+      "gas_oxygen_fraction": 1.0,
+      "gas_reagent_fraction": 1.0,
+      "liquid_flow_rate_mL_min": 0.10787,
+      "gas_flow_sccm": 0.2418,
+      "gas_sccm_uncapped": 0.2418,
+      "gas_flow_actual_mL_min": 0.0761,
+      "gas_actual_uncapped_mL_min": 0.0761,
+      "gas_flow_capped_by_holdup": false,
+      "gas_pressure_abs_bar": 3.5133,
+      "gas_liquid_ratio": 0.7056,
+      "gas_holdup": 0.4137,
+      "liquid_holdup_volume_mL": 5.8629,
+      "total_reactor_volume_mL": 30.0,
+      "residence_time_basis": "inlet/STP apparent residence time",
+      "residence_time_inlet_min": 28.6,
+      "residence_time_in_channel_min": 54.3518,
+      "two_phase_multiplier": 10.2425,
+      "two_phase_pressure_drop_bar": 0.103165,
+      "o2_supply_mmol_min": 0.010787,
+      "o2_required_mmol_min": 0.010787,
+      "gas_supply_mmol_min": 0.010787,
+      "gas_required_mmol_min": 0.010787,
+      "target_gas_equiv_inlet": 1.0,
+      "explicit_gas_equiv_inlet": 1.0001,
+      "o2_equiv_supplied": 1.0,
+      "gas_equiv_supplied": 1.0,
+      "gas_flow_recomputed_from_equiv": false,
+      "dissolved_o2_mM": 21.7487,
+      "kLa_s": 0.16479,
+      "o2_transfer_capacity_mmol_min": 1.260746,
+      "o2_transfer_sufficiency": 116.8764,
+      "multistage_residence_time_inlet_min": 149.901,
+      "multistage_residence_time_in_channel_min": 201.4176
+    },
+    "heat_transfer_metrics": {
+      "surface_to_volume_m_inv": 4000.0,
+      "heat_transfer_area_m2": 0.03999844,
+      "UA_W_K": 11.999533,
+      "heat_generation_W": 0.051176,
+      "heat_removal_W": 119.995331,
+      "thermal_damkohler": 0.000426,
+      "heat_transfer_score": 1.0
+    },
+    "inventory_selection": {
+      "equipment_id": "KHU-REACTOR-PFA-1MM-10ML",
+      "name": "KHU PFA coil 10 mL, 1.0 mm ID",
+      "quantity": 1,
+      "service_status": "available",
+      "compatible_systems": [
+        "KHU general flow setup",
+        "Vapourtec UV-150",
+        "KHU manual photoreactor"
+      ],
+      "system": "KHU tubing reactor",
+      "type": "coil",
+      "material": "PFA",
+      "volume_mL": 10.0,
+      "ID_mm": 1.0,
+      "light_source": "",
+      "wavelength_nm": null,
+      "intensity_mW_cm2": null,
+      "irradiation": "",
+      "temperature_range_C": [
+        null,
+        80.0
+      ],
+      "allowed_temperatures_C": [],
+      "concentration_range_M": [
+        null,
+        null
+      ],
+      "pressure_range_bar": [
+        null,
+        34.0
+      ],
+      "configuration": "serial",
+      "component_volumes_mL": [
+        10.0,
+        20.0
+      ],
+      "notes": "One physical reactor.",
+      "component_reactor_ids": [
+        "KHU-REACTOR-PFA-1MM-10ML",
+        "KHU-REACTOR-FEP-1MM-20ML"
+      ],
+      "total_volume_mL": 30.0
+    },
+    "inventory_constraints": {
+      "forced_reactor_inventory": true,
+      "allowed_reactor_volumes_mL": [
+        2.0,
+        5.0,
+        10.0,
+        20.0
+      ],
+      "allowed_reactor_IDs_mm": [
+        0.75,
+        1.0
+      ],
+      "selected_reactor": {
+        "equipment_id": "KHU-REACTOR-PFA-1MM-10ML",
+        "name": "KHU PFA coil 10 mL, 1.0 mm ID",
+        "quantity": 1,
+        "service_status": "available",
+        "compatible_systems": [
+          "KHU general flow setup",
+          "Vapourtec UV-150",
+          "KHU manual photoreactor"
+        ],
+        "system": "KHU tubing reactor",
+        "type": "coil",
+        "material": "PFA",
+        "volume_mL": 10.0,
+        "ID_mm": 1.0,
+        "light_source": "",
+        "wavelength_nm": null,
+        "intensity_mW_cm2": null,
+        "irradiation": "",
+        "temperature_range_C": [
+          null,
+          80.0
+        ],
+        "allowed_temperatures_C": [],
+        "concentration_range_M": [
+          null,
+          null
+        ],
+        "pressure_range_bar": [
+          null,
+          34.0
+        ],
+        "configuration": "single",
+        "component_volumes_mL": [],
+        "notes": "One physical reactor."
+      },
+      "selected_pump": {
+        "equipment_id": "KHU-PUMP-CHEMYX-FUSION100",
+        "name": "Chemyx Fusion 100 syringe pump",
+        "quantity": 3,
+        "service_status": "available",
+        "compatible_systems": [
+          "KHU general flow setup",
+          "KHU manual photoreactor"
+        ],
+        "notes": "Three pumps. Conservative executable rating uses Norm-Ject plastic syringes (<3 bar). Hamilton gas-tight syringe options and their higher pressure rating are retained in operating_constraints.",
+        "type": "syringe",
+        "max_pressure_bar": 3.0,
+        "max_flow_rate_mL_min": 58.7368,
+        "min_flow_rate_mL_min": 0.0001,
+        "compatible_materials": []
+      },
+      "flow_recalculation": {
+        "residence_time_basis": "inlet/STP apparent residence time",
+        "requested_residence_time_min": 28.6,
+        "pump_flow_clamped": false,
+        "pump_min_flow_rate_mL_min": 0.0001,
+        "pump_max_flow_rate_mL_min": 58.7368,
+        "liquid_flow_rate_mL_min": 0.10787,
+        "gas_flow_actual_mL_min": 0.07611,
+        "gas_flow_sccm": 0.24178,
+        "target_gas_equiv_inlet": 1.0,
+        "gas_equiv_supplied": 1.0,
+        "o2_equiv_supplied": 1.0
+      },
+      "final_validation": {
+        "schema_version": "flowpilot_final_validation_v1.0",
+        "status": "ready",
+        "checks": {
+          "reactor_inventory_match": true,
+          "pump_flow_feasible": true,
+          "tubing_feasible": true,
+          "geometry_closure": true,
+          "calculation_matches_serialized_design": true,
+          "gas_bookkeeping_complete": true
+        },
+        "unresolved_reasons": [],
+        "geometry_relative_error": 9.999999999621422e-07,
+        "gas_required": true,
+        "inventory_enforcement": {
+          "first_pass": {
+            "applied": true,
+            "old": {
+              "reactor_volume_mL": 13.0615,
+              "tubing_ID_mm": 0.75,
+              "tubing_material": "PFA (Stage 1, KHU-REACTOR-PFA-1MM-10ML); FEP (Stage 2, KHU-REACTOR-FEP-1MM-20ML)",
+              "flow_rate_mL_min": 0.1409,
+              "BPR_bar": 3.0,
+              "temperature_C": 25.0,
+              "concentration_M": 0.1,
+              "wavelength_nm": 450.0
+            },
+            "new": {
+              "reactor_volume_mL": 10.0,
+              "tubing_ID_mm": 1.0,
+              "tubing_material": "PFA",
+              "flow_rate_mL_min": 0.10787,
+              "BPR_bar": 2.5,
+              "temperature_C": 25.0,
+              "concentration_M": 0.1,
+              "wavelength_nm": 450.0
+            },
+            "selected_reactor": {
+              "equipment_id": "KHU-REACTOR-PFA-1MM-10ML",
+              "name": "KHU PFA coil 10 mL, 1.0 mm ID",
+              "quantity": 1,
+              "service_status": "available",
+              "compatible_systems": [
+                "KHU general flow setup",
+                "Vapourtec UV-150",
+                "KHU manual photoreactor"
+              ],
+              "system": "KHU tubing reactor",
+              "type": "coil",
+              "material": "PFA",
+              "volume_mL": 10.0,
+              "ID_mm": 1.0,
+              "light_source": "",
+              "wavelength_nm": null,
+              "intensity_mW_cm2": null,
+              "irradiation": "",
+              "temperature_range_C": [
+                null,
+                80.0
+              ],
+              "allowed_temperatures_C": [],
+              "concentration_range_M": [
+                null,
+                null
+              ],
+              "pressure_range_bar": [
+                null,
+                34.0
+              ],
+              "configuration": "single",
+              "component_volumes_mL": [],
+              "notes": "One physical reactor."
+            }
+          },
+          "final_pass": {
+            "applied": true,
+            "old": {
+              "reactor_volume_mL": 9.9996,
+              "tubing_ID_mm": 1.0,
+              "tubing_material": "PFA",
+              "flow_rate_mL_min": 0.10787,
+              "BPR_bar": 3.0,
+              "temperature_C": 25.0,
+              "concentration_M": 0.1,
+              "wavelength_nm": 450.0
+            },
+            "new": {
+              "reactor_volume_mL": 10.0,
+              "tubing_ID_mm": 1.0,
+              "tubing_material": "PFA",
+              "flow_rate_mL_min": 0.10787,
+              "BPR_bar": 2.5,
+              "temperature_C": 25.0,
+              "concentration_M": 0.1,
+              "wavelength_nm": 450.0
+            },
+            "selected_reactor": {
+              "equipment_id": "KHU-REACTOR-PFA-1MM-10ML",
+              "name": "KHU PFA coil 10 mL, 1.0 mm ID",
+              "quantity": 1,
+              "service_status": "available",
+              "compatible_systems": [
+                "KHU general flow setup",
+                "Vapourtec UV-150",
+                "KHU manual photoreactor"
+              ],
+              "system": "KHU tubing reactor",
+              "type": "coil",
+              "material": "PFA",
+              "volume_mL": 10.0,
+              "ID_mm": 1.0,
+              "light_source": "",
+              "wavelength_nm": null,
+              "intensity_mW_cm2": null,
+              "irradiation": "",
+              "temperature_range_C": [
+                null,
+                80.0
+              ],
+              "allowed_temperatures_C": [],
+              "concentration_range_M": [
+                null,
+                null
+              ],
+              "pressure_range_bar": [
+                null,
+                34.0
+              ],
+              "configuration": "single",
+              "component_volumes_mL": [],
+              "notes": "One physical reactor."
+            }
+          }
+        },
+        "calculation_snapshot": {
+          "reactor_volume_mL": 9.9996,
+          "tubing_ID_mm": 1.0,
+          "flow_rate_mL_min": 0.10787,
+          "residence_time_min": 28.6,
+          "residence_time_inlet_min": 28.6,
+          "residence_time_in_channel_min": 54.3518,
+          "gas_flow_sccm": 0.2418,
+          "gas_flow_actual_mL_min": 0.0761,
+          "target_gas_equiv_inlet": 1.0,
+          "gas_equiv_supplied": 1.0,
+          "consistent": true,
+          "consistency_notes": []
+        }
+      },
+      "multistage_inventory_plan": {
+        "schema_version": "flowpilot_multistage_inventory_v1.0",
+        "applied": true,
+        "status": "complete",
+        "stage_count": 2,
+        "used_reactor_ids": [
+          "KHU-REACTOR-PFA-1MM-10ML",
+          "KHU-REACTOR-FEP-1MM-20ML"
+        ],
+        "used_light_ids": [
+          "KHU-LIGHT-UV150-450",
+          "KHU-LIGHT-MANUAL-BLUE-448"
+        ],
+        "total_reactor_volume_mL": 30.0,
+        "total_residence_time_inlet_min": 149.901,
+        "total_residence_time_in_channel_min": 201.4176,
+        "stage_parameters": [
+          {
+            "stage_number": 1,
+            "residence_time_min": 92.7042,
+            "reactor_equipment_id": "KHU-REACTOR-PFA-1MM-10ML",
+            "reactor_name": "KHU PFA coil 10 mL, 1.0 mm ID",
+            "reactor_volume_mL": 10.0,
+            "V_R_mL": 10.0,
+            "d_mm": 1.0,
+            "material": "PFA",
+            "temperature_C": 25.0,
+            "Q_liquid_mL_min": 0.10787,
+            "Q_gas_sccm": 0.0,
+            "Q_gas_actual_mL_min": 0.0,
+            "residence_time_inlet_min": 92.7042,
+            "residence_time_in_channel_min": 92.7042,
+            "residence_time_basis": "liquid-only stage residence time",
+            "inventory_resolved": true,
+            "light_equipment_id": "KHU-LIGHT-UV150-450",
+            "light_name": "Vapourtec UV-150 450 nm module",
+            "target_wavelength_nm": 450.0,
+            "wavelength_nm": 450.0
+          },
+          {
+            "stage_number": 2,
+            "reactor_equipment_id": "KHU-REACTOR-FEP-1MM-20ML",
+            "reactor_name": "KHU FEP coil 20 mL, 1.0 mm ID",
+            "reactor_volume_mL": 20.0,
+            "V_R_mL": 20.0,
+            "d_mm": 1.0,
+            "material": "FEP",
+            "temperature_C": 40.0,
+            "Q_liquid_mL_min": 0.10787,
+            "Q_gas_sccm": 0.2418,
+            "Q_gas_actual_mL_min": 0.0761,
+            "residence_time_min": 57.1968,
+            "residence_time_inlet_min": 57.1968,
+            "residence_time_in_channel_min": 108.7134,
+            "residence_time_basis": "stage inlet/STP apparent residence time",
+            "inventory_resolved": true,
+            "light_equipment_id": "KHU-LIGHT-MANUAL-BLUE-448",
+            "light_name": "KHU manual blue strip LED photoreactor",
+            "target_wavelength_nm": 450.0,
+            "wavelength_nm": 448.0
+          }
+        ],
+        "unresolved_requirements": [],
+        "checks": {
+          "all_stage_reactors_resolved": true,
+          "all_required_lights_resolved": true,
+          "equipment_quantities_respected": true,
+          "stage_geometry_closed": true
+        }
+      }
+    },
+    "evidence_calibration": {},
+    "reasoning_per_field": {
+      "residence_time_min": "Calculation (engineering design Step 2): blended analogy \u03c4 = 28.6 min, range 11.1-150 min, IF=21\u00d7. Analogy 1 (Ir photoredox radical addition, 30 min flow) \u2014 chemically similar mechanism and Ir catalyst class, key difference is DMSO solvent vs EtOH/buffer and no gas phase; 30 min directly applicable for Stage 1. Analogy 2 (Ir[dF(CF3)ppy]2(dtbbpy)PF6, identical catalyst class, 12 min, FEP segmented flow) \u2014 same catalyst, key difference is no O2 requirement, higher temperature 50\u00b0C; 12 min suggests Stage 2 could be shorter. Analogy 3 (450 nm, radical addition, 2.5 min) \u2014 same wavelength and mechanism, key difference is non-Ir catalyst and no gas; 2.5 min is a lower bound. Selected \u03c4=28.6 min as calculation blended value, bracketed by analogies. Verified within range 11.1-150 min. Stage 1 liquid \u03c4 = 10 mL / 0.5 mL/min = 20 min; Stage 2 gas-liquid inlet \u03c4 = 20/(0.5+1.12) = 12.3 min; total inlet \u03c4 = 32.3 min. Close to calculated 28.6 min \u2014 consistent.",
+      "residence_time_basis": "Gas-liquid system in Stage 2 requires inlet/STP basis per universal physics rules. O2 molar equivalents from STP MFC flow only. Stage 1 is single-phase liquid (\u03c4 = V/Q_liq = 10/0.5 = 20 min). Stage 2 reported on inlet/STP basis.",
+      "temperature_C": "Protocol fact: 25\u00b0C. Chemistry Plan: temperature_sensitive=false. UV-150 with additional cooling: 10-35\u00b0C range covers 25\u00b0C. Stage 2 manual photoreactor fan mode = 40\u00b0C (slight increase from 25\u00b0C; Chemistry Plan notes 25\u00b0C but no strict sensitivity). Analogies 1 and 3: 25\u00b0C. Analogy 2: 50\u00b0C with improved yield \u2014 could explore but 25\u00b0C is conservative starting point matching batch. No adjustment made.",
+      "BPR_bar": "Calculation Step 8: BPR REQUIRED for gas-liquid system, minimum 3.3 bar. EtOH bp=78\u00b0C, buffer bp=100\u00b0C, op T=25-40\u00b0C \u2014 BPR not strictly required for solvent bp, but mandatory for gas-liquid O2 system. Selected 7.0 bar (KHU-BPR-FIXED-7BAR) \u2014 next available above 3.3 bar minimum, well within pump max 42 bar and BPR inventory. 7 bar ensures good O2 solubility via Henry's law, prevents uncontrolled degassing at reactor outlet.",
+      "tubing_material": "PFA for Stage 1 (KHU-REACTOR-PFA-1MM-10ML): transparent to 450 nm, max 80\u00b0C, max 34 bar \u2014 photochem rule: FEP/PFA preferred. PFA chosen over FEP for Stage 1 as it fits UV-150 and tolerates higher T. FEP for Stage 2 (KHU-REACTOR-FEP-1MM-20ML): transparent to 448 nm, max 50\u00b0C sufficient for 40\u00b0C operation, 20 mL fits manual photoreactor capacity. Analogy 2: FEP tubing for segmented flow photoredox \u2014 directly applicable for Stage 2. Analogy 1: quartz 2 mm tubing \u2014 not in inventory; PFA/FEP 1 mm is inventory-available equivalent.",
+      "concentration_M": "Protocol fact: 0.1 M. Chemistry Plan: 0.1 M. Analogy 2: 0.05 M. Analogy 3: 0.05 M. Maintaining 0.1 M as per batch protocol and Chemistry Plan; no reason to dilute as photon delivery is improved by UV-150, and no solubility issues noted. Da=1.75 is borderline but acceptable at this concentration.",
+      "reactor_volume_mL": "Stage 1: KHU-REACTOR-PFA-1MM-10ML (10 mL PFA, 1 mm ID) \u2014 largest coil fitting UV-150 maximum 10 mL constraint. Gives \u03c4_Stage1 = 10/0.5 = 20 min liquid residence time. Stage 2: KHU-REACTOR-FEP-1MM-20ML (20 mL FEP, 1 mm ID) \u2014 fits manual photoreactor \u226430 mL capacity. Total declared reactor_volume_mL=10 (Stage 1, primary). Verification Stage 1: \u03c4=10/0.5=20 min \u2713. Verification Stage 2: \u03c4_inlet=20/(0.5+1.12)=12.3 min \u2713.",
+      "light_setup": "Chemistry Plan recommended_wavelength_nm=450 nm. Inventory: KHU-LIGHT-UV150-450 (450 nm measured, 355 mW/cm2, 24 W) is exact match \u2014 highest irradiance available flow photoreactor light source. Stage 2 uses KHU-LIGHT-MANUAL-BLUE-448 (448 nm, 62 mW/cm2) \u2014 2 nm from 450 nm, acceptable for Stage 2 aerobic oxidation which is less photon-flux sensitive than Stage 1 radical initiation. Chemistry Plan: requires light for both stages.",
+      "flow_rate_mL_min": "Calculation Step 4: Q_total liquid=0.5 mL/min, Re=7.8 (laminar \u2713), Pe=329 (plug flow \u2713). Analogy 1: 0.09 mL/min (2.7 mL reactor) \u2014 scales to ~0.18 mL/min for 10 mL if same \u03c4; our 0.5 mL/min gives shorter \u03c4. Analogy 2: 0.83 mL/min (10 mL FEP). Selected 0.5 mL/min matching calculation and within Vapourtec R-series 0.01-10 mL/min range and Chemyx Fusion 100 range. Pump: Vapourtec R-series HPLC (KHU-PUMP-VAPOURTEC-R-SERIES), liquid-compatible, not forbidden for EtOH/buffer mixture.",
+      "deoxygenation_method": "Hard constraint: no inline degasser available. Allowed method: pre-degassed solvent prepared offline and held in a sealed reservoir. Chemistry Plan: deoxygenation_required=true for Stage 1. Implemented by Ar sparging offline \u226530 min and loading into gas-tight syringe.",
+      "inventory_selection": "Forced to available inventory reactor: KHU tubing reactor KHU PFA coil 10 mL, 1.0 mm ID: 10 mL, 1 mm ID, PFA, single. Flow rates recalculated from selected volume and target residence time. Selected pump flow range was satisfied."
+    },
+    "literature_analogies": [
+      "10.1039/c9re00356h",
+      "10.1039/d1re00092f",
+      "10.1021/acs.orglett.2c01234"
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      "BLOCKED [FINAL-TOPOLOGY_MATCHES_SERIALIZED_DESIGN]: Final deterministic validation failed: topology_matches_serialized_design.",
+      "BLOCKED [FINAL-INVENTORY_TOPOLOGY_ASSIGNMENT_COMPLETE]: Final deterministic validation failed: inventory_topology_assignment_complete.",
+      "BLOCKED [INVENTORY-GAS-LIQUID-MIXER]: No available certified gas-liquid mixer is listed.",
+      "BLOCKED [INVENTORY-MULTISTAGE-TOPOLOGY]: The chemistry requires 2 sequential reaction stages, but no listed reactor train provides the required interstage topology."
+    ],
+    "confidence": "MEDIUM"
+  },
+  "allocation": {
+    "schema_version": "flowpilot_inventory_allocation_v1.0",
+    "status": "incomplete",
+    "strict_assignment": true,
+    "inventory_schema_version": "flowpilot_lab_inventory_v3.0",
+    "inventory_sha256": "79dfea59c4718172cabf7c59f88d7b40f3c3d526510605a630450597528d976c",
+    "checks": {
+      "all_required_operations_assigned": false,
+      "equipment_quantities_respected": true,
+      "no_unknown_equipment_ids": true,
+      "serial_reactor_train_valid": false
+    },
+    "assignments": [
+      {
+        "assignment_id": "assignment_pump_a",
+        "operation_id": "pump_a",
+        "role": "Pump A \u2014 All reagents are compatible and soluble in EtOH/pH 9 buffer; pre-mixed in a single degassed feed solution to minimize pump count and ensure O2 exclusion. Solution prepared offline in pre-degassed EtOH/pH 9 buffer (5:1 v/v) and loaded into a gas-tight syringe or sealed reservoir.",
+        "category": "pumps",
+        "equipment_item_ids": [
+          "KHU-PUMP-HAMILTON-PSD4"
+        ],
+        "instrument_names": [
+          "Hamilton PSD/4 dual syringe pump"
+        ],
+        "settings": {
+          "flow_rate_mL_min": 0.10787
+        },
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        }
+      },
+      {
+        "assignment_id": "assignment_st1_reactor",
+        "operation_id": "st1_reactor",
+        "role": "PhotoCoil \u2014 Photoredox Giese radical addition (anaerobic)",
+        "category": "reactors",
+        "equipment_item_ids": [
+          "KHU-REACTOR-PFA-1MM-10ML"
+        ],
+        "instrument_names": [
+          "KHU PFA coil 10 mL, 1.0 mm ID"
+        ],
+        "settings": {
+          "equipment_id": "KHU-REACTOR-PFA-1MM-10ML",
+          "volume_mL": 10.0,
+          "ID_mm": 1.0,
+          "temperature_C": 25.0
+        },
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        }
+      },
+      {
+        "assignment_id": "assignment_st1_led",
+        "operation_id": "st1_led",
+        "role": "LED 450 nm",
+        "category": "light_sources",
+        "equipment_item_ids": [
+          "KHU-LIGHT-UV150-450"
+        ],
+        "instrument_names": [
+          "Vapourtec UV-150 450 nm module"
+        ],
+        "settings": {
+          "equipment_id": "KHU-LIGHT-UV150-450",
+          "wavelength_nm": 450.0,
+          "temperature_C": 25.0
+        },
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        }
+      },
+      {
+        "assignment_id": "assignment_pump_b",
+        "operation_id": "pump_b",
+        "role": "MFC B \u2014 Oxygen is introduced as a gas stream via the Bronkhorst O2 MFC and mixed into the liquid outlet of Stage 1 at a T-junction. Segmented gas-liquid (Taylor) flow enhances O2 mass transfer in the PFA coil.",
+        "category": "gas_hardware",
+        "equipment_item_ids": [
+          "KHU-GAS-MFC-O2-BRONKHORST"
+        ],
+        "instrument_names": [
+          "Bronkhorst FLEXI-FLOW Compact oxygen MFC"
+        ],
+        "settings": {
+          "gas": "O2 gas (excess, via MFC)",
+          "flow_sccm": 0.2418
+        },
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        }
+      },
+      {
+        "assignment_id": "assignment_st2_reactor",
+        "operation_id": "st2_reactor",
+        "role": "PhotoCoil \u2014 Photocatalytic aerobic sulfoxidation",
+        "category": "reactors",
+        "equipment_item_ids": [
+          "KHU-REACTOR-FEP-1MM-20ML"
+        ],
+        "instrument_names": [
+          "KHU FEP coil 20 mL, 1.0 mm ID"
+        ],
+        "settings": {
+          "equipment_id": "KHU-REACTOR-FEP-1MM-20ML",
+          "volume_mL": 20.0,
+          "ID_mm": 1.0,
+          "temperature_C": 40.0
+        },
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        }
+      },
+      {
+        "assignment_id": "assignment_st2_led",
+        "operation_id": "st2_led",
+        "role": "LED 448 nm",
+        "category": "light_sources",
+        "equipment_item_ids": [
+          "KHU-LIGHT-MANUAL-BLUE-448"
+        ],
+        "instrument_names": [
+          "KHU manual blue strip LED photoreactor"
+        ],
+        "settings": {
+          "equipment_id": "KHU-LIGHT-MANUAL-BLUE-448",
+          "wavelength_nm": 448.0,
+          "temperature_C": 40.0
+        },
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        }
+      },
+      {
+        "assignment_id": "assignment_bpr_final",
+        "operation_id": "bpr_final",
+        "role": "BPR",
+        "category": "pressure_controllers",
+        "equipment_item_ids": [
+          "KHU-BPR-FIXED-7BAR"
+        ],
+        "instrument_names": [
+          "KHU fixed cartridge BPR, 7 bar"
+        ],
+        "settings": {
+          "pressure_bar": 7.0
+        },
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        }
+      },
+      {
+        "assignment_id": "assignment_tubing",
+        "operation_id": "reactor_system",
+        "role": "reactor tubing",
+        "category": "tubing",
+        "equipment_item_ids": [
+          "KHU-TUBING-PFA-1MM-REACTOR"
+        ],
+        "instrument_names": [
+          "PFA reactor tubing, nominal 1.0 mm ID"
+        ],
+        "settings": {
+          "material": "PFA",
+          "ID_mm": 1.0
+        },
+        "capability_checks": {
+          "available": true,
+          "pressure": true,
+          "temperature": true
+        }
+      }
+    ],
+    "instrument_manifest": [
+      {
+        "equipment_id": "KHU-PUMP-HAMILTON-PSD4",
+        "name": "Hamilton PSD/4 dual syringe pump",
+        "category": "pumps",
+        "quantity_used": 1,
+        "roles": [
+          "Pump A \u2014 All reagents are compatible and soluble in EtOH/pH 9 buffer; pre-mixed in a single degassed feed solution to minimize pump count and ensure O2 exclusion. Solution prepared offline in pre-degassed EtOH/pH 9 buffer (5:1 v/v) and loaded into a gas-tight syringe or sealed reservoir."
+        ],
+        "settings": [
+          {
+            "flow_rate_mL_min": 0.10787
+          }
+        ]
+      },
+      {
+        "equipment_id": "KHU-REACTOR-PFA-1MM-10ML",
+        "name": "KHU PFA coil 10 mL, 1.0 mm ID",
+        "category": "reactors",
+        "quantity_used": 1,
+        "roles": [
+          "PhotoCoil \u2014 Photoredox Giese radical addition (anaerobic)"
+        ],
+        "settings": [
+          {
+            "equipment_id": "KHU-REACTOR-PFA-1MM-10ML",
+            "volume_mL": 10.0,
+            "ID_mm": 1.0,
+            "temperature_C": 25.0
+          }
+        ]
+      },
+      {
+        "equipment_id": "KHU-LIGHT-UV150-450",
+        "name": "Vapourtec UV-150 450 nm module",
+        "category": "light_sources",
+        "quantity_used": 1,
+        "roles": [
+          "LED 450 nm"
+        ],
+        "settings": [
+          {
+            "equipment_id": "KHU-LIGHT-UV150-450",
+            "wavelength_nm": 450.0,
+            "temperature_C": 25.0
+          }
+        ]
+      },
+      {
+        "equipment_id": "KHU-GAS-MFC-O2-BRONKHORST",
+        "name": "Bronkhorst FLEXI-FLOW Compact oxygen MFC",
+        "category": "gas_hardware",
+        "quantity_used": 1,
+        "roles": [
+          "MFC B \u2014 Oxygen is introduced as a gas stream via the Bronkhorst O2 MFC and mixed into the liquid outlet of Stage 1 at a T-junction. Segmented gas-liquid (Taylor) flow enhances O2 mass transfer in the PFA coil."
+        ],
+        "settings": [
+          {
+            "gas": "O2 gas (excess, via MFC)",
+            "flow_sccm": 0.2418
+          }
+        ]
+      },
+      {
+        "equipment_id": "KHU-REACTOR-FEP-1MM-20ML",
+        "name": "KHU FEP coil 20 mL, 1.0 mm ID",
+        "category": "reactors",
+        "quantity_used": 1,
+        "roles": [
+          "PhotoCoil \u2014 Photocatalytic aerobic sulfoxidation"
+        ],
+        "settings": [
+          {
+            "equipment_id": "KHU-REACTOR-FEP-1MM-20ML",
+            "volume_mL": 20.0,
+            "ID_mm": 1.0,
+            "temperature_C": 40.0
+          }
+        ]
+      },
+      {
+        "equipment_id": "KHU-LIGHT-MANUAL-BLUE-448",
+        "name": "KHU manual blue strip LED photoreactor",
+        "category": "light_sources",
+        "quantity_used": 1,
+        "roles": [
+          "LED 448 nm"
+        ],
+        "settings": [
+          {
+            "equipment_id": "KHU-LIGHT-MANUAL-BLUE-448",
+            "wavelength_nm": 448.0,
+            "temperature_C": 40.0
+          }
+        ]
+      },
+      {
+        "equipment_id": "KHU-BPR-FIXED-7BAR",
+        "name": "KHU fixed cartridge BPR, 7 bar",
+        "category": "pressure_controllers",
+        "quantity_used": 1,
+        "roles": [
+          "BPR"
+        ],
+        "settings": [
+          {
+            "pressure_bar": 7.0
+          }
+        ]
+      },
+      {
+        "equipment_id": "KHU-TUBING-PFA-1MM-REACTOR",
+        "name": "PFA reactor tubing, nominal 1.0 mm ID",
+        "category": "tubing",
+        "quantity_used": 1,
+        "roles": [
+          "reactor tubing"
+        ],
+        "settings": [
+          {
+            "material": "PFA",
+            "ID_mm": 1.0
+          }
+        ]
+      }
+    ],
+    "unresolved_requirements": [
+      {
+        "requirement_id": "INV-MIXERS",
+        "operation_id": "st2_mixer",
+        "category": "mixers",
+        "reason": "No available mixers item satisfies the required settings.",
+        "criteria": {
+          "input_count": 2,
+          "total_flow_mL_min": 0.10787
+        }
+      },
+      {
+        "requirement_id": "INV-REACTOR-TRAIN",
+        "operation_id": "process_topology",
+        "category": "reactor_trains",
+        "reason": "Multiple reactors are used, but no compatible serial reactor train and connector set is declared.",
+        "criteria": {
+          "component_reactor_ids": [
+            "KHU-REACTOR-PFA-1MM-10ML",
+            "KHU-REACTOR-FEP-1MM-20ML"
+          ]
+        }
+      }
+    ],
+    "warnings": []
+  },
+  "artifacts": {
+    "run_id": "20260807T072319_737855Z_82c2f468",
+    "run_dir": "/home/amirreza/Documents/codes/Flow Agent/outputs/failed_scheme_repaired_final/20260807T072319_737855Z_82c2f468",
+    "topology_path": "/home/amirreza/Documents/codes/Flow Agent/outputs/failed_scheme_repaired_final/20260807T072319_737855Z_82c2f468/topology.json",
+    "render_manifest_path": "/home/amirreza/Documents/codes/Flow Agent/outputs/failed_scheme_repaired_final/20260807T072319_737855Z_82c2f468/render_manifest.json",
+    "topology_sha256": "1b2fdee9a72ea8c57cddf62abe29293dd166a0a4a707ad91eb4a982f8e34f69d",
+    "render_status": "complete",
+    "renderer": "graphviz",
+    "svg_path": "/home/amirreza/Documents/codes/Flow Agent/outputs/failed_scheme_repaired_final/20260807T072319_737855Z_82c2f468/process.svg",
+    "png_path": "/home/amirreza/Documents/codes/Flow Agent/outputs/failed_scheme_repaired_final/20260807T072319_737855Z_82c2f468/process.png",
+    "warnings": []
+  }
+}

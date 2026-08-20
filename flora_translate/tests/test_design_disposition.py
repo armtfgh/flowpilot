@@ -13,8 +13,11 @@ from flora_translate.schemas import (
     BatchRecord,
     ChemistryPlan,
     FlowProposal,
+    GasHardwareSpec,
     LabInventory,
+    MixerSpec,
     ProcessStage,
+    ReactorSpec,
     StreamAssignment,
 )
 
@@ -22,7 +25,7 @@ from flora_translate.schemas import (
 SCENARIOS_PATH = (
     Path(__file__).resolve().parents[2]
     / "ablation_test"
-    / "studies"
+    / "benchmarks"
     / "fair_architecture_benchmark_v1_1_20260730"
     / "protocol_scenarios.json"
 )
@@ -71,6 +74,152 @@ def _proposal(**updates) -> FlowProposal:
     }
     data.update(updates)
     return FlowProposal(**data)
+
+
+def test_unconfirmed_khu_hardware_blocks_gas_multistage_candidate():
+    inventory = LabInventory(
+        BPR_available=[],
+        gas_hardware=[
+            GasHardwareSpec(
+                name="KHU oxygen mass-flow controller",
+                type="MFC",
+                gas="O2",
+                min_flow_sccm=0.01,
+                max_flow_sccm=10.0,
+                max_pressure_bar=9.0,
+            )
+        ],
+        reactors=[
+            ReactorSpec(
+                name="KHU PFA coil 10 mL",
+                type="coil",
+                material="PFA",
+                volume_mL=10.0,
+                ID_mm=1.016,
+            )
+        ],
+    )
+    proposal = _proposal(
+        BPR_bar=3.0,
+        tubing_material="PFA",
+        tubing_ID_mm=1.016,
+        reactor_volume_mL=10.0,
+        streams=[
+            StreamAssignment(
+                stream_label="C",
+                pump_role="O2 gas injection",
+                contents=["pure O2"],
+                phase="gas",
+                gas_flow_sccm=1.0,
+                gas_flow_actual_mL_min=0.3,
+            )
+        ],
+    )
+    plan = ChemistryPlan(
+        reaction_class="two-stage photoredox oxidation",
+        n_stages=2,
+        stages=[
+            ProcessStage(stage_number=1, stage_name="photoredox addition"),
+            ProcessStage(stage_number=2, stage_name="aerobic oxidation"),
+        ],
+    )
+
+    decision = evaluate_design_disposition(
+        proposal,
+        final_validation=_validation_ready(),
+        inventory=inventory,
+        batch_record=BatchRecord(reaction_description="Two-stage O2 process"),
+        chemistry_plan=plan,
+        hard_constraints={"BPR_settings_not_specified_in_source": True},
+    )
+
+    failure_ids = {finding.finding_id for finding in decision.hard_failures}
+    assert decision.recommended_disposition == "BLOCK"
+    assert "INVENTORY-BPR-UNCONFIRMED" in failure_ids
+    assert "INVENTORY-MULTISTAGE-TOPOLOGY" in failure_ids
+
+
+def test_undeclared_passive_mixer_does_not_hard_block_gas_design():
+    inventory = LabInventory(
+        BPR_available=[5.0],
+        gas_hardware=[
+            GasHardwareSpec(
+                name="O2 MFC",
+                type="MFC",
+                gas="O2",
+                min_flow_sccm=0.01,
+                max_flow_sccm=10.0,
+                max_pressure_bar=9.0,
+            )
+        ],
+    )
+    proposal = _proposal(
+        streams=[
+            StreamAssignment(
+                stream_label="G",
+                contents=["O2"],
+                phase="gas",
+                gas_flow_sccm=1.0,
+            )
+        ]
+    )
+
+    decision = evaluate_design_disposition(
+        proposal,
+        final_validation=_validation_ready(),
+        inventory=inventory,
+        batch_record=BatchRecord(),
+        chemistry_plan=ChemistryPlan(o2_is_reagent=True),
+    )
+
+    assert "INVENTORY-GAS-LIQUID-MIXER" not in {
+        finding.finding_id for finding in decision.hard_failures
+    }
+
+
+def test_explicitly_unavailable_mixer_hard_blocks_gas_design():
+    inventory = LabInventory(
+        BPR_available=[5.0],
+        gas_hardware=[
+            GasHardwareSpec(
+                name="O2 MFC",
+                type="MFC",
+                gas="O2",
+                min_flow_sccm=0.01,
+                max_flow_sccm=10.0,
+                max_pressure_bar=9.0,
+            )
+        ],
+        mixers=[
+            MixerSpec(
+                equipment_id="mixer_unavailable",
+                name="T-mixer",
+                service_status="unavailable",
+            )
+        ],
+    )
+    proposal = _proposal(
+        streams=[
+            StreamAssignment(
+                stream_label="G",
+                contents=["O2"],
+                phase="gas",
+                gas_flow_sccm=1.0,
+            )
+        ]
+    )
+
+    decision = evaluate_design_disposition(
+        proposal,
+        final_validation=_validation_ready(),
+        inventory=inventory,
+        batch_record=BatchRecord(),
+        chemistry_plan=ChemistryPlan(o2_is_reagent=True),
+    )
+
+    assert "INVENTORY-GAS-LIQUID-MIXER" in {
+        finding.finding_id for finding in decision.hard_failures
+    }
 
 
 def _decision(

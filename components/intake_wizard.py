@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import json
+
 import streamlit as st
 
+from components.inventory_selector import render_inventory_selector
 from flora_translate.intake_agent import IntakeAgent
+from flora_translate.inventory_profiles import InventoryProfile
 from flora_translate.schemas import DesignInputPackage, IntakeAnswer
 
 
@@ -16,6 +20,8 @@ def render_intake_wizard(key_prefix: str = "flowpilot_intake") -> DesignInputPac
 
     st.subheader("Standardized Intake")
     st.caption("Complete the reproducible intake package before running design.")
+
+    inventory_profile = render_inventory_selector(f"{key_prefix}_inventory")
 
     c1, c2 = st.columns([4, 1])
     with c1:
@@ -54,17 +60,34 @@ def render_intake_wizard(key_prefix: str = "flowpilot_intake") -> DesignInputPac
         use_container_width=True,
     ):
         with st.spinner("Analyzing intake..."):
-            st.session_state[package_key] = agent.analyze(
+            package = agent.analyze(
                 protocol,
                 existing_package=st.session_state.get(package_key),
                 use_llm=use_llm,
-            ).model_dump()
+            )
+            if inventory_profile is not None:
+                package = _apply_inventory_profile(
+                    agent,
+                    protocol,
+                    package,
+                    inventory_profile,
+                )
+            st.session_state[package_key] = package.model_dump()
         st.rerun()
 
     package = _load_package(st.session_state.get(package_key))
     if package is None:
         st.info("Start by analyzing the batch protocol.")
         return None
+
+    if inventory_profile is not None and _profile_changed(package, inventory_profile):
+        package = _apply_inventory_profile(
+            agent,
+            protocol,
+            package,
+            inventory_profile,
+        )
+        st.session_state[package_key] = package.model_dump()
 
     pending = agent.pending_questions(package)
     if pending:
@@ -81,7 +104,9 @@ def render_intake_wizard(key_prefix: str = "flowpilot_intake") -> DesignInputPac
                 if question.expected_format:
                     st.caption(f"Expected format: {question.expected_format}")
 
-                allow_unavailable = question.question_id not in {"Q-BATCH-001", "Q-OBJ-001"}
+                allow_unavailable = question.question_id not in {
+                    "Q-BATCH-001", "Q-OBJ-001", "Q-CHEM-001"
+                }
                 unavailable = False
                 if allow_unavailable:
                     unavailable = st.checkbox(
@@ -145,3 +170,43 @@ def _load_package(value) -> DesignInputPackage | None:
     if isinstance(value, DesignInputPackage):
         return value
     return DesignInputPackage.model_validate(value)
+
+
+def _apply_inventory_profile(
+    agent: IntakeAgent,
+    protocol: str,
+    package: DesignInputPackage,
+    profile: InventoryProfile,
+) -> DesignInputPackage:
+    answers = [
+        IntakeAnswer(
+            question_id="Q-INV-001",
+            answer=profile.lab_inventory.model_dump(),
+            status="answered",
+            source="inventory_profile",
+        ),
+        IntakeAnswer(
+            question_id="Q-CONSTR-001",
+            answer=profile.design_operating_limits(),
+            status="answered",
+            source="inventory_profile",
+        ),
+    ]
+    updated = agent.analyze(
+        protocol,
+        existing_package=package,
+        answers=answers,
+        use_llm=False,
+    )
+    updated.inventory_profile_snapshot = profile.model_dump()
+    return updated
+
+
+def _profile_changed(
+    package: DesignInputPackage,
+    profile: InventoryProfile,
+) -> bool:
+    current = package.inventory_profile_snapshot or {}
+    return json.dumps(current, sort_keys=True, default=str) != json.dumps(
+        profile.model_dump(), sort_keys=True, default=str
+    )

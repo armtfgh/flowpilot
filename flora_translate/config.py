@@ -80,13 +80,14 @@ LIGHTWEIGHT_UPSTREAM_WEAK_MODEL_MARKERS = (
 # ---------------------------------------------------------------------------
 # Flow translation policy
 # ---------------------------------------------------------------------------
-# This controls whether FLORA treats de-intensified flow designs as acceptable.
-# For the current benchmark philosophy, the default is intensification-first:
-# proposed flow residence time should not exceed the batch reaction time unless
-# the policy is explicitly relaxed.
+# `evidence_first` treats predicted intensification as a screening hypothesis,
+# not a hard feasibility requirement. It preserves conservative candidates and
+# lets measured campaign evidence set residence-time floors. `intensify` keeps
+# the former hard residence-time and process-value gates for explicitly
+# requested intensification studies. `neutral` applies neither preference.
 # ---------------------------------------------------------------------------
 
-FLOW_TRANSLATION_POLICY = "intensify"   # "intensify" | "neutral"
+FLOW_TRANSLATION_POLICY = "evidence_first"  # "evidence_first" | "intensify" | "neutral"
 FLOW_MAX_TAU_TO_BATCH_RATIO = 1.0
 
 # ---------------------------------------------------------------------------

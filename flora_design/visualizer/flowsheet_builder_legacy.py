@@ -27,6 +27,11 @@ PAL = {
     "deoxygenation_unit": "#059669",
     "coil_reactor":       "#d97706",
     "chip_reactor":       "#d97706",
+    "photoreactor":       "#d97706",
+    "reactor":            "#d97706",
+    "heated_coil":        "#d97706",
+    "packed_bed":         "#d97706",
+    "packed_bed_reactor": "#d97706",
     "led_module":         "#ca8a04",
     "bpr":                "#dc2626",
     "inline_filter":      "#4b5563",
@@ -105,6 +110,17 @@ def _icon_coil(cx, cy, color, w=66, h=50):
         f'<path d="{d}" fill="none" stroke="{color}" stroke-width="2.2" '
         f'stroke-linecap="round"/>'
     )
+
+
+def _icon_photoreactor(cx, cy, color):
+    """Coil reactor with compact irradiation marks."""
+    coil = _icon_coil(cx, cy + 4, color, w=66, h=44)
+    rays = "".join(
+        f'<line x1="{cx + dx}" y1="{cy - 27}" x2="{cx + dx}" y2="{cy - 19}" '
+        f'stroke="#ca8a04" stroke-width="2" stroke-linecap="round"/>'
+        for dx in (-20, 0, 20)
+    )
+    return coil + rays
 
 def _icon_led(cx, cy, color):
     r = 13
@@ -193,10 +209,15 @@ def _icon_collector(cx, cy, color):
 
 ICON_RENDERERS = {
     "pump": _icon_pump, "mfc": _icon_pump, "mixer": _icon_mixer,
-    "deoxygenation_unit": _icon_degas,
+    "t_mixer": _icon_mixer, "y_mixer": _icon_mixer,
+    "deoxygenation_unit": _icon_degas, "degas": _icon_degas,
+    "degasser": _icon_degas,
     "coil_reactor": _icon_coil, "chip_reactor": _icon_coil,
+    "reactor": _icon_coil, "heated_coil": _icon_coil,
+    "packed_bed": _icon_coil, "packed_bed_reactor": _icon_coil,
+    "photoreactor": _icon_photoreactor,
     "led_module": _icon_led, "bpr": _icon_bpr,
-    "inline_filter": _icon_filter,
+    "inline_filter": _icon_filter, "filter": _icon_filter,
     "quench_mixer": _icon_quench, "collector": _icon_collector,
 }
 
@@ -211,7 +232,10 @@ def _param_lines(op) -> list[str]:
             lines.append(c)
         if p.get("solvent"): lines.append(f"in {p['solvent']}")
         if p.get("flow_rate_mL_min"): lines.append(f"{p['flow_rate_mL_min']} mL/min")
-    elif ot in ("coil_reactor", "chip_reactor"):
+    elif ot in (
+        "coil_reactor", "chip_reactor", "photoreactor", "reactor",
+        "heated_coil", "packed_bed", "packed_bed_reactor",
+    ):
         if p.get("material") and p.get("ID_mm"):
             lines.append(f"{p['material']} {p['ID_mm']}mm")
         if p.get("volume_mL"): lines.append(f"V={p['volume_mL']}mL")
@@ -220,13 +244,13 @@ def _param_lines(op) -> list[str]:
         if p.get("reactor_type"): lines.append(f"({p['reactor_type']})")
     elif ot == "bpr":
         if p.get("pressure_bar"): lines.append(f"{p['pressure_bar']} bar")
-    elif ot == "deoxygenation_unit":
+    elif ot in ("deoxygenation_unit", "degas", "degasser"):
         lines.append(p.get("method","N₂ sparging")[:20])
-    elif ot in ("mixer", "quench_mixer"):
+    elif ot in ("mixer", "t_mixer", "y_mixer", "quench_mixer"):
         if p.get("type"): lines.append(p["type"])
         if p.get("reagent"): lines.append(f"+{p['reagent'][:16]}")
         if p.get("details"): lines.append(p["details"][:18])
-    elif ot == "inline_filter":
+    elif ot in ("inline_filter", "filter"):
         if p.get("pore_size_um"): lines.append(f"{p['pore_size_um']}μm")
         if p.get("details"): lines.append(p.get("details","")[:18])
     elif ot == "led_module":
@@ -358,7 +382,9 @@ class FlowsheetBuilder:
                 # Find the reactor in the same stage (same prefix)
                 prefix = lid.rsplit("_", 1)[0]
                 for n in main_lane:
-                    if n.startswith(prefix) and op_map[n].op_type in ("coil_reactor","chip_reactor"):
+                    if n.startswith(prefix) and op_map[n].op_type in (
+                        "coil_reactor", "chip_reactor", "photoreactor", "reactor",
+                    ):
                         reactor_led[n] = lid
 
         # ── Measure heights ────────────────────────────────────────────────
@@ -374,7 +400,9 @@ class FlowsheetBuilder:
             (len([p for p in mid_pump_map if mid_pump_map[p] == n]) for n in main_lane),
             default=0
         )
-        mid_zone_h = SIDE_PUMP_ABOVE if max_mid_pumps_at_node > 0 else 0
+        # Reserve the pump body as well as its connecting drop. Without this,
+        # a mid-stage pump can overlap the diagram title.
+        mid_zone_h = SIDE_PUMP_ABOVE + 60 if max_mid_pumps_at_node > 0 else 0
 
         # ── Canvas ─────────────────────────────────────────────────────────
         title_h = 36 if title else 0
@@ -411,7 +439,7 @@ class FlowsheetBuilder:
         for i, pump in enumerate(left_pumps):
             h = left_heights[i]
             svg.append(_render_block(pump, pump_col_cx, py))
-            pump_out_ports.append((pump_col_cx + ICON_W/2, py + h/2))
+            pump_out_ports.append((pump_col_cx + ICON_W/2, py + ICON_H/2))
             py += h + PUMP_VGAP
 
         # ── Sequential main lane nodes ─────────────────────────────────────
@@ -459,7 +487,9 @@ class FlowsheetBuilder:
             svg.append(_arrow_down(pump_cx, pump_bot, target_top_edge))
 
         # ── Connect left pumps → first sequential node ─────────────────────
-        flow_lane_y = seq_icon_cy + max_main_h/2
+        # Connections enter equipment at icon center. Using total block height
+        # here routed arrows through labels whenever parameter text was present.
+        flow_lane_y = seq_icon_cy + ICON_H/2
         if main_ops and pump_out_ports:
             first_cx = seq_start_x
             manifold_x = pump_col_cx + ICON_W/2 + 12

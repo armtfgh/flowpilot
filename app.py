@@ -1,12 +1,12 @@
-"""FLORA — Streamlit dashboard."""
+"""FlowPilot Streamlit dashboard."""
 
 from pathlib import Path
 import streamlit as st
 
 st.set_page_config(
-    page_title="FLORA",
+    page_title="FlowPilot",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
 # Load custom CSS
@@ -21,6 +21,10 @@ page = render_sidebar()
 # Route to pages
 if page == "flora_design":
     from pages.flora_design_unified import render
+    render()
+
+elif page == "inventory":
+    from pages.inventory_manager import render
     render()
 
 elif page == "diagnose":

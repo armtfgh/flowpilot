@@ -1,0 +1,1501 @@
+{
+  "schema_version": "flowpilot_final_design_v2.0",
+  "status": "executable",
+  "parameters": {
+    "flow_rate_mL_min": 0.2,
+    "temperature_C": null,
+    "concentration_M": 0.667,
+    "BPR_bar": 0.0,
+    "reactor_type": "coil",
+    "tubing_material": "PFA",
+    "tubing_ID_mm": 0.5,
+    "wavelength_nm": null,
+    "residence_time_basis_code": "liquid_only",
+    "residence_time_basis": "sum of per-stage liquid-only reactor volume / liquid flow",
+    "flow_rate_basis": "final liquid outlet flow",
+    "stage_specific_flow_rates": true,
+    "stage_specific_conditions": true,
+    "reactor_volume_mL": 15.04,
+    "residence_time_min": 78.4667,
+    "residence_time_inlet_min": 78.4667,
+    "residence_time_in_channel_min": 78.4667
+  },
+  "stages": [
+    {
+      "stage_number": 1,
+      "reactor_equipment_id": "reactor_ms_196",
+      "reactor_name": "Stage 1 oxidation microreactor",
+      "reactor_volume_mL": 1.96,
+      "V_R_mL": 1.96,
+      "d_mm": 0.5,
+      "material": "PFA",
+      "temperature_C": 70.0,
+      "Q_liquid_mL_min": 0.15,
+      "flow_rate_mL_min": 0.15,
+      "Q_gas_sccm": 0.0,
+      "Q_gas_actual_mL_min": 0.0,
+      "gas_flow_sccm": 0.0,
+      "gas_flow_actual_mL_min": 0.0,
+      "residence_time_min": 13.0667,
+      "residence_time_inlet_min": 13.0667,
+      "residence_time_in_channel_min": 13.0667,
+      "residence_time_basis": "liquid-only stage residence time",
+      "inventory_resolved": true,
+      "notes": "Deterministic stage closure: V_R=1.96 mL; Q_liquid=0.15 mL/min; tau_inlet=13.07 min; tau_in_channel=13.07 min; basis=liquid-only stage residence time.",
+      "pump_equipment_ids": [
+        "pump_ms_B",
+        "pump_ms_A"
+      ],
+      "mixer_assignment_status": "assigned",
+      "mixer_name": "Stage 1 T-mixer",
+      "mixer_equipment_id": "mixer_ms_1"
+    },
+    {
+      "stage_number": 2,
+      "reactor_equipment_id": "reactor_ms_1308",
+      "reactor_name": "Stage 2 oxidative amidation microreactor",
+      "reactor_volume_mL": 13.08,
+      "V_R_mL": 13.08,
+      "d_mm": 0.5,
+      "material": "PFA",
+      "temperature_C": 80.0,
+      "Q_liquid_mL_min": 0.2,
+      "flow_rate_mL_min": 0.2,
+      "Q_gas_sccm": 0.0,
+      "Q_gas_actual_mL_min": 0.0,
+      "gas_flow_sccm": 0.0,
+      "gas_flow_actual_mL_min": 0.0,
+      "residence_time_min": 65.4,
+      "residence_time_inlet_min": 65.4,
+      "residence_time_in_channel_min": 65.4,
+      "residence_time_basis": "liquid-only stage residence time",
+      "inventory_resolved": true,
+      "notes": "Deterministic stage closure: V_R=13.08 mL; Q_liquid=0.2 mL/min; tau_inlet=65.4 min; tau_in_channel=65.4 min; basis=liquid-only stage residence time.",
+      "pump_equipment_ids": [
+        "pump_ms_C"
+      ],
+      "pump_equipment_id": "pump_ms_C",
+      "mixer_assignment_status": "assigned",
+      "mixer_name": "Interstage T-mixer",
+      "mixer_equipment_id": "mixer_ms_2"
+    }
+  ],
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "pump_ms_A delivers substrate feed to mixer_ms_1 for stage-1 alcohol oxidation",
+      "contents": [
+        "benzyl alcohol (0.667 M, 1.0 equiv)"
+      ],
+      "solvent": "dioxane",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.05,
+      "phase": "liquid",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "pump_equipment_id": "pump_ms_A",
+      "introduction_stage": 1,
+      "reasoning": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.05 mL/min; equiv=1, C=0.667 M; pump=pump_ms_A."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "pump_ms_B delivers oxidant/catalyst feed to mixer_ms_1 for stage-1 oxidation",
+      "contents": [
+        "aqueous H2O2 (1.334 M relative to A stream to provide 2.0 equiv at equal A/B flow)",
+        "NaBr (0.0133 M, 2 mol% vs benzyl alcohol)",
+        "H2SO4 (0.00667 M, 1 mol% vs benzyl alcohol)"
+      ],
+      "solvent": "dioxane/water",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.1,
+      "phase": "liquid",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 2.0,
+      "pump_equipment_id": "pump_ms_B",
+      "introduction_stage": 1,
+      "reasoning": "Deterministic stoichiometric flow solution: Q_B=k*(equiv/C)=0.1 mL/min; equiv=2, C=0.667 M; pump=pump_ms_B."
+    },
+    {
+      "stream_label": "C",
+      "pump_role": "pump_ms_C delivers interstage amine/co-oxidant feed to mixer_ms_2 before stage 2",
+      "contents": [
+        "morpholine (0.667 M, 1.0 equiv vs benzyl alcohol feed basis)",
+        "aqueous TBHP (0.667 M stated feed basis; exact equiv not explicit in Chemistry Plan)"
+      ],
+      "solvent": "dioxane/water",
+      "concentration_M": 0.667,
+      "flow_rate_mL_min": 0.05,
+      "phase": "liquid",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "molar_equiv": 1.0,
+      "pump_equipment_id": "pump_ms_C",
+      "introduction_stage": 2,
+      "reasoning": "Deterministic stoichiometric flow solution: Q_C=k*(equiv/C)=0.05 mL/min; equiv=1, C=0.667 M; pump=pump_ms_C."
+    }
+  ],
+  "instrument_manifest": [
+    {
+      "equipment_id": "pump_ms_A",
+      "name": "Syringe pump A",
+      "category": "pumps",
+      "quantity_used": 1,
+      "roles": [
+        "Pump A \u2014 Substrate-only organic feed for controlled first-stage oxidation."
+      ],
+      "settings": [
+        {
+          "equipment_id": "pump_ms_A",
+          "flow_rate_mL_min": 0.05
+        }
+      ]
+    },
+    {
+      "equipment_id": "pump_ms_B",
+      "name": "Syringe pump B",
+      "category": "pumps",
+      "quantity_used": 1,
+      "roles": [
+        "Pump B \u2014 Oxidant/catalyst feed kept separate from amine until stage 1 mixing."
+      ],
+      "settings": [
+        {
+          "equipment_id": "pump_ms_B",
+          "flow_rate_mL_min": 0.1
+        }
+      ]
+    },
+    {
+      "equipment_id": "mixer_ms_1",
+      "name": "Stage 1 T-mixer",
+      "category": "mixers",
+      "quantity_used": 1,
+      "roles": [
+        "Mixer \u2014 Stage 1"
+      ],
+      "settings": [
+        {
+          "input_count": 2,
+          "total_flow_mL_min": 0.2
+        }
+      ]
+    },
+    {
+      "equipment_id": "reactor_ms_196",
+      "name": "Stage 1 oxidation microreactor",
+      "category": "reactors",
+      "quantity_used": 1,
+      "roles": [
+        "Coil \u2014 Alcohol oxidation"
+      ],
+      "settings": [
+        {
+          "equipment_id": "reactor_ms_196",
+          "volume_mL": 1.96,
+          "ID_mm": 0.5,
+          "temperature_C": 70.0,
+          "integrated_flow_path": true
+        }
+      ]
+    },
+    {
+      "equipment_id": "bath_ms_70",
+      "name": "Stage 1 oil bath",
+      "category": "temperature_controllers",
+      "quantity_used": 1,
+      "roles": [
+        "Temperature Control \u2014 Stage 1"
+      ],
+      "settings": [
+        {
+          "temperature_C": 70.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "pump_ms_C",
+      "name": "Syringe pump C",
+      "category": "pumps",
+      "quantity_used": 1,
+      "roles": [
+        "Pump C \u2014 Interstage amine/co-oxidant feed for stage 2 oxidative amidation."
+      ],
+      "settings": [
+        {
+          "equipment_id": "pump_ms_C",
+          "flow_rate_mL_min": 0.05
+        }
+      ]
+    },
+    {
+      "equipment_id": "mixer_ms_2",
+      "name": "Interstage T-mixer",
+      "category": "mixers",
+      "quantity_used": 1,
+      "roles": [
+        "Mixer \u2014 Stage 2"
+      ],
+      "settings": [
+        {
+          "input_count": 2,
+          "total_flow_mL_min": 0.2
+        }
+      ]
+    },
+    {
+      "equipment_id": "reactor_ms_1308",
+      "name": "Stage 2 oxidative amidation microreactor",
+      "category": "reactors",
+      "quantity_used": 1,
+      "roles": [
+        "Coil \u2014 Oxidative amidation"
+      ],
+      "settings": [
+        {
+          "equipment_id": "reactor_ms_1308",
+          "volume_mL": 13.08,
+          "ID_mm": 0.5,
+          "temperature_C": 80.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "bath_ms_80",
+      "name": "Stage 2 oil bath",
+      "category": "temperature_controllers",
+      "quantity_used": 1,
+      "roles": [
+        "Temperature Control \u2014 Stage 2"
+      ],
+      "settings": [
+        {
+          "temperature_C": 80.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "collector_ms_250",
+      "name": "Cooled peroxide-compatible collector",
+      "category": "collectors",
+      "quantity_used": 1,
+      "roles": [
+        "Product Collection"
+      ],
+      "settings": [
+        {}
+      ]
+    },
+    {
+      "equipment_id": "benchmark_safety_enclosure",
+      "name": "Declared blast shield and compatible secondary containment",
+      "category": "safety_accessories",
+      "quantity_used": 1,
+      "roles": [
+        "Safety control PEROXIDE-CONTAINMENT"
+      ],
+      "settings": []
+    }
+  ],
+  "process_graph": {
+    "schema_version": "flowpilot_executable_process_v1.0",
+    "topology": {
+      "topology_id": "translate_multistep",
+      "unit_operations": [
+        {
+          "op_id": "pump_a",
+          "op_type": "pump",
+          "label": "Pump A \u2014 Substrate-only organic feed for controlled first-stage oxidation. | Syringe pump A",
+          "parameters": {
+            "stream": "A",
+            "contents": [
+              "benzyl alcohol",
+              "dioxane"
+            ],
+            "solvent": "dioxane",
+            "flow_rate_mL_min": 0.05,
+            "phase": "liquid",
+            "gas_flow_sccm": null,
+            "gas_flow_actual_mL_min": null,
+            "inventory_equipment_id": "pump_ms_A",
+            "inventory_item_id": "pump_ms_A",
+            "inventory_item_ids": [
+              "pump_ms_A"
+            ],
+            "instrument_name": "Syringe pump A"
+          },
+          "required": true,
+          "rationale": "Substrate-only organic feed for controlled first-stage oxidation.",
+          "inventory_item_id": "pump_ms_A",
+          "inventory_item_ids": [
+            "pump_ms_A"
+          ],
+          "instrument_name": "Syringe pump A",
+          "inventory_category": "pumps",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        },
+        {
+          "op_id": "pump_b",
+          "op_type": "pump",
+          "label": "Pump B \u2014 Oxidant/catalyst feed kept separate from amine until stage 1 mixing. | Syringe pump B",
+          "parameters": {
+            "stream": "B",
+            "contents": [
+              "aqueous H2O2",
+              "NaBr",
+              "H2SO4",
+              "dioxane/water"
+            ],
+            "solvent": "dioxane",
+            "flow_rate_mL_min": 0.1,
+            "phase": "liquid",
+            "gas_flow_sccm": null,
+            "gas_flow_actual_mL_min": null,
+            "inventory_equipment_id": "pump_ms_B",
+            "inventory_item_id": "pump_ms_B",
+            "inventory_item_ids": [
+              "pump_ms_B"
+            ],
+            "instrument_name": "Syringe pump B"
+          },
+          "required": true,
+          "rationale": "Oxidant/catalyst feed kept separate from amine until stage 1 mixing.",
+          "inventory_item_id": "pump_ms_B",
+          "inventory_item_ids": [
+            "pump_ms_B"
+          ],
+          "instrument_name": "Syringe pump B",
+          "inventory_category": "pumps",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        },
+        {
+          "op_id": "st1_mixer",
+          "op_type": "mixer",
+          "label": "Mixer \u2014 Stage 1 | Stage 1 T-mixer",
+          "parameters": {
+            "type": "T-mixer",
+            "material": "not specified",
+            "inventory_item_id": "mixer_ms_1",
+            "inventory_item_ids": [
+              "mixer_ms_1"
+            ],
+            "instrument_name": "Stage 1 T-mixer"
+          },
+          "required": true,
+          "rationale": "Combine feeds for Alcohol oxidation",
+          "inventory_item_id": "mixer_ms_1",
+          "inventory_item_ids": [
+            "mixer_ms_1"
+          ],
+          "instrument_name": "Stage 1 T-mixer",
+          "inventory_category": "mixers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        },
+        {
+          "op_id": "st1_reactor",
+          "op_type": "coil_reactor",
+          "label": "Coil \u2014 Alcohol oxidation | Stage 1 oxidation microreactor",
+          "parameters": {
+            "material": "PFA",
+            "ID_mm": 0.5,
+            "volume_mL": 1.96,
+            "liquid_holdup_volume_mL": 1.96,
+            "gas_holdup": 0.0,
+            "Q_inlet_mL_min": 0.15,
+            "Q_liquid_mL_min": 0.15,
+            "Q_gas_actual_mL_min": null,
+            "Q_gas_sccm": null,
+            "temperature_C": 70.0,
+            "wavelength_nm": null,
+            "residence_time_min": 13.07,
+            "residence_time_basis": "liquid-only stage residence time",
+            "length_m": 9.98,
+            "reactor_type": "coil",
+            "inventory_equipment_id": "reactor_ms_196",
+            "inventory_equipment_name": "Stage 1 oxidation microreactor",
+            "residence_time_inlet_min": 13.0667,
+            "residence_time_in_channel_min": 13.0667,
+            "inventory_item_id": "reactor_ms_196",
+            "inventory_item_ids": [
+              "reactor_ms_196"
+            ],
+            "instrument_name": "Stage 1 oxidation microreactor",
+            "temperature_controller_name": "Stage 1 oil bath",
+            "temperature_controller_inventory_item_id": "bath_ms_70"
+          },
+          "required": true,
+          "rationale": "Reactor for Alcohol oxidation \u2014 \u03c4=13.07 min, Q_inlet=0.15 mL/min, V_R=1.96 mL",
+          "inventory_item_id": "reactor_ms_196",
+          "inventory_item_ids": [
+            "reactor_ms_196"
+          ],
+          "instrument_name": "Stage 1 oxidation microreactor",
+          "inventory_category": "reactors",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true,
+            "integrated_flow_path": true
+          }
+        },
+        {
+          "op_id": "st1_heater",
+          "op_type": "heater",
+          "label": "Temperature Control \u2014 Stage 1 | Stage 1 oil bath",
+          "parameters": {
+            "temperature_C": 70.0,
+            "inventory_item_id": "bath_ms_70",
+            "inventory_item_ids": [
+              "bath_ms_70"
+            ],
+            "instrument_name": "Stage 1 oil bath"
+          },
+          "required": true,
+          "rationale": "Active temperature control for Alcohol oxidation",
+          "inventory_item_id": "bath_ms_70",
+          "inventory_item_ids": [
+            "bath_ms_70"
+          ],
+          "instrument_name": "Stage 1 oil bath",
+          "inventory_category": "temperature_controllers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        },
+        {
+          "op_id": "pump_c",
+          "op_type": "pump",
+          "label": "Pump C \u2014 Interstage amine/co-oxidant feed for stage 2 oxidative amidation. | Syringe pump C",
+          "parameters": {
+            "stream": "C",
+            "contents": [
+              "morpholine",
+              "aqueous TBHP",
+              "dioxane/water"
+            ],
+            "solvent": "dioxane",
+            "flow_rate_mL_min": 0.05,
+            "phase": "liquid",
+            "gas_flow_sccm": null,
+            "gas_flow_actual_mL_min": null,
+            "inventory_equipment_id": "pump_ms_C",
+            "inventory_item_id": "pump_ms_C",
+            "inventory_item_ids": [
+              "pump_ms_C"
+            ],
+            "instrument_name": "Syringe pump C"
+          },
+          "required": true,
+          "rationale": "Interstage amine/co-oxidant feed for stage 2 oxidative amidation.",
+          "inventory_item_id": "pump_ms_C",
+          "inventory_item_ids": [
+            "pump_ms_C"
+          ],
+          "instrument_name": "Syringe pump C",
+          "inventory_category": "pumps",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        },
+        {
+          "op_id": "st2_mixer",
+          "op_type": "mixer",
+          "label": "Mixer \u2014 Stage 2 | Interstage T-mixer",
+          "parameters": {
+            "type": "T-mixer",
+            "material": "not specified",
+            "inventory_item_id": "mixer_ms_2",
+            "inventory_item_ids": [
+              "mixer_ms_2"
+            ],
+            "instrument_name": "Interstage T-mixer"
+          },
+          "required": true,
+          "rationale": "Combine feeds for Oxidative amidation",
+          "inventory_item_id": "mixer_ms_2",
+          "inventory_item_ids": [
+            "mixer_ms_2"
+          ],
+          "instrument_name": "Interstage T-mixer",
+          "inventory_category": "mixers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        },
+        {
+          "op_id": "st2_reactor",
+          "op_type": "coil_reactor",
+          "label": "Coil \u2014 Oxidative amidation | Stage 2 oxidative amidation microreactor",
+          "parameters": {
+            "material": "PFA",
+            "ID_mm": 0.5,
+            "volume_mL": 13.08,
+            "liquid_holdup_volume_mL": 13.08,
+            "gas_holdup": 0.0,
+            "Q_inlet_mL_min": 0.2,
+            "Q_liquid_mL_min": 0.2,
+            "Q_gas_actual_mL_min": null,
+            "Q_gas_sccm": null,
+            "temperature_C": 80.0,
+            "wavelength_nm": null,
+            "residence_time_min": 65.4,
+            "residence_time_basis": "liquid-only stage residence time",
+            "length_m": 66.62,
+            "reactor_type": "coil",
+            "inventory_equipment_id": "reactor_ms_1308",
+            "inventory_equipment_name": "Stage 2 oxidative amidation microreactor",
+            "residence_time_inlet_min": 65.4,
+            "residence_time_in_channel_min": 65.4,
+            "inventory_item_id": "reactor_ms_1308",
+            "inventory_item_ids": [
+              "reactor_ms_1308"
+            ],
+            "instrument_name": "Stage 2 oxidative amidation microreactor",
+            "temperature_controller_name": "Stage 2 oil bath",
+            "temperature_controller_inventory_item_id": "bath_ms_80"
+          },
+          "required": true,
+          "rationale": "Reactor for Oxidative amidation \u2014 \u03c4=65.4 min, Q_inlet=0.2 mL/min, V_R=13.08 mL",
+          "inventory_item_id": "reactor_ms_1308",
+          "inventory_item_ids": [
+            "reactor_ms_1308"
+          ],
+          "instrument_name": "Stage 2 oxidative amidation microreactor",
+          "inventory_category": "reactors",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        },
+        {
+          "op_id": "st2_heater",
+          "op_type": "heater",
+          "label": "Temperature Control \u2014 Stage 2 | Stage 2 oil bath",
+          "parameters": {
+            "temperature_C": 80.0,
+            "inventory_item_id": "bath_ms_80",
+            "inventory_item_ids": [
+              "bath_ms_80"
+            ],
+            "instrument_name": "Stage 2 oil bath"
+          },
+          "required": true,
+          "rationale": "Active temperature control for Oxidative amidation",
+          "inventory_item_id": "bath_ms_80",
+          "inventory_item_ids": [
+            "bath_ms_80"
+          ],
+          "instrument_name": "Stage 2 oil bath",
+          "inventory_category": "temperature_controllers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        },
+        {
+          "op_id": "collector_1",
+          "op_type": "collector",
+          "label": "Product Collection | Cooled peroxide-compatible collector",
+          "parameters": {
+            "inventory_item_id": "collector_ms_250",
+            "inventory_item_ids": [
+              "collector_ms_250"
+            ],
+            "instrument_name": "Cooled peroxide-compatible collector"
+          },
+          "required": true,
+          "rationale": "Outlet",
+          "inventory_item_id": "collector_ms_250",
+          "inventory_item_ids": [
+            "collector_ms_250"
+          ],
+          "instrument_name": "Cooled peroxide-compatible collector",
+          "inventory_category": "collectors",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          }
+        }
+      ],
+      "streams": [
+        {
+          "stream_id": "s1",
+          "from_op": "pump_a",
+          "to_op": "st1_mixer",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s2",
+          "from_op": "pump_b",
+          "to_op": "st1_mixer",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s3",
+          "from_op": "st1_mixer",
+          "to_op": "st1_reactor",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s5",
+          "from_op": "pump_c",
+          "to_op": "st2_mixer",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s6",
+          "from_op": "st1_reactor",
+          "to_op": "st2_mixer",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s7",
+          "from_op": "st2_mixer",
+          "to_op": "st2_reactor",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s9",
+          "from_op": "st2_reactor",
+          "to_op": "collector_1",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        }
+      ],
+      "total_flow_rate_mL_min": 0.2,
+      "residence_time_min": 78.4667,
+      "reactor_volume_mL": 15.04,
+      "pid_description": "Pump A \u2014 Substrate-only organic feed for controlled first-stage oxidation. | Syringe pump A -[liquid]-> Mixer \u2014 Stage 1 | Stage 1 T-mixer | Pump B \u2014 Oxidant/catalyst feed kept separate from amine until stage 1 mixing. | Syringe pump B -[liquid]-> Mixer \u2014 Stage 1 | Stage 1 T-mixer | Mixer \u2014 Stage 1 | Stage 1 T-mixer -[liquid]-> Coil \u2014 Alcohol oxidation | Stage 1 oxidation microreactor | Pump C \u2014 Interstage amine/co-oxidant feed for stage 2 oxidative amidation. | Syringe pump C -[liquid]-> Mixer \u2014 Stage 2 | Interstage T-mixer | Coil \u2014 Alcohol oxidation | Stage 1 oxidation microreactor -[liquid]-> Mixer \u2014 Stage 2 | Interstage T-mixer | Mixer \u2014 Stage 2 | Interstage T-mixer -[liquid]-> Coil \u2014 Oxidative amidation | Stage 2 oxidative amidation microreactor | Coil \u2014 Oxidative amidation | Stage 2 oxidative amidation microreactor -[liquid]-> Product Collection | Cooled peroxide-compatible collector",
+      "literature_support": [],
+      "topology_confidence": "LOW",
+      "compilation_status": "inventory_assigned",
+      "inventory_schema_version": "flowpilot_lab_inventory_v3.0",
+      "inventory_sha256": "43870de03a3399cfbc9fce0df4754f635ab6c79c4dbee2935db602f1d5d5805f",
+      "instrument_manifest": [
+        {
+          "equipment_id": "pump_ms_A",
+          "name": "Syringe pump A",
+          "category": "pumps",
+          "quantity_used": 1,
+          "roles": [
+            "Pump A \u2014 Substrate-only organic feed for controlled first-stage oxidation."
+          ],
+          "settings": [
+            {
+              "equipment_id": "pump_ms_A",
+              "flow_rate_mL_min": 0.05
+            }
+          ]
+        },
+        {
+          "equipment_id": "pump_ms_B",
+          "name": "Syringe pump B",
+          "category": "pumps",
+          "quantity_used": 1,
+          "roles": [
+            "Pump B \u2014 Oxidant/catalyst feed kept separate from amine until stage 1 mixing."
+          ],
+          "settings": [
+            {
+              "equipment_id": "pump_ms_B",
+              "flow_rate_mL_min": 0.1
+            }
+          ]
+        },
+        {
+          "equipment_id": "mixer_ms_1",
+          "name": "Stage 1 T-mixer",
+          "category": "mixers",
+          "quantity_used": 1,
+          "roles": [
+            "Mixer \u2014 Stage 1"
+          ],
+          "settings": [
+            {
+              "input_count": 2,
+              "total_flow_mL_min": 0.2
+            }
+          ]
+        },
+        {
+          "equipment_id": "reactor_ms_196",
+          "name": "Stage 1 oxidation microreactor",
+          "category": "reactors",
+          "quantity_used": 1,
+          "roles": [
+            "Coil \u2014 Alcohol oxidation"
+          ],
+          "settings": [
+            {
+              "equipment_id": "reactor_ms_196",
+              "volume_mL": 1.96,
+              "ID_mm": 0.5,
+              "temperature_C": 70.0,
+              "integrated_flow_path": true
+            }
+          ]
+        },
+        {
+          "equipment_id": "bath_ms_70",
+          "name": "Stage 1 oil bath",
+          "category": "temperature_controllers",
+          "quantity_used": 1,
+          "roles": [
+            "Temperature Control \u2014 Stage 1"
+          ],
+          "settings": [
+            {
+              "temperature_C": 70.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "pump_ms_C",
+          "name": "Syringe pump C",
+          "category": "pumps",
+          "quantity_used": 1,
+          "roles": [
+            "Pump C \u2014 Interstage amine/co-oxidant feed for stage 2 oxidative amidation."
+          ],
+          "settings": [
+            {
+              "equipment_id": "pump_ms_C",
+              "flow_rate_mL_min": 0.05
+            }
+          ]
+        },
+        {
+          "equipment_id": "mixer_ms_2",
+          "name": "Interstage T-mixer",
+          "category": "mixers",
+          "quantity_used": 1,
+          "roles": [
+            "Mixer \u2014 Stage 2"
+          ],
+          "settings": [
+            {
+              "input_count": 2,
+              "total_flow_mL_min": 0.2
+            }
+          ]
+        },
+        {
+          "equipment_id": "reactor_ms_1308",
+          "name": "Stage 2 oxidative amidation microreactor",
+          "category": "reactors",
+          "quantity_used": 1,
+          "roles": [
+            "Coil \u2014 Oxidative amidation"
+          ],
+          "settings": [
+            {
+              "equipment_id": "reactor_ms_1308",
+              "volume_mL": 13.08,
+              "ID_mm": 0.5,
+              "temperature_C": 80.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "bath_ms_80",
+          "name": "Stage 2 oil bath",
+          "category": "temperature_controllers",
+          "quantity_used": 1,
+          "roles": [
+            "Temperature Control \u2014 Stage 2"
+          ],
+          "settings": [
+            {
+              "temperature_C": 80.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "collector_ms_250",
+          "name": "Cooled peroxide-compatible collector",
+          "category": "collectors",
+          "quantity_used": 1,
+          "roles": [
+            "Product Collection"
+          ],
+          "settings": [
+            {}
+          ]
+        }
+      ]
+    },
+    "feeds": [
+      {
+        "operation_id": "pump_a",
+        "equipment_id": "pump_ms_A",
+        "stream_label": "A",
+        "phase": "liquid",
+        "contents": [
+          "benzyl alcohol",
+          "dioxane"
+        ],
+        "solvent": "dioxane",
+        "flow_rate_mL_min": 0.05,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      {
+        "operation_id": "pump_b",
+        "equipment_id": "pump_ms_B",
+        "stream_label": "B",
+        "phase": "liquid",
+        "contents": [
+          "aqueous H2O2",
+          "NaBr",
+          "H2SO4",
+          "dioxane/water"
+        ],
+        "solvent": "dioxane",
+        "flow_rate_mL_min": 0.1,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      {
+        "operation_id": "pump_c",
+        "equipment_id": "pump_ms_C",
+        "stream_label": "C",
+        "phase": "liquid",
+        "contents": [
+          "morpholine",
+          "aqueous TBHP",
+          "dioxane/water"
+        ],
+        "solvent": "dioxane",
+        "flow_rate_mL_min": 0.05,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      }
+    ],
+    "stages": [
+      {
+        "stage_number": 1,
+        "reactor_operation_id": "st1_reactor",
+        "reactor_equipment_id": "reactor_ms_196",
+        "mixer_operation_id": "st1_mixer",
+        "mixer_equipment_id": "mixer_ms_1",
+        "temperature_C": 70.0,
+        "reactor_volume_mL": 1.96,
+        "residence_flow_mL_min": 0.15,
+        "residence_time_min": 13.07,
+        "residence_time_basis": "liquid-only stage residence time"
+      },
+      {
+        "stage_number": 2,
+        "reactor_operation_id": "st2_reactor",
+        "reactor_equipment_id": "reactor_ms_1308",
+        "mixer_operation_id": "st2_mixer",
+        "mixer_equipment_id": "mixer_ms_2",
+        "temperature_C": 80.0,
+        "reactor_volume_mL": 13.08,
+        "residence_flow_mL_min": 0.2,
+        "residence_time_min": 65.4,
+        "residence_time_basis": "liquid-only stage residence time"
+      }
+    ],
+    "total_liquid_flow_mL_min": 0.2,
+    "total_reactor_volume_mL": 15.04,
+    "total_residence_time_min": 78.4667
+  },
+  "chemistry_identity": {
+    "reaction_name": "Two-stage oxidative amidation of benzyl alcohol to benzoyl morpholine",
+    "reaction_class": "oxidation followed by oxidative amidation",
+    "transformation_family": "oxidative_amidation",
+    "protocol_transformation_family": "oxidative_amidation",
+    "bond_formed": "C(acyl)-N",
+    "bond_broken": "C-H/O-H at benzyl alcohol; peroxide O-O",
+    "protocol_sha256": "176fca740723cb5d727a92e90164d565590bc1225a1068434f178c7cc500c227",
+    "chemistry_plan_sha256": "c5e4aedcf799a813aa0cfc51d86c0b4b211148680ed7a1cc24c46758c533be98",
+    "authority_source": "chemist_confirmed",
+    "confirmed": true
+  },
+  "stream_components": [
+    {
+      "stream_label": "A",
+      "name": "benzyl alcohol",
+      "role": "substrate",
+      "source_text": "benzyl alcohol (0.667 M, 1.0 equiv)",
+      "concentration_M": 0.667,
+      "molar_equiv": 1.0,
+      "loading_mol_pct": null,
+      "quantification_required": true,
+      "quantified": true,
+      "provenance": [
+        "component_text",
+        "chemistry_plan_or_component_text"
+      ]
+    },
+    {
+      "stream_label": "B",
+      "name": "aqueous H2O2",
+      "role": "additive",
+      "source_text": "aqueous H2O2 (1.334 M relative to A stream to provide 2.0 equiv at equal A/B flow)",
+      "concentration_M": 1.334,
+      "molar_equiv": 2.0,
+      "loading_mol_pct": null,
+      "quantification_required": true,
+      "quantified": true,
+      "provenance": [
+        "component_text",
+        "chemistry_plan_or_component_text"
+      ]
+    },
+    {
+      "stream_label": "B",
+      "name": "NaBr",
+      "role": "additive",
+      "source_text": "NaBr (0.0133 M, 2 mol% vs benzyl alcohol)",
+      "concentration_M": 0.0133,
+      "molar_equiv": null,
+      "loading_mol_pct": 2.0,
+      "quantification_required": true,
+      "quantified": true,
+      "provenance": [
+        "component_text",
+        "chemistry_plan_or_component_text"
+      ]
+    },
+    {
+      "stream_label": "B",
+      "name": "H2SO4",
+      "role": "additive",
+      "source_text": "H2SO4 (0.00667 M, 1 mol% vs benzyl alcohol)",
+      "concentration_M": 0.00667,
+      "molar_equiv": null,
+      "loading_mol_pct": 1.0,
+      "quantification_required": true,
+      "quantified": true,
+      "provenance": [
+        "component_text",
+        "chemistry_plan_or_component_text"
+      ]
+    },
+    {
+      "stream_label": "C",
+      "name": "morpholine",
+      "role": "base",
+      "source_text": "morpholine (0.667 M, 1.0 equiv vs benzyl alcohol feed basis)",
+      "concentration_M": 0.667,
+      "molar_equiv": 1.0,
+      "loading_mol_pct": null,
+      "quantification_required": true,
+      "quantified": true,
+      "provenance": [
+        "component_text",
+        "chemistry_plan_or_component_text"
+      ]
+    },
+    {
+      "stream_label": "C",
+      "name": "aqueous TBHP",
+      "role": "additive",
+      "source_text": "aqueous TBHP (0.667 M stated feed basis; exact equiv not explicit in Chemistry Plan)",
+      "concentration_M": 0.667,
+      "molar_equiv": null,
+      "loading_mol_pct": null,
+      "quantification_required": true,
+      "quantified": true,
+      "provenance": [
+        "component_text"
+      ]
+    }
+  ],
+  "safety": {
+    "hazards": [
+      "peroxide_oxidizer"
+    ],
+    "controls": [
+      {
+        "control_id": "GENERAL-PPE-CONTAINMENT",
+        "category": "general",
+        "description": "Use the laboratory-approved PPE and containment for every declared reagent.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:GENERAL-PPE-CONTAINMENT"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "GENERAL-EMERGENCY-STOP",
+        "category": "emergency",
+        "description": "Define and rehearse the emergency feed-stop sequence.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:GENERAL-EMERGENCY-STOP"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "GENERAL-WASTE",
+        "category": "waste",
+        "description": "Segregate and label all process and flush waste by hazard class.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:GENERAL-WASTE"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "PEROXIDE-SEGREGATION",
+        "category": "peroxide",
+        "description": "Keep peroxide and incompatible acid/base feeds segregated until the assigned mixer.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:PEROXIDE-SEGREGATION"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "PEROXIDE-TEMPERATURE-MONITOR",
+        "category": "peroxide",
+        "description": "Continuously monitor reactor temperature and stop feeds on excursion.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:PEROXIDE-TEMPERATURE-MONITOR"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "PEROXIDE-QUENCH",
+        "category": "peroxide",
+        "description": "Define a compatible quench and endpoint before collection or work-up.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:PEROXIDE-QUENCH"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "PEROXIDE-CONTAINMENT",
+        "category": "peroxide",
+        "description": "Use declared shielding or compatible secondary containment.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:PEROXIDE-CONTAINMENT",
+          "inventory:benchmark_safety_enclosure"
+        ],
+        "equipment_ids": [
+          "benchmark_safety_enclosure"
+        ]
+      }
+    ],
+    "complete": true,
+    "missing_control_ids": []
+  },
+  "operating_procedure": [
+    {
+      "step_id": "PREP-A",
+      "section": "preparation",
+      "instruction": "Prepare Stream A: benzyl alcohol (0.667 M, 1 equiv); solvent=dioxane.",
+      "required": true,
+      "equipment_ids": [
+        "pump_ms_A"
+      ],
+      "parameter_bindings": {
+        "stream_label": "A",
+        "flow_rate_mL_min": 0.05,
+        "gas_flow_sccm": null
+      }
+    },
+    {
+      "step_id": "PREP-B",
+      "section": "preparation",
+      "instruction": "Prepare Stream B: aqueous H2O2 (1.334 M, 2 equiv), NaBr (0.0133 M, 2 mol%), H2SO4 (0.00667 M, 1 mol%); solvent=dioxane/water.",
+      "required": true,
+      "equipment_ids": [
+        "pump_ms_B"
+      ],
+      "parameter_bindings": {
+        "stream_label": "B",
+        "flow_rate_mL_min": 0.1,
+        "gas_flow_sccm": null
+      }
+    },
+    {
+      "step_id": "PREP-C",
+      "section": "preparation",
+      "instruction": "Prepare Stream C: morpholine (0.667 M, 1 equiv), aqueous TBHP (0.667 M); solvent=dioxane/water.",
+      "required": true,
+      "equipment_ids": [
+        "pump_ms_C"
+      ],
+      "parameter_bindings": {
+        "stream_label": "C",
+        "flow_rate_mL_min": 0.05,
+        "gas_flow_sccm": null
+      }
+    },
+    {
+      "step_id": "SETUP-VERIFY",
+      "section": "setup",
+      "instruction": "Assemble only the inventory-assigned process graph and verify every equipment ID and connection against the final diagram.",
+      "required": true,
+      "equipment_ids": [
+        "bath_ms_70",
+        "bath_ms_80",
+        "collector_ms_250",
+        "mixer_ms_1",
+        "mixer_ms_2",
+        "pump_ms_A",
+        "pump_ms_B",
+        "pump_ms_C",
+        "reactor_ms_1308",
+        "reactor_ms_196"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "SETUP-PRIME",
+      "section": "startup",
+      "instruction": "Prime each liquid line with its declared solvent using its assigned pump until the outlet is bubble-free; do not introduce reactive feeds during priming.",
+      "required": true,
+      "equipment_ids": [
+        "pump_ms_A",
+        "pump_ms_B",
+        "pump_ms_C"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "GENERAL-PPE-CONTAINMENT",
+      "section": "setup",
+      "instruction": "Use the laboratory-approved PPE and containment for every declared reagent.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "GENERAL-EMERGENCY-STOP",
+      "section": "emergency",
+      "instruction": "Define and rehearse the emergency feed-stop sequence.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "GENERAL-WASTE",
+      "section": "waste",
+      "instruction": "Segregate and label all process and flush waste by hazard class.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PEROXIDE-SEGREGATION",
+      "section": "setup",
+      "instruction": "Keep peroxide and incompatible acid/base feeds segregated until the assigned mixer.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PEROXIDE-TEMPERATURE-MONITOR",
+      "section": "setup",
+      "instruction": "Continuously monitor reactor temperature and stop feeds on excursion.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PEROXIDE-QUENCH",
+      "section": "setup",
+      "instruction": "Define a compatible quench and endpoint before collection or work-up.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PEROXIDE-CONTAINMENT",
+      "section": "setup",
+      "instruction": "Use declared shielding or compatible secondary containment.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "START-FEEDS",
+      "section": "startup",
+      "instruction": "Start liquid feeds at the canonical setpoints; admit gas only after liquid flow, temperature, pressure, purge, and vent checks are stable.",
+      "required": true,
+      "equipment_ids": [
+        "pump_ms_A",
+        "pump_ms_B",
+        "pump_ms_C"
+      ],
+      "parameter_bindings": {
+        "A": {
+          "equipment_id": "pump_ms_A",
+          "flow_rate_mL_min": 0.05,
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null
+        },
+        "B": {
+          "equipment_id": "pump_ms_B",
+          "flow_rate_mL_min": 0.1,
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null
+        },
+        "C": {
+          "equipment_id": "pump_ms_C",
+          "flow_rate_mL_min": 0.05,
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null
+        }
+      }
+    },
+    {
+      "step_id": "STEADY-STATE",
+      "section": "steady_state",
+      "instruction": "Run for at least three canonical residence-time intervals (235 min) before product collection and document pressure, temperature, and flow stability.",
+      "required": true,
+      "equipment_ids": [
+        "bath_ms_70",
+        "bath_ms_80",
+        "collector_ms_250",
+        "mixer_ms_1",
+        "mixer_ms_2",
+        "pump_ms_A",
+        "pump_ms_B",
+        "pump_ms_C",
+        "reactor_ms_1308",
+        "reactor_ms_196"
+      ],
+      "parameter_bindings": {
+        "residence_time_min": 78.4667,
+        "minimum_steady_state_time_min": 235.4001,
+        "residence_time_basis": "sum of per-stage liquid-only reactor volume / liquid flow"
+      }
+    },
+    {
+      "step_id": "COLLECT-PRODUCT",
+      "section": "collection",
+      "instruction": "After steady state, collect product for at least one canonical residence-time interval (78.5 min); record exact start/end times and collected mass or volume.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {
+        "minimum_collection_time_min": 78.4667
+      }
+    },
+    {
+      "step_id": "NORMAL-SHUTDOWN",
+      "section": "shutdown",
+      "instruction": "Stop reactive feeds, flush each compatible line, cool the reactor to a safe handling temperature, and isolate energy sources.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    }
+  ],
+  "validation_experiments": [
+    {
+      "experiment_id": "VAL-HYDRAULIC-BASELINE",
+      "purpose": "Verify hydraulic stability at the final operating point before chemistry collection.",
+      "procedure": "Run compatible blank solvent at Q=0.2 mL/min, T=None C, and BPR=0 bar for at least 78.4667 min; record flow, temperature, pressure, leaks, and blockage indicators.",
+      "equipment_ids": [
+        "bath_ms_70",
+        "bath_ms_80",
+        "collector_ms_250",
+        "mixer_ms_1",
+        "mixer_ms_2",
+        "pump_ms_A",
+        "pump_ms_B",
+        "pump_ms_C",
+        "reactor_ms_1308",
+        "reactor_ms_196"
+      ],
+      "parameter_bindings": {
+        "flow_rate_mL_min": 0.2,
+        "temperature_C": null,
+        "BPR_bar": 0.0,
+        "duration_min": 78.4667
+      }
+    },
+    {
+      "experiment_id": "VAL-RTD",
+      "purpose": "Measure actual residence-time distribution against the canonical calculated basis.",
+      "procedure": "Introduce a compatible nonreactive tracer at Q=0.2 mL/min and compare measured mean residence time with 78.4667 min.",
+      "equipment_ids": [
+        "bath_ms_70",
+        "bath_ms_80",
+        "collector_ms_250",
+        "mixer_ms_1",
+        "mixer_ms_2",
+        "pump_ms_A",
+        "pump_ms_B",
+        "pump_ms_C",
+        "reactor_ms_1308",
+        "reactor_ms_196"
+      ],
+      "parameter_bindings": {
+        "flow_rate_mL_min": 0.2,
+        "calculated_residence_time_min": 78.4667,
+        "residence_time_basis": "sum of per-stage liquid-only reactor volume / liquid flow"
+      }
+    },
+    {
+      "experiment_id": "VAL-FIRST-SCREEN",
+      "purpose": "Generate the first wet-lab response at the exact canonical design point.",
+      "procedure": "Execute the canonical operating procedure once and report conversion, isolated yield, selectivity, pressure trace, temperature trace, and any phase or blockage observations.",
+      "equipment_ids": [
+        "bath_ms_70",
+        "bath_ms_80",
+        "collector_ms_250",
+        "mixer_ms_1",
+        "mixer_ms_2",
+        "pump_ms_A",
+        "pump_ms_B",
+        "pump_ms_C",
+        "reactor_ms_1308",
+        "reactor_ms_196"
+      ],
+      "parameter_bindings": {
+        "flow_rate_mL_min": 0.2,
+        "temperature_C": null,
+        "BPR_bar": 0.0,
+        "residence_time_min": 78.4667,
+        "reactor_volume_mL": 15.04
+      }
+    }
+  ],
+  "canonical_sha256": "9ba6553880ece9b793a897f74d46dbbc1df6619f4dcb0cec8ed2972e50d6be4e",
+  "artifact_provenance": {
+    "authority": "deterministic_post_realization_compiler",
+    "intermediate_agent_text_is_executable": false,
+    "canonical_sha256": "9ba6553880ece9b793a897f74d46dbbc1df6619f4dcb0cec8ed2972e50d6be4e"
+  },
+  "intensification": {
+    "policy": "evidence_first",
+    "target_factor": null,
+    "hypothesis_factor": 20.0,
+    "target_role": "not applied under evidence-first policy",
+    "realized_factor": 22.94,
+    "applied_as_hard_constraint": false,
+    "basis": "Predicted screening target: 20.0x residence-time reduction; this is a hypothesis unless the run explicitly selects the intensify policy. Identified batch limitations: mass_transfer_gas_liquid. Primary flow advantage: hazardous_intermediate. Mechanisms: gas-liquid kLa enhancement (segmented flow), hazardous-intermediate holdup reduction, selectivity-sensitive stream logic. Limitation-driven IF (20x) exceeds class default (6x)."
+  },
+  "consistency": {
+    "passed": true,
+    "issues": [],
+    "validation_checks": {
+      "design_realization_complete": true,
+      "reactor_inventory_match": true,
+      "pump_flow_feasible": true,
+      "stream_flow_closure": true,
+      "stoichiometric_flow_closure": true,
+      "pressure_inventory_match": true,
+      "tubing_feasible": true,
+      "geometry_closure": true,
+      "calculation_matches_serialized_design": true,
+      "gas_bookkeeping_complete": true,
+      "safety_contract_complete": true,
+      "multistage_stage_inventory_complete": true,
+      "stage_geometry_closed": true,
+      "topology_matches_serialized_design": true,
+      "inventory_topology_assignment_complete": true
+    },
+    "semantic_checks": {
+      "chemistry_identity_preserved": true,
+      "component_stoichiometry_complete": true,
+      "topology_phase_consistent": true,
+      "control_edges_not_in_process_path": true,
+      "safety_controls_complete": true,
+      "procedure_complete": true,
+      "no_unsupported_operations": true,
+      "diagram_matches_canonical_topology": true,
+      "residence_time_basis_unambiguous": true,
+      "mixing_regime_matches_topology": true
+    }
+  },
+  "diagnostic": {
+    "preliminary_candidate": {
+      "residence_time_min": 78.4667,
+      "residence_time_inlet_min": 78.4667,
+      "residence_time_in_channel_min": 78.4667,
+      "flow_rate_mL_min": 0.2,
+      "reactor_volume_mL": 15.04,
+      "source": "pre-final council/inventory candidate"
+    },
+    "stage_requirements": [
+      {
+        "stage_number": 1,
+        "stage_name": "Stage 1",
+        "inventory_resolved": true,
+        "reactor_equipment_id": "reactor_ms_196",
+        "light_equipment_id": null,
+        "reactor_volume_mL": 1.96,
+        "flow_rate_mL_min": 0.15,
+        "residence_time_inlet_min": 13.0667,
+        "residence_time_in_channel_min": 13.0667,
+        "status": "resolved diagnostic"
+      },
+      {
+        "stage_number": 2,
+        "stage_name": "Stage 2",
+        "inventory_resolved": true,
+        "reactor_equipment_id": "reactor_ms_1308",
+        "light_equipment_id": null,
+        "reactor_volume_mL": 13.08,
+        "flow_rate_mL_min": 0.2,
+        "residence_time_inlet_min": 65.4,
+        "residence_time_in_channel_min": 65.4,
+        "status": "resolved diagnostic"
+      }
+    ],
+    "unresolved_inventory": [],
+    "message": "No executable final design exists. Values in this diagnostic section are unapproved intermediate calculations."
+  }
+}

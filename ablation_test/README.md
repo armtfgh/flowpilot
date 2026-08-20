@@ -1,7 +1,20 @@
 # FlowPilot Ablation Test
 
-This directory is a self-contained, reproducible evaluation package for
-FlowPilot. It deliberately excludes the THQ case study.
+This directory is the code-only, reproducible evaluation package for
+FlowPilot. It deliberately excludes the THQ case study. Generated artifacts
+are stored separately in `../ablation_results/`, which is ignored by Git.
+
+## Directory boundary
+
+Keep these files in Git:
+
+- `src/`, `scripts/`, and `tests/`: implementation and tests.
+- `configs/`, `protocols/`, and `benchmarks/`: frozen benchmark inputs.
+- `sources/`: source-record manifest used by the audit.
+
+Do not place generated JSON, logs, figures, tables, reports, or archives in
+this directory. They belong in `../ablation_results/`. To put large results on
+another disk, set `FLOWPILOT_ABLATION_RESULTS_DIR` to an absolute directory.
 
 ## Evaluation arms
 
@@ -25,25 +38,25 @@ architecture ablation. The harness supports:
 
 The current primary architecture result is a completed, matched GPT-4o matrix:
 seven variants across six protocols (42 cells). It is stored under
-`runs/pilot_matched_full_gpt4o_v3_20260728/`.
+`../ablation_results/runs/pilot_matched_full_gpt4o_v3_20260728/`.
 
 The main architecture evidence is:
 
-- `figures/19_agent_component_calls.*`: recorded upstream and named council calls.
-- `figures/20_ablation_architecture_map.*`: module presence/removal by variant.
-- `figures/21_architecture_execution_coverage.*`: matched cell completion.
-- `figures/22_full_vs_ablation_matched.*`: matched automated score comparison.
-- `figures/23_full_flowpilot_pipeline.*`: full system dataflow.
-- `figures/24_schema_validity_and_cost.*`: formal validity and execution cost.
-- `figures/25_quality_assurance_score_v2.*`: architecture-blind quality ranking.
-- `figures/26_quality_dimensions_v2.*`: score decomposition by measured dimension.
-- `figures/27_full_pairwise_advantage_v2.*`: paired Full-versus-ablation effects.
-- `figures/28_weight_sensitivity_v2.*`: winner stability across plausible weights.
-- `figures/29_deployment_readiness_v2.*`: hard-gated experimental readiness.
-- `figures/30_deployment_gate_rates_v2.*`: reasons designs are not deployment-ready.
-- `reports/agent_trace_summary.md`: run-level council call sequence.
-- `reports/quality_score_v2_methodology.md`: candidate scoring specification.
-- `tables/agent_call_events.csv`: call-level prompt/response hashes.
+- `../ablation_results/figures/19_agent_component_calls.*`: recorded upstream and named council calls.
+- `../ablation_results/figures/20_ablation_architecture_map.*`: module presence/removal by variant.
+- `../ablation_results/figures/21_architecture_execution_coverage.*`: matched cell completion.
+- `../ablation_results/figures/22_full_vs_ablation_matched.*`: matched automated score comparison.
+- `../ablation_results/figures/23_full_flowpilot_pipeline.*`: full system dataflow.
+- `../ablation_results/figures/24_schema_validity_and_cost.*`: formal validity and execution cost.
+- `../ablation_results/figures/25_quality_assurance_score_v2.*`: architecture-blind quality ranking.
+- `../ablation_results/figures/26_quality_dimensions_v2.*`: score decomposition by measured dimension.
+- `../ablation_results/figures/27_full_pairwise_advantage_v2.*`: paired Full-versus-ablation effects.
+- `../ablation_results/figures/28_weight_sensitivity_v2.*`: winner stability across plausible weights.
+- `../ablation_results/figures/29_deployment_readiness_v2.*`: hard-gated experimental readiness.
+- `../ablation_results/figures/30_deployment_gate_rates_v2.*`: reasons designs are not deployment-ready.
+- `../ablation_results/reports/agent_trace_summary.md`: run-level council call sequence.
+- `../ablation_results/reports/quality_score_v2_methodology.md`: candidate scoring specification.
+- `../ablation_results/tables/agent_call_events.csv`: call-level prompt/response hashes.
 
 The automated composite intentionally remains a screening metric. It excludes
 formal schema validity and council rejection/failure-handling benefits, so a
@@ -73,7 +86,7 @@ python -m ablation_test.scripts.analyze
 python -m pytest ablation_test/tests -q
 ```
 
-Every run gets a timestamped directory under `runs/` with:
+Every run gets a timestamped directory under `../ablation_results/runs/` with:
 
 - full LLM prompts and completions;
 - stage and error logs;
@@ -83,7 +96,8 @@ Every run gets a timestamped directory under `runs/` with:
 - SHA-256 checksums.
 
 Aggregated CSV/JSON tables, expert-review sheets, figures, and the generated
-report are written to `tables/`, `figures/`, `expert_scoring/`, and `reports/`.
+report are written under `../ablation_results/` in `tables/`, `figures/`,
+`expert_scoring/`, and `reports/`.
 
 ## Cross-model benchmark
 
@@ -97,8 +111,8 @@ python -m ablation_test.scripts.run_cross_model --profile smoke \
 python -m ablation_test.scripts.run_cross_model --profile publication \
   --workers 2 --output-id qwen_frontier_20260729
 python -m ablation_test.scripts.cross_model_report \
-  --experiment ablation_test/runs/cross_model_publication_qwen_frontier_20260729 \
-  --output ablation_test/cross_model_package_20260729
+  --experiment ablation_results/runs/cross_model_publication_qwen_frontier_20260729 \
+  --output ablation_results/packages/cross_model_package_20260729
 ```
 
 The collaborator-facing report adds score decomposition, schema-neutral
@@ -107,7 +121,7 @@ reproducibility, and a figure interpretation guide:
 
 ```bash
 python -m ablation_test.scripts.coworker_report \
-  --benchmark-package ablation_test/cross_model_package_20260729 \
-  --experiment ablation_test/runs/cross_model_publication_qwen_frontier_20260729 \
-  --output ablation_test/coworker_ablation_package_20260729
+  --benchmark-package ablation_results/packages/cross_model_package_20260729 \
+  --experiment ablation_results/runs/cross_model_publication_qwen_frontier_20260729 \
+  --output ablation_results/packages/coworker_ablation_package_20260729
 ```

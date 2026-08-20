@@ -296,7 +296,8 @@ def build_intensification_mandate(
         features.append("productivity and reactor-volume reduction")
 
     basis_parts = [
-        f"Flow must demonstrate {target:.1f}x residence-time reduction.",
+        f"Predicted screening target: {target:.1f}x residence-time reduction; "
+        "this is a hypothesis unless the run explicitly selects the intensify policy.",
         f"Identified batch limitations: {', '.join(limitations)}.",
         f"Primary flow advantage: {advantage}.",
         f"Mechanisms: {', '.join(features)}.",

@@ -1,0 +1,90 @@
+{
+  "schema_version": "flowpilot_newgen_case_v1.0",
+  "suite_id": "newgen_benchmark_v1_pilot",
+  "cases": [
+    {
+      "case_id": "multistep_amidation_c5ra20838f",
+      "scenario_id": "multistep_amidation_c5ra20838f",
+      "title": "Two-step metal-free oxidative amidation",
+      "category": "multistep_liquid_phase_oxidative_amidation",
+      "difficulty": "high",
+      "tags": ["newgen", "held_out_source", "multistep", "liquid_phase", "peroxide"],
+      "source_record_id": "C5RA20838F.pdf",
+      "source_record_aliases": [
+        "C5RA20838F",
+        "C5RA20838F.json",
+        "A two-step continuous flow synthesis of amides from alcohol using metal-free catalyst"
+      ],
+      "reference_quality": "page_verified_original_pdf",
+      "protocol": "Benzyl alcohol was oxidized to benzaldehyde in dioxane using aqueous H2O2 (2.0 equiv), NaBr (2 mol%), and H2SO4 (1 mol%) at 70 °C. After complete alcohol oxidation, morpholine and aqueous TBHP were added and the mixture was heated at 80 °C to form benzoyl morpholine. Conditions analogous to 0.667 M benzyl alcohol and 0.667 M morpholine/TBHP feeds were used. Performing the two oxidation stages sequentially in batch required 30 h and afforded benzoyl morpholine in 76% yield. Translate this procedure into one conservative, executable two-stage continuous-flow screening design. Explicitly report all three feed preparations, individual pump rates, first and second mixer assignments, stage temperatures, stage volumes, stage residence times, total process residence time, peroxide compatibility, startup order, steady-state collection, shutdown, aqueous work-up, and peroxide/acid/pressure safety controls.",
+      "objective": "Produce one executable, inventory-constrained two-stage flow screen without using the held-out source answer.",
+      "hard_constraints": [
+        "Use only the authoritative inventory supplied below.",
+        "Use three liquid feeds: benzyl alcohol solution A; H2O2/NaBr/H2SO4 solution B; morpholine/TBHP solution C.",
+        "Mix A and B before stage 1; add C only after stage 1 and before stage 2.",
+        "Operate stage 1 at 70 °C and stage 2 at 80 °C.",
+        "Use both declared inventory reactors and both declared T-mixers; do not invent reactor volumes or hardware.",
+        "Calculate each stage residence time from that stage's reactor volume and the cumulative liquid flow entering it.",
+        "Report individual stream flows, cumulative stage flows, stage residence times, and total residence time without conflating them.",
+        "No gas, photochemical equipment, or back-pressure regulator is required or available.",
+        "Return SCREEN unless the inventory cannot support a safe design."
+      ],
+      "expected_features": {
+        "gas_required": false,
+        "light_required": false,
+        "phase_regime": "single_phase_multistep_liquid",
+        "topology": [
+          "three_liquid_pumps",
+          "mixer_1",
+          "heated_reactor_1",
+          "mixer_2",
+          "heated_reactor_2",
+          "collector"
+        ],
+        "hazards": ["hydrogen_peroxide", "TBHP", "sulfuric_acid", "peroxide_heating"]
+      },
+      "expected_disposition": "SCREEN",
+      "inventory": {
+        "schema_version": "flowpilot_lab_inventory_v3.0",
+        "strict_assignment": true,
+        "pumps": [
+          {"equipment_id": "pump_ms_A", "name": "Syringe pump A", "type": "syringe", "max_pressure_bar": 10.0, "min_flow_rate_mL_min": 0.05, "max_flow_rate_mL_min": 1.5, "compatible_materials": ["dioxane", "benzyl alcohol"]},
+          {"equipment_id": "pump_ms_B", "name": "Syringe pump B", "type": "syringe", "max_pressure_bar": 10.0, "min_flow_rate_mL_min": 0.05, "max_flow_rate_mL_min": 1.5, "compatible_materials": ["dioxane", "aqueous hydrogen peroxide", "NaBr", "H2SO4"]},
+          {"equipment_id": "pump_ms_C", "name": "Syringe pump C", "type": "syringe", "max_pressure_bar": 10.0, "min_flow_rate_mL_min": 0.05, "max_flow_rate_mL_min": 1.5, "compatible_materials": ["dioxane", "morpholine", "aqueous TBHP"]}
+        ],
+        "tubing": [
+          {"equipment_id": "tube_ms_r1", "name": "Stage 1 peroxide-compatible coil", "material": "PFA", "ID_mm": 0.5, "max_pressure_bar": 10.0, "max_temperature_C": 100.0, "transparent": true, "length_m": 9.98},
+          {"equipment_id": "tube_ms_r2", "name": "Stage 2 peroxide-compatible coil", "material": "PFA", "ID_mm": 0.5, "max_pressure_bar": 10.0, "max_temperature_C": 100.0, "transparent": true, "length_m": 66.62}
+        ],
+        "BPR_available": [],
+        "light_sources": [],
+        "gas_hardware": [],
+        "reactors": [
+          {"equipment_id": "reactor_ms_196", "name": "Stage 1 oxidation microreactor", "type": "coil", "material": "PFA", "volume_mL": 1.96, "ID_mm": 0.5, "system": "three-pump multistep skid", "min_temperature_C": 20.0, "max_temperature_C": 100.0, "allowed_temperatures_C": [70.0], "min_pressure_bar": 0.0, "max_pressure_bar": 10.0, "configuration": "stage 1 after mixer M1"},
+          {"equipment_id": "reactor_ms_1308", "name": "Stage 2 oxidative amidation microreactor", "type": "coil", "material": "PFA", "volume_mL": 13.08, "ID_mm": 0.5, "system": "three-pump multistep skid", "min_temperature_C": 20.0, "max_temperature_C": 100.0, "allowed_temperatures_C": [80.0], "min_pressure_bar": 0.0, "max_pressure_bar": 10.0, "configuration": "stage 2 after interstage mixer M2"}
+        ],
+        "mixers": [
+          {"equipment_id": "mixer_ms_1", "name": "Stage 1 T-mixer", "type": "T-mixer", "material": "PFA", "max_inputs": 2, "min_total_flow_mL_min": 0.10, "max_total_flow_mL_min": 3.0, "max_pressure_bar": 10.0, "supported_ID_mm": [0.5]},
+          {"equipment_id": "mixer_ms_2", "name": "Interstage T-mixer", "type": "T-mixer", "material": "PFA", "max_inputs": 2, "min_total_flow_mL_min": 0.15, "max_total_flow_mL_min": 4.5, "max_pressure_bar": 10.0, "supported_ID_mm": [0.5]}
+        ],
+        "pressure_controllers": [],
+        "degassers": [],
+        "filters": [],
+        "separators": [],
+        "connectors": [
+          {"equipment_id": "connector_ms_set", "name": "PFA multistep connector set", "type": "multistep union set", "material": "PFA", "supported_ID_mm": [0.5], "max_pressure_bar": 10.0}
+        ],
+        "temperature_controllers": [
+          {"equipment_id": "bath_ms_70", "name": "Stage 1 oil bath", "type": "oil bath", "min_temperature_C": 20.0, "max_temperature_C": 100.0, "allowed_temperatures_C": [70.0]},
+          {"equipment_id": "bath_ms_80", "name": "Stage 2 oil bath", "type": "oil bath", "min_temperature_C": 20.0, "max_temperature_C": 100.0, "allowed_temperatures_C": [80.0]}
+        ],
+        "collectors": [
+          {"equipment_id": "collector_ms_250", "name": "Cooled peroxide-compatible collector", "type": "collection vessel", "volume_mL": 250.0, "max_pressure_bar": 1.0}
+        ],
+        "reactor_trains": [
+          {"equipment_id": "train_ms_two_stage", "name": "Two-stage oxidative amidation train", "configuration": "serial with interstage feed", "component_reactor_ids": ["reactor_ms_196", "reactor_ms_1308"], "connector_ids": ["connector_ms_set"], "total_volume_mL": 15.04, "max_pressure_bar": 10.0}
+        ]
+      }
+    }
+  ]
+}

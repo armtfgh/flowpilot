@@ -1,0 +1,82 @@
+{
+  "passed": false,
+  "checks": {
+    "no_inline_degasser_unit": false,
+    "offline_feed_deoxygenation_present": true,
+    "stage_1_oxygen_exclusion_recognized": true,
+    "stage_2_air_feed_present": true
+  },
+  "degasser_operations": [
+    {
+      "op_id": "pump_a",
+      "op_type": "pump",
+      "label": "Pump A — Substrate and photocatalyst dissolved together in pre-degassed EtOH/pH 9 buffer (5:1 v/v); fed from argon-blanketed sealed reservoir via HPLC pump",
+      "parameters": {
+        "stream": "A",
+        "contents": [
+          "PMPSCH2TMS (1a, 1.0 equiv, 0.1 M)",
+          "Ir(dF(CF3)ppy)2(dtbpy)PF6 (0.5 mol%, 0.0005 M)"
+        ],
+        "solvent": "EtOH / pH 9 aqueous buffer (5:1 v/v), pre-degassed offline by argon sparging",
+        "flow_rate_mL_min": 0.10322,
+        "phase": "liquid",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      "required": true,
+      "rationale": "Substrate and photocatalyst dissolved together in pre-degassed EtOH/pH 9 buffer (5:1 v/v); fed from argon-blanketed sealed reservoir via HPLC pump"
+    },
+    {
+      "op_id": "pump_b",
+      "op_type": "pump",
+      "label": "Pump B — Michael acceptor in pre-degassed EtOH/pH 9 buffer (5:1 v/v); separate stream allows stoichiometry tuning; fed from argon-blanketed sealed reservoir via syringe pump",
+      "parameters": {
+        "stream": "B",
+        "contents": [
+          "Acrylonitrile (2a, 2.0 equiv, 0.2 M)"
+        ],
+        "solvent": "EtOH / pH 9 aqueous buffer (5:1 v/v), pre-degassed offline by argon sparging",
+        "flow_rate_mL_min": 0.10322,
+        "phase": "liquid",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      "required": true,
+      "rationale": "Michael acceptor in pre-degassed EtOH/pH 9 buffer (5:1 v/v); separate stream allows stoichiometry tuning; fed from argon-blanketed sealed reservoir via syringe pump"
+    },
+    {
+      "op_id": "st1_deoxy",
+      "op_type": "deoxygenation_unit",
+      "label": "Degas — Stage 1",
+      "parameters": {
+        "method": "N2 sparging"
+      },
+      "required": true,
+      "rationale": "O2-sensitive: Photoredox Giese radical addition (C–C bond formation)"
+    }
+  ],
+  "deoxygenation_method": "Offline argon sparging of all Stage 1 feed solutions (EtOH/pH 9 buffer 5:1 v/v) for ≥20 min; transfer to sealed glass reservoirs with argon headspace; maintain argon blanket on reservoirs during entire run. No inline degasser used (forbidden by hard constraint). Purge Stage 1 tubing with degassed solvent before reaction start.",
+  "pre_reactor_steps": [
+    "Offline argon sparging of EtOH/pH 9 buffer (5:1 v/v) for ≥20 min before preparing feed solutions — required because no inline degasser is available (hard constraint). Chemistry Plan deoxygenation_reasoning: O2 quenches α-thiomethyl radical I.",
+    "Transfer pre-degassed solutions to sealed glass reservoirs; purge headspace with argon and maintain argon blanket throughout the run.",
+    "Purge all Stage 1 tubing (from pump heads to Stage 1 reactor outlet) with pre-degassed solvent under argon before starting the reaction to displace any residual O2.",
+    "Verify Stage 2 T-junction (T2) is downstream of Stage 1 reactor outlet before opening air feed."
+  ],
+  "stage_2_air_streams": [
+    {
+      "stream_label": "C",
+      "pump_role": "Gas feed introducing air (O2 source) at T-junction between Stage 1 and Stage 2 reactors",
+      "contents": [
+        "Air (~21% O2, excess)"
+      ],
+      "solvent": "N/A (gas phase)",
+      "concentration_M": null,
+      "flow_rate_mL_min": 0.4052,
+      "phase": "gas",
+      "gas_flow_sccm": 2.2032,
+      "gas_flow_actual_mL_min": 0.4052,
+      "molar_equiv": 1.0,
+      "reasoning": "Deterministic gas stoichiometry: inlet/STP MFC flow was recomputed from target gas equivalents (1.00 equiv), liquid flow 0.20643 mL/min, and substrate concentration. Pressure-corrected in-channel gas flow is reported separately; supplied gas equiv = 1.00."
+    }
+  ]
+}

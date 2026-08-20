@@ -20,7 +20,9 @@ from pathlib import Path
 from flora_translate.analogy_selector import AnalogySelector
 from flora_translate.config import LAB_INVENTORY_PATH, RECORDS_DIR
 from flora_translate.design_calculator import GAS_LIQUID_MIN_BPR_BAR
+from flora_translate.design_realizer import realize_executable_design
 from flora_translate.design_disposition import apply_design_disposition_gate
+from flora_translate.diagram_artifacts import render_topology_artifacts
 from flora_translate.engine.council_v4 import CouncilV4
 from flora_translate.intake_agent import (
     batch_input_from_package,
@@ -28,9 +30,25 @@ from flora_translate.intake_agent import (
     intake_context_block,
 )
 from flora_translate.final_design_validator import finalize_design
+from flora_translate.final_design_contract import (
+    build_final_design_contract,
+    publish_final_design_artifacts,
+)
+from flora_translate.inventory_constraints import available_pressure_settings
 from flora_translate.lightweight_upstream import analyze_batch_chemistry, parse_batch_input
+from flora_translate.multistage_inventory import reconcile_multistage_inventory
 from flora_translate.output_formatter import OutputFormatter
+from flora_translate.pipeline_runtime import (
+    PipelineRuntimeOptions,
+    merged_hard_constraints,
+)
 from flora_translate.prompt_builder import TranslationPromptBuilder
+from flora_translate.residence_time_basis import (
+    INLET_STP_BASIS,
+    IN_CHANNEL_BASIS,
+    LIQUID_ONLY_BASIS,
+    normalize_residence_time_basis,
+)
 from flora_translate.retriever import VectorRetriever
 from flora_translate.schemas import (
     BatchRecord,
@@ -46,6 +64,9 @@ from flora_translate.schemas import (
     UnitOperation,
 )
 from flora_translate.translation_llm import TranslationLLM
+from flora_translate.topology_compiler import compile_inventory_topology
+from flora_translate.topology_semantics import normalize_topology_semantics
+from flora_translate.topology_preflight import analyze_topology_requirements
 from flora_translate.vector_store import VectorStore
 
 logger = logging.getLogger("flora.translate")
@@ -53,6 +74,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 
 OUTPUT_DIR = Path("outputs")
 ROUTINE_GAS_LIQUID_BPR_MAX_BAR = 10.0
+TOPOLOGY_DEFAULT_GAS_LIQUID_BPR_BAR = 5.0
 
 
 def _safe_float(value, default: float = 0.0) -> float:
@@ -246,7 +268,11 @@ def _range_from_text(text: str, prefix_pattern: str) -> tuple[float | None, floa
     return float(match.group(1)), float(match.group(2))
 
 
-def _reconcile_final_bpr(result: dict, design_candidate=None) -> None:
+def _reconcile_final_bpr(
+    result: dict,
+    design_candidate=None,
+    inventory: LabInventory | None = None,
+) -> None:
     """Keep final BPR tied to the validated winner, not stale pre-council math."""
     calc = result.get("design_calculations") or {}
     proposal = result.get("proposal") or {}
@@ -256,6 +282,20 @@ def _reconcile_final_bpr(result: dict, design_candidate=None) -> None:
     proposal_bpr = _safe_float(proposal.get("BPR_bar"))
     calc_bpr = _safe_float(calc.get("bpr_pressure_bar"))
     final_bpr = max(proposal_bpr, GAS_LIQUID_MIN_BPR_BAR)
+
+    # The gas-liquid minimum is an engineering requirement, not a physical
+    # BPR setpoint. Resolve it upward to an actually declared inventory
+    # setting instead of silently producing an unavailable value such as
+    # 3.0 bar when the lab owns only 2.5 and 7.0 bar cartridges.
+    settings = available_pressure_settings(inventory)
+    eligible = [
+        value
+        for value in settings
+        if value + 1e-12 >= final_bpr
+        and value <= ROUTINE_GAS_LIQUID_BPR_MAX_BAR + 1e-12
+    ]
+    if eligible:
+        final_bpr = min(eligible)
 
     note = ""
     if calc_bpr > final_bpr + 0.1:
@@ -458,6 +498,7 @@ def _build_translate_topology(
     proposal: FlowProposal,
     chemistry_plan: ChemistryPlan | None,
     batch_record: BatchRecord,
+    inventory: LabInventory | None = None,
 ) -> ProcessTopology:
     """Convert a FlowProposal + ChemistryPlan into a ProcessTopology.
 
@@ -468,8 +509,14 @@ def _build_translate_topology(
     """
     # Dispatch: multi-step if ChemistryPlan has stages
     if chemistry_plan and chemistry_plan.stages and chemistry_plan.n_stages > 1:
-        return _build_multistep_topology(proposal, chemistry_plan, batch_record)
-    return _build_singlestep_topology(proposal, chemistry_plan, batch_record)
+        topology = _build_multistep_topology(
+            proposal, chemistry_plan, batch_record, inventory=inventory
+        )
+    else:
+        topology = _build_singlestep_topology(
+            proposal, chemistry_plan, batch_record, inventory=inventory
+        )
+    return normalize_topology_semantics(topology)
 
 
 def _connect(ops, streams, counter, from_op, to_op, label=""):
@@ -594,7 +641,8 @@ def _enforce_gas_delivery_hardware(ops: list[UnitOperation]) -> None:
 
 
 def _add_pump(ops, label_char, role, contents, solvent, flow_rate, reasoning,
-              is_gas: bool = False, gas_flow_sccm=None, gas_flow_actual_mL_min=None):
+              is_gas: bool = False, gas_flow_sccm=None, gas_flow_actual_mL_min=None,
+              inventory_equipment_id=None):
     """Helper: create a pump (or MFC for gas) UnitOperation."""
     op_id = f"pump_{label_char.lower()}"
     ops.append(UnitOperation(
@@ -608,6 +656,7 @@ def _add_pump(ops, label_char, role, contents, solvent, flow_rate, reasoning,
             "phase": "gas" if is_gas else "liquid",
             "gas_flow_sccm": gas_flow_sccm,
             "gas_flow_actual_mL_min": gas_flow_actual_mL_min,
+            "inventory_equipment_id": inventory_equipment_id,
         },
         required=True, rationale=reasoning,
     ))
@@ -658,7 +707,41 @@ def _is_quench_stream(s, chemistry_plan) -> bool:
     return False
 
 
-def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
+def _uses_offline_deoxygenation(proposal: FlowProposal) -> bool:
+    """Return whether oxygen exclusion is performed before the flow setup.
+
+    Offline sparging or pre-degassed feed preparation belongs in the operating
+    procedure and feed-reservoir labels, not as an inline unit operation.
+    """
+
+    text = " ".join(
+        [
+            str(proposal.deoxygenation_method or ""),
+            *[str(step) for step in proposal.pre_reactor_steps or []],
+        ]
+    ).lower()
+    return any(
+        marker in text
+        for marker in (
+            "offline argon sparg",
+            "offline ar sparg",
+            "offline nitrogen sparg",
+            "offline n2 sparg",
+            "pre-degassed",
+            "predegassed",
+            "pre-deoxygenated",
+            "no inline degasser",
+            "inline degasser is unavailable",
+            "inline degasser unavailable",
+            "offline nitrogen purge",
+            "offline n2 purge",
+        )
+    )
+
+
+def _build_singlestep_topology(
+    proposal, chemistry_plan, batch_record, inventory: LabInventory | None = None
+):
     """Linear single-step topology.
 
     Design contract — ONE SOURCE OF TRUTH:
@@ -708,7 +791,8 @@ def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
                             s.contents, s.solvent, fr, s.reasoning or "",
                             is_gas=_stream_is_gas(s),
                             gas_flow_sccm=gas_sccm,
-                            gas_flow_actual_mL_min=gas_actual)
+                            gas_flow_actual_mL_min=gas_actual,
+                            inventory_equipment_id=s.pump_equipment_id)
             pump_ids.append(pid)
     else:
         default_Q = round((proposal.flow_rate_mL_min or 0.5) / 2, 4)
@@ -719,7 +803,7 @@ def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
     # ── Main T-mixer: reactor feeds only ───────────────────────────────────
     ops.append(UnitOperation(op_id="mixer_1", op_type="mixer",
         label=proposal.mixer_type or "T-Mixer",
-        parameters={"type": proposal.mixer_type or "T-mixer", "material": "PEEK"},
+        parameters={"type": proposal.mixer_type or "T-mixer", "material": "not specified"},
         required=True, rationale=proposal.mixing_order_reasoning or "Combine reactor feeds"))
     for pid in pump_ids:
         _connect(ops, streams, sc, pid, "mixer_1")
@@ -729,7 +813,7 @@ def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
     deoxy = proposal.deoxygenation_method
     if not deoxy and chemistry_plan and chemistry_plan.deoxygenation_required:
         deoxy = "N2 sparging"
-    if deoxy:
+    if deoxy and not _uses_offline_deoxygenation(proposal):
         ops.append(UnitOperation(op_id="deoxy_1", op_type="deoxygenation_unit",
             label="Inline Deoxygenation", parameters={"method": deoxy},
             required=True, rationale=chemistry_plan.deoxygenation_reasoning if chemistry_plan else ""))
@@ -742,12 +826,14 @@ def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
     if "packed" in reactor_type or "bed" in reactor_type:
         reactor_op_type = "packed_bed_reactor"
         reactor_label = f"{mat} Packed-Bed Reactor"
+    elif any(token in reactor_type for token in ("microchannel", "microreactor", "chip")):
+        reactor_op_type = "chip_reactor"
+        reactor_label = f"{mat} Microchannel Reactor"
     else:
         reactor_op_type = "photoreactor" if is_photochem else "coil_reactor"
         reactor_label = f"{mat} Photoreactor Coil" if is_photochem else f"{mat} Flow Reactor Coil"
     vol = proposal.reactor_volume_mL
     id_mm = proposal.tubing_ID_mm
-    length = round((vol * 1e-6) / (math.pi * (id_mm * 5e-4) ** 2), 2) if vol and id_mm else None
     # Q entering the main reactor = sum of reactor_feed pump rates (gas excluded)
     Q_reactor_inlet = sum(
         (s.flow_rate_mL_min or 0.0)
@@ -759,11 +845,21 @@ def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
             "material": mat, "ID_mm": id_mm, "volume_mL": vol,
             "Q_inlet_mL_min": round(Q_reactor_inlet, 4),
             "temperature_C": proposal.temperature_C, "wavelength_nm": proposal.wavelength_nm,
-            "length_m": length, "residence_time_min": proposal.residence_time_min,
+            "residence_time_min": proposal.residence_time_min,
             "reactor_type": proposal.reactor_type,
         }, required=True, rationale="Flow reactor"))
     _connect(ops, streams, sc, prev, "reactor_1")
     prev = "reactor_1"
+
+    if inventory and inventory.temperature_controllers:
+        ops.append(UnitOperation(
+            op_id="heater_1",
+            op_type="heater",
+            label=f"Temperature Control {proposal.temperature_C:g} deg C",
+            parameters={"temperature_C": proposal.temperature_C},
+            required=True,
+            rationale="Active reactor temperature control",
+        ))
 
     # ── LED ────────────────────────────────────────────────────────────────
     if is_photochem:
@@ -782,9 +878,10 @@ def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
 
     # ── Quench: T-mixer + short contact coil ───────────────────────────────
     # Only runs if plan says quench_required OR a quench stream exists.
-    needs_quench = bool(quench_streams) or (
-        chemistry_plan and getattr(chemistry_plan, "quench_required", False)
-    )
+    # An unspecified quench reagent is an offline/collection instruction, not
+    # permission to invent a quench pump and mixer. Inline quench hardware is
+    # created only when an explicit serialized quench feed exists.
+    needs_quench = bool(quench_streams)
     if needs_quench:
         # Create pumps for each quench stream. If the plan flags quench_required
         # but no quench stream exists in proposal.streams, synthesise a default.
@@ -800,21 +897,9 @@ def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
                     is_gas=_stream_is_gas(s),
                     gas_flow_sccm=getattr(s, "gas_flow_sccm", None),
                     gas_flow_actual_mL_min=getattr(s, "gas_flow_actual_mL_min", None),
+                    inventory_equipment_id=s.pump_equipment_id,
                 )
                 quench_pump_ids.append(pid)
-        else:
-            # Fallback: plan says quench needed but no stream defined. Synthesise.
-            fallback_fr = round(Q_reactor_inlet * 0.1, 4) or 0.1
-            Q_quench_total = fallback_fr
-            pid = _add_pump(
-                ops, "Q", "Inline quench",
-                [chemistry_plan.quench_reagent or "quench reagent"],
-                "H₂O", fallback_fr,
-                chemistry_plan.quench_reasoning or
-                "Quench excess reagent at reactor outlet",
-            )
-            quench_pump_ids.append(pid)
-
         # Q_inlet to the quench coil = reactor outlet + ALL quench pump rates
         Q_quench_inlet = round(Q_reactor_inlet + Q_quench_total, 4)
 
@@ -823,7 +908,7 @@ def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
             label="Quench T-Mixer",
             parameters={
                 "type": "T-mixer",
-                "material": "PEEK",
+                "material": "not specified",
                 "Q_inlet_mL_min": Q_quench_inlet,
                 "quench_flow_rate_mL_min": round(Q_quench_total, 4),
                 "reactor_outlet_flow_rate_mL_min": round(Q_reactor_inlet, 4),
@@ -837,6 +922,43 @@ def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
         final_outlet_Q = Q_quench_inlet
     else:
         final_outlet_Q = Q_reactor_inlet
+
+    # Material/phase separation explicitly requested by the chemistry or
+    # operating procedure is represented only when declared inventory exists.
+    separator_text = " ".join(
+        [
+            batch_record.reaction_description or "",
+            batch_record.raw_text or "",
+            " ".join(proposal.post_reactor_steps or []),
+            getattr(chemistry_plan, "reaction_class", "") if chemistry_plan else "",
+        ]
+    ).lower()
+    if inventory and inventory.separators and any(
+        token in separator_text
+        for token in (
+            "phase separat", "separator", "separate", "separation", "liquid-liquid",
+            "liquid liquid", "biphas", "spent-acid",
+        )
+    ):
+        separator_phases = (
+            ["gas", "liquid"]
+            if any(_stream_is_gas(stream) for stream in proposal.streams)
+            else ["liquid", "liquid"]
+        )
+        ops.append(UnitOperation(
+            op_id="separator_1",
+            op_type="phase_separator",
+            label="Phase Separator",
+            parameters={"phases": separator_phases},
+            required=True,
+            rationale=(
+                "Separate gas from the product-containing liquid."
+                if separator_phases[0] == "gas"
+                else "Separate product-containing and spent reagent phases."
+            ),
+        ))
+        _connect(ops, streams, sc, prev, "separator_1")
+        prev = "separator_1"
 
     # ── Collector ──────────────────────────────────────────────────────────
     ops.append(UnitOperation(op_id="collector_1", op_type="collector",
@@ -856,7 +978,9 @@ def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
     )
 
 
-def _build_multistep_topology(proposal, chemistry_plan, batch_record):
+def _build_multistep_topology(
+    proposal, chemistry_plan, batch_record, inventory: LabInventory | None = None
+):
     """Graph-based multi-step topology.
 
     Each stage in chemistry_plan.stages becomes:
@@ -886,6 +1010,15 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
 
     n_stages = len(chemistry_plan.stages)
     total_Q   = proposal.flow_rate_mL_min or 0.5
+    selected_components = [
+        float(value)
+        for value in (
+            (proposal.inventory_selection or {}).get("component_volumes_mL")
+            or []
+        )
+        if _safe_float(value) > 0
+    ]
+    use_inventory_components = len(selected_components) >= n_stages
 
     # Build a lookup for council-provided per-stage diameter overrides
     stage_params_by_sn: dict[int, dict] = {
@@ -937,11 +1070,28 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
         }
 
     stage_tau_by_sn = _planned_stage_residence_times()
+    proposal_rate_by_label: dict[str, float] = {
+        (stream.stream_label or "").upper(): float(stream.flow_rate_mL_min)
+        for stream in (proposal.streams or [])
+        if (
+            stream.stream_label
+            and stream.flow_rate_mL_min is not None
+            and not _stream_is_gas(stream)
+        )
+    }
+    proposal_liquid_labels = set(proposal_rate_by_label)
     proposal_gas_by_label: dict[str, object] = {
         (s.stream_label or "").upper(): s
         for s in (proposal.streams or [])
         if (s.stream_label or "") and _stream_is_gas(s)
     }
+    proposal_gas_streams = list(proposal_gas_by_label.values())
+
+    def _proposal_gas_for_feed(feed):
+        matched = proposal_gas_by_label.get((feed.stream_label or "").upper())
+        if matched is None and _stream_is_gas(feed) and len(proposal_gas_streams) == 1:
+            return proposal_gas_streams[0]
+        return matched
 
     prev_op: str | None = None
     Q_prev_outlet: float = 0.0  # cumulative Q leaving the previous reactor
@@ -966,29 +1116,43 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
     for stage in chemistry_plan.stages:
         sn = stage.stage_number
         prefix = f"st{sn}"
-        stage_text = " ".join([
+        sp = stage_params_by_sn.get(sn, {})
+
+        # Classify the stage itself, not arbitrary prose attached to its feeds
+        # or the operation that follows it. Feed reasoning commonly mentions
+        # a later aqueous workup, and ``post_stage_action`` describes what
+        # happens after this stage's reactor. Neither should remove the current
+        # reaction stage from the executable topology.
+        stage_identity_text = " ".join([
             stage.stage_name or "",
             stage.reaction_type or "",
-            stage.post_stage_action or "",
-            stage.post_stage_reasoning or "",
-            " ".join(
-                " ".join([
-                    feed.reasoning or "",
-                    getattr(feed, "pump_role", "") or "",
-                    " ".join(feed.reagents or []),
-                ])
-                for feed in (stage.feed_streams or [])
-            ),
         ]).lower()
-        is_quench_stage = any(
-            token in stage_text
+        explicitly_nonreaction_stage = any(
+            token in stage_identity_text
             for token in (
                 "inline quench", "quench stage", "acid quench", "aqueous quench",
                 "neutraliz", "protonat", "destroy residual", "reductive workup",
                 "workup only", "not a reaction",
             )
         )
-        sp = stage_params_by_sn.get(sn, {})
+        finalized_reactor_allocation = bool(
+            sp.get("reactor_equipment_id")
+            or _safe_float(sp.get("reactor_volume_mL") or sp.get("V_R_mL")) > 0
+            or _safe_float(
+                sp.get("residence_time_min")
+                or sp.get("residence_time_inlet_min")
+            ) > 0
+        )
+        is_quench_stage = (
+            explicitly_nonreaction_stage and not finalized_reactor_allocation
+        )
+        if explicitly_nonreaction_stage and finalized_reactor_allocation:
+            logger.warning(
+                "Stage %s (%s) contains non-reaction wording but has a finalized "
+                "reactor allocation; preserving the canonical reactor assignment.",
+                sn,
+                stage.stage_name,
+            )
 
         # ── Per-stage τ ─────────────────────────────────────────────────────
         # Council-approved topology uses the complete per-stage allocation.
@@ -1016,12 +1180,6 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
         stage_pump_ids: list[str] = []
 
         if sn == 1:
-            # Build a lookup of Chief-applied rates from proposal.streams
-            proposal_rate_by_label: dict[str, float] = {
-                s.stream_label.upper(): s.flow_rate_mL_min
-                for s in (proposal.streams or [])
-                if s.stream_label and s.flow_rate_mL_min
-            }
             # Only use Chief-derived rates if every active liquid feed is covered.
             active_liquid_labels = {
                 (f.stream_label or "").upper()
@@ -1037,7 +1195,20 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
                     for f in active_feeds
                 ]
                 liquid_sum = sum(q for f, q in zip(active_feeds, new_feed_qs) if not _stream_is_gas(f))
-                if total_Q > 0 and liquid_sum > 0 and abs(liquid_sum - total_Q) / total_Q > 0.02:
+                # ``proposal.flow_rate_mL_min`` is the final outlet flow. It is
+                # also the Stage 1 flow only when every serialized liquid feed
+                # enters Stage 1. If a feed is injected downstream, scaling the
+                # Stage 1 subset to the final total double-counts that feed in
+                # all later reactors.
+                all_liquids_enter_stage_1 = proposal_liquid_labels.issubset(
+                    active_liquid_labels
+                )
+                if (
+                    all_liquids_enter_stage_1
+                    and total_Q > 0
+                    and liquid_sum > 0
+                    and abs(liquid_sum - total_Q) / total_Q > 0.02
+                ):
                     scale = total_Q / liquid_sum
                     new_feed_qs = [
                         q if _stream_is_gas(f) else round(q * scale, 4)
@@ -1046,11 +1217,17 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
             else:
                 new_feed_qs = _stoich_flow_rates(active_feeds, total_Q)
         else:
-            # Each new feed Q derived from stoichiometry relative to stage-1 substrate
+            # Frozen proposal stream rates are authoritative. Derive a rate
+            # from stoichiometry only when the proposal has no rate for this
+            # downstream feed.
             new_feed_qs = []
             for feed in active_feeds:
                 if _stream_is_gas(feed):
                     new_feed_qs.append(0.0)
+                    continue
+                label = (feed.stream_label or "").upper()
+                if label in proposal_rate_by_label:
+                    new_feed_qs.append(proposal_rate_by_label[label])
                     continue
                 equiv = max(getattr(feed, "molar_equiv", 1.0) or 1.0, 1e-9)
                 conc  = max(getattr(feed, "concentration_M", None) or C_reference, 1e-9)
@@ -1060,7 +1237,22 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
         for feed, q in zip(active_feeds, new_feed_qs):
             char = feed.stream_label or next_pump_char()
             contents = feed.reagents if feed.reagents else []
-            matched_gas = proposal_gas_by_label.get((char or "").upper())
+            matched_proposal_stream = next(
+                (
+                    item for item in proposal.streams or []
+                    if (item.stream_label or "").upper() == (char or "").upper()
+                ),
+                None,
+            )
+            matched_gas = _proposal_gas_for_feed(feed)
+            if _stream_is_gas(feed) and getattr(matched_gas, "stream_label", None):
+                char = matched_gas.stream_label
+                contents = list(getattr(matched_gas, "contents", None) or contents)
+            pump_role = (
+                getattr(matched_gas, "pump_role", None)
+                if _stream_is_gas(feed) and matched_gas is not None
+                else None
+            ) or feed.reasoning or f"Stage {sn} feed"
             gas_sccm = getattr(matched_gas, "gas_flow_sccm", None)
             gas_actual = getattr(matched_gas, "gas_flow_actual_mL_min", None)
             if _stream_is_gas(feed) and not gas_sccm:
@@ -1069,12 +1261,17 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
                 q = gas_actual if gas_actual is not None else q
             pid = _add_pump(
                 ops, char,
-                feed.reasoning or f"Stage {sn} feed",
+                pump_role,
                 contents, stage.solvent, q,
-                feed.reasoning or f"Feed for {stage.stage_name}",
+                pump_role,
                 is_gas=_stream_is_gas(feed),
                 gas_flow_sccm=gas_sccm,
                 gas_flow_actual_mL_min=gas_actual,
+                inventory_equipment_id=(
+                    matched_proposal_stream.pump_equipment_id
+                    if matched_proposal_stream is not None
+                    else None
+                ),
             )
             stage_pump_ids.append(pid)
 
@@ -1098,12 +1295,78 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
         gas_holdup = 0.0
         if gas_feeds_active and proposal.multiphase_metrics:
             gas_holdup = float(proposal.multiphase_metrics.get("gas_holdup") or 0.0)
-        liquid_stage_vol = stage_rt * Q_inlet
-        stage_vol = round(
-            liquid_stage_vol / max(1.0 - gas_holdup, 1e-9),
-            4,
+        stage_gas_actual = sum(
+            _safe_float(
+                getattr(
+                    _proposal_gas_for_feed(feed),
+                    "gas_flow_actual_mL_min",
+                    0.0,
+                )
+            )
+            for feed in gas_feeds_active
         )
-        total_reactor_volume_mL += stage_vol
+        stage_gas_sccm = sum(
+            _safe_float(
+                getattr(
+                    _proposal_gas_for_feed(feed),
+                    "gas_flow_sccm",
+                    0.0,
+                )
+            )
+            for feed in gas_feeds_active
+        )
+        stage_residence_basis = "liquid-only"
+        stage_inventory_volume = _safe_float(
+            sp.get("reactor_volume_mL") or sp.get("V_R_mL")
+        )
+        if stage_inventory_volume > 0 or use_inventory_components:
+            stage_vol = round(
+                stage_inventory_volume
+                if stage_inventory_volume > 0
+                else selected_components[sn - 1],
+                4,
+            )
+            liquid_stage_vol = stage_vol * max(1.0 - gas_holdup, 0.0)
+            stage_residence_basis = str(
+                sp.get("residence_time_basis") or "nominal liquid contact time"
+            )
+            stage_basis_code = normalize_residence_time_basis(
+                stage_residence_basis
+            )
+            if stage_basis_code == INLET_STP_BASIS:
+                stage_rt = round(
+                    _safe_float(sp.get("residence_time_inlet_min"))
+                    or stage_vol / max(Q_inlet + stage_gas_sccm, 1e-9),
+                    2,
+                )
+            elif stage_basis_code == IN_CHANNEL_BASIS:
+                stage_rt = round(
+                    _safe_float(sp.get("residence_time_in_channel_min"))
+                    or stage_vol / max(Q_inlet + stage_gas_actual, 1e-9),
+                    2,
+                )
+            else:
+                # The canonical primary reaction time is liquid-contact time.
+                # STP and pressure-corrected gas-inclusive values remain
+                # separate diagnostics and must not silently replace it.
+                stage_residence_basis = (
+                    stage_residence_basis
+                    if stage_basis_code == LIQUID_ONLY_BASIS
+                    else "nominal liquid contact time"
+                )
+                stage_rt = round(
+                    _safe_float(sp.get("residence_time_min"))
+                    or stage_vol / max(Q_inlet, 1e-9),
+                    2,
+                )
+        else:
+            liquid_stage_vol = stage_rt * Q_inlet
+            stage_vol = round(
+                liquid_stage_vol / max(1.0 - gas_holdup, 1e-9),
+                4,
+            )
+            if gas_feeds_active:
+                stage_residence_basis = "in-channel pressure-corrected"
         stage_length = (
             round((stage_vol * 1e-6) / (math.pi * (stage_id_mm * 5e-4) ** 2), 2)
             if stage_vol and stage_id_mm else None
@@ -1119,7 +1382,7 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
             ops.append(UnitOperation(
                 op_id=mixer_id, op_type="mixer",
                 label=f"Mixer — Stage {sn}",
-                parameters={"type": "T-mixer", "material": "PEEK"},
+                parameters={"type": "T-mixer", "material": "not specified"},
                 required=True,
                 rationale=f"Combine feeds for {stage.stage_name}",
             ))
@@ -1137,8 +1400,10 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
             )
             continue
 
+        total_reactor_volume_mL += stage_vol
+
         # ── Pre-stage: deoxygenation if needed ─────────────────────────────
-        if stage.deoxygenation_required:
+        if stage.deoxygenation_required and not _uses_offline_deoxygenation(proposal):
             deoxy_id = f"{prefix}_deoxy"
             ops.append(UnitOperation(
                 op_id=deoxy_id, op_type="deoxygenation_unit",
@@ -1158,7 +1423,23 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
             "chip": "chip_reactor", "CSTR": "coil_reactor",
         }
         is_photo = stage.requires_light
-        mat = "FEP" if is_photo else ("SS" if (stage.temperature_C or 25) > 100 else "FEP")
+        mat = str(
+            sp.get("material")
+            or (proposal.inventory_selection or {}).get("material")
+            or proposal.tubing_material
+            or "not specified"
+        )
+        stage_temperature_C = float(
+            sp.get("temperature_C")
+            or proposal.temperature_C
+            or stage.temperature_C
+            or 25.0
+        )
+        stage_wavelength_nm = (
+            sp.get("wavelength_nm")
+            or proposal.wavelength_nm
+            or stage.wavelength_nm
+        )
         rlabel = f"{'Photo' if is_photo else ''}{rtype.replace('_', ' ').title()} — {stage.stage_name}"
 
         ops.append(UnitOperation(
@@ -1174,18 +1455,20 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
                 "Q_inlet_mL_min": Q_inlet,
                 "Q_liquid_mL_min": Q_inlet,
                 "Q_gas_actual_mL_min": (
-                    proposal.multiphase_metrics.get("gas_flow_actual_mL_min")
-                    if gas_feeds_active and proposal.multiphase_metrics else None
+                    stage_gas_actual if stage_gas_actual > 0 else None
                 ),
                 "Q_gas_sccm": (
-                    proposal.multiphase_metrics.get("gas_flow_sccm")
-                    if gas_feeds_active and proposal.multiphase_metrics else None
+                    stage_gas_sccm if stage_gas_sccm > 0 else None
                 ),
-                "temperature_C": stage.temperature_C,
-                "wavelength_nm": stage.wavelength_nm if is_photo else None,
+                "temperature_C": stage_temperature_C,
+                "wavelength_nm": stage_wavelength_nm if is_photo else None,
                 "residence_time_min": stage_rt,
-                "length_m": stage_length,
+                "residence_time_basis": stage_residence_basis,
                 "reactor_type": rtype,
+                "inventory_equipment_id": sp.get("reactor_equipment_id"),
+                "inventory_equipment_name": sp.get("reactor_name"),
+                "residence_time_inlet_min": sp.get("residence_time_inlet_min"),
+                "residence_time_in_channel_min": sp.get("residence_time_in_channel_min"),
             },
             required=True,
             rationale=f"Reactor for {stage.stage_name} — τ={stage_rt} min, Q_inlet={Q_inlet} mL/min, V_R={stage_vol} mL",
@@ -1193,16 +1476,31 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
         _connect(ops, streams, sc, prev_op, reactor_id)
         prev_op = reactor_id
 
+        if inventory and inventory.temperature_controllers:
+            ops.append(UnitOperation(
+                op_id=f"{prefix}_heater",
+                op_type="heater",
+                label=f"Temperature Control — Stage {sn}",
+                parameters={"temperature_C": stage_temperature_C},
+                required=True,
+                rationale=f"Active temperature control for {stage.stage_name}",
+            ))
+
         # Q leaving this reactor = Q_inlet (incompressible flow)
         Q_prev_outlet = Q_inlet
 
         # LED if photochemical stage
-        if is_photo and stage.wavelength_nm:
+        if is_photo and stage_wavelength_nm:
             led_id = f"{prefix}_led"
             ops.append(UnitOperation(
                 op_id=led_id, op_type="led_module",
-                label=f"LED {stage.wavelength_nm:.0f} nm",
-                parameters={"wavelength_nm": stage.wavelength_nm},
+                label=f"LED {stage_wavelength_nm:.0f} nm",
+                parameters={
+                    "wavelength_nm": stage_wavelength_nm,
+                    "temperature_C": stage_temperature_C,
+                    "inventory_equipment_id": sp.get("light_equipment_id"),
+                    "inventory_equipment_name": sp.get("light_name"),
+                },
                 required=True, rationale=f"Light for {stage.stage_name}",
             ))
 
@@ -1285,10 +1583,9 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
     # text omitted BPR_bar. The calculator uses this for gas solubility and
     # controlled degassing; the topology must not silently drop it.
     bpr_already_in_ops = any(o.op_type == "bpr" for o in ops)
-    gas_liquid_bpr_floor = bool(proposal.multiphase_metrics)
     bpr_pressure = float(proposal.BPR_bar or 0.0)
-    if gas_liquid_bpr_floor:
-        bpr_pressure = max(bpr_pressure, 5.0)
+    if any(_stream_is_gas(stream) for stream in proposal.streams or []) and bpr_pressure <= 0:
+        bpr_pressure = TOPOLOGY_DEFAULT_GAS_LIQUID_BPR_BAR
     if bpr_pressure > 0 and not bpr_already_in_ops:
         ops.append(UnitOperation(op_id="bpr_final", op_type="bpr",
             label="BPR", parameters={"pressure_bar": bpr_pressure},
@@ -1324,10 +1621,329 @@ def _build_multistep_topology(proposal, chemistry_plan, batch_record):
 # Main pipeline
 # ---------------------------------------------------------------------------
 
+def _topology_matches_serialized_proposal(
+    topology: ProcessTopology,
+    proposal: FlowProposal,
+) -> bool:
+    """Verify that topology nodes are a faithful projection of final values."""
+
+    def close(left, right, *, absolute=0.02, relative=0.01):
+        left = _safe_float(left)
+        right = _safe_float(right)
+        if left <= 0 or right <= 0:
+            return False
+        return abs(left - right) <= max(absolute, relative * max(left, right))
+
+    expected_volume = float(proposal.reactor_volume_mL or 0.0)
+    if not close(topology.reactor_volume_mL, expected_volume):
+        return False
+    if not close(topology.residence_time_min, proposal.residence_time_min):
+        return False
+    if proposal.flow_rate_mL_min and not close(
+        topology.total_flow_rate_mL_min,
+        proposal.flow_rate_mL_min,
+        absolute=0.0001,
+        relative=0.02,
+    ):
+        return False
+
+    reactor_types = {
+        "coil_reactor", "reactor", "heated_coil", "photoreactor",
+        "chip_reactor", "packed_bed", "packed_bed_reactor",
+    }
+    reactors = [
+        operation
+        for operation in topology.unit_operations
+        if operation.op_type in reactor_types
+    ]
+    if not reactors:
+        return False
+    reactor_volume = sum(
+        _safe_float((operation.parameters or {}).get("volume_mL"))
+        for operation in reactors
+    )
+    if not close(reactor_volume, expected_volume):
+        return False
+
+    stage_parameters = sorted(
+        [item for item in proposal.stage_parameters or [] if isinstance(item, dict)],
+        key=lambda item: _safe_float(item.get("stage_number")),
+    )
+    if stage_parameters:
+        if len(stage_parameters) != len(reactors):
+            return False
+        for stage, operation in zip(stage_parameters, reactors):
+            parameters = operation.parameters or {}
+            if not close(
+                parameters.get("volume_mL"),
+                stage.get("reactor_volume_mL") or stage.get("V_R_mL"),
+            ):
+                return False
+            for field in (
+                "residence_time_inlet_min",
+                "residence_time_in_channel_min",
+            ):
+                expected = stage.get(field)
+                if expected is not None and not close(
+                    parameters.get(field), expected, absolute=0.05, relative=0.01
+                ):
+                    return False
+        inlet_total = sum(
+            _safe_float(item.get("residence_time_inlet_min") or item.get("residence_time_min"))
+            for item in stage_parameters
+        )
+        channel_total = sum(
+            _safe_float(item.get("residence_time_in_channel_min") or item.get("residence_time_min"))
+            for item in stage_parameters
+        )
+        if not close(
+            inlet_total,
+            proposal.residence_time_inlet_min or proposal.residence_time_min,
+            absolute=0.05,
+        ):
+            return False
+        if not close(
+            channel_total,
+            proposal.residence_time_in_channel_min or proposal.residence_time_min,
+            absolute=0.05,
+        ):
+            return False
+    else:
+        node_tau_total = sum(
+            _safe_float((operation.parameters or {}).get("residence_time_min"))
+            for operation in reactors
+        )
+        if not close(node_tau_total, proposal.residence_time_min, absolute=0.05):
+            return False
+    return True
+
+
+def _store_process_topology(result: dict, topology: ProcessTopology) -> None:
+    """Persist topology diagnostics without mutating the validated proposal."""
+
+    result["process_topology"] = topology.model_dump()
+    result.setdefault("design_calculations", {})[
+        "topology_total_reactor_volume_mL"
+    ] = topology.reactor_volume_mL
+
+
+def _sync_stage_hardware_from_compiled_topology(
+    proposal: FlowProposal,
+    topology: ProcessTopology,
+) -> bool:
+    """Replace model-written stage hardware IDs with allocator assignments."""
+
+    if not proposal.stage_parameters:
+        return False
+    operations = {operation.op_id: operation for operation in topology.unit_operations}
+    incoming: dict[str, list[str]] = {}
+    for stream in topology.streams:
+        incoming.setdefault(stream.to_op, []).append(stream.from_op)
+    bpr_ids = [
+        operation.inventory_item_id
+        for operation in topology.unit_operations
+        if operation.op_type.lower() == "bpr" and operation.inventory_item_id
+    ]
+    changed = False
+    last_stage = max(
+        int(stage.get("stage_number") or index + 1)
+        for index, stage in enumerate(proposal.stage_parameters)
+    )
+    for index, stage in enumerate(proposal.stage_parameters):
+        stage_number = int(stage.get("stage_number") or index + 1)
+        reactor_id = f"st{stage_number}_reactor"
+        reactor = operations.get(reactor_id)
+        light = operations.get(f"st{stage_number}_led")
+        reachable: list[Any] = []
+        stack = list(incoming.get(reactor_id, []))
+        seen: set[str] = set()
+        while stack:
+            operation_id = stack.pop()
+            if operation_id in seen:
+                continue
+            seen.add(operation_id)
+            operation = operations.get(operation_id)
+            if operation is None:
+                continue
+            if operation.op_type.lower() in {
+                "coil_reactor", "photoreactor", "reactor", "heated_coil",
+            }:
+                continue
+            reachable.append(operation)
+            stack.extend(incoming.get(operation_id, []))
+
+        liquid_ids = [
+            operation.inventory_item_id
+            for operation in reachable
+            if operation.op_type.lower() == "pump" and operation.inventory_item_id
+        ]
+        gas_ids = [
+            operation.inventory_item_id
+            for operation in reachable
+            if operation.op_type.lower() == "mfc" and operation.inventory_item_id
+        ]
+        mixer = next(
+            (operation for operation in reachable if operation.op_type.lower() in {"mixer", "t_mixer", "y_mixer"}),
+            None,
+        )
+        for key in (
+            "pump_equipment_id", "pump_equipment_ids", "gas_equipment_id",
+            "gas_equipment_ids", "mixer_equipment_id", "BPR_equipment_id",
+            "bpr_equipment_id",
+        ):
+            stage.pop(key, None)
+        if reactor and reactor.inventory_item_id:
+            stage["reactor_equipment_id"] = reactor.inventory_item_id
+        if light and light.inventory_item_id:
+            stage["light_equipment_id"] = light.inventory_item_id
+        if liquid_ids:
+            stage["pump_equipment_ids"] = liquid_ids
+            if len(liquid_ids) == 1:
+                stage["pump_equipment_id"] = liquid_ids[0]
+        if gas_ids:
+            stage["gas_equipment_ids"] = gas_ids
+            if len(gas_ids) == 1:
+                stage["gas_equipment_id"] = gas_ids[0]
+        if mixer is not None:
+            stage["mixer_assignment_status"] = mixer.assignment_status
+            stage["mixer_name"] = mixer.instrument_name or mixer.label
+            if mixer.inventory_item_id:
+                stage["mixer_equipment_id"] = mixer.inventory_item_id
+        if stage_number == last_stage and bpr_ids:
+            stage["BPR_equipment_id"] = bpr_ids[0]
+        changed = True
+    return changed
+
+
+def _store_blocked_topology(result: dict, disposition) -> None:
+    failures = [
+        {
+            "finding_id": finding.finding_id,
+            "message": finding.message,
+        }
+        for finding in disposition.hard_failures
+    ]
+    result["svg_path"] = ""
+    result["png_path"] = ""
+    result["process_topology"] = {
+        "topology_id": "blocked",
+        "generation_status": "blocked",
+        "unit_operations": [],
+        "streams": [],
+        "pid_description": "",
+        "blocking_reasons": failures,
+    }
+
+
+def _inventory_preflight_result(
+    *,
+    batch_record: BatchRecord,
+    chemistry_plan: ChemistryPlan,
+    intake: DesignInputPackage | None,
+    intake_block: str,
+    topology: ProcessTopology,
+    preflight: dict,
+) -> dict:
+    """Return a non-numerical requirements result before downstream design."""
+
+    unresolved = list(preflight.get("unresolved_requirements") or [])
+    confirmation_required = preflight.get("status") == "needs_confirmation"
+    result = {
+        "proposal": {},
+        "chemistry_plan": chemistry_plan.model_dump(exclude_none=True),
+        "confidence": "NOT_ASSESSED",
+        "design_status": (
+            "inventory_confirmation_required"
+            if confirmation_required
+            else "inventory_infeasible"
+        ),
+        "recommended_disposition": "BLOCK",
+        "reported_disposition": "BLOCK",
+        "disposition_rationale": (
+            "Inventory capability confirmation is required before numerical design."
+            if confirmation_required
+            else "A required process capability is explicitly unavailable."
+        ),
+        "design_disposition": {
+            "recommended_disposition": "BLOCK",
+            "rationale": (
+                "Inventory capability confirmation is required before numerical design."
+                if confirmation_required
+                else "A required process capability is explicitly unavailable."
+            ),
+            "hard_failures": [
+                {
+                    "finding_id": item["requirement_id"],
+                    "message": item["reason"],
+                }
+                for item in unresolved
+            ],
+        },
+        "inventory_preflight": preflight,
+        "inventory_allocation": {
+            "schema_version": "flowpilot_inventory_allocation_v1.0",
+            "status": "confirmation_required" if confirmation_required else "incomplete",
+            "strict_assignment": True,
+            "checks": {"all_required_operations_assigned": False},
+            "assignments": [],
+            "instrument_manifest": [],
+            "unresolved_requirements": unresolved,
+        },
+        "final_validation": {
+            "schema_version": "flowpilot_final_validation_v1.0",
+            "status": "blocked",
+            "checks": {"topology_capability_preflight_complete": False},
+            "unresolved_reasons": [item["requirement_id"] for item in unresolved],
+        },
+        "process_requirements_topology": topology.model_dump(),
+        "diagnostic_topology": topology.model_dump(),
+        "process_topology": {
+            "topology_id": "blocked_before_numerical_design",
+            "generation_status": "blocked",
+            "unit_operations": [],
+            "streams": [],
+            "pid_description": "",
+        },
+        "svg_path": "",
+        "png_path": "",
+        "explanation": (
+            "The chemistry-derived process topology was checked before retrieval, "
+            "engineering calculation, downstream translation, and council. No "
+            "numerical run parameters were generated."
+        ),
+        "batch_record": batch_record.model_dump(exclude_none=True),
+    }
+    if intake:
+        result["intake_package"] = intake.model_dump()
+        result["intake_context"] = intake_block
+    try:
+        artifacts = render_topology_artifacts(
+            topology,
+            title="REQUIREMENTS TOPOLOGY - NOT EXECUTABLE",
+        )
+        result["diagnostic_svg_path"] = artifacts.get("svg_path", "")
+        result["diagnostic_png_path"] = artifacts.get("png_path", "")
+        result["diagnostic_diagram_artifacts"] = {
+            key: value for key, value in artifacts.items() if key != "manifest"
+        }
+        result["diagnostic_diagram_render_manifest"] = artifacts.get("manifest", {})
+    except Exception as exc:
+        logger.warning("Requirements topology rendering failed: %s", exc)
+        result["diagnostic_svg_path"] = ""
+        result["diagnostic_png_path"] = ""
+        result["diagnostic_diagram_artifacts"] = {
+            "render_status": "failed",
+            "warnings": [str(exc)],
+        }
+    result["final_design"] = build_final_design_contract(result)
+    return result
+
+
 def translate(
     batch_input: str | dict,
     inventory_path: str = str(LAB_INVENTORY_PATH),
     intake_package: DesignInputPackage | dict | None = None,
+    runtime_options: PipelineRuntimeOptions | dict | None = None,
 ) -> dict:
     """Full FLORA-Translate pipeline.
 
@@ -1335,10 +1951,14 @@ def translate(
         Dict with proposal, chemistry_plan, explanation, safety report,
         council messages, svg_path, png_path.
     """
+    runtime = PipelineRuntimeOptions.coerce(runtime_options)
     intake = _coerce_intake_package(intake_package)
     intake_block = intake_context_block(intake)
     effective_batch_input = batch_input_from_package(intake) if intake else batch_input
-    objectives = intake.objective if intake and intake.objective else "balanced"
+    objectives = (
+        runtime.objective_override
+        or (intake.objective if intake and intake.objective else "balanced")
+    )
 
     # 1. Parse input
     logger.info("Step 1: Parsing batch input")
@@ -1352,18 +1972,44 @@ def translate(
     logger.info(f"  Streams: {len(chemistry_plan.stream_logic)}  O2: {chemistry_plan.oxygen_sensitive}")
     logger.info(f"  Upstream mode: {getattr(chemistry_plan, '_upstream_mode', 'full')}")
 
+    # Resolve structural inventory capability before any numerical design or
+    # downstream model call. Missing categories are confirmation requests, not
+    # fabricated equipment and not proof that the lab lacks the capability.
+    inventory = _inventory_from_intake_or_path(intake, inventory_path)
+    if inventory.strict_assignment:
+        requirements_topology, inventory_preflight = analyze_topology_requirements(
+            chemistry_plan, inventory
+        )
+        logger.info("Step 2b: Inventory topology preflight %s", inventory_preflight["status"])
+        if not str(inventory_preflight["status"]).startswith("ready"):
+            blocked_result = _inventory_preflight_result(
+                batch_record=batch_record,
+                chemistry_plan=chemistry_plan,
+                intake=intake,
+                intake_block=intake_block,
+                topology=requirements_topology,
+                preflight=inventory_preflight,
+            )
+            blocked_result["pipeline_runtime"] = runtime.provenance()
+            return blocked_result
+
     # 3. Plan-aware retrieval — Layer 2
     logger.info("Step 3: Retrieving literature analogies (plan-aware)")
     store = VectorStore()
     retriever = VectorRetriever(store=store)
-    raw_analogies = retriever.retrieve(batch_record, top_k=3, chemistry_plan=chemistry_plan)
+    raw_analogies = retriever.retrieve(
+        batch_record,
+        top_k=3,
+        chemistry_plan=chemistry_plan,
+        exclude_record_ids=set(runtime.exclude_record_ids),
+        retrieval_mode=runtime.retrieval_mode,
+    )
     analogies = AnalogySelector(records_dir=RECORDS_DIR).select(raw_analogies)
     logger.info(f"  Found {len(analogies)} analogies")
 
     # 3b. Pre-compute engineering calculations (9-step design calculator)
     logger.info("Step 3b: Running 9-step design calculator")
     from flora_translate.design_calculator import DesignCalculator
-    inventory = _inventory_from_intake_or_path(intake, inventory_path)
     calculations = DesignCalculator().run(
         batch_record,
         chemistry_plan=chemistry_plan,
@@ -1416,13 +2062,35 @@ def translate(
     logger.info(f"  Proposal: {proposal.residence_time_min}min, {proposal.reactor_type}, "
                 f"{len(proposal.streams)} streams")
 
-    # Override proposal geometry with top design space candidate
+    # Feed the council a pressure-feasible candidate. Otherwise every council
+    # member spends its effort scoring an unavailable or sub-floor BPR value,
+    # and the skeptic can disqualify the entire matrix before the deterministic
+    # inventory pass gets a chance to select the real cartridge.
+    if any(_stream_is_gas(stream) for stream in proposal.streams or []):
+        pressure_settings = available_pressure_settings(inventory)
+        eligible_pressure = [value for value in pressure_settings if value >= 3.0]
+        if eligible_pressure and float(proposal.BPR_bar or 0.0) < 3.0:
+            previous_bpr = float(proposal.BPR_bar or 0.0)
+            proposal.BPR_bar = min(eligible_pressure)
+            proposal.BPR_basis = "gauge"
+            proposal.pressure_absolute_bar = round(proposal.BPR_bar + 1.01325, 6)
+            logger.info(
+                "  Pre-council inventory pressure reconciliation: %.3g -> %.3g bar gauge",
+                previous_bpr,
+                proposal.BPR_bar,
+            )
+
+    # The grid winner is a council seed, not an authority allowed to overwrite
+    # a chemistry-supported proposal. Its soft score deliberately rewards
+    # productivity and can therefore select the shortest feasible screen even
+    # when the calculator and translation independently support a longer
+    # residence time. Preserve the proposal here; downstream deterministic
+    # realization will bind it to discrete inventory and close V/Q/tau.
     if _top_candidate:
-        proposal.residence_time_min = _top_candidate.tau_min
-        proposal.flow_rate_mL_min = _top_candidate.Q_mL_min
-        proposal.tubing_ID_mm = _top_candidate.d_mm
-        proposal.reactor_volume_mL = round(_top_candidate.V_R_mL, 3)
-        logger.info("  Proposal geometry updated from design space top candidate")
+        logger.info(
+            "  Design-space winner retained as council seed; proposal geometry "
+            "preserved for deliberation"
+        )
 
     # 5. ENGINE deliberation council — Layer 3
     logger.info("Step 5: Multi-agent deliberation council (ENGINE)")
@@ -1446,12 +2114,28 @@ def translate(
         objectives=objectives,
         design_space_seed_candidates=_ds_seeds,
         intake_package=intake,
+        candidate_budget=runtime.candidate_budget,
+        benchmark_recorder=runtime.benchmark_recorder,
+        benchmark_strict_scoring=runtime.benchmark_strict_scoring,
+        benchmark_scoring_batch_size=runtime.benchmark_scoring_batch_size,
+        benchmark_strong_revision_mode=runtime.benchmark_strong_revision_mode,
+        benchmark_branching_revision_mode=(
+            runtime.benchmark_branching_revision_mode
+        ),
+        benchmark_max_descendants_per_candidate=(
+            runtime.benchmark_max_descendants_per_candidate
+        ),
+        benchmark_max_total_revised_candidates=(
+            runtime.benchmark_max_total_revised_candidates
+        ),
     )
 
     # 6. Format output
     logger.info("Step 6: Formatting output")
     result = OutputFormatter().format(design_candidate, analogies)
     result["chemistry_plan"] = chemistry_plan.model_dump(exclude_none=True)
+    result["batch_record"] = batch_record.model_dump(exclude_none=True)
+    result["inventory_snapshot"] = inventory.model_dump(exclude_none=True)
     if intake:
         result["intake_package"] = intake.model_dump()
         result["intake_context"] = intake_block
@@ -1459,7 +2143,7 @@ def translate(
     # Attach 9-step design calculations for Streamlit rendering
     from dataclasses import asdict
     result["design_calculations"] = asdict(calculations)
-    _reconcile_final_bpr(result, design_candidate)
+    _reconcile_final_bpr(result, design_candidate, inventory)
     _sync_final_stream_flowrates(result, design_candidate)
 
     # If the user included measured flow experiments in the prompt, apply the
@@ -1529,32 +2213,219 @@ def translate(
             "Step 6c: Final engineering validation %s",
             final_validation["status"],
         )
-        _reconcile_final_bpr(result, design_candidate)
+        _reconcile_final_bpr(result, design_candidate, inventory)
         _sync_final_stream_flowrates(result, design_candidate)
     except Exception as exc:
         logger.warning("Final engineering validation skipped: %s", exc)
 
+    # A global single-reactor council candidate is not a valid representation
+    # of a multistage process. Resolve each stage to exact inventory IDs and
+    # recompute stagewise residence times before topology generation.
+    multistage_inventory_report = {"applied": False}
+    try:
+        reconciled_proposal, multistage_inventory_report = (
+            reconcile_multistage_inventory(
+                design_candidate.proposal,
+                chemistry_plan,
+                inventory,
+                operating_limits=(intake.operating_limits if intake else None),
+            )
+        )
+        if multistage_inventory_report.get("applied"):
+            design_candidate.proposal = reconciled_proposal
+            result["proposal"] = reconciled_proposal.model_dump()
+            result["multistage_inventory_plan"] = multistage_inventory_report
+            result.setdefault("design_calculations", {}).update(
+                {
+                    "calculation_mode": "stagewise_inventory_closed",
+                    "reactor_volume_mL": reconciled_proposal.reactor_volume_mL,
+                    "residence_time_min": reconciled_proposal.residence_time_min,
+                    "residence_time_inlet_min": (
+                        reconciled_proposal.residence_time_inlet_min
+                    ),
+                    "residence_time_in_channel_min": (
+                        reconciled_proposal.residence_time_in_channel_min
+                    ),
+                    "stage_calculations": multistage_inventory_report.get(
+                        "stage_parameters", []
+                    ),
+                }
+            )
+            if final_validation is not None:
+                checks = final_validation.setdefault("checks", {})
+                stage_checks = multistage_inventory_report.get("checks", {})
+                stage_complete = multistage_inventory_report.get("status") == "complete"
+                checks["reactor_inventory_match"] = bool(
+                    stage_checks.get("all_stage_reactors_resolved")
+                )
+                checks["geometry_closure"] = bool(
+                    stage_checks.get("stage_geometry_closed")
+                )
+                checks["calculation_matches_serialized_design"] = stage_complete
+                checks["multistage_stage_inventory_complete"] = stage_complete
+                unresolved = [name for name, passed in checks.items() if not passed]
+                final_validation["unresolved_reasons"] = unresolved
+                final_validation["status"] = (
+                    "ready" if not unresolved else "screen_required"
+                )
+                final_validation["calculation_mode"] = "stagewise_inventory_closed"
+                final_validation["multistage_inventory_plan"] = (
+                    multistage_inventory_report
+                )
+                result["final_validation"] = final_validation
+    except Exception as exc:
+        logger.warning("Multistage inventory reconciliation failed: %s", exc)
+
+    # Final authoritative realization. Everything above this point may propose
+    # or refine values; this pass jointly binds feeds, pumps/MFCs, pressure,
+    # reactors, and stage timing. No model is allowed to mutate run parameters
+    # after this point.
+    try:
+        realized_proposal, realization_report, final_validation = (
+            realize_executable_design(
+                design_candidate.proposal,
+                batch_record=batch_record,
+                chemistry_plan=chemistry_plan,
+                inventory=inventory,
+                hard_constraints=merged_hard_constraints(
+                    runtime.hard_constraints,
+                    intake.operating_limits if intake else None,
+                ),
+                operating_limits=(intake.operating_limits if intake else None),
+            )
+        )
+        design_candidate.proposal = realized_proposal
+        result["proposal"] = realized_proposal.model_dump()
+        result["design_realization"] = realization_report
+        result["final_validation"] = final_validation
+        if realization_report.get("multistage", {}).get("applied"):
+            result["multistage_inventory_plan"] = realization_report["multistage"]
+
+        # Recompute engineering annotations once from the realized candidate,
+        # then overwrite its canonical V/Q/tau fields from the authoritative
+        # proposal so diagnostic calculations cannot become a second design.
+        from flora_translate.design_calculator import DesignCalculator
+
+        realized_calculations = DesignCalculator().run(
+            batch_record,
+            chemistry_plan=chemistry_plan,
+            proposal=realized_proposal,
+            inventory=inventory,
+            analogies=analogies,
+            target_flow_rate_mL_min=realized_proposal.flow_rate_mL_min,
+            target_tubing_ID_mm=realized_proposal.tubing_ID_mm,
+            target_residence_time_min=realized_proposal.residence_time_min,
+        )
+        calculation_payload = asdict(realized_calculations)
+        calculation_payload.update(
+            {
+                "flow_rate_mL_min": realized_proposal.flow_rate_mL_min,
+                "liquid_flow_rate_mL_min": realized_proposal.flow_rate_mL_min,
+                "reactor_volume_mL": realized_proposal.reactor_volume_mL,
+                "tubing_ID_mm": realized_proposal.tubing_ID_mm,
+                "residence_time_min": realized_proposal.residence_time_min,
+                "residence_time_inlet_min": realized_proposal.residence_time_inlet_min,
+                "residence_time_in_channel_min": realized_proposal.residence_time_in_channel_min,
+                "bpr_pressure_bar": realized_proposal.BPR_bar,
+                "stage_calculations": list(realized_proposal.stage_parameters or []),
+                "calculation_mode": "deterministic_post_council_realization",
+            }
+        )
+        calculation_payload.update(realized_proposal.multiphase_metrics or {})
+        result["design_calculations"] = calculation_payload
+        logger.info(
+            "Step 6d: Deterministic design realization %s",
+            realization_report["status"],
+        )
+    except Exception as exc:
+        logger.exception("Deterministic design realization failed: %s", exc)
+        if final_validation is None:
+            final_validation = {
+                "schema_version": "flowpilot_final_validation_v2.0",
+                "status": "blocked",
+                "checks": {"design_realization_complete": False},
+                "unresolved_reasons": ["design_realization_complete"],
+            }
+        result["final_validation"] = final_validation
+
     # Attach design space grid search results
     result["design_space"] = candidates_to_dicts(design_candidates)
 
-    # ── Single source of truth: synchronise τ across all result sections ──
-    # The validated proposal is authoritative for residence_time_min and
-    # reactor_volume_mL.  The DesignCalculations may have re-derived a
-    # slightly different τ from kinetics — force them to agree.
-    _τ_proposal = result["proposal"].get("residence_time_min")
-    _Q_proposal  = result["proposal"].get("flow_rate_mL_min")
-    if _τ_proposal and _τ_proposal > 0:
-        result["design_calculations"]["residence_time_min"] = _τ_proposal
-        result["design_calculations"]["residence_time_s"] = round(_τ_proposal * 60, 2)
-        if (
-            _Q_proposal and _Q_proposal > 0
-            and not result["design_calculations"].get("is_gas_liquid")
-        ):
-            result["design_calculations"]["reactor_volume_mL"] = round(
-                _τ_proposal * _Q_proposal, 4
-            )
-
     _apply_final_design_guards(result, design_candidate)
+
+    # Build the abstract process requirements once, then compile every
+    # executable unit operation against physical inventory before disposition.
+    compiled_topology = None
+    try:
+        abstract_topology = _build_translate_topology(
+            design_candidate.proposal, chemistry_plan, batch_record, inventory
+        )
+        result["process_requirements_topology"] = abstract_topology.model_dump()
+        topology_matches = _topology_matches_serialized_proposal(
+            abstract_topology, design_candidate.proposal
+        )
+        compiled_topology, allocation_report = compile_inventory_topology(
+            abstract_topology,
+            proposal=design_candidate.proposal,
+            inventory=inventory,
+        )
+        compiled_topology = normalize_topology_semantics(compiled_topology)
+        result["inventory_allocation"] = allocation_report
+        result["instrument_manifest"] = allocation_report.get(
+            "instrument_manifest", []
+        )
+        if _sync_stage_hardware_from_compiled_topology(
+            design_candidate.proposal, compiled_topology
+        ):
+            synced_stages = list(design_candidate.proposal.stage_parameters or [])
+            result["proposal"] = design_candidate.proposal.model_dump()
+            if result.get("multistage_inventory_plan"):
+                result["multistage_inventory_plan"]["stage_parameters"] = synced_stages
+            result.setdefault("design_calculations", {})[
+                "stage_calculations"
+            ] = synced_stages
+        if final_validation is None:
+            final_validation = {
+                "schema_version": "flowpilot_final_validation_v1.0",
+                "status": "screen_required",
+                "checks": {},
+                "unresolved_reasons": [],
+            }
+        checks = final_validation.setdefault("checks", {})
+        checks["topology_matches_serialized_design"] = topology_matches
+        checks["inventory_topology_assignment_complete"] = bool(
+            allocation_report.get("checks", {}).get(
+                "all_required_operations_assigned", False
+            )
+        )
+        unresolved = [name for name, passed in checks.items() if not passed]
+        final_validation["unresolved_reasons"] = unresolved
+        final_validation["status"] = "ready" if not unresolved else "screen_required"
+        result["final_validation"] = final_validation
+    except Exception as exc:
+        logger.warning("Inventory topology compilation failed: %s", exc)
+        result["inventory_allocation"] = {
+            "schema_version": "flowpilot_inventory_allocation_v1.0",
+            "status": "failed",
+            "strict_assignment": bool(getattr(inventory, "strict_assignment", False)),
+            "checks": {"all_required_operations_assigned": False},
+            "assignments": [],
+            "instrument_manifest": [],
+            "unresolved_requirements": [
+                {
+                    "requirement_id": "INV-COMPILER",
+                    "operation_id": "process_topology",
+                    "category": "compiler",
+                    "reason": str(exc),
+                    "criteria": {},
+                }
+            ],
+        }
+        if final_validation is None:
+            final_validation = {"checks": {}, "unresolved_reasons": []}
+        final_validation.setdefault("checks", {})[
+            "inventory_topology_assignment_complete"
+        ] = False
 
     # One deterministic top-level decision is authoritative after every model,
     # council, campaign, inventory, and engineering revision. Hard conflicts
@@ -1567,7 +2438,10 @@ def translate(
         batch_record=batch_record,
         chemistry_plan=chemistry_plan,
         objective=objectives,
-        hard_constraints=(intake.operating_limits if intake else None),
+        hard_constraints=merged_hard_constraints(
+            runtime.hard_constraints,
+            intake.operating_limits if intake else None,
+        ),
         council_safety_report=design_candidate.safety_report,
     )
     result["explanation"] = (
@@ -1593,39 +2467,149 @@ def translate(
     # Pre-council snapshot for before/after comparison in UI
     result["pre_council_proposal"] = pre_council_proposal
 
-    # 7. Build chemistry-aware topology + generate diagram
-    logger.info("Step 7: Generating process flow diagram")
-    try:
-        from flora_design.visualizer.flowsheet_builder import FlowsheetBuilder
-
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        svg_path = str(OUTPUT_DIR / "translate_process.svg")
-        png_path = str(OUTPUT_DIR / "translate_process.png")
-
-        topology = _build_translate_topology(
-            design_candidate.proposal, chemistry_plan, batch_record
+    # 7. Build chemistry-aware topology + generate diagram. A blocked
+    # candidate is diagnostic output, not an executable process, so it must
+    # never receive a polished flowsheet or overwrite validated parameters.
+    if disposition.recommended_disposition == "BLOCK":
+        logger.warning(
+            "Step 7: Executable diagram suppressed; rendering diagnostic topology"
         )
-        svg, png = FlowsheetBuilder().build(
-            topology,
-            title=batch_record.reaction_description[:70],
-            output_svg=svg_path,
-            output_png=png_path,
+        _store_blocked_topology(result, disposition)
+        diagnostic_topology = compiled_topology
+        if diagnostic_topology is not None and diagnostic_topology.unit_operations:
+            result["diagnostic_topology"] = diagnostic_topology.model_dump()
+            try:
+                from flora_design.visualizer.flowsheet_builder import FlowsheetBuilder
+
+                diagnostic_artifacts = render_topology_artifacts(
+                    diagnostic_topology,
+                    title=(
+                        "DIAGNOSTIC - NOT EXECUTABLE - "
+                        + str(
+                            getattr(chemistry_plan, "reaction_name", "")
+                            or batch_record.reaction_description
+                            or "Process requirements"
+                        )[:72]
+                    ),
+                    builder=FlowsheetBuilder(),
+                )
+                result["diagnostic_svg_path"] = diagnostic_artifacts["svg_path"]
+                result["diagnostic_png_path"] = diagnostic_artifacts["png_path"]
+                result["diagnostic_diagram_artifacts"] = {
+                    key: value
+                    for key, value in diagnostic_artifacts.items()
+                    if key != "manifest"
+                }
+                result["diagnostic_diagram_render_manifest"] = (
+                    diagnostic_artifacts["manifest"]
+                )
+                logger.info(
+                    "  Diagnostic diagram saved: %s",
+                    diagnostic_artifacts["svg_path"],
+                )
+            except Exception as exc:
+                logger.warning("  Diagnostic diagram generation failed: %s", exc)
+                result["diagnostic_svg_path"] = ""
+                result["diagnostic_png_path"] = ""
+                result["diagnostic_diagram_artifacts"] = {
+                    "render_status": "failed",
+                    "warnings": [str(exc)],
+                }
+    else:
+        logger.info("Step 7: Generating process flow diagram")
+        try:
+            from flora_design.visualizer.flowsheet_builder import FlowsheetBuilder
+
+            if compiled_topology is None:
+                raise RuntimeError("Inventory-compiled topology is unavailable")
+            topology = compiled_topology
+            topology_matches = _topology_matches_serialized_proposal(
+                topology, design_candidate.proposal
+            )
+            if topology_matches:
+                # The inventory-compiled graph is the authoritative process
+                # artifact. Store it before rendering so a Graphviz/PNG failure
+                # cannot erase an otherwise valid executable design.
+                _store_process_topology(result, topology)
+                artifacts = render_topology_artifacts(
+                    topology,
+                    title=(
+                        getattr(chemistry_plan, "reaction_name", "")
+                        or batch_record.reaction_description
+                    )[:90],
+                    builder=FlowsheetBuilder(),
+                )
+                result["svg_path"] = artifacts["svg_path"]
+                result["png_path"] = artifacts["png_path"]
+                result["diagram_artifacts"] = {
+                    key: value for key, value in artifacts.items() if key != "manifest"
+                }
+                result["diagram_render_manifest"] = artifacts["manifest"]
+                logger.info("  Diagram saved: %s", artifacts["svg_path"])
+            else:
+                raise RuntimeError(
+                    "Compiled topology volume does not match the validated proposal"
+                )
+        except Exception as e:
+            logger.warning("  Diagram generation failed: %s", e)
+            result["svg_path"] = ""
+            result["png_path"] = ""
+            result["diagram_artifacts"] = {
+                "render_status": "failed",
+                "warnings": [str(e)],
+            }
+
+    # Every consumer, including the GUI and autosave output, reads this frozen
+    # post-validation contract. Intermediate council/calculator values remain
+    # available for audit but can no longer be presented as run instructions.
+    result["pipeline_runtime"] = runtime.provenance()
+    result["final_design"] = build_final_design_contract(result)
+    publish_final_design_artifacts(result, result["final_design"])
+    if (
+        result["final_design"]["status"] != "executable"
+        and str(result.get("recommended_disposition") or "").upper() != "BLOCK"
+    ):
+        contract_issues = result["final_design"]["consistency"]["issues"]
+        result["recommended_disposition"] = "BLOCK"
+        result["reported_disposition"] = "BLOCK"
+        result["disposition_rationale"] = (
+            "The post-validation final-design contract did not close; do not execute."
         )
-        result["svg_path"] = svg
-        result["png_path"] = png
-        result["process_topology"] = topology.model_dump()
-        if topology.reactor_volume_mL and result.get("proposal"):
-            result["proposal"]["reactor_volume_mL_reported_by_council_mL"] = result["proposal"].get("reactor_volume_mL")
-            result["proposal"]["reactor_volume_mL"] = topology.reactor_volume_mL
-            result["design_calculations"]["stage_corrected_total_reactor_volume_mL"] = topology.reactor_volume_mL
-            if result["design_calculations"].get("is_gas_liquid"):
-                result["design_calculations"]["global_single_zone_reactor_volume_mL"] = result["design_calculations"].get("reactor_volume_mL")
-        logger.info(f"  Diagram saved: {svg}")
-    except Exception as e:
-        logger.warning(f"  Diagram generation failed: {e}")
+        disposition_payload = dict(result.get("design_disposition") or {})
+        disposition_payload.update(
+            {
+                "recommended_disposition": "BLOCK",
+                "rationale": result["disposition_rationale"],
+                "hard_failures": [
+                    {
+                        "finding_id": issue.get("code", "FINAL-CHECK"),
+                        "message": issue.get("message", "Final consistency check failed."),
+                    }
+                    for issue in contract_issues
+                ],
+            }
+        )
+        result["design_disposition"] = disposition_payload
+        if (result.get("process_topology") or {}).get("unit_operations"):
+            result["diagnostic_topology"] = result["process_topology"]
+            result["diagnostic_svg_path"] = result.get("svg_path", "")
+            result["diagnostic_png_path"] = result.get("png_path", "")
+            result["diagnostic_diagram_render_manifest"] = result.get(
+                "diagram_render_manifest", {}
+            )
         result["svg_path"] = ""
         result["png_path"] = ""
-
+        result["process_topology"] = {
+            "topology_id": "blocked",
+            "generation_status": "blocked",
+            "unit_operations": [],
+            "streams": [],
+            "pid_description": "",
+        }
+    logger.info(
+        "Step 8: Final design contract %s",
+        result["final_design"]["status"],
+    )
     logger.info(f"Done — Confidence: {result['confidence']}")
     return result
 

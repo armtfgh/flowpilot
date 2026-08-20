@@ -128,7 +128,12 @@ class TranslationPromptBuilder:
             "the final reactor volume, ID, material, pressure/temperature range, "
             "and light setup. Do not invent a reactor volume outside this list. "
             "Measured evidence in the intake context overrides unsupported model "
-            "inference; chemist hypotheses are hypotheses to test, not facts."
+            "inference; chemist hypotheses are hypotheses to test, not facts. "
+            "For every multistage design, stage_parameters MUST contain one entry "
+            "for every chemistry stage with stage_number, reactor_equipment_id, "
+            "reactor_volume_mL, material, d_mm, temperature_C, residence_time_min, "
+            "and light_equipment_id when light is required. Equipment IDs must be "
+            "copied exactly from inventory. Never describe stage hardware only in prose."
         )
 
         return system, user

@@ -242,9 +242,20 @@ def _apply_removals(topology, remove_ids: set[str]):
         for src in srcs:
             for dst in dsts:
                 sc_counter[0] += 1
+                incoming_phases = {
+                    s.stream_type
+                    for s in streams
+                    if s.to_op == removed_id and s.from_op == src
+                }
+                outgoing_phases = {
+                    s.stream_type
+                    for s in streams
+                    if s.from_op == removed_id and s.to_op == dst
+                }
+                phase = next(iter(outgoing_phases or incoming_phases or {"liquid"}))
                 new_streams.append(StreamConnection(
                     stream_id=f"bypass_{sc_counter[0]}",
-                    from_op=src, to_op=dst, stream_type="liquid",
+                    from_op=src, to_op=dst, stream_type=phase,
                 ))
                 logger.info(f"  Polisher: reconnected {src} → {dst} "
                             f"(bypassing {removed_id})")
@@ -256,7 +267,9 @@ def _apply_removals(topology, remove_ids: set[str]):
     new_topo = copy.copy(topology)
     object.__setattr__(new_topo, "unit_operations", new_ops)
     object.__setattr__(new_topo, "streams", new_streams)
-    return new_topo
+    from flora_translate.topology_semantics import normalize_topology_semantics
+
+    return normalize_topology_semantics(new_topo)
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────

@@ -184,7 +184,7 @@ Return JSON:
     {{"stream_label": "A", "reagents": [], "reasoning": "",
       "molar_equiv": 1.0, "phase": "liquid", "concentration_M": null}}
   ],
-  "_stream_logic_instructions": "For EACH stream entry, fill molar_equiv with the equivalents stated in the protocol relative to the limiting reagent (substrate = 1.0). If the protocol says 'O2, 2.0 equiv' put molar_equiv = 2.0. Fill phase with one of: 'liquid', 'gas', 'solid'. For gas reagents (O2, H2, CO2, etc) ALWAYS extract molar_equiv from the protocol text — do not leave it at the schema default of 1.0 when the protocol specifies otherwise. This field is consumed by the gas-mass-flow calculator and the wrong value causes incorrect MFC setpoints.",
+  "_stream_logic_instructions": "For EACH reagent entry, preserve its own stated equivalents or loading in reagents[].equiv_or_loading; never use one stream-level number as a substitute for multiple reactive components. For EACH stream entry, fill molar_equiv only when it accurately represents the stream's principal reactive component relative to the limiting reagent (substrate = 1.0). Include each reagent's quantity in the stream reagent text, for example 'TBHP (2.0 equiv)' or 'photocatalyst (1 mol%)'. If a reactive component is not quantified in the protocol, explicitly write '(quantity unresolved)' instead of inventing a number. Fill phase with one of: 'liquid', 'gas', 'solid'. For gas reagents (O2, H2, CO2, etc) ALWAYS extract molar_equiv from the protocol text. These fields are consumed by deterministic stoichiometry and release gates.",
   "mixing_order_reasoning": "",
   "incompatible_pairs": [],
   "deoxygenation_required": false,
@@ -205,7 +205,9 @@ Return JSON:
   "confidence_notes": ""
 }}
 
-Think carefully about the mechanism. Name every species explicitly.
+Think carefully about the mechanism. Name every species explicitly and preserve
+the protocol-stated or chemist-confirmed transformation identity. Model inference
+is a hypothesis, not authority; state unresolved identity or quantities clearly.
 For multi-step: the STAGES array is the most important part — get the
 inter-stage connections right (what flows from where into what).
 """
@@ -261,6 +263,8 @@ def _normalize_plan_data(data: dict) -> dict:
         ):
             value = stream.get(field)
             if value is None:
+                if fallback is not None:
+                    stream[field] = fallback
                 continue
             try:
                 stream[field] = float(value)

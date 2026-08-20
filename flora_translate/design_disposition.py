@@ -26,6 +26,7 @@ from flora_translate.schemas import (
     LabInventory,
     ReactorSpec,
 )
+from flora_translate.inventory_constraints import available_pressure_settings
 
 
 BLOCKING_VALIDATION_CHECKS = {
@@ -34,6 +35,8 @@ BLOCKING_VALIDATION_CHECKS = {
     "tubing_feasible",
     "geometry_closure",
     "calculation_matches_serialized_design",
+    "topology_matches_serialized_design",
+    "inventory_topology_assignment_complete",
     "gas_bookkeeping_complete",
 }
 UNAVAILABLE_STATUS_MARKERS = {
@@ -112,6 +115,13 @@ def evaluate_design_disposition(
         _wavelength_failures(proposal, inventory, requirements)
     )
     failures.extend(_pressure_failures(proposal, inventory, requirements))
+    failures.extend(
+        _unconfirmed_pressure_hardware_failures(
+            proposal,
+            inventory,
+            hard_constraints=hard_constraints,
+        )
+    )
     failures.extend(
         _gas_hardware_failures(
             proposal,
@@ -512,10 +522,17 @@ def _pressure_failures(
                 },
             )
         )
-    if (
+    pressure_settings = available_pressure_settings(inventory)
+    continuous_match = bool(
         inventory is not None
-        and inventory.BPR_available
-        and not any(low_value <= value <= high_value for value in inventory.BPR_available)
+        and any(
+            (item.min_pressure_bar is None or high_value >= item.min_pressure_bar)
+            and (item.max_pressure_bar is None or low_value <= item.max_pressure_bar)
+            for item in inventory.pressure_controllers
+        )
+    )
+    if pressure_settings and not continuous_match and not any(
+        low_value <= value <= high_value for value in pressure_settings
     ):
         failures.append(
             GateFinding(
@@ -524,7 +541,7 @@ def _pressure_failures(
                 message="No listed BPR setting satisfies the required pressure range.",
                 evidence={
                     "required_range_bar": [low, high],
-                    "available_BPR_bar": inventory.BPR_available,
+                    "available_BPR_bar": pressure_settings,
                 },
             )
         )
@@ -541,8 +558,20 @@ def _gas_hardware_failures(
     required = list(requirements.required_gases)
     if not required and chemistry_plan is not None and chemistry_plan.o2_is_reagent:
         required = ["O2"]
-    if not required or inventory is None or not inventory.gas_hardware:
+    required.extend(_proposal_required_gases(proposal))
+    required = sorted(set(required))
+    if not required or inventory is None:
         return []
+
+    if not inventory.gas_hardware:
+        return [
+            GateFinding(
+                finding_id="INVENTORY-GAS-HARDWARE-MISSING",
+                category="inventory",
+                message="A gas reagent is required, but no gas-delivery hardware is listed.",
+                evidence={"required_gases": required},
+            )
+        ]
 
     failures = []
     available = [
@@ -600,21 +629,26 @@ def _gas_hardware_failures(
                 )
             )
 
-    mixers = [item for item in available if _is_gas_liquid_mixer(item)]
-    if not mixers:
+    integrated_mixers = [item for item in available if _is_gas_liquid_mixer(item)]
+    declared_mixers = list(inventory.mixers or [])
+    available_mixers = [
+        item for item in declared_mixers if _service_available(item)
+    ]
+    mixers = [*integrated_mixers, *available_mixers]
+    if declared_mixers and not mixers:
         failures.append(
             GateFinding(
                 finding_id="INVENTORY-GAS-LIQUID-MIXER",
                 category="inventory",
-                message="No available certified gas-liquid mixer is listed.",
+                message="Every declared gas-liquid mixer is unavailable.",
                 evidence={
-                    "gas_hardware": [
-                        item.model_dump() for item in inventory.gas_hardware
+                    "mixers": [
+                        item.model_dump() for item in declared_mixers
                     ]
                 },
             )
         )
-    elif not any(
+    elif mixers and not any(
         item.max_pressure_bar is None
         or proposal.BPR_bar <= item.max_pressure_bar + 1e-9
         for item in mixers
@@ -627,7 +661,64 @@ def _gas_hardware_failures(
                 evidence={"pressure_bar": proposal.BPR_bar},
             )
         )
+    # If no mixer item is declared, the topology allocator represents a
+    # generic passive T-mixer as VERIFY-before-run. Absence from an inventory
+    # document is not evidence that this standard fitting is unavailable.
     return failures
+
+
+def _proposal_required_gases(proposal: FlowProposal) -> list[str]:
+    required: list[str] = []
+    for stream in proposal.streams or []:
+        if not (
+            str(stream.phase or "").lower() == "gas"
+            or float(stream.gas_flow_sccm or 0.0) > 0
+        ):
+            continue
+        text = " ".join(
+            [str(stream.pump_role or ""), *(str(item) for item in stream.contents or [])]
+        ).lower()
+        if re.search(r"\b(o2|oxygen)\b|o₂", text):
+            required.append("O2")
+        elif re.search(r"\b(h2|hydrogen)\b|h₂", text):
+            required.append("H2")
+        elif "air" in text:
+            required.append("O2")
+    return required
+
+
+def _unconfirmed_pressure_hardware_failures(
+    proposal: FlowProposal,
+    inventory: LabInventory | None,
+    *,
+    hard_constraints: Any,
+) -> list[GateFinding]:
+    if proposal.BPR_bar <= 0 or inventory is None:
+        return []
+    structured = hard_constraints if isinstance(hard_constraints, dict) else {}
+    bpr_unconfirmed = bool(
+        structured.get("BPR_settings_not_specified_in_source")
+        or structured.get("bpr_settings_not_specified_in_source")
+    )
+    if inventory.BPR_available or inventory.pressure_controllers or not bpr_unconfirmed:
+        return []
+    return [
+        GateFinding(
+            finding_id="INVENTORY-BPR-UNCONFIRMED",
+            category="inventory",
+            message=(
+                f"The candidate requires a {proposal.BPR_bar:g} bar BPR, but the "
+                "inventory source does not confirm any available BPR or pressure setting."
+            ),
+            evidence={
+                "proposal_BPR_bar": proposal.BPR_bar,
+                "available_BPR_bar": inventory.BPR_available,
+                "pressure_controller_ids": [
+                    item.equipment_id for item in inventory.pressure_controllers
+                ],
+            },
+        )
+    ]
 
 
 def _operation_prohibition_failures(
@@ -680,6 +771,17 @@ def _multistage_failures(
         len(chemistry_plan.stages or []),
     )
     if stage_count <= 1 or not inventory.reactors:
+        return []
+    available_reactor_count = sum(
+        int(reactor.quantity)
+        for reactor in inventory.reactors
+        if str(reactor.service_status or "").strip().lower()
+        not in UNAVAILABLE_STATUS_MARKERS
+    )
+    if available_reactor_count >= stage_count:
+        # Distinct reactors connected through a mixer form a valid multistage
+        # topology. The topology allocator separately validates direct serial
+        # coil trains and exact equipment assignments.
         return []
     compatible = [
         reactor

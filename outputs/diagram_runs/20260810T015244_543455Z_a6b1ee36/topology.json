@@ -1,0 +1,224 @@
+{
+  "topology_id": "chemistry_inventory_requirements",
+  "unit_operations": [
+    {
+      "op_id": "st1_feed_1",
+      "op_type": "pump",
+      "label": "Stage 1 liquid feed 1",
+      "parameters": {
+        "phase": "liquid",
+        "contents": [
+          "PMPSCH2TMS (1.0 equiv, 0.1 M)",
+          "Ir(dF(CF3)ppy)2(dtbpy)PF6 (0.5 mol%)",
+          "acrylonitrile (2.0 equiv)"
+        ],
+        "requirement_only": true
+      },
+      "required": true,
+      "rationale": "",
+      "inventory_item_id": null,
+      "inventory_item_ids": [],
+      "instrument_name": "",
+      "inventory_category": "pumps",
+      "assignment_status": "capability_available",
+      "capability_checks": {}
+    },
+    {
+      "op_id": "st1_reactor",
+      "op_type": "photoreactor",
+      "label": "Stage 1: Photoredox Giese radical addition (anaerobic)",
+      "parameters": {
+        "stage_number": 1,
+        "requires_light": true,
+        "target_wavelength_nm": 450.0,
+        "requirement_only": true
+      },
+      "required": true,
+      "rationale": "",
+      "inventory_item_id": null,
+      "inventory_item_ids": [],
+      "instrument_name": "",
+      "inventory_category": "reactors",
+      "assignment_status": "capability_available",
+      "capability_checks": {}
+    },
+    {
+      "op_id": "st1_light",
+      "op_type": "led_module",
+      "label": "Stage 1 light source",
+      "parameters": {
+        "target_wavelength_nm": 450.0,
+        "requirement_only": true
+      },
+      "required": true,
+      "rationale": "",
+      "inventory_item_id": null,
+      "inventory_item_ids": [],
+      "instrument_name": "",
+      "inventory_category": "light_sources",
+      "assignment_status": "capability_available",
+      "capability_checks": {}
+    },
+    {
+      "op_id": "st2_gas_1",
+      "op_type": "mfc",
+      "label": "Stage 2 gas feed",
+      "parameters": {
+        "phase": "gas",
+        "contents": [
+          "O2 (gas, via MFC)"
+        ],
+        "requirement_only": true
+      },
+      "required": true,
+      "rationale": "",
+      "inventory_item_id": null,
+      "inventory_item_ids": [],
+      "instrument_name": "",
+      "inventory_category": "gas_hardware",
+      "assignment_status": "capability_available",
+      "capability_checks": {}
+    },
+    {
+      "op_id": "st2_mixer",
+      "op_type": "mixer",
+      "label": "Stage 2 mixer",
+      "parameters": {
+        "required_inputs": 2,
+        "requirement_only": true,
+        "inventory_status": "confirmation_required",
+        "requirement_id": "REQ-MIXERS"
+      },
+      "required": true,
+      "rationale": "",
+      "inventory_item_id": null,
+      "inventory_item_ids": [],
+      "instrument_name": "",
+      "inventory_category": "mixers",
+      "assignment_status": "confirmation_required",
+      "capability_checks": {}
+    },
+    {
+      "op_id": "st2_reactor",
+      "op_type": "photoreactor",
+      "label": "Stage 2: Aerobic photoredox sulfide-to-sulfoxide oxidation",
+      "parameters": {
+        "stage_number": 2,
+        "requires_light": true,
+        "target_wavelength_nm": 448.0,
+        "requirement_only": true
+      },
+      "required": true,
+      "rationale": "",
+      "inventory_item_id": null,
+      "inventory_item_ids": [],
+      "instrument_name": "",
+      "inventory_category": "reactors",
+      "assignment_status": "capability_available",
+      "capability_checks": {}
+    },
+    {
+      "op_id": "st2_light",
+      "op_type": "led_module",
+      "label": "Stage 2 light source",
+      "parameters": {
+        "target_wavelength_nm": 448.0,
+        "requirement_only": true
+      },
+      "required": true,
+      "rationale": "",
+      "inventory_item_id": null,
+      "inventory_item_ids": [],
+      "instrument_name": "",
+      "inventory_category": "light_sources",
+      "assignment_status": "capability_available",
+      "capability_checks": {}
+    },
+    {
+      "op_id": "outlet_bpr",
+      "op_type": "bpr",
+      "label": "Pressure control",
+      "parameters": {
+        "requirement_only": true
+      },
+      "required": true,
+      "rationale": "",
+      "inventory_item_id": null,
+      "inventory_item_ids": [],
+      "instrument_name": "",
+      "inventory_category": "pressure_controllers",
+      "assignment_status": "capability_available",
+      "capability_checks": {}
+    },
+    {
+      "op_id": "collector",
+      "op_type": "collector",
+      "label": "Collection",
+      "parameters": {
+        "requirement_only": true
+      },
+      "required": true,
+      "rationale": "",
+      "inventory_item_id": null,
+      "inventory_item_ids": [],
+      "instrument_name": "",
+      "inventory_category": "process_endpoint",
+      "assignment_status": "process_endpoint",
+      "capability_checks": {}
+    }
+  ],
+  "streams": [
+    {
+      "stream_id": "req_s1",
+      "from_op": "st1_feed_1",
+      "to_op": "st1_reactor",
+      "stream_type": "liquid",
+      "label": null
+    },
+    {
+      "stream_id": "req_s2",
+      "from_op": "st1_reactor",
+      "to_op": "st2_mixer",
+      "stream_type": "process",
+      "label": null
+    },
+    {
+      "stream_id": "req_s3",
+      "from_op": "st2_gas_1",
+      "to_op": "st2_mixer",
+      "stream_type": "gas",
+      "label": null
+    },
+    {
+      "stream_id": "req_s4",
+      "from_op": "st2_mixer",
+      "to_op": "st2_reactor",
+      "stream_type": "liquid",
+      "label": null
+    },
+    {
+      "stream_id": "req_s5",
+      "from_op": "st2_reactor",
+      "to_op": "outlet_bpr",
+      "stream_type": "liquid",
+      "label": null
+    },
+    {
+      "stream_id": "req_s6",
+      "from_op": "outlet_bpr",
+      "to_op": "collector",
+      "stream_type": "liquid",
+      "label": null
+    }
+  ],
+  "total_flow_rate_mL_min": 0.0,
+  "residence_time_min": 0.0,
+  "reactor_volume_mL": 0.0,
+  "pid_description": "Stage 1 liquid feed 1 -> Stage 1: Photoredox Giese radical addition (anaerobic) -> Stage 2 gas feed -> Stage 2 mixer -> Stage 2: Aerobic photoredox sulfide-to-sulfoxide oxidation -> Pressure control -> Collection",
+  "literature_support": [],
+  "topology_confidence": "HIGH",
+  "compilation_status": "preflight_needs_confirmation",
+  "inventory_schema_version": "",
+  "inventory_sha256": "",
+  "instrument_manifest": []
+}

@@ -14,6 +14,7 @@ from typing import Any
 
 from ablation_test.src.cases import ROOT, load_cases, select_cases
 from ablation_test.src.providers import endpoint_health
+from ablation_test.src.paths import RUNS_ROOT
 from ablation_test.src.runner import execute_cell
 
 
@@ -95,7 +96,7 @@ def main() -> None:
     repeats = args.repeats or config["repeats"][args.profile]
     candidate_budget = args.candidate_budget or config["candidate_budget"]
     stamp = args.output_id or datetime.now().strftime("%Y%m%d_%H%M%S")
-    experiment_dir = ROOT / "runs" / f"{args.profile}_{stamp}"
+    experiment_dir = RUNS_ROOT / f"{args.profile}_{stamp}"
     experiment_dir.mkdir(parents=True, exist_ok=True)
 
     logging.basicConfig(

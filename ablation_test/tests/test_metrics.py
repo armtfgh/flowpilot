@@ -1,7 +1,34 @@
 from pathlib import Path
 
 from ablation_test.src.cases import load_cases
-from ablation_test.src.metrics import score_run
+from ablation_test.src.metrics import _proposal, score_run
+
+
+def test_metrics_use_executable_final_contract_instead_of_intermediate_proposal():
+    result = {
+        "proposal": {"residence_time_min": 99.0, "streams": [{"stream_label": "old"}]},
+        "final_design": {
+            "status": "executable",
+            "parameters": {"residence_time_min": 10.0},
+            "streams": [{"stream_label": "A"}],
+            "stages": [{"stage_number": 1}],
+        },
+    }
+
+    proposal = _proposal(result)
+
+    assert proposal["residence_time_min"] == 10.0
+    assert proposal["streams"] == [{"stream_label": "A"}]
+    assert proposal["stage_parameters"] == [{"stage_number": 1}]
+
+
+def test_metrics_do_not_score_blocked_intermediate_candidate_as_executable():
+    assert _proposal(
+        {
+            "proposal": {"residence_time_min": 99.0},
+            "final_design": {"status": "blocked", "parameters": None},
+        }
+    ) == {}
 
 
 def test_consistent_liquid_geometry_passes(tmp_path: Path):

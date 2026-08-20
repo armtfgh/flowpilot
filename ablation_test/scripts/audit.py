@@ -13,6 +13,7 @@ from ablation_test.src.cases import (
     assert_no_forbidden_cases,
     load_cases,
 )
+from ablation_test.src.paths import RESULTS_ROOT
 
 
 PROJECT_ROOT = ROOT.parent
@@ -103,7 +104,8 @@ def main() -> int:
         "source_manifest": str(manifest_dir / "source_manifest.csv"),
         "passed": not forbidden_hits and not missing_sources,
     }
-    (ROOT / "audit_report.json").write_text(
+    RESULTS_ROOT.mkdir(parents=True, exist_ok=True)
+    (RESULTS_ROOT / "audit_report.json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
@@ -113,4 +115,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

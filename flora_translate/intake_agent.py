@@ -16,6 +16,7 @@ from typing import Any
 import flora_translate.config as cfg
 from flora_translate.config import PROMPTS_DIR
 from flora_translate.engine.llm_agents import call_model_text
+from flora_translate.executable_artifacts import transformation_family
 from flora_translate.schemas import DesignInputPackage, IntakeAnswer, IntakeQuestion
 
 logger = logging.getLogger("flora.intake")
@@ -47,6 +48,23 @@ QUESTION_BANK: dict[str, IntakeQuestion] = {
         expected_format="Short text objective.",
         required=True,
         why_needed="The council ranks candidate designs against this objective.",
+    ),
+    "Q-CHEM-001": IntakeQuestion(
+        question_id="Q-CHEM-001",
+        section="chemistry_identity",
+        question=(
+            "Please confirm the intended reaction transformation. State the "
+            "transformation family and, where known, the substrate, product, "
+            "bond formed, and bond broken."
+        ),
+        expected_format=(
+            "Short text such as 'hydrogenolysis/debenzylation of A to B; C-N "
+            "protecting-group bond broken'."
+        ),
+        required=True,
+        why_needed=(
+            "A model-only chemistry identity cannot authorize an executable design."
+        ),
     ),
     "Q-HIST-001": IntakeQuestion(
         question_id="Q-HIST-001",
@@ -121,6 +139,7 @@ QUESTION_BANK: dict[str, IntakeQuestion] = {
 REQUIRED_READINESS_IDS = {
     "Q-BATCH-001",
     "Q-OBJ-001",
+    "Q-CHEM-001",
     "Q-HIST-001",
     "Q-INV-001",
     "Q-CONSTR-001",
@@ -149,6 +168,8 @@ def intake_context_block(package: DesignInputPackage | dict | None) -> str:
         f"{pkg.objective or '(not provided)'}\n\n"
         "### Protocol facts\n"
         f"{json.dumps(pkg.extracted_batch_fields or {}, indent=2, default=str)}\n\n"
+        "### Frozen chemistry identity\n"
+        f"{json.dumps(pkg.chemistry_identity_confirmation or {}, indent=2, default=str)}\n\n"
         "### Measured evidence / historical data\n"
         f"{_format_any(pkg.historical_data)}\n\n"
         "### Hard constraints / inventory\n"
@@ -214,11 +235,29 @@ class IntakeAgent:
             inventory_constraints=pkg.inventory_constraints,
             hypotheses=list(pkg.hypotheses or []),
             operating_limits=pkg.operating_limits,
+            inventory_profile_snapshot=dict(pkg.inventory_profile_snapshot or {}),
             output_preferences=pkg.output_preferences,
+            chemistry_identity_confirmation=dict(
+                pkg.chemistry_identity_confirmation or {}
+            ),
             question_log=list(pkg.question_log or []),
             answers=merged_answers,
         )
         updated = self._apply_answers(updated)
+        if not updated.chemistry_identity_confirmation:
+            family = transformation_family(updated.raw_protocol)
+            multistep = bool(
+                re.search(
+                    r"(?i)\b(two[- ]stage|multi[- ]step|sequential(?:ly)?|followed by)\b",
+                    updated.raw_protocol,
+                )
+            )
+            if family != "unknown" and not multistep:
+                updated.chemistry_identity_confirmation = {
+                    "transformation_family": family,
+                    "confirmed": True,
+                    "source": "protocol_fact",
+                }
         missing = self._missing_required_ids(updated)
         logged = {q.question_id for q in updated.question_log}
         question_log = list(updated.question_log)
@@ -274,6 +313,17 @@ class IntakeAgent:
         if obj_answer and obj_answer.status == "answered":
             package.objective = str(obj_answer.answer or "").strip()
 
+        chemistry_answer = answer_map.get("Q-CHEM-001")
+        if chemistry_answer and chemistry_answer.status == "answered":
+            answer_text = str(chemistry_answer.answer or "").strip()
+            family = transformation_family(answer_text)
+            package.chemistry_identity_confirmation = {
+                "transformation_family": family,
+                "chemist_description": answer_text,
+                "confirmed": family != "unknown",
+                "source": "chemist_confirmed",
+            }
+
         hist_answer = answer_map.get("Q-HIST-001")
         if hist_answer:
             package.historical_data = None if hist_answer.status == "unavailable" else hist_answer.answer
@@ -309,6 +359,12 @@ class IntakeAgent:
 
         if not package.objective.strip():
             missing.append("Q-OBJ-001")
+
+        identity = package.chemistry_identity_confirmation or {}
+        if not identity.get("confirmed") or transformation_family(
+            str(identity.get("transformation_family") or "")
+        ) == "unknown":
+            missing.append("Q-CHEM-001")
 
         for qid, attr in (
             ("Q-HIST-001", "historical_data"),

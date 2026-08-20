@@ -1,9 +1,10 @@
 import json
 
-from ablation_test.src.cases import ROOT, load_cases_from_path
+from ablation_test.src.cases import load_cases_from_path
+from ablation_test.src.paths import BENCHMARKS_ROOT
 
 
-STUDY_DIR = ROOT / "studies" / "fair_architecture_benchmark_v1_1_20260730"
+STUDY_DIR = BENCHMARKS_ROOT / "fair_architecture_benchmark_v1_1_20260730"
 
 
 def test_stage2_matrix_is_120_cells():

@@ -26,12 +26,19 @@ from ablation_test.src.metrics import (
     score_run,
 )
 from ablation_test.src.runner import write_checksums
+from ablation_test.src.paths import (
+    EXPERT_SCORING_ROOT,
+    FIGURES_ROOT,
+    REPORTS_ROOT,
+    RUNS_ROOT,
+    TABLES_ROOT,
+)
 
 
-TABLES = ROOT / "tables"
-FIGURES = ROOT / "figures"
-REPORTS = ROOT / "reports"
-EXPERT = ROOT / "expert_scoring"
+TABLES = TABLES_ROOT
+FIGURES = FIGURES_ROOT
+REPORTS = REPORTS_ROOT
+EXPERT = EXPERT_SCORING_ROOT
 
 VARIANT_ORDER = [
     "general_one_shot",
@@ -89,7 +96,7 @@ def _flatten(prefix: str, value: Any, output: dict[str, Any]) -> None:
 
 def _load_rows() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for summary_path in sorted((ROOT / "runs").glob("**/run_summary.json")):
+    for summary_path in sorted(RUNS_ROOT.glob("**/run_summary.json")):
         run_dir = summary_path.parent
         summary = json.loads(summary_path.read_text(encoding="utf-8"))
         metrics_path = run_dir / "metrics.json"
@@ -125,7 +132,7 @@ def _load_rows() -> list[dict[str, Any]]:
 
 def _rescore_existing_runs(cases) -> None:
     by_id = {case.case_id: case for case in cases}
-    for result_path in sorted((ROOT / "runs").glob("**/result.json")):
+    for result_path in sorted(RUNS_ROOT.glob("**/result.json")):
         run_dir = result_path.parent
         metadata_path = run_dir / "metadata.json"
         if not metadata_path.exists():
@@ -1418,7 +1425,7 @@ def _write_agent_call_evidence() -> None:
         "completion bodies remain in each run's `llm_events.jsonl`.",
         "",
     ]
-    for event_path in sorted((ROOT / "runs").glob("**/llm_events.jsonl")):
+    for event_path in sorted(RUNS_ROOT.glob("**/llm_events.jsonl")):
         run_dir = event_path.parent
         metadata_path = run_dir / "metadata.json"
         metadata = {}
@@ -1858,12 +1865,12 @@ def main() -> None:
         "report": str(REPORTS / "benchmark_report.md"),
     }
     artifact_inventory = {
-        "run_summary_json": len(list((ROOT / "runs").glob("**/run_summary.json"))),
-        "result_json": len(list((ROOT / "runs").glob("**/result.json"))),
-        "metrics_json": len(list((ROOT / "runs").glob("**/metrics.json"))),
-        "llm_events_jsonl": len(list((ROOT / "runs").glob("**/llm_events.jsonl"))),
-        "prompt_json": len(list((ROOT / "runs").glob("**/prompt.json"))),
-        "checksums": len(list((ROOT / "runs").glob("**/checksums.sha256"))),
+        "run_summary_json": len(list(RUNS_ROOT.glob("**/run_summary.json"))),
+        "result_json": len(list(RUNS_ROOT.glob("**/result.json"))),
+        "metrics_json": len(list(RUNS_ROOT.glob("**/metrics.json"))),
+        "llm_events_jsonl": len(list(RUNS_ROOT.glob("**/llm_events.jsonl"))),
+        "prompt_json": len(list(RUNS_ROOT.glob("**/prompt.json"))),
+        "checksums": len(list(RUNS_ROOT.glob("**/checksums.sha256"))),
         "figures_png": summary["figure_png_count"],
         "figures_pdf": summary["figure_pdf_count"],
         "tables_csv": summary["table_count"],

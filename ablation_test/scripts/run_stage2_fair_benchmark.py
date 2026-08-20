@@ -18,11 +18,17 @@ from typing import Any
 
 from ablation_test.src.cases import ROOT, load_cases_from_path, select_cases
 from ablation_test.src.providers import endpoint_health
+from ablation_test.src.paths import (
+    BENCHMARKS_ROOT,
+    STUDIES_ROOT,
+    resolve_artifact_path,
+)
 from ablation_test.src.runner import execute_cell, write_checksums
 from ablation_test.src.stage1_oracle import score_scenario, write_tree_checksums
 
 
-DEFAULT_STUDY_DIR = ROOT / "studies" / "fair_architecture_benchmark_v1_1_20260730"
+DEFAULT_STUDY_DIR = BENCHMARKS_ROOT / "fair_architecture_benchmark_v1_1_20260730"
+DEFAULT_OUTPUT_DIR = STUDIES_ROOT / "fair_architecture_benchmark_v1_1_20260730"
 BASE_CONFIG_PATH = ROOT / "configs" / "benchmark.json"
 ORACLE_PATH = ROOT / "src" / "stage1_oracle.py"
 LEGACY_SCORER_PATH = ROOT / "src" / "metrics.py"
@@ -232,7 +238,7 @@ def _build_input_audit(
         inventory_hashes: list[str] = []
         scenario_records: list[dict[str, Any]] = []
         for row in scenario_rows:
-            run_dir = Path(row["run_dir"])
+            run_dir = resolve_artifact_path(row["run_dir"])
             public_path = run_dir / "input_public.json"
             inventory_path = run_dir / "input_inventory.json"
             public_hash = _sha256(public_path)
@@ -303,7 +309,9 @@ def _summary(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the fair matched Stage 2 benchmark.")
     parser.add_argument("--study-dir", type=Path, default=DEFAULT_STUDY_DIR)
+    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--condition", action="append", dest="conditions")
+    parser.add_argument("--scenario", action="append", dest="scenarios")
     parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--retry-failed", action="store_true")
@@ -317,21 +325,32 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     study_dir = args.study_dir.resolve()
+    output_dir = args.output_dir.resolve()
     config_path = study_dir / "stage2_config.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
     base_config = json.loads(BASE_CONFIG_PATH.read_text(encoding="utf-8"))
     scenario_path = study_dir / config["scenario_file"]
-    cases = select_cases(
+    configured_cases = select_cases(
         load_cases_from_path(scenario_path),
         config["scenario_ids"],
     )
+    requested_scenarios = args.scenarios or config["scenario_ids"]
+    unknown_scenarios = sorted(
+        set(requested_scenarios) - {case.scenario_id for case in configured_cases}
+    )
+    if unknown_scenarios:
+        raise KeyError(f"Unknown scenarios: {unknown_scenarios}")
+    cases = [
+        case for case in configured_cases
+        if case.scenario_id in set(requested_scenarios)
+    ]
     all_condition_ids = list(config["conditions"])
     condition_ids = args.conditions or all_condition_ids
     unknown = sorted(set(condition_ids) - set(all_condition_ids))
     if unknown:
         raise KeyError(f"Unknown conditions: {unknown}")
 
-    run_root = study_dir / args.output_name
+    run_root = output_dir / args.output_name
     run_root.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
@@ -380,6 +399,7 @@ def main() -> None:
         {
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             "selected_conditions": condition_ids,
+            "selected_scenarios": requested_scenarios,
             "health": health,
         },
     )
@@ -391,8 +411,10 @@ def main() -> None:
             "study_id": config["study_id"],
             "stage": 2,
             "planned_cell_count": (
-                len(all_condition_ids) * len(cases) * int(config["repeats"])
+                len(condition_ids) * len(cases) * int(config["repeats"])
             ),
+            "selected_conditions": condition_ids,
+            "selected_scenarios": requested_scenarios,
             "conditions": config["conditions"],
             "model_bundles": {
                 condition["bundle"]: bundles[condition["bundle"]]

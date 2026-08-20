@@ -31,6 +31,7 @@ def test_intake_agent_generates_stable_fixed_question_ids_without_llm():
     assert set(first.missing_question_ids) <= set(QUESTION_BANK)
     assert first.missing_question_ids == [
         "Q-OBJ-001",
+        "Q-CHEM-001",
         "Q-HIST-001",
         "Q-INV-001",
         "Q-CONSTR-001",
@@ -57,6 +58,10 @@ def test_intake_agent_blocks_until_required_sections_answered_or_unavailable():
     agent = IntakeAgent()
     answers = [
         IntakeAnswer(question_id="Q-OBJ-001", answer="next longer screening design"),
+        IntakeAnswer(
+            question_id="Q-CHEM-001",
+            answer="Oxidation of A to B.",
+        ),
         IntakeAnswer(question_id="Q-HIST-001", answer="Entry 1: tau 35 min, product 10%"),
         IntakeAnswer(question_id="Q-INV-001", status="unavailable"),
         IntakeAnswer(question_id="Q-CONSTR-001", status="unavailable"),
@@ -74,6 +79,32 @@ def test_intake_agent_blocks_until_required_sections_answered_or_unavailable():
     assert package.objective == "next longer screening design"
     assert package.inventory_constraints is None
     assert package.hypotheses == ["Longer residence time may be needed."]
+
+
+def test_intake_requires_chemist_identity_when_protocol_family_is_ambiguous():
+    agent = IntakeAgent()
+    package = agent.analyze(
+        "Compound A was treated with reagent B and afforded compound C.",
+        use_llm=False,
+    )
+
+    assert "Q-CHEM-001" in package.missing_question_ids
+    assert not package.chemistry_identity_confirmation
+
+
+def test_protocol_stated_identity_is_frozen_without_extra_llm_authority():
+    agent = IntakeAgent()
+    package = agent.analyze(
+        "Hydrogenolysis/debenzylation of protected amine A afforded amine B.",
+        use_llm=False,
+    )
+
+    assert "Q-CHEM-001" not in package.missing_question_ids
+    assert package.chemistry_identity_confirmation == {
+        "transformation_family": "hydrogenolysis",
+        "confirmed": True,
+        "source": "protocol_fact",
+    }
 
 
 def test_intake_context_block_preserves_authority_labels():

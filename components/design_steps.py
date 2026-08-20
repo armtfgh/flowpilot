@@ -69,12 +69,12 @@ def render_design_steps(calc_dict: dict, key_prefix: str = "ds"):
     if_analogy = calc_dict.get("if_analogy")
     n_analogy = calc_dict.get("n_analogy_datapoints")
     if any(v is not None for v in (if_used, if_class, if_analogy)):
-        st.markdown("#### Intensification Factor — anchor breakdown")
+        st.markdown("#### Intensification audit")
         a1, a2, a3, a4 = st.columns(4)
         a1.metric(
-            "IF used (τ reduction)",
+            "IF implied by candidate",
             f"{float(if_used):.1f}×" if if_used else "—",
-            help="The intensification factor the council uses to compute the τ ceiling.",
+            help="Batch time divided by this preliminary candidate's residence time. It is not automatically a design constraint.",
         )
         a2.metric(
             "IF class default",
@@ -90,9 +90,9 @@ def render_design_steps(calc_dict: dict, key_prefix: str = "ds"):
         # The calculator stores it indirectly via tau_reduction_target;
         # since design_steps gets the calc dict only, we'll show "see Chemistry tab" here.
         a4.markdown(
-            "**IF limitation-driven**  \n"
-            "Set by batch bottlenecks — see *Intensification Strategy* in the Chemistry tab.",
-            help="Mass transfer / photon penetration / heat removal — each implies a different empirical ceiling. The calculator picks the MAX of all justified anchors.",
+            "**Limitation target**  \n"
+            "A screening hypothesis under evidence-first policy; see the Chemistry tab.",
+            help="This target is enforced only when the configured translation policy is explicit intensification.",
         )
 
     if calc_dict.get("is_gas_liquid"):

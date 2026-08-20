@@ -28,6 +28,19 @@ P_STP_BAR = 1.01325
 T_STP_K = 273.15
 
 
+def available_pressure_settings(inventory: LabInventory | None) -> list[float]:
+    """Return all discrete pressure settings declared by legacy or v3 inventory."""
+
+    if inventory is None:
+        return []
+    values = [float(value) for value in inventory.BPR_available]
+    for controller in inventory.pressure_controllers:
+        if str(controller.service_status).lower() not in {"available", "ready", "in_service", "in service"}:
+            continue
+        values.extend(float(value) for value in controller.setpoints_bar)
+    return sorted(set(values))
+
+
 def inventory_prompt_block(inventory: LabInventory | None) -> str:
     """Return a compact prompt block describing hard inventory constraints."""
 
@@ -35,6 +48,10 @@ def inventory_prompt_block(inventory: LabInventory | None) -> str:
         return "## Lab Inventory\nNo lab inventory was provided."
 
     lines = ["## Lab Inventory - hard constraints"]
+    lines.append(
+        f"Inventory schema: {inventory.schema_version}; deterministic physical "
+        f"assignment: {'required' if inventory.strict_assignment else 'legacy compatibility'}"
+    )
     if inventory.reactors:
         lines.append("Available reactors. Final reactor design must use one of these exactly:")
         for r in inventory.reactors:
@@ -52,9 +69,14 @@ def inventory_prompt_block(inventory: LabInventory | None) -> str:
                 constraints.append(f"lambda {r.wavelength_nm:g} nm")
             if r.intensity_mW_cm2:
                 constraints.append(f"{r.intensity_mW_cm2:g} mW/cm2")
-            lines.append(f"- {label}" + (f" ({'; '.join(constraints)})" if constraints else ""))
-    if inventory.BPR_available:
-        lines.append(f"Available BPR/pressure settings: {inventory.BPR_available} bar")
+            lines.append(
+                f"- [{r.equipment_id}] {label}; quantity={r.quantity}; "
+                f"service={r.service_status}"
+                + (f" ({'; '.join(constraints)})" if constraints else "")
+            )
+    pressure_settings = available_pressure_settings(inventory)
+    if pressure_settings:
+        lines.append(f"Available BPR/pressure settings: {pressure_settings} bar")
     if inventory.pumps:
         lines.append("Available pumps. Final liquid flow must remain within the selected pump range:")
         for pump in inventory.pumps:
@@ -64,9 +86,10 @@ def inventory_prompt_block(inventory: LabInventory | None) -> str:
                 else ""
             )
             lines.append(
-                f"- {pump.name}: {pump.min_flow_rate_mL_min:g}-"
+                f"- [{pump.equipment_id}] {pump.name}: {pump.min_flow_rate_mL_min:g}-"
                 f"{pump.max_flow_rate_mL_min:g} mL/min, max "
-                f"{pump.max_pressure_bar:g} bar{systems}"
+                f"{pump.max_pressure_bar:g} bar; quantity={pump.quantity}; "
+                f"service={pump.service_status}{systems}"
             )
     if inventory.light_sources:
         lines.append("Available light sources:")
@@ -74,7 +97,10 @@ def inventory_prompt_block(inventory: LabInventory | None) -> str:
             detail = f"{src.name}: {src.wavelength_nm:g} nm"
             if src.intensity_mW_cm2:
                 detail += f", {src.intensity_mW_cm2:g} mW/cm2"
-            lines.append(f"- {detail}")
+            lines.append(
+                f"- [{src.equipment_id}] {detail}; quantity={src.quantity}; "
+                f"service={src.service_status}"
+            )
     if inventory.gas_hardware:
         lines.append("Available gas hardware:")
         for item in inventory.gas_hardware:
@@ -90,7 +116,40 @@ def inventory_prompt_block(inventory: LabInventory | None) -> str:
                 details.append(f"max pressure: {item.max_pressure_bar:g} bar")
             details.append(f"service: {item.service_status}")
             label = item.name + (f" ({item.type})" if item.type else "")
-            lines.append(f"- {label}: " + "; ".join(details))
+            lines.append(
+                f"- [{item.equipment_id}] {label}; quantity={item.quantity}: "
+                + "; ".join(details)
+            )
+    process_categories = (
+        ("Mixers", inventory.mixers),
+        ("Pressure controllers", inventory.pressure_controllers),
+        ("Degassers", inventory.degassers),
+        ("Filters", inventory.filters),
+        ("Separators", inventory.separators),
+        ("Connectors", inventory.connectors),
+        ("Temperature controllers", inventory.temperature_controllers),
+        ("Collectors", inventory.collectors),
+        ("Reactor trains", inventory.reactor_trains),
+        ("Safety accessories", inventory.safety_accessories),
+    )
+    for label, items in process_categories:
+        if not items:
+            continue
+        lines.append(f"{label}:")
+        for item in items:
+            details = []
+            for key in (
+                "type", "material", "max_inputs", "setpoints_bar",
+                "max_pressure_bar", "component_reactor_ids", "connector_ids",
+            ):
+                value = getattr(item, key, None)
+                if value not in (None, "", []):
+                    details.append(f"{key}={value}")
+            lines.append(
+                f"- [{item.equipment_id}] {item.name or item.__class__.__name__}; "
+                f"quantity={item.quantity}; service={item.service_status}"
+                + (f"; {', '.join(details)}" if details else "")
+            )
     return "\n".join(lines)
 
 
@@ -367,14 +426,20 @@ def select_reactor_for_proposal(
 ) -> ReactorSpec | None:
     """Choose the closest inventory reactor for a proposal."""
 
-    if not inventory.reactors:
+    available_reactors = [
+        reactor for reactor in inventory.reactors
+        if str(reactor.service_status).lower() in {
+            "available", "ready", "in_service", "in service"
+        }
+    ]
+    if not available_reactors:
         return None
     desired_volume = _first_positive(
         proposal.reactor_volume_mL,
         (proposal.residence_time_min or 0.0) * (proposal.flow_rate_mL_min or 0.0),
-        inventory.reactors[0].volume_mL,
+        available_reactors[0].volume_mL,
     )
-    desired_id = _first_positive(proposal.tubing_ID_mm, inventory.reactors[0].ID_mm)
+    desired_id = _first_positive(proposal.tubing_ID_mm, available_reactors[0].ID_mm)
     desired_temp = _num(proposal.temperature_C, 25.0)
     desired_conc = _num(proposal.concentration_M, 0.1)
     desired_pressure = _num(proposal.BPR_bar, 0.0)
@@ -424,7 +489,7 @@ def select_reactor_for_proposal(
         intensity = float(r.intensity_mW_cm2 or 0.0)
         return (s, -intensity)
 
-    return min(inventory.reactors, key=score)
+    return min(available_reactors, key=score)
 
 
 def _desired_reactor_system(
@@ -672,6 +737,8 @@ def _proposal_has_gas(data: dict[str, Any]) -> bool:
 
 def _is_gas_stream(stream: dict[str, Any]) -> bool:
     phase = str(stream.get("phase") or "").lower()
+    if phase in {"liquid", "solution"}:
+        return False
     if phase == "gas":
         return True
     if stream.get("gas_flow_sccm") is not None or stream.get("gas_flow_actual_mL_min") is not None:
@@ -682,7 +749,10 @@ def _is_gas_stream(stream: dict[str, Any]) -> bool:
     ]).lower()
     if any(w in text for w in ("degassed", "deoxygenated", "solution")):
         return False
-    return bool(re.search(r"\b(o2|oxygen|air|h2|hydrogen|co2|cl2|gas|mfc)\b", text))
+    return bool(
+        re.search(r"\b(o2|oxygen|air|h2|hydrogen|co2|cl2|mfc)\b", text)
+        or re.search(r"\bgas[\s-]+(feed|injection|inlet)\b", text)
+    )
 
 
 def _snap_temperature(value: float, reactor: ReactorSpec) -> float:
@@ -700,13 +770,13 @@ def _snap_pressure(
 ) -> float:
     min_pressure = reactor.min_pressure_bar if reactor.min_pressure_bar is not None else 0.0
     if is_gas_liquid:
-        positive_bprs = [float(p) for p in (inventory.BPR_available or []) if float(p) > 0]
+        positive_bprs = [p for p in available_pressure_settings(inventory) if p > 0]
         if positive_bprs:
             min_pressure = max(min_pressure, min(positive_bprs))
     max_pressure = reactor.max_pressure_bar
     value = _clamp(max(value, min_pressure), min_pressure, max_pressure)
     choices = [
-        float(p) for p in (inventory.BPR_available or [])
+        p for p in available_pressure_settings(inventory)
         if float(p) >= min_pressure and (max_pressure is None or float(p) <= max_pressure)
     ]
     if choices:
@@ -718,18 +788,42 @@ def _pump_for_reactor(reactor: ReactorSpec, inventory: LabInventory) -> PumpSpec
     if not inventory.pumps:
         return None
 
+    available_pumps = [
+        pump for pump in inventory.pumps
+        if str(pump.service_status).lower() in {
+            "available", "ready", "in_service", "in service"
+        }
+    ]
+    if not available_pumps:
+        return None
+
+    compatible_systems = {
+        value.strip().lower()
+        for value in reactor.compatible_systems
+        if value.strip()
+    }
+    if compatible_systems:
+        for pump in available_pumps:
+            pump_systems = {
+                value.strip().lower()
+                for value in pump.compatible_systems
+                if value.strip()
+            }
+            if not pump_systems or compatible_systems.intersection(pump_systems):
+                return pump
+
     system = (reactor.system or "").strip().lower()
     if system:
-        for pump in inventory.pumps:
+        for pump in available_pumps:
             if any(system == candidate.strip().lower() for candidate in pump.compatible_systems):
                 return pump
 
         system_token = system.split()[0]
-        for pump in inventory.pumps:
+        for pump in available_pumps:
             if system_token and system_token in pump.name.lower():
                 return pump
 
-    return inventory.pumps[0]
+    return available_pumps[0]
 
 
 def _pump_payload(pump: PumpSpec | None) -> dict[str, Any] | None:
@@ -756,7 +850,11 @@ def _reactor_label(r: ReactorSpec) -> str:
 
 def _reactor_payload(r: ReactorSpec) -> dict[str, Any]:
     return {
+        "equipment_id": r.equipment_id,
         "name": r.name,
+        "quantity": r.quantity,
+        "service_status": r.service_status,
+        "compatible_systems": r.compatible_systems,
         "system": r.system,
         "type": r.type,
         "material": r.material,
@@ -774,6 +872,55 @@ def _reactor_payload(r: ReactorSpec) -> dict[str, Any]:
         "component_volumes_mL": r.component_volumes_mL,
         "notes": r.notes,
     }
+
+
+def selected_process_systems(
+    proposal: FlowProposal,
+    inventory: LabInventory,
+) -> set[str]:
+    """Return process-system choices supported by the selected reactor.
+
+    ``ReactorSpec.system`` is often a component family (for example, "KHU
+    tubing reactor"), while ``compatible_systems`` names the installations in
+    which that component can run. Equipment matching must use the latter when
+    it is available.
+    """
+
+    selection = proposal.inventory_selection or {}
+    explicit = selection.get("process_system") or selection.get("selected_system")
+    if explicit:
+        values = explicit if isinstance(explicit, list) else [explicit]
+        return {_normalize_system_name(value) for value in values if str(value).strip()}
+
+    selected_id = str(selection.get("equipment_id") or "")
+    selected = next(
+        (item for item in inventory.reactors if item.equipment_id == selected_id),
+        None,
+    )
+    if selected is not None and selected.compatible_systems:
+        return {
+            _normalize_system_name(value)
+            for value in selected.compatible_systems
+            if value.strip()
+        }
+
+    fallback = str(selection.get("system") or "").strip()
+    return {_normalize_system_name(fallback)} if fallback else set()
+
+
+def equipment_system_compatible(item: Any, selected_systems: set[str]) -> bool:
+    """Check whether an inventory item can run in any selected installation."""
+
+    item_systems = {
+        _normalize_system_name(value)
+        for value in getattr(item, "compatible_systems", [])
+        if str(value).strip()
+    }
+    return not item_systems or not selected_systems or bool(item_systems & selected_systems)
+
+
+def _normalize_system_name(value: Any) -> str:
+    return " ".join(str(value).strip().lower().replace("_", " ").split())
 
 
 def _range_penalty(

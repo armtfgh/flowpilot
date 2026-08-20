@@ -1628,6 +1628,11 @@ def run_revision_stage(
     extinction_coeff_M_cm: Optional[float] = None,
     batch_yield_fraction: Optional[float] = None,
     batch_time_min: Optional[float] = None,
+    translation_policy: str = "intensify",
+    measured_evidence_available: bool = False,
+    measured_tau_floor_min: Optional[float] = None,
+    pump_max_flow_mL_min: Optional[float] = None,
+    gas_liquid_max_bpr_bar: float = 50.0,
 ) -> Optional[dict]:
     """Stage 3.5: Revision Agent proposes parameter edits for the council winner.
 
@@ -1751,6 +1756,33 @@ def run_revision_stage(
     else:
         x_target = 0.85  # legacy default when batch yield not provided
     current_tau = float(winner.get("tau_min", 0.0) or 0.0)
+    if (
+        (translation_policy or "").lower() == "evidence_first"
+        and not measured_evidence_available
+        and current_tau > 0
+        and new_tau < current_tau - 1e-6
+    ):
+        logger.warning(
+            "  Stage 3.5 evidence-first guard rejected unsupported tau reduction "
+            "for winner id=%d: %.3f -> %.3f min",
+            cid,
+            current_tau,
+            new_tau,
+        )
+        new_tau = current_tau
+    if (
+        measured_tau_floor_min is not None
+        and measured_tau_floor_min > 0
+        and new_tau < measured_tau_floor_min
+    ):
+        logger.warning(
+            "  Stage 3.5 measured-evidence guard raised tau for winner id=%d: "
+            "%.3f -> %.3f min",
+            cid,
+            new_tau,
+            measured_tau_floor_min,
+        )
+        new_tau = float(measured_tau_floor_min)
     tau_k = float(winner.get("tau_kinetics_min") or new_tau or current_tau or 1.0)
     if new_tau > current_tau + 1e-6 and tau_k > 0:
         # Required τ to hit x_target under first-order kinetics k = -ln(0.1)/tau_k:
@@ -1773,6 +1805,22 @@ def run_revision_stage(
     tau_k   = float(winner.get("tau_kinetics_min") or new_tau)
     IF_used = float(winner.get("IF_used") or 6.0)
     MW      = float(winner.get("assumed_MW") or 250.0)
+    proposed_bpr = float(proposed.get("BPR_bar", winner.get("BPR_bar", 0.0)))
+    proposed_material = proposed.get(
+        "tubing_material",
+        winner.get("tubing_material", "FEP"),
+    )
+    if (
+        abs(new_tau - current_tau) <= 1e-9
+        and abs(new_d - float(winner.get("d_mm") or new_d)) <= 1e-9
+        and abs(proposed_bpr - float(winner.get("BPR_bar", 0.0) or 0.0)) <= 1e-9
+        and proposed_material == winner.get("tubing_material", "FEP")
+    ):
+        logger.info(
+            "  Stage 3.5: all proposed changes were rejected or no-op for winner id=%d",
+            cid,
+        )
+        return None
 
     try:
         from flora_translate.engine.sampling import compute_metrics
@@ -1790,6 +1838,14 @@ def run_revision_stage(
             is_photochem     = is_photochem,
             extinction_coeff_M_cm = extinction_coeff_M_cm,
             tau_source       = "revision_agent_stage_3.5",
+            is_gas_liquid    = is_gas_liquid,
+            BPR_bar           = proposed_bpr,
+            target_gas_equiv_inlet = float(
+                winner.get("target_gas_equiv_inlet") or 1.0
+            ),
+            gas_reagent_fraction = float(
+                winner.get("gas_reagent_fraction") or 1.0
+            ),
         )
     except Exception as e:
         logger.warning("compute_metrics failed during revision: %s — using shallow copy", e)
@@ -1802,8 +1858,8 @@ def run_revision_stage(
     revised["hard_gate_flags"]  = []
     revised["hard_gate_status"] = "PASS"
     # BPR and material are not recomputed by compute_metrics — apply from proposed
-    revised["BPR_bar"]        = float(proposed.get("BPR_bar", winner.get("BPR_bar", 0.0)))
-    revised["tubing_material"]= proposed.get("tubing_material", winner.get("tubing_material", "FEP"))
+    revised["BPR_bar"]        = proposed_bpr
+    revised["tubing_material"]= proposed_material
     # Revision provenance
     revised["revision_applied"]   = True
     revised["revision_rationale"] = revision_data.get("change_rationale", {})
@@ -1818,6 +1874,8 @@ def run_revision_stage(
             is_gas_liquid=is_gas_liquid,
             pump_max_bar=pump_max_bar,
             BPR_bar=float(revised.get("BPR_bar", 0.0)),
+            max_flow_rate_mL_min=pump_max_flow_mL_min,
+            gas_liquid_max_bpr_bar=gas_liquid_max_bpr_bar,
         )
         if not feasible:
             logger.warning(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flora_translate.design_calculator import DesignCalculator
+from flora_translate.design_calculator import DesignCalculator, _extract_gas_equiv
 from flora_translate.chemistry_agent import _normalize_plan_data
 from flora_translate.engine.sampling import L_MAX_BENCH_M, compute_metrics, generate_candidates, hard_filter
 from flora_translate.engine.council_v4.chief import _intensification_feasibility_precheck
@@ -15,6 +15,8 @@ from flora_translate.schemas import (
     BatchRecord,
     ChemistryPlan,
     FlowProposal,
+    LabInventory,
+    PressureControllerSpec,
     ProcessStage,
     StreamAssignment,
     StreamLogic,
@@ -79,6 +81,70 @@ def test_gas_liquid_calculation_corrects_volume_and_adds_o2_metrics():
     assert bprs[-1].parameters["pressure_bar"] >= 5.0
 
 
+def test_liquid_oxidant_does_not_invent_an_air_feed():
+    batch = BatchRecord(
+        reaction_description="TBHP oxidation of benzyl alcohol followed by amidation.",
+        raw_text=(
+            "Benzyl alcohol was oxidized with TBHP, NaBr, and sulfuric acid "
+            "in dioxane before morpholine addition."
+        ),
+        solvent="dioxane",
+        temperature_C=80,
+        reaction_time_h=0.5,
+        concentration_M=0.667,
+        atmosphere=None,
+    )
+    plan = ChemistryPlan(
+        reaction_class="Sequential alcohol oxidation and oxidative amidation",
+        mechanism_type="Bromide-mediated peroxide oxidation",
+        stages=[
+            ProcessStage(
+                stage_number=1,
+                stage_name="Liquid-phase oxidation",
+                atmosphere="Air",
+                feed_streams=[
+                    StreamLogic(
+                        stream_label="A",
+                        reagents=["benzyl alcohol", "TBHP"],
+                        phase="liquid",
+                    )
+                ],
+            )
+        ],
+        stream_logic=[
+            StreamLogic(
+                stream_label="A",
+                reagents=["benzyl alcohol", "TBHP"],
+                phase="liquid",
+            )
+        ],
+    )
+    proposal = FlowProposal(
+        residence_time_min=30,
+        flow_rate_mL_min=0.5,
+        reactor_volume_mL=15,
+        concentration_M=0.667,
+        temperature_C=80,
+        BPR_bar=5,
+        tubing_ID_mm=1.0,
+        streams=[
+            StreamAssignment(
+                stream_label="A",
+                pump_role="liquid oxidation feed",
+                contents=["benzyl alcohol", "TBHP"],
+                solvent="dioxane",
+                phase="liquid",
+            )
+        ],
+    )
+
+    calc = DesignCalculator().run(batch, chemistry_plan=plan, proposal=proposal)
+
+    assert not calc.is_gas_liquid
+    assert calc.gas_flow_sccm == 0
+    assert calc.gas_flow_actual_mL_min == 0
+
+
 def test_o2_mfc_is_recomputed_from_target_equivalents_not_llm_stream_guess():
     batch = BatchRecord(
         reaction_description="THQ aerobic oxidation with O2 (2.0 equiv) in DMSO.",
@@ -135,6 +201,28 @@ def test_o2_mfc_is_recomputed_from_target_equivalents_not_llm_stream_guess():
     assert calc.gas_flow_actual_mL_min > 0.2
     assert proposal.streams[1].gas_flow_sccm > 1.3
     assert proposal.streams[1].molar_equiv == 2.0
+
+
+def test_unstated_air_equivalents_ignore_model_inference():
+    batch = BatchRecord(
+        reaction_description="The solution was exposed to air.",
+        raw_text="The solution was exposed to air and irradiated for 5 min.",
+        atmosphere="air",
+    )
+    plan = ChemistryPlan(
+        reaction_class="aerobic photooxidation",
+        stream_logic=[
+            StreamLogic(
+                stream_label="G",
+                reagents=["air"],
+                phase="gas",
+                reasoning="An inferred feed would provide 1.12 equiv O2.",
+                molar_equiv=5.33,
+            )
+        ],
+    )
+
+    assert _extract_gas_equiv(plan, batch_record=batch) == 1.0
 
 
 def test_exposed_to_air_protocol_triggers_stp_gas_bookkeeping():
@@ -513,7 +601,7 @@ def test_gas_stream_allows_null_solvent_from_llm_json():
     assert proposal.streams[1].phase == "gas"
 
 
-def test_gas_liquid_candidate_metrics_include_holdup_pressure_and_bpr_gate():
+def test_gas_liquid_candidate_metrics_include_holdup_and_high_pressure_warning():
     metrics = compute_metrics(
         tau_min=20.7,
         d_mm=0.5,
@@ -533,7 +621,7 @@ def test_gas_liquid_candidate_metrics_include_holdup_pressure_and_bpr_gate():
     assert metrics["V_R_mL"] > metrics["liquid_holdup_volume_mL"]
     assert metrics["two_phase_multiplier"] > 1.0
     assert metrics["required_bpr_bar"] > 10.0
-    feasible, violations, _ = hard_filter(
+    feasible, violations, warnings = hard_filter(
         metrics,
         is_photochem=True,
         is_gas_liquid=True,
@@ -541,7 +629,123 @@ def test_gas_liquid_candidate_metrics_include_holdup_pressure_and_bpr_gate():
         BPR_bar=7.0,
     )
     assert not feasible
-    assert any("routine gas-liquid ceiling" in v for v in violations)
+    assert not any("gas-service pressure ceiling" in violation for violation in violations)
+    assert any("routine operating range" in warning for warning in warnings)
+
+
+def test_gas_liquid_candidate_rejects_pressure_above_available_ceiling():
+    metrics = compute_metrics(
+        tau_min=10.0,
+        d_mm=1.0,
+        Q_mL_min=0.1,
+        solvent="EtOH",
+        temperature_C=25,
+        concentration_M=0.1,
+        assumed_MW=300.0,
+        IF_used=6.0,
+        tau_kinetics_min=20.0,
+        pump_max_bar=100.0,
+        is_photochem=False,
+        is_gas_liquid=True,
+        BPR_bar=60.0,
+        target_gas_equiv_inlet=1.0,
+        gas_reagent_fraction=1.0,
+    )
+
+    feasible, violations, _ = hard_filter(
+        metrics,
+        is_photochem=False,
+        is_gas_liquid=True,
+        pump_max_bar=100.0,
+        BPR_bar=60.0,
+        gas_liquid_max_bpr_bar=50.0,
+    )
+
+    assert not feasible
+    assert any("available gas-service pressure ceiling" in v for v in violations)
+
+
+def test_pure_hydrogen_basis_uses_less_gas_holdup_than_air_basis():
+    common = dict(
+        tau_min=10.0,
+        d_mm=1.0,
+        Q_mL_min=0.1,
+        solvent="EtOH",
+        temperature_C=25,
+        concentration_M=0.1,
+        assumed_MW=300.0,
+        IF_used=6.0,
+        tau_kinetics_min=20.0,
+        pump_max_bar=50.0,
+        is_photochem=False,
+        is_gas_liquid=True,
+        BPR_bar=10.0,
+    )
+
+    hydrogen = compute_metrics(
+        **common,
+        target_gas_equiv_inlet=1.0,
+        gas_reagent_fraction=1.0,
+    )
+    air = compute_metrics(
+        **common,
+        target_gas_equiv_inlet=1.0,
+        gas_reagent_fraction=0.21,
+    )
+
+    assert hydrogen["gas_holdup"] < air["gas_holdup"]
+    assert hydrogen["gas_flow_actual_mL_min"] < air["gas_flow_actual_mL_min"]
+
+
+def test_candidate_rejects_flow_above_selected_pump_maximum():
+    metrics = compute_metrics(
+        tau_min=2.0,
+        d_mm=1.0,
+        Q_mL_min=11.2,
+        solvent="EtOH",
+        temperature_C=25,
+        concentration_M=0.1,
+        assumed_MW=300.0,
+        IF_used=6.0,
+        tau_kinetics_min=20.0,
+        pump_max_bar=50.0,
+        is_photochem=False,
+    )
+
+    feasible, violations, _ = hard_filter(
+        metrics,
+        is_photochem=False,
+        is_gas_liquid=False,
+        pump_max_bar=50.0,
+        max_flow_rate_mL_min=5.0,
+    )
+
+    assert not feasible
+    assert any("selected pump maximum" in violation for violation in violations)
+
+
+def test_candidate_diagnostics_distinguish_pump_maximum_from_floor():
+    _, infeasible = generate_candidates(
+        tau_center_min=2.0,
+        tau_lit_min=None,
+        solvent="EtOH",
+        temperature_C=25,
+        concentration_M=0.1,
+        assumed_MW=300.0,
+        IF_used=1.0,
+        tau_kinetics_min=2.0,
+        pump_max_bar=50.0,
+        is_photochem=False,
+        is_gas_liquid=False,
+        min_flow_rate_mL_min=0.000001,
+        max_flow_rate_mL_min=0.000001,
+    )
+
+    assert infeasible
+    assert any(
+        "Q_ceiling" in candidate.get("primary_kill_categories", [])
+        for candidate in infeasible
+    )
 
 
 def test_final_bpr_reconciliation_does_not_promote_stale_calculator_bpr():
@@ -558,6 +762,31 @@ def test_final_bpr_reconciliation_does_not_promote_stale_calculator_bpr():
     assert result["proposal"]["BPR_bar"] == 7.0
     assert result["design_calculations"]["bpr_pressure_bar"] == 7.0
     assert "validation warning" in result["design_calculations"]["bpr_reconciliation_note"]
+
+
+def test_final_bpr_reconciliation_uses_declared_inventory_setpoint():
+    result = {
+        "proposal": {"BPR_bar": 2.5},
+        "design_calculations": {
+            "is_gas_liquid": True,
+            "bpr_pressure_bar": 3.0,
+        },
+    }
+    inventory = LabInventory(
+        BPR_available=[1.5, 2.5, 7.0, 16.0],
+        pressure_controllers=[
+            PressureControllerSpec(
+                equipment_id="bpr_7",
+                name="7 bar BPR",
+                setpoints_bar=[7.0],
+            )
+        ],
+    )
+
+    _reconcile_final_bpr(result, inventory=inventory)
+
+    assert result["proposal"]["BPR_bar"] == 7.0
+    assert result["design_calculations"]["bpr_pressure_bar"] == 7.0
 
 
 def test_gas_liquid_candidate_generation_uses_total_tube_volume_basis():
@@ -664,6 +893,34 @@ def test_chemistry_plan_normalization_repairs_nested_stream_numbers():
     assert normalized["stages"][0]["feed_streams"][0]["gas_flow_sccm"] is None
 
 
+def test_chemistry_plan_normalization_repairs_null_stream_equivalents():
+    normalized = _normalize_plan_data({
+        "stream_logic": [
+            {
+                "stream_label": "B",
+                "reagents": ["oxidant"],
+                "molar_equiv": None,
+            }
+        ],
+        "stages": [
+            {
+                "stage_id": 1,
+                "feed_streams": [
+                    {
+                        "stream_label": "C",
+                        "reagents": ["amine"],
+                        "molar_equiv": None,
+                    }
+                ],
+            }
+        ],
+    })
+
+    assert normalized["stream_logic"][0]["molar_equiv"] == 1.0
+    assert normalized["stages"][0]["feed_streams"][0]["molar_equiv"] == 1.0
+    ChemistryPlan(**normalized)
+
+
 def test_skeptic_volume_audit_uses_liquid_holdup_for_gas_liquid():
     errors = _verify_v_r_equals_tau_q([
         {
@@ -719,6 +976,18 @@ def test_final_stream_flowrates_sync_to_authoritative_liquid_q():
     assert streams[1]["flow_rate_mL_min"] == 0.0793
     assert streams[1]["gas_flow_sccm"] == 4.504
     assert holder.proposal.streams[0].flow_rate_mL_min == 0.13397
+
+
+def test_explicit_o2_mfc_stream_overrides_wrong_liquid_phase_tag():
+    stream = StreamAssignment(
+        stream_label="B",
+        pump_role="O2 gas feed via MFC",
+        contents=["O2 gas"],
+        solvent="N/A (gas stream)",
+        phase="liquid",
+    )
+
+    assert DesignCalculator._stream_assignment_is_gas(stream)
 
 
 def test_marginal_intensification_conflict_proceeds_as_screen_required():

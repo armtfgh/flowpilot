@@ -58,6 +58,161 @@ def _coerce_float(value: Any) -> float | None:
     return None
 
 
+_BATCH_NUMERIC_FIELDS = (
+    "catalyst_loading_mol_pct",
+    "temperature_C",
+    "reaction_time_h",
+    "concentration_M",
+    "scale_mmol",
+    "yield_pct",
+    "wavelength_nm",
+)
+_BATCH_TEXT_FIELDS = (
+    "reaction_description",
+    "photocatalyst",
+    "base",
+    "solvent",
+    "light_source",
+    "atmosphere",
+)
+
+
+def _numeric_leaf(value: Any, key_hint: str = "") -> float | None:
+    """Extract one numeric leaf, converting minute-labelled times to hours."""
+
+    if isinstance(value, dict):
+        unit = str(value.get("unit") or value.get("units") or key_hint).lower()
+        for key in ("value", "amount", "time", "duration", "yield", "temperature"):
+            if key in value:
+                number = _coerce_float(value.get(key))
+                if number is not None:
+                    return number / 60.0 if "min" in unit else number
+        return None
+    number = _coerce_float(value)
+    if number is not None and "min" in key_hint.lower():
+        return number / 60.0
+    return number
+
+
+def _structured_numeric(value: Any, field: str) -> float | None:
+    """Reduce occasional LLM object/list values to the scalar BatchRecord schema."""
+
+    scalar = _coerce_float(value)
+    if scalar is not None:
+        return scalar
+    if isinstance(value, list):
+        values = [
+            number
+            for index, item in enumerate(value)
+            if (number := _numeric_leaf(item, f"item_{index}")) is not None
+        ]
+        if not values:
+            return None
+        if field == "reaction_time_h":
+            return sum(values)
+        if field == "yield_pct":
+            return values[-1]
+        return values[0]
+    if not isinstance(value, dict):
+        return None
+
+    normalized = {str(key).strip().lower(): item for key, item in value.items()}
+    priorities = {
+        "reaction_time_h": (
+            "total_h", "total_time_h", "overall_h", "reaction_time_h",
+            "total_hours", "total", "value",
+        ),
+        "yield_pct": (
+            "overall_yield_pct", "final_yield_pct", "isolated_yield_pct",
+            "yield_pct", "overall", "final", "isolated", "value",
+        ),
+        "temperature_C": (
+            "temperature_c", "setpoint_c", "reaction_temperature_c",
+            "step_1_c", "step_1", "value",
+        ),
+        "concentration_M": (
+            "concentration_m", "overall_m", "feed_m", "value",
+        ),
+        "scale_mmol": ("scale_mmol", "total_mmol", "limiting_mmol", "value"),
+        "catalyst_loading_mol_pct": (
+            "catalyst_loading_mol_pct", "loading_mol_pct", "mol_pct", "value",
+        ),
+        "wavelength_nm": ("wavelength_nm", "lambda_nm", "value"),
+    }.get(field, (field.lower(), "value"))
+    for key in priorities:
+        if key not in normalized:
+            continue
+        number = _numeric_leaf(normalized[key], key)
+        if number is not None:
+            return number
+
+    stage_values: list[tuple[int, float]] = []
+    other_values: list[float] = []
+    for key, item in normalized.items():
+        number = _numeric_leaf(item, key)
+        if number is None:
+            continue
+        stage_match = re.search(r"(?:step|stage)[_\s-]*(\d+)", key)
+        if stage_match:
+            stage_values.append((int(stage_match.group(1)), number))
+        elif key not in {"unit", "units"}:
+            other_values.append(number)
+
+    if stage_values:
+        stage_values.sort(key=lambda pair: pair[0])
+        if field == "reaction_time_h":
+            return sum(number for _, number in stage_values)
+        if field == "yield_pct":
+            return stage_values[-1][1]
+        return stage_values[0][1]
+    return other_values[0] if other_values else None
+
+
+def normalize_batch_numeric_fields(data: dict) -> dict:
+    """Return a copy whose BatchRecord numeric fields are scalar or null."""
+
+    normalized = dict(data)
+    for field in _BATCH_NUMERIC_FIELDS:
+        if field in normalized:
+            normalized[field] = _structured_numeric(normalized.get(field), field)
+    return normalized
+
+
+def _structured_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value.strip() or None
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, list):
+        parts = [text for item in value if (text := _structured_text(item))]
+        return "; ".join(parts) or None
+    if isinstance(value, dict):
+        for key in ("value", "name", "identity", "overall", "final"):
+            if key in value and (text := _structured_text(value.get(key))):
+                return text
+        parts = []
+        for key, item in value.items():
+            if str(key).lower() in {"unit", "units"}:
+                continue
+            text = _structured_text(item)
+            if text:
+                parts.append(f"{key}: {text}")
+        return "; ".join(parts) or None
+    return str(value)
+
+
+def normalize_batch_scalar_fields(data: dict) -> dict:
+    """Normalize all scalar BatchRecord fields before Pydantic validation."""
+
+    normalized = normalize_batch_numeric_fields(data)
+    for field in _BATCH_TEXT_FIELDS:
+        if field in normalized:
+            normalized[field] = _structured_text(normalized.get(field))
+    return normalized
+
+
 def _context_slice(text: str, start: int, end: int, radius: int = 48) -> str:
     lo = max(0, start - radius)
     hi = min(len(text), end + radius)
@@ -270,8 +425,34 @@ def infer_batch_concentration_M(
 
 def enrich_batch_record_dict(data: dict, raw_text: str | None) -> dict:
     """Fill a few missing engineering-critical fields deterministically."""
-    enriched = dict(data)
+    enriched = normalize_batch_scalar_fields(data)
     text = raw_text or enriched.get("raw_text") or enriched.get("reaction_description") or ""
+
+    additives = enriched.get("additives")
+    if additives is not None:
+        if not isinstance(additives, list):
+            additives = [additives]
+        normalized_additives: list[str] = []
+        for additive in additives:
+            if isinstance(additive, str):
+                normalized_additives.append(additive)
+                continue
+            if isinstance(additive, dict):
+                identity = next(
+                    (
+                        additive.get(key)
+                        for key in ("name", "reagent", "compound", "additive", "identity")
+                        if additive.get(key)
+                    ),
+                    None,
+                )
+                normalized_additives.append(
+                    str(identity) if identity is not None else str(additive)
+                )
+                continue
+            if additive is not None:
+                normalized_additives.append(str(additive))
+        enriched["additives"] = normalized_additives
 
     if not enriched.get("scale_mmol"):
         inferred_scale = infer_scale_mmol(text, enriched.get("scale_mmol"))

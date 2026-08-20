@@ -135,11 +135,12 @@ def _extract_gas_equiv(
 
     Priority order:
       1. Evidence-calibrated recommendation attached to the proposal.
-      2. ChemistryPlan.stream_logic[gas].molar_equiv (if > 0 and not default 1.0)
+      2. Explicit equivalents in the batch protocol.
       3. Regex extraction from the gas stream's reasoning/reagent text:
          e.g. "O2 gas (2.0 equiv)" → 2.0
-      4. Regex extraction from the batch protocol text.
-      5. The supplied default (typically 1.0 for "stoichiometric").
+      4. Structured stream equivalents, except for non-stoichiometric ambient-air
+         exposure where an inferred equivalent is not physically supported.
+      5. The supplied default (typically 1.0 for a screening basis).
     """
     import re
 
@@ -200,30 +201,6 @@ def _extract_gas_equiv(
         return False
 
     gas_streams = [s for s in streams if _is_gas_stream(s)]
-    if not gas_streams:
-        batch_text = " ".join(
-            str(part or "")
-            for part in (
-                getattr(batch_record, "raw_text", None),
-                getattr(batch_record, "reaction_description", None),
-                getattr(batch_record, "atmosphere", None),
-            )
-        )
-        parsed = _regex_equiv(batch_text)
-        return parsed if parsed is not None else default
-
-    g = gas_streams[0]
-    # 1) explicit molar_equiv field, only if set to something other than the schema default
-    me = getattr(g, "molar_equiv", None)
-    if me is not None and me > 0 and abs(me - 1.0) > 1e-9:
-        return float(me)
-
-    # 2) regex fallback over reagents + reasoning text
-    text = " ".join(getattr(g, "reagents", []) or []) + " " + (getattr(g, "reasoning", "") or "")
-    parsed = _regex_equiv(text)
-    if parsed is not None:
-        return parsed
-
     batch_text = " ".join(
         str(part or "")
         for part in (
@@ -232,12 +209,34 @@ def _extract_gas_equiv(
             getattr(batch_record, "atmosphere", None),
         )
     )
-    parsed = _regex_equiv(batch_text)
+    parsed_batch_equiv = _regex_equiv(batch_text)
+    if parsed_batch_equiv is not None:
+        return parsed_batch_equiv
+
+    ambient_air_exposure = bool(
+        re.search(
+            r"(?:expos(?:ed|ure)\s+to\s+(?:the\s+)?air|open\s+to\s+(?:the\s+)?air|"
+            r"under\s+(?:an?\s+)?air\s+atmosphere)",
+            batch_text,
+            flags=re.IGNORECASE,
+        )
+    )
+    if ambient_air_exposure:
+        return default
+
+    if not gas_streams:
+        return default
+
+    g = gas_streams[0]
+    me = getattr(g, "molar_equiv", None)
+    text = " ".join(getattr(g, "reagents", []) or []) + " " + (getattr(g, "reasoning", "") or "")
+    parsed = _regex_equiv(text)
     if parsed is not None:
         return parsed
 
-    # 3) schema default
-    return float(me) if (me is not None and me > 0) else default
+    if me is not None and me > 0:
+        return float(me)
+    return default
 
 GAS_LIQUID_MIN_BPR_BAR = 3.0
 GAS_LIQUID_ROUTINE_MAX_BPR_BAR = 10.0
@@ -640,7 +639,10 @@ class DesignCalculator:
             or 1.0
         )
         is_photochem = self._is_photochem(proposal, chemistry_plan)
-        if is_photochem and d_init > 1.0:
+        # Preserve standard nominal 0.04-inch inventory tubing (1.016 mm).
+        # Snapping it to a synthetic 1.000 mm ID makes an otherwise valid
+        # physical coil fail the final inventory/calculation closure check.
+        if is_photochem and d_init > 1.05:
             d_init = 1.0  # Beer–Lambert constraint
 
         solvent = getattr(batch_record, "solvent", None)
@@ -655,6 +657,29 @@ class DesignCalculator:
                 T_flow_C = proposal.temperature_C
 
         self._step1(calc, batch_record)
+        if proposal and proposal.temperature_C is not None:
+            flow_temperature_C = float(proposal.temperature_C)
+            if abs(flow_temperature_C - calc.temperature_C) > 1e-12:
+                calc.temperature_C = flow_temperature_C
+                calc.temperature_K = flow_temperature_C + 273.15
+                batch_step = calc.steps[-1]
+                batch_step.values["flow_design_temperature_C"] = flow_temperature_C
+                batch_step.adjustments.append(
+                    "Engineering calculations use the proposal's reactor "
+                    f"temperature ({flow_temperature_C:g} C), while the batch "
+                    "temperature remains protocol evidence."
+                )
+        if proposal and proposal.concentration_M and proposal.concentration_M > 0:
+            flow_concentration = float(proposal.concentration_M)
+            if abs(flow_concentration - calc.concentration_M) > 1e-12:
+                calc.concentration_M = flow_concentration
+                batch_step = calc.steps[-1]
+                batch_step.values["flow_design_concentration_M"] = flow_concentration
+                batch_step.adjustments.append(
+                    "Engineering calculations use the proposal's reactor-feed "
+                    f"concentration ({flow_concentration:g} M), while batch "
+                    "concentration remains protocol evidence."
+                )
         # Step 2: if the council approved a specific τ, use it directly.
         # Otherwise run the kinetics-based estimation from batch data.
         tau_override = target_residence_time_min or (
@@ -748,6 +773,13 @@ class DesignCalculator:
             }
             gas_assigned = False
             for stream in proposal.streams or []:
+                declared_phase = str(stream.phase or "").lower()
+                if declared_phase in {"gas", "gaseous", "vapor", "vapour"} and not (
+                    DesignCalculator._stream_assignment_is_gas(stream)
+                ):
+                    stream.phase = "liquid"
+                    stream.gas_flow_sccm = None
+                    stream.gas_flow_actual_mL_min = None
                 if DesignCalculator._stream_assignment_is_gas(stream):
                     stream.phase = "gas"
                     stream.gas_flow_sccm = round(calc.gas_flow_sccm, 3)
@@ -839,38 +871,54 @@ class DesignCalculator:
             )
             return any(term in stripped for term in contextual)
 
-        oxygen_context_parts = [
+        batch_oxygen_context_parts = [
             str(getattr(batch_record, "reaction_description", "") or ""),
             str(getattr(batch_record, "raw_text", "") or ""),
-            str(getattr(chemistry_plan, "reaction_class", "") or ""),
-            str(getattr(chemistry_plan, "mechanism_type", "") or ""),
+            str(getattr(batch_record, "atmosphere", "") or ""),
         ]
-        oxygen_context = " ".join(oxygen_context_parts).lower()
-        oxygen_is_reagent = bool(
-            getattr(chemistry_plan, "o2_is_reagent", False)
-            or any(
-                marker in oxygen_context
-                for marker in (
-                    "aerobic",
-                    "oxidation",
-                    "oxygen-mediated",
-                    "o2-mediated",
-                    "o₂-mediated",
-                    "photooxygenation",
-                    "autoxidation",
-                    "exposed to air",
-                    "exposure to air",
-                    "oxygen introduced",
-                    "o2 introduced",
-                    "air introduced",
-                    "air feed",
-                    "oxygen feed",
-                    "o2 feed",
-                    "bubble",
-                    "sparge",
+        batch_oxygen_context = " ".join(batch_oxygen_context_parts).lower()
+        explicit_batch_oxygen = (
+            _has_reagent_gas_context(batch_oxygen_context)
+            or bool(
+                re.search(
+                    r"(?:\bair\b|\boxygen\b|(?<![a-z0-9])o2(?![a-z0-9])|o₂)"
+                    r"[^\n]{0,80}(?:equiv|balloon|atm|bar|feed|flow|bubbl|sparg)",
+                    batch_oxygen_context,
                 )
             )
         )
+        explicit_plan_oxygen_stream = any(
+            (str(getattr(stream, "phase", "") or "").lower() == "gas")
+            and bool(
+                re.search(
+                    r"(?:\bair\b|\boxygen\b|(?<![a-z0-9])o2(?![a-z0-9])|o₂)",
+                    " ".join(getattr(stream, "reagents", []) or []).lower(),
+                )
+            )
+            for stream in (getattr(chemistry_plan, "stream_logic", None) or [])
+        )
+        batch_mentions_oxygen = bool(
+            re.search(
+                r"(?:\bair\b|\boxygen\b|(?<![a-z0-9])o2(?![a-z0-9])|o₂)",
+                batch_oxygen_context,
+            )
+        )
+        oxygen_is_reagent = bool(
+            explicit_batch_oxygen
+            or explicit_plan_oxygen_stream
+            or (
+                getattr(chemistry_plan, "o2_is_reagent", False)
+                and batch_mentions_oxygen
+            )
+        )
+
+        # A finalized, explicitly identified gas stream is direct design
+        # evidence and must not depend on narrative keywords in the batch text.
+        if proposal and any(
+            DesignCalculator._stream_assignment_is_gas(stream)
+            for stream in (proposal.streams or [])
+        ):
+            return True
 
         # Check atmosphere field: only reagent gases count
         atm = str(getattr(batch_record, "atmosphere", "") or "").lower().strip()
@@ -920,35 +968,128 @@ class DesignCalculator:
     @staticmethod
     def _stream_assignment_is_gas(stream) -> bool:
         phase = str(getattr(stream, "phase", "") or getattr(stream, "state", "") or "").lower()
-        if phase in {"gas", "gaseous", "vapor", "vapour"}:
-            return True
-        if phase in {"liquid", "solution"}:
-            return False
         solvent = str(getattr(stream, "solvent", "") or "")
-        if solvent:
-            solvent_l = solvent.lower()
-            no_real_solvent = solvent_l.strip() in {"none", "no solvent", "n/a", "na", "null", "gas"}
-            if not no_real_solvent and "gas" not in solvent_l and "vapor" not in solvent_l and "vapour" not in solvent_l:
-                return False
         texts = [
             str(getattr(stream, "pump_role", "") or ""),
             " ".join(str(c) for c in (getattr(stream, "contents", None) or [])),
         ]
         text = " ".join(texts).lower()
-        if any(w in text for w in ("quench", "neutralization", "neutralisation", "workup")):
+        solvent_l = solvent.lower().strip()
+        no_real_solvent = bool(
+            not solvent_l
+            or re.fullmatch(
+                r"(?:none|null|na|no solvent|gas|gas phase|"
+                r"n/?a(?: \((?:gas|gas phase|gas stream)\))?)",
+                solvent_l,
+            )
+        )
+        if not no_real_solvent:
             return False
-        gas_words = (
-            "air", "oxygen", "o2", "o₂", "hydrogen", "h2", "h₂", "co2", "co₂",
-            "carbon monoxide", "syngas", "ethylene", "acetylene", "gas feed",
-            "gas injection", "mfc", "ozone", "o3", "o₃", "chlorine", "cl2", "cl₂",
-            "ammonia", "nh3", "nh₃", "hydrogen chloride", "hcl gas",
-            "sulfur dioxide", "so2", "so₂",
+
+        gas_patterns = (
+            r"\bair\b",
+            r"\boxygen\b",
+            r"(?<![a-z0-9])o2(?![a-z0-9])",
+            r"o₂",
+            r"\bhydrogen\b",
+            r"(?<![a-z0-9])h2(?![a-z0-9])",
+            r"h₂",
+            r"(?<![a-z0-9])co2(?![a-z0-9])",
+            r"co₂",
+            r"\bcarbon monoxide\b",
+            r"\bsyngas\b",
+            r"\bethylene\b",
+            r"\bacetylene\b",
+            r"\bgas[\s-]+feed\b",
+            r"\bgas[\s-]+injection\b",
+            r"\bmfc\b",
+            r"\bozone\b",
+            r"(?<![a-z0-9])o3(?![a-z0-9])",
+            r"o₃",
+            r"\bchlorine\b",
+            r"(?<![a-z0-9])cl2(?![a-z0-9])",
+            r"cl₂",
+            r"\bammonia\b",
+            r"(?<![a-z0-9])nh3(?![a-z0-9])",
+            r"nh₃",
+            r"\bhydrogen chloride\b",
+            r"\bhcl gas\b",
+            r"\bsulfur dioxide\b",
+            r"(?<![a-z0-9])so2(?![a-z0-9])",
+            r"so₂",
         )
         liquid_words = ("solution", "solvent", "in mecn", "in ethanol", "in etoh", "aqueous")
-        return any(w in text for w in gas_words) and not any(w in text for w in liquid_words)
+        has_gas_identity = any(re.search(pattern, text) for pattern in gas_patterns) and not any(
+            w in text for w in liquid_words
+        )
+        if phase in {"gas", "gaseous", "vapor", "vapour"}:
+            # Some model outputs mark every inlet to a gas-liquid mixer as gas.
+            # Require gas identity in the stream itself before trusting that tag.
+            if has_gas_identity:
+                return True
+            return not (texts[0] or texts[1] or solvent)
+        if phase in {"liquid", "solution"}:
+            # A model may mis-tag an explicit cylinder/MFC stream as liquid.
+            # Gas identity plus the absence of a real solvent is stronger
+            # evidence than that phase label.
+            return has_gas_identity and no_real_solvent
+        if any(w in text for w in ("quench", "neutralization", "neutralisation", "workup")):
+            return False
+        return has_gas_identity
 
     @staticmethod
     def _detect_gas_species(batch_record, chemistry_plan, proposal) -> tuple[str, float]:
+        def identify(text: str) -> tuple[str, float] | None:
+            text = text.lower()
+
+            def has_any(*patterns: str) -> bool:
+                return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
+
+            if has_any(r"\bozone\b", r"(?<![A-Za-z0-9])o3(?![A-Za-z0-9])", r"o₃"):
+                return "O3", 1.0
+            if has_any(r"\bsyngas\b"):
+                return "syngas", 0.5
+            if has_any(r"(?<![A-Za-z0-9])co2(?![A-Za-z0-9])", r"co₂", r"\bcarbon dioxide\b"):
+                return "CO2", 1.0
+            if has_any(r"\bcarbon monoxide\b"):
+                return "CO", 1.0
+            if has_any(r"\bhydrogen\b", r"(?<![A-Za-z0-9])h2(?![A-Za-z0-9])", r"h₂"):
+                return "H2", 1.0
+            if has_any(r"\bchlorine\b", r"(?<![A-Za-z0-9])cl2(?![A-Za-z0-9])", r"cl₂"):
+                return "Cl2", 1.0
+            if has_any(r"\bammonia\b", r"(?<![A-Za-z0-9])nh3(?![A-Za-z0-9])", r"nh₃"):
+                return "NH3", 1.0
+            if has_any(r"\bhydrogen chloride\b", r"\bhcl gas\b"):
+                return "HCl", 1.0
+            if has_any(r"\bsulfur dioxide\b", r"(?<![A-Za-z0-9])so2(?![A-Za-z0-9])", r"so₂"):
+                return "SO2", 1.0
+            o2_text = text
+            for term in (
+                "o2-sensitive", "o₂-sensitive", "oxygen-sensitive",
+                "oxygen/moisture-sensitive", "oxygen free", "oxygen-free",
+                "o2-free", "o₂-free",
+            ):
+                o2_text = o2_text.replace(term, "")
+            if any(k in o2_text for k in ("oxygen", "o2", "o₂")):
+                return "O2", 1.0
+            if has_any(r"\bair\b"):
+                return "air", 0.21
+            return None
+
+        # The finalized stream assignment has higher authority than narrative
+        # batch/chemistry text. This prevents an explicit O2 MFC stream from
+        # being reclassified as air because an earlier stage says "air".
+        proposal_texts: list[str] = []
+        if proposal:
+            for stream in proposal.streams or []:
+                if not DesignCalculator._stream_assignment_is_gas(stream):
+                    continue
+                proposal_texts.append(str(stream.pump_role or ""))
+                proposal_texts.extend(str(c) for c in stream.contents or [])
+        proposal_species = identify(" ".join(proposal_texts))
+        if proposal_species is not None:
+            return proposal_species
+
         texts: list[str] = []
         if batch_record:
             texts.append(str(getattr(batch_record, "reaction_description", "") or ""))
@@ -967,48 +1108,7 @@ class DesignCalculator:
             for reagent in chemistry_plan.reagents or []:
                 texts.append(str(reagent.name or ""))
                 texts.append(str(reagent.role or ""))
-        if proposal:
-            for stream in proposal.streams or []:
-                texts.append(str(stream.pump_role or ""))
-                texts.extend(str(c) for c in stream.contents or [])
-        text = " ".join(texts).lower()
-
-        def has_any(*patterns: str) -> bool:
-            return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns)
-
-        # Prioritize explicit reagent gases over incidental sensitivity text
-        # such as "oxygen-sensitive". Put O2 after the specific gases.
-        if has_any(r"\bair\b"):
-            return "air", 0.21
-        if has_any(r"\bozone\b", r"(?<![A-Za-z0-9])o3(?![A-Za-z0-9])", r"o₃"):
-            return "O3", 1.0
-        if has_any(r"\bsyngas\b"):
-            return "syngas", 0.5
-        if has_any(r"(?<![A-Za-z0-9])co2(?![A-Za-z0-9])", r"co₂", r"\bcarbon dioxide\b"):
-            return "CO2", 1.0
-        if has_any(r"\bcarbon monoxide\b"):
-            return "CO", 1.0
-        if has_any(r"\bhydrogen\b", r"(?<![A-Za-z0-9])h2(?![A-Za-z0-9])", r"h₂"):
-            return "H2", 1.0
-        if has_any(r"\bchlorine\b", r"(?<![A-Za-z0-9])cl2(?![A-Za-z0-9])", r"cl₂"):
-            return "Cl2", 1.0
-        if has_any(r"\bammonia\b", r"(?<![A-Za-z0-9])nh3(?![A-Za-z0-9])", r"nh₃"):
-            return "NH3", 1.0
-        if has_any(r"\bhydrogen chloride\b", r"\bhcl gas\b"):
-            return "HCl", 1.0
-        if has_any(r"\bsulfur dioxide\b", r"(?<![A-Za-z0-9])so2(?![A-Za-z0-9])", r"so₂"):
-            return "SO2", 1.0
-        o2_negative = (
-            "o2-sensitive", "o₂-sensitive", "oxygen-sensitive",
-            "oxygen/moisture-sensitive", "oxygen free", "oxygen-free",
-            "o2-free", "o₂-free",
-        )
-        o2_text = text
-        for term in o2_negative:
-            o2_text = o2_text.replace(term, "")
-        if any(k in o2_text for k in ("oxygen", "o2", "o₂")):
-            return "O2", 1.0
-        return "gas", 1.0
+        return identify(" ".join(texts)) or ("gas", 1.0)
 
     def _estimate_gas_context(
         self, calc, Q_liquid_mL_min: float, proposal, is_gas_liquid: bool,
@@ -1421,11 +1521,11 @@ class DesignCalculator:
         if IF_analogy is not None:
             calc.if_analogy = round(IF_analogy, 1)
 
-        # ── Limitation-driven IF (Fix A — read from chemistry plan) ─────
-        # The IntensificationMandate now carries a target derived from the
-        # batch's rate-limiting bottleneck. Use it as a third independent
-        # anchor: a 15-h aerobic photo-ox with mass-transfer + photon
-        # limits CANNOT be merely-2x intensifiable.
+        # ── Limitation-driven IF (read from chemistry plan) ─────────────
+        # Under evidence_first this value is a screening hypothesis only. It
+        # becomes a residence-time anchor exclusively in explicit intensify
+        # mode; otherwise measured evidence and the selected design determine
+        # the realized IF.
         IF_limitation = 0.0
         limitations = []
         if chem_plan is not None:
@@ -1437,11 +1537,7 @@ class DesignCalculator:
             except (AttributeError, TypeError, ValueError):
                 pass
 
-        # ── Choose primary IF (take MAX of justified anchors) ───────────
-        # Each anchor is a *lower bound* on intensification potential
-        # supported by a different line of reasoning. Use the strongest
-        # justification — under-intensifying a long mass-transfer-limited
-        # batch is a known failure mode of the previous averaging logic.
+        # ── Choose primary IF ───────────────────────────────────────────
         anchors: list[tuple[float, str]] = [(IF_class, "class")]
         if IF_analogy and IF_analogy > 0 and analogy_confidence > 0.3:
             anchors.append((IF_analogy, "analogy_weighted"))
@@ -1449,7 +1545,7 @@ class DesignCalculator:
             # Low-confidence analogies still count as a soft signal — blend
             # with class default instead of trusting fully.
             anchors.append(((IF_analogy + IF_class) / 2.0, "analogy_blended"))
-        if IF_limitation > 0:
+        if IF_limitation > 0 and FLOW_TRANSLATION_POLICY == "intensify":
             anchors.append((IF_limitation, "limitation_driven"))
         IF_primary, method = max(anchors, key=lambda pair: pair[0])
         if limitations:

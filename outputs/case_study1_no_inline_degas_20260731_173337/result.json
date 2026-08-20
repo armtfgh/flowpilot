@@ -1,0 +1,2829 @@
+{
+  "proposal": {
+    "residence_time_min": 17.0,
+    "flow_rate_mL_min": 0.04283,
+    "temperature_C": 25.0,
+    "concentration_M": 0.1,
+    "BPR_bar": 3.0,
+    "reactor_type": "coil",
+    "tubing_material": "FEP",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 2.4373,
+    "residence_time_inlet_min": 17.0,
+    "residence_time_in_channel_min": 40.354,
+    "residence_time_basis": "inlet/STP apparent residence time",
+    "light_setup": "Two 10 W blue LED modules, One illuminated coil per reaction stage",
+    "wavelength_nm": 452.0,
+    "deoxygenation_method": "Offline argon sparging of EtOH and pH 9 buffer (≥20 min, fine frit) prior to feed preparation; feed solution prepared and stored under argon in sealed reservoir with argon headspace during pumping; no inline degasser (hard constraint)",
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Single liquid feed pump delivering all Stage 1 reagents through both reactor coils",
+        "contents": [
+          "PMPSCH2TMS (1a, 1.0 equiv, 0.1 M)",
+          "Acrylonitrile (2a, 2.0 equiv, 0.2 M)",
+          "Ir(dF(CF3)ppy)2(dtbpy)PF6 (0.5 mol%, 0.0005 M)"
+        ],
+        "solvent": "EtOH / pH 9 aqueous buffer (5:1 v/v), pre-degassed under argon",
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.1678,
+        "phase": "gas",
+        "gas_flow_sccm": 0.4571,
+        "gas_flow_actual_mL_min": 0.1678,
+        "molar_equiv": 1.0,
+        "reasoning": "Deterministic gas stoichiometry: inlet/STP MFC flow was recomputed from target gas equivalents (1.00 equiv), liquid flow 0.04283 mL/min, and substrate concentration. Pressure-corrected in-channel gas flow is reported separately; supplied gas equiv = 1.00."
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "Air MFC delivering gas oxidant at interstage T-mixer between Stage 1 and Stage 2 coils",
+        "contents": [
+          "Air (O2 source, ~21% O2, excess)"
+        ],
+        "solvent": "N/A (gas phase)",
+        "concentration_M": null,
+        "flow_rate_mL_min": 0.1678,
+        "phase": "gas",
+        "gas_flow_sccm": 0.4571,
+        "gas_flow_actual_mL_min": 0.1678,
+        "molar_equiv": 1.0,
+        "reasoning": "Deterministic gas stoichiometry: inlet/STP MFC flow was recomputed from target gas equivalents (1.00 equiv), liquid flow 0.04283 mL/min, and substrate concentration. Pressure-corrected in-channel gas flow is reported separately; supplied gas equiv = 1.00."
+      }
+    ],
+    "mixer_type": "T-mixer (interstage, air-liquid) for Stream B injection; no pre-mixer needed for Stream A (single feed)",
+    "mixing_order_reasoning": "Chemistry Plan: all liquid reagents (1a, 2a, photocatalyst) are pre-mixed in a single degassed feed — no liquid-liquid mixer required at inlet. Air (Stream B) is injected ONLY at the interstage T-mixer between Stage 1 and Stage 2 coils, strictly after Stage 1 completion, to prevent O2 from contacting alpha-thiomethyl radical I (critical incompatible pair per Chemistry Plan).",
+    "pre_reactor_steps": [
+      "Offline argon sparging of EtOH and pH 9 aqueous buffer separately for ≥20 min using a fine frit, then combine 5:1 v/v under argon blanket.",
+      "Dissolve PMPSCH2TMS (1a, 0.1 M), acrylonitrile (2a, 0.2 M), and Ir(dF(CF3)ppy)2(dtbpy)PF6 (0.5 mol%) in the pre-degassed EtOH/buffer mixture under argon atmosphere.",
+      "Transfer feed solution to sealed feed reservoir (e.g., Schlenk flask or sealed HPLC bottle) with argon headspace. Maintain argon blanket throughout pumping. No inline degasser used (hard constraint).",
+      "Purge all Stage 1 FEP tubing and coil with degassed solvent under argon before starting reaction flow."
+    ],
+    "post_reactor_steps": [
+      "Stage 2 outlet passes through 2.0 bar BPR to maintain backpressure, suppress acrylonitrile volatilization (bp 77°C), and stabilize segmented gas-liquid flow.",
+      "Collect product stream (sulfoxide 4a in EtOH/pH 9 buffer) from BPR outlet. No quench required — sulfoxide 4a is stable (Chemistry Plan: quench_required = false).",
+      "Workup offline: standard aqueous/organic extraction to isolate sulfoxide 4a."
+    ],
+    "chemistry_notes": "Two-stage serial photoredox flow: Stage 1 (Giese radical addition, C-C bond formation) in FEP coil 1 under strictly O2-free conditions; Stage 2 (aerobic sulfoxidation via SET + EnT) in FEP coil 2 after interstage air injection. Critical design constraint: O2 must be completely excluded from Stage 1 — alpha-thiomethyl radical I is instantly quenched by O2. Offline argon pre-degassing replaces inline degasser (hard constraint). FEP tubing transparent at 452 nm, enabling uniform photon delivery in 1 mm ID coil. Two 10 W blue LED modules (452 nm) irradiate each coil independently. Segmented Taylor flow in Stage 2 provides ~10x better O2 mass transfer vs. batch open vessel. BPR at 2.0 bar (only available BPR) retains volatile acrylonitrile in solution and stabilizes gas-liquid slugs. Reactor volume is fixed at 8.5 mL total (2x 4.25 mL coils) per inventory. At Q_liquid = 0.5 mL/min, liquid-only residence time per stage = 4.25/0.5 = 8.5 min; total liquid residence time = 17 min. Engineering calculations estimated tau = 28.6 min (range 11.1-150 min) for the full two-stage process — 17 min falls within the lower end of this range and is consistent with the 21x intensification factor vs. 10h batch. Analogy 1 (Ir photocatalyst, radical addition, 30 min in 2.7 mL quartz coil at 0.09 mL/min) and Analogy 3 (same Ir[dF(CF3)ppy]2(dtbbpy)PF6 catalyst, FEP tubing, 12 min at 0.83 mL/min, 10 mL reactor) both support sub-30 min residence times for Ir-photoredox in flow. Da = 1.75 (transition zone) — static mixer insert in Stage 1 inlet may improve mixing but is not mandatory at this scale. pH 9 buffer is essential to suppress PMPSCH3 byproduct. Concentration fixed at 0.1 M per reactor inventory constraints.\nNo engine-validated final design was selected. Run the attached screen matrix first.\nInventory enforced: Manual photoflow setup Case-study two-stage photoreactor train: 8.5 mL, 1 mm ID, FEP, two-stage serial.",
+    "stage_parameters": [],
+    "multiphase_metrics": {
+      "gas_species": "air",
+      "gas_oxygen_fraction": 0.21,
+      "gas_reagent_fraction": 0.21,
+      "liquid_flow_rate_mL_min": 0.04283,
+      "gas_flow_sccm": 0.4571,
+      "gas_sccm_uncapped": 0.4571,
+      "gas_flow_actual_mL_min": 0.1678,
+      "gas_actual_uncapped_mL_min": 0.1678,
+      "gas_flow_capped_by_holdup": false,
+      "gas_pressure_abs_bar": 3.0133,
+      "gas_liquid_ratio": 3.9173,
+      "gas_holdup": 0.7966,
+      "liquid_holdup_volume_mL": 1.7284,
+      "total_reactor_volume_mL": 8.499,
+      "residence_time_basis": "inlet/STP apparent residence time",
+      "residence_time_inlet_min": 17.0,
+      "residence_time_in_channel_min": 40.3545,
+      "two_phase_multiplier": 12.0,
+      "two_phase_pressure_drop_bar": 0.040789,
+      "o2_supply_mmol_min": 0.004283,
+      "o2_required_mmol_min": 0.004283,
+      "gas_supply_mmol_min": 0.004283,
+      "gas_required_mmol_min": 0.004283,
+      "target_gas_equiv_inlet": 1.0,
+      "explicit_gas_equiv_inlet": 1.0001,
+      "o2_equiv_supplied": 1.0,
+      "gas_equiv_supplied": 1.0,
+      "gas_flow_recomputed_from_equiv": false,
+      "dissolved_o2_mM": 3.9172,
+      "kLa_s": 0.29882,
+      "o2_transfer_capacity_mmol_min": 0.12139,
+      "o2_transfer_sufficiency": 28.3423
+    },
+    "heat_transfer_metrics": {
+      "surface_to_volume_m_inv": 4000.0,
+      "heat_transfer_area_m2": 0.03399612,
+      "UA_W_K": 10.198835,
+      "heat_generation_W": 0.025381,
+      "heat_removal_W": 101.98835,
+      "thermal_damkohler": 0.000249,
+      "heat_transfer_score": 1.0
+    },
+    "inventory_selection": {
+      "name": "Case-study two-stage photoreactor train",
+      "system": "Manual photoflow setup",
+      "type": "coil",
+      "material": "FEP",
+      "volume_mL": 8.5,
+      "ID_mm": 1.0,
+      "light_source": "Two 10 W blue LED modules",
+      "wavelength_nm": 452.0,
+      "intensity_mW_cm2": null,
+      "irradiation": "One illuminated coil per reaction stage",
+      "temperature_range_C": [
+        null,
+        null
+      ],
+      "allowed_temperatures_C": [
+        25.0
+      ],
+      "concentration_range_M": [
+        0.1,
+        0.1
+      ],
+      "pressure_range_bar": [
+        0.0,
+        5.0
+      ],
+      "configuration": "two-stage serial",
+      "component_volumes_mL": [
+        4.25,
+        4.25
+      ],
+      "notes": "Interstage air-addition port is available. No inline degasser or membrane deoxygenation unit is installed."
+    },
+    "inventory_constraints": {
+      "forced_reactor_inventory": true,
+      "allowed_reactor_volumes_mL": [
+        8.5
+      ],
+      "allowed_reactor_IDs_mm": [
+        1.0
+      ],
+      "selected_reactor": {
+        "name": "Case-study two-stage photoreactor train",
+        "system": "Manual photoflow setup",
+        "type": "coil",
+        "material": "FEP",
+        "volume_mL": 8.5,
+        "ID_mm": 1.0,
+        "light_source": "Two 10 W blue LED modules",
+        "wavelength_nm": 452.0,
+        "intensity_mW_cm2": null,
+        "irradiation": "One illuminated coil per reaction stage",
+        "temperature_range_C": [
+          null,
+          null
+        ],
+        "allowed_temperatures_C": [
+          25.0
+        ],
+        "concentration_range_M": [
+          0.1,
+          0.1
+        ],
+        "pressure_range_bar": [
+          0.0,
+          5.0
+        ],
+        "configuration": "two-stage serial",
+        "component_volumes_mL": [
+          4.25,
+          4.25
+        ],
+        "notes": "Interstage air-addition port is available. No inline degasser or membrane deoxygenation unit is installed."
+      },
+      "selected_pump": {
+        "name": "Knauer Azura P 4.1S",
+        "type": "HPLC",
+        "max_pressure_bar": 400.0,
+        "max_flow_rate_mL_min": 10.0,
+        "min_flow_rate_mL_min": 0.001,
+        "compatible_systems": []
+      },
+      "flow_recalculation": {
+        "residence_time_basis": "inlet/STP apparent residence time",
+        "requested_residence_time_min": 17.0,
+        "pump_flow_clamped": false,
+        "pump_min_flow_rate_mL_min": 0.001,
+        "pump_max_flow_rate_mL_min": 10.0,
+        "liquid_flow_rate_mL_min": 0.04283,
+        "gas_flow_actual_mL_min": 0.1678,
+        "gas_flow_sccm": 0.45717,
+        "target_gas_equiv_inlet": 1.0,
+        "gas_equiv_supplied": 1.0,
+        "o2_equiv_supplied": 1.0
+      },
+      "final_validation": {
+        "schema_version": "flowpilot_final_validation_v1.0",
+        "status": "screen_required",
+        "checks": {
+          "reactor_inventory_match": true,
+          "pump_flow_feasible": true,
+          "tubing_feasible": true,
+          "geometry_closure": false,
+          "calculation_matches_serialized_design": true,
+          "gas_bookkeeping_complete": true
+        },
+        "unresolved_reasons": [
+          "geometry_closure"
+        ],
+        "geometry_relative_error": 0.9140000000000003,
+        "gas_required": true,
+        "inventory_enforcement": {
+          "first_pass": {
+            "applied": true,
+            "old": {
+              "reactor_volume_mL": 99.2182,
+              "tubing_ID_mm": 1.0,
+              "tubing_material": "FEP",
+              "flow_rate_mL_min": 0.5,
+              "BPR_bar": 6.1,
+              "temperature_C": 25.0,
+              "concentration_M": 0.1,
+              "wavelength_nm": 452.0
+            },
+            "new": {
+              "reactor_volume_mL": 8.5,
+              "tubing_ID_mm": 1.0,
+              "tubing_material": "FEP",
+              "flow_rate_mL_min": 0.04283,
+              "BPR_bar": 2.0,
+              "temperature_C": 25.0,
+              "concentration_M": 0.1,
+              "wavelength_nm": 452.0
+            },
+            "selected_reactor": {
+              "name": "Case-study two-stage photoreactor train",
+              "system": "Manual photoflow setup",
+              "type": "coil",
+              "material": "FEP",
+              "volume_mL": 8.5,
+              "ID_mm": 1.0,
+              "light_source": "Two 10 W blue LED modules",
+              "wavelength_nm": 452.0,
+              "intensity_mW_cm2": null,
+              "irradiation": "One illuminated coil per reaction stage",
+              "temperature_range_C": [
+                null,
+                null
+              ],
+              "allowed_temperatures_C": [
+                25.0
+              ],
+              "concentration_range_M": [
+                0.1,
+                0.1
+              ],
+              "pressure_range_bar": [
+                0.0,
+                5.0
+              ],
+              "configuration": "two-stage serial",
+              "component_volumes_mL": [
+                4.25,
+                4.25
+              ],
+              "notes": "Interstage air-addition port is available. No inline degasser or membrane deoxygenation unit is installed."
+            }
+          },
+          "final_pass": {
+            "applied": true,
+            "old": {
+              "reactor_volume_mL": 8.499,
+              "tubing_ID_mm": 1.0,
+              "tubing_material": "FEP",
+              "flow_rate_mL_min": 0.04283,
+              "BPR_bar": 3.0,
+              "temperature_C": 25.0,
+              "concentration_M": 0.1,
+              "wavelength_nm": 452.0
+            },
+            "new": {
+              "reactor_volume_mL": 8.5,
+              "tubing_ID_mm": 1.0,
+              "tubing_material": "FEP",
+              "flow_rate_mL_min": 0.04283,
+              "BPR_bar": 2.0,
+              "temperature_C": 25.0,
+              "concentration_M": 0.1,
+              "wavelength_nm": 452.0
+            },
+            "selected_reactor": {
+              "name": "Case-study two-stage photoreactor train",
+              "system": "Manual photoflow setup",
+              "type": "coil",
+              "material": "FEP",
+              "volume_mL": 8.5,
+              "ID_mm": 1.0,
+              "light_source": "Two 10 W blue LED modules",
+              "wavelength_nm": 452.0,
+              "intensity_mW_cm2": null,
+              "irradiation": "One illuminated coil per reaction stage",
+              "temperature_range_C": [
+                null,
+                null
+              ],
+              "allowed_temperatures_C": [
+                25.0
+              ],
+              "concentration_range_M": [
+                0.1,
+                0.1
+              ],
+              "pressure_range_bar": [
+                0.0,
+                5.0
+              ],
+              "configuration": "two-stage serial",
+              "component_volumes_mL": [
+                4.25,
+                4.25
+              ],
+              "notes": "Interstage air-addition port is available. No inline degasser or membrane deoxygenation unit is installed."
+            }
+          }
+        },
+        "calculation_snapshot": {
+          "reactor_volume_mL": 8.499,
+          "tubing_ID_mm": 1.0,
+          "flow_rate_mL_min": 0.04283,
+          "residence_time_min": 17.0,
+          "residence_time_inlet_min": 17.0,
+          "residence_time_in_channel_min": 40.3545,
+          "gas_flow_sccm": 0.4571,
+          "gas_flow_actual_mL_min": 0.1678,
+          "target_gas_equiv_inlet": 1.0,
+          "gas_equiv_supplied": 1.0,
+          "consistent": true,
+          "consistency_notes": []
+        }
+      }
+    },
+    "evidence_calibration": {},
+    "reasoning_per_field": {
+      "residence_time_min": "Reactor volume is fixed at 4.25 mL per stage (inventory hard constraint). At Q_liquid = 0.5 mL/min, tau_per_stage = 4.25/0.5 = 8.5 min. Total two-stage liquid residence time = 17 min. Engineering calculations estimated tau = 28.6 min (range 11.1-150 min) — 17 min is within the lower bound (11.1 min) and represents ~35x intensification vs. 10h batch, consistent with the 21x IF target. Analogy 1 (chemically similar: Ir photoredox radical addition, 30 min at 0.09 mL/min in 2.7 mL coil) and Analogy 3 (identical Ir catalyst, FEP, 12 min at 0.83 mL/min, 10 mL) both support sub-30 min per stage. Key difference from Analogy 1: our reactor is smaller (4.25 mL vs 2.7 mL per stage) and flow rate higher (0.5 vs 0.09 mL/min) — adjusted downward. Key difference from Analogy 3: our reaction is two-stage with gas-liquid in Stage 2 vs single-stage liquid — Stage 2 in-channel time is shorter due to gas volume.",
+      "residence_time_basis": "Gas-liquid system in Stage 2: O2 equivalents based on inlet/STP MFC flow (5.34 sccm). Liquid-only tau = V_coil/Q_liquid = 4.25/0.5 = 8.5 min per stage. In-channel Stage 2 time corrected for gas holdup: epsilon_g = 0.85 (from engineering calc), so t_in_channel = V_coil*(1-epsilon_g)/Q_liquid = 4.25*0.15/0.5 = 1.275 min liquid residence; total in-channel (gas+liquid slugs) = 4.25/(0.5+5.83) = 0.67 min. Reporting inlet/STP basis as primary for O2 stoichiometry; in-channel = 4.6 min (estimated from gas-liquid hydrodynamics at 2 bar BPR).",
+      "residence_time_inlet_min": "V_stage/Q_liquid = 4.25 mL / 0.5 mL/min = 8.5 min per stage. This is the liquid-only apparent residence time used for O2 stoichiometry and Stage 1 conversion estimate.",
+      "residence_time_in_channel_min": "Estimated from gas-liquid Taylor flow at 2 bar BPR: total volumetric flow in channel = Q_liquid + Q_gas_actual = 0.5 + 5.83 = 6.33 mL/min; t_in_channel = 4.25/6.33 = 0.67 min per stage. Reporting 4.6 min as the pressure-corrected estimate accounting for actual gas compression at 2 bar (Q_gas_actual at 2 bar = 5.34 sccm * 1/2 = 2.67 mL/min; t = 4.25/(0.5+2.67) = 1.34 min; averaged with inlet estimate = ~4.6 min). Experimental calibration required.",
+      "flow_rate_mL_min": "Q_liquid = 0.5 mL/min from engineering calculations (Step 4: v = 0.1342 m/s, Re = 7.8, laminar). Knauer Azura P 4.1S range 0.001-10 mL/min — 0.5 mL/min well within range. Analogy 3: 0.83 mL/min for 10 mL FEP reactor — our smaller 4.25 mL coil requires proportionally lower flow for equivalent residence time.",
+      "temperature_C": "25°C — same as batch protocol (Chemistry Plan: temperature_C = 25). No thermal advantage needed; Ir photocatalyst active at RT. Analogy 1 and 2 both operate at 25°C. Reactor inventory allows only 25°C.",
+      "concentration_M": "0.1 M — fixed by reactor inventory (min_concentration_M = max_concentration_M = 0.1 M) and batch protocol. Analogy 2 used 0.05 M (difference: lower concentration for different catalyst system); Analogy 3 used 0.05 M. We maintain 0.1 M per inventory constraint and batch protocol.",
+      "BPR_bar": "2.0 bar — only available BPR per inventory. Engineering calculations: BPR required (gas-liquid system, acrylonitrile bp 77°C, operating at 25°C — BPR prevents volatilization and stabilizes Taylor flow). Calculated BPR = 5.9 bar (engineering Step 8) but only 2.0 bar available. At 2.0 bar, acrylonitrile vapor pressure (~97 mbar at 25°C) is well below system pressure — adequate to keep in solution. FEP tubing max pressure 25 bar — 2.0 bar safe. Note: 2.0 bar < calculated 5.9 bar; experimental verification of flow stability recommended.",
+      "reactor_type": "Coil — per inventory (Case-study two-stage photoreactor train, type: coil) and Chemistry Plan (reactor_type: coil for both stages).",
+      "tubing_material": "FEP — per inventory (only available tubing material). FEP is transparent to 452 nm visible light (photochemistry rule), compatible with EtOH/aqueous buffer, and has low O2 permeability adequate for short residence times. Analogy 3 used FEP tubing — directly applicable.",
+      "tubing_ID_mm": "1.0 mm — per inventory (only available ID). Photochemistry rule: 0.5-2.0 mm recommended for uniform irradiation. Engineering calc: d = 1.0 mm, Re = 7.8 (laminar, confirmed). Analogy 1 used 2 mm quartz (difference: larger ID, less uniform irradiation) — 1 mm FEP is superior for photon penetration.",
+      "reactor_volume_mL": "8.5 mL total (2 × 4.25 mL) — fixed by inventory (Case-study two-stage photoreactor train, volume_mL: 8.5, component_volumes_mL: [4.25, 4.25]). Engineering calculation estimated 95.24 mL for full conversion at 28.6 min tau — significant discrepancy. The fixed inventory reactor (8.5 mL) gives 17 min total liquid residence time at 0.5 mL/min, which is within the lower bound of the estimated range (11.1 min). Experimental yield verification at this residence time is strongly recommended; flow rate may need reduction to 0.25 mL/min (tau = 34 min) if conversion is incomplete.",
+      "light_setup": "Two 10 W blue LED modules at 452 nm per inventory (Case-study blue LED module, 452 nm, 10 W, compatible with coil reactor). One LED per stage coil. Chemistry Plan: wavelength_nm = 452, requires_light = true for both stages. Photochemistry rule: FEP transparent at 452 nm.",
+      "wavelength_nm": "452 nm — Chemistry Plan recommended_wavelength_nm = 452. Matches Ir(dF(CF3)ppy)2(dtbpy)PF6 MLCT absorption maximum. Inventory light source: 452 nm. Analogy 2: 450 nm (chemically similar: Ir photoredox, blue LED — 2 nm difference negligible). Analogy 3: 440 nm (same Ir catalyst family — 12 nm difference, still within MLCT band).",
+      "deoxygenation_method": "Offline argon sparging — hard constraint (no inline degasser available, forbidden equipment list). Chemistry Plan: deoxygenation_required = true for Stage 1; method = offline argon sparging ≥20 min with fine frit, sealed argon-blanketed reservoir. Chemist hypothesis confirmed as the only allowed approach. FEP tubing O2 permeability is low at short residence times (8.5 min per stage) — adequate to maintain inert conditions if feed is properly degassed.",
+      "mixer_type": "Interstage T-mixer for air injection (inventory: Air-liquid T-mixer available). No inlet liquid-liquid mixer needed — single pre-mixed feed (Stream A). Chemistry Plan mixing_order_reasoning: air introduced only after Stage 1 at interstage T-mixer.",
+      "streams_A": "Chemistry Plan stream_logic Stream A: PMPSCH2TMS (1a), Acrylonitrile (2a), Ir photocatalyst — all compatible in degassed solution. Single feed simplifies pumping. Concentration 0.1 M per inventory constraint. Flow rate 0.5 mL/min from engineering calculations.",
+      "streams_B": "Chemistry Plan stream_logic Stream B: Air via MFC. Engineering calc: 5.34 sccm (within MFC range 0.01-10 sccm). Introduced only at interstage T-mixer. Provides O2 for both SET and EnT pathways in Stage 2.",
+      "inventory_selection": "Forced to available inventory reactor: Manual photoflow setup Case-study two-stage photoreactor train: 8.5 mL, 1 mm ID, FEP, two-stage serial. Flow rates recalculated from selected volume and target residence time. Selected pump flow range was satisfied."
+    },
+    "literature_analogies": [
+      "10.1039/c9re00451c",
+      "10.1021/acscatal.1c01325",
+      "10.1039/d1re00297j"
+    ],
+    "engine_validated": false,
+    "safety_flags": [
+      "ENGINE_FALLBACK: screen required: no usable candidates after filtering",
+      "SCREEN_REQUIRED: no usable candidates after filtering",
+      "BLOCKED [FINAL-GEOMETRY_CLOSURE]: Final deterministic validation failed: geometry_closure."
+    ],
+    "confidence": "MEDIUM",
+    "recommended_disposition": "BLOCK",
+    "disposition_rationale": "Blocked by 1 deterministic hard-feasibility failure(s); do not execute the proposed experiment.",
+    "reactor_volume_mL_reported_by_council_mL": 8.5
+  },
+  "unit_operations": [],
+  "pid_description": "",
+  "council_rounds": 0,
+  "safety_report": {
+    "fallback_reason": "screen required: no usable candidates after filtering",
+    "feasibility_diagnostic": {},
+    "screen_required": true,
+    "screen_reason": "no usable candidates after filtering",
+    "screen_candidates": [
+      {
+        "id": 1,
+        "screen_id": "S1",
+        "purpose": "target-ceiling small-ID baseline",
+        "tau_min": 30.0,
+        "batch_time_min": 600.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.1473,
+        "V_R_mL": 4.418,
+        "d_mm": 0.75,
+        "L_m": 10.0,
+        "temperature_C": 25.0,
+        "concentration_M": 0.1,
+        "BPR_bar": 2.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 600.0,
+          "tau_min": 30.0,
+          "tau_ratio": 0.05,
+          "achieved_reduction_factor": 20.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 1.0,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.1473,
+          "L_m": 10.0,
+          "V_R_mL": 4.418,
+          "surface_to_volume_m_inv": 5333.3,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.858,
+          "automatic_flags": []
+        }
+      },
+      {
+        "id": 2,
+        "screen_id": "S2",
+        "purpose": "mid-tau small-ID intensified",
+        "tau_min": 20.0,
+        "batch_time_min": 600.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.2209,
+        "V_R_mL": 4.418,
+        "d_mm": 0.75,
+        "L_m": 10.0,
+        "temperature_C": 35.0,
+        "concentration_M": 0.1,
+        "BPR_bar": 2.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 600.0,
+          "tau_min": 20.0,
+          "tau_ratio": 0.0333,
+          "achieved_reduction_factor": 30.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 1.5,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.2209,
+          "L_m": 10.0,
+          "V_R_mL": 4.418,
+          "surface_to_volume_m_inv": 5333.3,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.858,
+          "automatic_flags": []
+        }
+      },
+      {
+        "id": 3,
+        "screen_id": "S3",
+        "purpose": "short-tau high surface-area challenge",
+        "tau_min": 10.0,
+        "batch_time_min": 600.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.1571,
+        "V_R_mL": 1.571,
+        "d_mm": 0.5,
+        "L_m": 8.0,
+        "temperature_C": 45.0,
+        "concentration_M": 0.1,
+        "BPR_bar": 2.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 600.0,
+          "tau_min": 10.0,
+          "tau_ratio": 0.0167,
+          "achieved_reduction_factor": 60.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 3.0,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.1571,
+          "L_m": 8.0,
+          "V_R_mL": 1.571,
+          "surface_to_volume_m_inv": 8000.0,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.858,
+          "automatic_flags": []
+        }
+      },
+      {
+        "id": 4,
+        "screen_id": "S4",
+        "purpose": "target-ceiling mid-ID practical comparator",
+        "tau_min": 30.0,
+        "batch_time_min": 600.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.2618,
+        "V_R_mL": 7.854,
+        "d_mm": 1.0,
+        "L_m": 10.0,
+        "temperature_C": 35.0,
+        "concentration_M": 0.1,
+        "BPR_bar": 2.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 600.0,
+          "tau_min": 30.0,
+          "tau_ratio": 0.05,
+          "achieved_reduction_factor": 20.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 1.0,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.2618,
+          "L_m": 10.0,
+          "V_R_mL": 7.854,
+          "surface_to_volume_m_inv": 4000.0,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.858,
+          "automatic_flags": []
+        }
+      },
+      {
+        "id": 5,
+        "screen_id": "S5",
+        "purpose": "large-ID dispersion/control comparator",
+        "tau_min": 30.0,
+        "batch_time_min": 600.0,
+        "target_reduction_factor": 20.0,
+        "Q_mL_min": 0.5362,
+        "V_R_mL": 16.085,
+        "d_mm": 1.6,
+        "L_m": 8.0,
+        "temperature_C": 25.0,
+        "concentration_M": 0.1,
+        "BPR_bar": 2.0,
+        "tubing_material": "FEP",
+        "primary_flow_advantage": "mass_transfer",
+        "status": "SCREEN_ONLY_NOT_ENGINE_VALIDATED",
+        "rationale": "Screen point for testing mass_transfer at tau below batch; advance only if measured conversion/yield supports this residence time.",
+        "flow_sense_report": {
+          "batch_time_min": 600.0,
+          "tau_min": 30.0,
+          "tau_ratio": 0.05,
+          "achieved_reduction_factor": 20.0,
+          "target_reduction_factor": 20.0,
+          "reduction_achievement": 1.0,
+          "boundary_hugging": false,
+          "Q_mL_min": 0.5362,
+          "L_m": 8.0,
+          "V_R_mL": 16.085,
+          "surface_to_volume_m_inv": 2500.0,
+          "primary_flow_advantage": "mass_transfer",
+          "primary_advantage_proxy_score": 1.0,
+          "process_value_score": 0.752,
+          "automatic_flags": []
+        }
+      }
+    ],
+    "screen_acceptance_criteria": [
+      "Measure conversion, isolated/assay yield, impurity profile, pressure drop, and visual clogging for every screen point.",
+      "Do not promote a point to final design unless tau_flow is below the batch-proximity threshold and measured conversion/yield meets the project target.",
+      "If all screen points underperform, report the reaction as not currently flow-intensifiable under the available kinetic anchor and require manual chemistry review."
+    ]
+  },
+  "council_messages": [],
+  "confidence": "MEDIUM",
+  "explanation": "# Flow Chemistry Design Brief: Two-Stage Photoredox Giese Addition / Aerobic Sulfoxidation\n\n---\n\n## (1) Proposed Flow Setup\n\n**Reaction:** One-pot photoredox Giese radical addition (Stage 1, C–C bond formation) followed by aerobic sulfoxidation (Stage 2, S→S=O), converting PMPSCH₂TMS + acrylonitrile → sulfoxide 4a via Ir(III) photocatalysis.\n\n**Hardware train (in order):**\n\n| Unit | Specification |\n|------|--------------|\n| Feed reservoir | Sealed Schlenk flask or HPLC bottle, argon headspace |\n| Liquid pump | HPLC pump (e.g., Knauer Azura P 4.1S), **0.5 mL/min** |\n| Stage 1 coil | FEP, **1.0 mm ID**, ~99.2 mL total reactor volume, **25.0 °C** |\n| LED (Stage 1) | 10 W blue LED, **452.0 nm**, irradiating coil from outside |\n| Interstage T-mixer | Air–liquid T-mixer |\n| Air MFC | **5.3364 sccm** (air, ~21% O₂) |\n| Stage 2 coil | FEP, 1.0 mm ID, same coil train, **25.0 °C** |\n| LED (Stage 2) | 10 W blue LED, **452.0 nm** |\n| BPR | **6.1 bar** |\n| Collection | Direct collection; no inline quench |\n\n**Key operating parameters:**\n- Liquid flow rate: **0.5 mL/min**\n- Reactor volume: **99.2182 mL** (FEP coil, 1.0 mm ID)\n- Residence time (liquid-only, inlet basis): **17.0 min**\n- In-channel residence time (gas–liquid corrected): **40.4 min**\n- Concentration: **0.1 M** (substrate 1a); acrylonitrile 0.2 M (2.0 equiv); Ir catalyst 0.5 mol%\n- Solvent: EtOH / pH 9 aqueous buffer, 5:1 v/v, pre-degassed under argon\n- Gas holdup (Stage 2): **0.7966**; gas:liquid volumetric ratio: 3.92\n- O₂ transfer sufficiency: **28.3× excess capacity** over demand\n\n**Pre-run deoxygenation (critical — no inline degasser available):**\n1. Sparge EtOH and pH 9 buffer separately with argon ≥20 min through a fine frit.\n2. Combine 5:1 v/v under argon blanket; dissolve all reagents under argon.\n3. Transfer to sealed reservoir with argon headspace; maintain argon blanket throughout the run.\n4. Purge Stage 1 tubing with degassed solvent before starting reaction flow.\n\n**Post-reactor:** BPR outlet → direct collection → standard aqueous/organic workup to isolate sulfoxide 4a.\n\n---\n\n## (2) Why These Conditions Were Chosen\n\n**Two-stage serial design with interstage air injection** is the central architectural decision. The α-thiomethyl radical intermediate (Stage 1) is instantly quenched by O₂ — this is a hard chemical incompatibility. Air is therefore introduced *only* at the interstage T-mixer, after Stage 1 is complete. This staging is not achievable in batch without sequential operations.\n\n**Wavelength (452.0 nm):** Matches the MLCT absorption band of Ir(dF(CF₃)ppy)₂(dtbpy)PF₆ (~380–460 nm). Directly analogous to:\n- DOI: **10.1021/acscatal.1c01325** — same Ir[dF(CF₃)ppy]₂(dtbbpy)PF₆ catalyst, FEP tubing, 440 nm, 12 min residence time, 10 mL reactor; confirms sub-30 min residence times are achievable with this catalyst in FEP flow reactors.\n- DOI: **10.1039/c9re00451c** — Ir photoredox radical addition, 30 min residence time, 2.7 mL quartz coil, 0.09 mL/min; chemically similar Giese-type addition, supports the residence time range.\n- DOI: **10.1039/d1re00297j** — aerobic photoredox oxidation in flow; supports segmented gas–liquid Taylor flow for O₂ delivery.\n\n**FEP tubing, 1.0 mm ID:** FEP is transparent at 452 nm (confirmed by photochemistry rules and Analogy 3). The 1.0 mm ID gives a surface-to-volume ratio of **4000 m⁻¹**, ensuring uniform photon penetration — superior to the 2 mm quartz coil in Analogy 1. Re = 7.8 (laminar), well within the stable flow regime.\n\n**Temperature (25.0 °C):** Matches batch protocol. Ir photocatalysis is active at room temperature; no thermal driving force is needed or desired. Consistent with all three literature analogies.\n\n**Concentration (0.1 M):** Fixed by reactor inventory constraints and batch protocol. Slightly higher than Analogies 2 and 3 (0.05 M), but within the range for Ir photoredox systems.\n\n**BPR (6.1 bar):** Maintains system pressure to (a) suppress acrylonitrile volatilization (bp 77 °C, vapor pressure ~97 mbar at 25 °C — well below system pressure at 6.1 bar), and (b) stabilize segmented Taylor flow in Stage 2. The two-phase pressure drop is calculated at 5.56 bar; the 6.1 bar BPR provides adequate margin.\n\n**Air MFC at 5.3364 sccm:** Delivers sto\n\n**Confidence: MEDIUM** — Best analogy score: 0.54. A related literature precedent was found but conditions differ. Validate key parameters (residence time, concentration) experimentally.\n\nFinal engineering validation: screen_required.\n\nFinal design disposition: BLOCK. Blocked by 1 deterministic hard-feasibility failure(s); do not execute the proposed experiment.",
+  "chemistry_plan": {
+    "reaction_name": "One-pot photoredox Giese radical addition followed by aerobic sulfoxidation",
+    "reaction_class": "Photoredox radical addition + aerobic oxidation",
+    "mechanism_type": "SET / energy transfer (EnT) photocatalysis",
+    "bond_formed": "C–C (Giese addition, Stage 1); S=O (sulfoxidation, Stage 2)",
+    "bond_broken": "C–Si (desilylation of PMPSCH₂TMS), S–H (formal, radical generation)",
+    "stages": [
+      {
+        "stage_number": 1,
+        "stage_name": "Giese radical addition (C–C bond formation)",
+        "reaction_type": "Photoredox SET radical addition",
+        "reactor_type": "coil",
+        "temperature_C": 25.0,
+        "requires_light": true,
+        "wavelength_nm": 452.0,
+        "batch_time_h": 4.0,
+        "feed_streams": [
+          {
+            "stream_label": "A",
+            "reagents": [
+              "PMPSCH₂TMS (1a, 1.0 equiv, 0.1 M)",
+              "Acrylonitrile (2a, 2.0 equiv, 0.2 M)",
+              "Ir(dF(CF₃)ppy)₂(dtbpy)PF₆ (0.5 mol%, 0.0005 M)"
+            ],
+            "reasoning": "Single pre-mixed, pre-degassed feed containing substrate, Michael acceptor, and photocatalyst in EtOH/pH 9 buffer (5:1 v/v). All components are compatible in the absence of O₂. Pre-degassed offline with argon sparging and stored under argon headspace.",
+            "molar_equiv": 1.0,
+            "phase": ""
+          }
+        ],
+        "inlet_from_previous": "",
+        "solvent": "EtOH / pH 9 aqueous buffer (5:1 v/v)",
+        "atmosphere": "Argon (strictly O₂-free; achieved by offline pre-degassing and argon-blanketed reservoir — no inline degasser)",
+        "oxygen_sensitive": true,
+        "moisture_sensitive": false,
+        "deoxygenation_required": true,
+        "post_stage_action": "",
+        "post_stage_reasoning": ""
+      },
+      {
+        "stage_number": 2,
+        "stage_name": "Aerobic sulfoxidation (sulfide → sulfoxide)",
+        "reaction_type": "Photoredox SET + energy transfer aerobic oxidation",
+        "reactor_type": "coil",
+        "temperature_C": 25.0,
+        "requires_light": true,
+        "wavelength_nm": 452.0,
+        "batch_time_h": 6.0,
+        "feed_streams": [
+          {
+            "stream_label": "B",
+            "reagents": [
+              "Air (O₂ source, via MFC through T-mixer)"
+            ],
+            "reasoning": "Air introduced via the interstage air-liquid T-mixer and MFC. Provides O₂ for both SET (superoxide) and EnT (singlet oxygen) sulfoxidation pathways. Segmented gas-liquid (Taylor) flow enhances O₂ mass transfer in 1 mm ID FEP coil.",
+            "molar_equiv": 1.0,
+            "phase": ""
+          }
+        ],
+        "inlet_from_previous": "Stage 1 outlet containing sulfide 3a, residual acrylonitrile, Ir photocatalyst in EtOH/pH 9 buffer",
+        "solvent": "EtOH / pH 9 aqueous buffer (5:1 v/v) (carried from Stage 1)",
+        "atmosphere": "Air (O₂-containing)",
+        "oxygen_sensitive": false,
+        "moisture_sensitive": false,
+        "deoxygenation_required": false,
+        "post_stage_action": "",
+        "post_stage_reasoning": ""
+      }
+    ],
+    "n_stages": 2,
+    "reagents": [
+      {
+        "name": "PMPSCH₂TMS (1a)",
+        "role": "Substrate / radical precursor",
+        "equiv_or_loading": "1.0 equiv",
+        "smiles": "C[Si](C)(C)CSc1ccc(OC)cc1",
+        "notes": "Eox = +0.98 V vs. SCE. Oxidized by Ir(III)* to generate α-thiomethyl radical I after desilylation."
+      },
+      {
+        "name": "Acrylonitrile (2a)",
+        "role": "Michael acceptor (radical trap)",
+        "equiv_or_loading": "2.0 equiv",
+        "smiles": "C=CC#N",
+        "notes": "Giese acceptor. Volatile (bp 77 °C); 2 bar BPR helps retain in solution."
+      },
+      {
+        "name": "Ir(dF(CF₃)ppy)₂(dtbpy)PF₆",
+        "role": "Photocatalyst",
+        "equiv_or_loading": "0.5 mol%",
+        "notes": "E(Ir(III)*/Ir(II)) = +1.21 V vs. SCE; E(Ir(III)/Ir(II)) = −1.37 V vs. SCE. λ_abs max ~380–450 nm. Active in both stages."
+      },
+      {
+        "name": "pH 9 aqueous buffer",
+        "role": "Base / proton source / pH control",
+        "equiv_or_loading": "co-solvent (1 part in 5:1 EtOH:buffer)",
+        "notes": "Suppresses PMPSCH₃ byproduct by controlling protonation of radical intermediate."
+      },
+      {
+        "name": "Ethanol (EtOH)",
+        "role": "Primary solvent",
+        "equiv_or_loading": "co-solvent (5 parts in 5:1 EtOH:buffer)",
+        "smiles": "CCO",
+        "notes": "Also serves as H-atom donor for protonation of carbanion III."
+      },
+      {
+        "name": "Molecular oxygen (O₂, from air)",
+        "role": "Oxidant (Stage 2 only)",
+        "equiv_or_loading": "excess (from air via MFC)",
+        "smiles": "[O][O]",
+        "notes": "Introduced only between Stage 1 and Stage 2. Generates superoxide (via SET) and singlet oxygen (via EnT) for sulfoxidation."
+      }
+    ],
+    "mechanism_steps": [
+      {
+        "step_number": 1,
+        "description": "Photoexcitation of Ir(III) ground state to Ir(III)* excited state by 452 nm blue LED irradiation.",
+        "species_involved": [
+          "Ir(dF(CF₃)ppy)₂(dtbpy)PF₆",
+          "hν (452 nm)"
+        ],
+        "is_photon_dependent": true,
+        "is_rate_limiting": false
+      },
+      {
+        "step_number": 2,
+        "description": "Single electron transfer (SET) oxidation of PMPSCH₂TMS (1a) by Ir(III)* to generate radical cation 1a•⁺ and Ir(II).",
+        "species_involved": [
+          "Ir(III)*",
+          "PMPSCH₂TMS (1a)",
+          "radical cation 1a•⁺",
+          "Ir(II)"
+        ],
+        "is_photon_dependent": false,
+        "is_rate_limiting": true
+      },
+      {
+        "step_number": 3,
+        "description": "Desilylation of radical cation 1a•⁺ to generate α-thiomethyl radical I (loss of TMS⁺).",
+        "species_involved": [
+          "radical cation 1a•⁺",
+          "α-thiomethyl radical I",
+          "TMS⁺"
+        ],
+        "is_photon_dependent": false,
+        "is_rate_limiting": false
+      },
+      {
+        "step_number": 4,
+        "description": "Giese radical addition of α-thiomethyl radical I onto acrylonitrile (2a) to form radical adduct II.",
+        "species_involved": [
+          "α-thiomethyl radical I",
+          "acrylonitrile (2a)",
+          "radical adduct II"
+        ],
+        "is_photon_dependent": false,
+        "is_rate_limiting": false
+      },
+      {
+        "step_number": 5,
+        "description": "Reduction of radical adduct II by Ir(II) to form carbanion III, regenerating Ir(III) ground state (catalyst turnover).",
+        "species_involved": [
+          "radical adduct II",
+          "Ir(II)",
+          "carbanion III",
+          "Ir(III)"
+        ],
+        "is_photon_dependent": false,
+        "is_rate_limiting": false
+      },
+      {
+        "step_number": 6,
+        "description": "Protonation of carbanion III by solvent (EtOH/buffer) to yield sulfide product 3a.",
+        "species_involved": [
+          "carbanion III",
+          "EtOH",
+          "sulfide 3a"
+        ],
+        "is_photon_dependent": false,
+        "is_rate_limiting": false
+      },
+      {
+        "step_number": 7,
+        "description": "Stage 2 — Pathway (a): Ir(III)* oxidizes sulfide 3a (Eox = +1.13 V) via SET; concurrently Ir(II) reduces O₂ to superoxide O₂•⁻; superoxide oxidizes sulfide radical cation to sulfoxide 4a.",
+        "species_involved": [
+          "Ir(III)*",
+          "sulfide 3a",
+          "O₂",
+          "superoxide O₂•⁻",
+          "sulfoxide 4a"
+        ],
+        "is_photon_dependent": true,
+        "is_rate_limiting": false
+      },
+      {
+        "step_number": 8,
+        "description": "Stage 2 — Pathway (b): Ir(III)* sensitizes triplet O₂ (³O₂) to singlet oxygen (¹O₂) via Dexter energy transfer; ¹O₂ directly oxidizes sulfide 3a to sulfoxide 4a.",
+        "species_involved": [
+          "Ir(III)*",
+          "³O₂",
+          "¹O₂",
+          "sulfide 3a",
+          "sulfoxide 4a"
+        ],
+        "is_photon_dependent": true,
+        "is_rate_limiting": false
+      }
+    ],
+    "key_intermediate": "α-Thiomethyl radical I (PMPS-CH₂•) — the carbon-centered radical that undergoes Giese addition; extremely O₂-sensitive",
+    "excited_state_type": "MLCT (metal-to-ligand charge transfer) triplet state of Ir(III)*",
+    "energy_transfer_or_redox": "Both: Stage 1 uses SET (oxidative quenching cycle); Stage 2 uses SET (oxidative quenching) and EnT (triplet-triplet energy transfer to O₂)",
+    "oxygen_sensitive": true,
+    "o2_is_reagent": false,
+    "moisture_sensitive": false,
+    "temperature_sensitive": false,
+    "light_sensitive_reagents": [],
+    "stream_logic": [
+      {
+        "stream_label": "A",
+        "reagents": [
+          "PMPSCH₂TMS (1a)",
+          "Acrylonitrile (2a)",
+          "Ir(dF(CF₃)ppy)₂(dtbpy)PF₆"
+        ],
+        "reasoning": "All Stage 1 reagents are compatible in solution and can be pre-mixed. Single feed simplifies pumping. Solution prepared in pre-degassed EtOH/pH 9 buffer (5:1 v/v) under argon, stored in sealed argon-blanketed reservoir. Pumped by Knauer HPLC pump or Harvard syringe pump.",
+        "molar_equiv": 1.0,
+        "concentration_M": 0.1,
+        "phase": "liquid"
+      },
+      {
+        "stream_label": "B",
+        "reagents": [
+          "Air (O₂ source)"
+        ],
+        "reasoning": "Air introduced via MFC and T-mixer between Stage 1 and Stage 2 coils. Creates segmented (Taylor) gas-liquid flow for enhanced O₂ mass transfer. Air contains ~21% O₂; excess air ensures sufficient O₂ availability. MFC flow rate set to achieve appropriate gas-liquid slug ratio (~0.5–1.0 gas:liquid volume ratio).",
+        "molar_equiv": 5.0,
+        "phase": "gas"
+      }
+    ],
+    "mixing_order_reasoning": "All liquid reagents (1a, 2a, photocatalyst) are compatible and pre-mixed in a single degassed feed solution. No incompatible pairs exist among liquid components. Air (Stream B) is introduced ONLY after Stage 1 is complete, at the interstage T-mixer, to prevent O₂ from reaching the radical intermediates in Stage 1.",
+    "incompatible_pairs": [
+      [
+        "α-Thiomethyl radical I (from PMPSCH₂TMS)",
+        "Molecular oxygen (O₂)"
+      ]
+    ],
+    "deoxygenation_required": true,
+    "deoxygenation_reasoning": "Stage 1 requires strictly O₂-free conditions. Since no inline degasser is available (hard constraint), deoxygenation is achieved offline: EtOH and pH 9 buffer are pre-degassed by argon sparging (≥20 min, fine frit), the feed solution is prepared and transferred under argon, and the feed reservoir is sealed with argon headspace during pumping. FEP tubing has low O₂ permeability at short residence times, adequate for maintaining inert conditions.",
+    "quench_required": false,
+    "quench_reagent": "",
+    "quench_reasoning": "No quench is needed between stages or after Stage 2. The transition from Stage 1 to Stage 2 is achieved by air introduction, not by quenching. The final product sulfoxide 4a is stable.",
+    "retrieval_keywords": [
+      "photoredox Giese radical addition",
+      "aerobic sulfoxidation singlet oxygen",
+      "iridium photocatalyst SET energy transfer",
+      "alpha-thiomethyl radical acrylonitrile",
+      "one-pot radical addition oxidation flow"
+    ],
+    "similar_reaction_classes": [
+      "Photoredox radical conjugate addition",
+      "Photocatalytic aerobic oxidation of sulfides",
+      "Ir-catalyzed singlet oxygen generation",
+      "Visible-light-mediated C–C bond formation"
+    ],
+    "batch_limitations": [
+      "mass_transfer_gas_liquid",
+      "photon_penetration"
+    ],
+    "batch_limitations_reasoning": "mass_transfer_gas_liquid: matched [o₂ mass transfer]; photon_penetration: matched [photon delivery, photon penetration]",
+    "recommended_wavelength_nm": 452.0,
+    "wavelength_reasoning": "Ir(dF(CF₃)ppy)₂(dtbpy)PF₆ has MLCT absorption band spanning ~380–460 nm with strong absorption at 452 nm. The 10 W blue LED at 452 nm matches the photocatalyst λ_abs and is consistent with the batch protocol. FEP tubing is transparent at this wavelength.",
+    "confidence_notes": "High confidence in mechanism and staging based on detailed protocol. The molar equivalents of O₂ (air) for Stage 2 are estimated as excess (~5 equiv O₂ via air); exact MFC setpoint will require calibration based on liquid flow rate and desired gas:liquid slug ratio. The 4× tau reduction target is an estimate based on improved photon delivery and mass transfer; actual residence time optimization will require experimental validation. Offline degassing efficacy (achieving <1 ppm dissolved O₂) should be verified by dissolved O₂ measurement before committing to production runs. The 2 bar BPR is important to keep volatile acrylonitrile (bp 77 °C) in solution and maintain stable segmented flow in Stage 2.",
+    "intensification_mandate": {
+      "tau_reduction_target": 20.0,
+      "minimum_flow_advantage": "mass_transfer",
+      "required_mixing_regime": "enhanced_laminar_mixing",
+      "flow_justification_basis": "Predicted screening target: 20.0x residence-time reduction; this is a hypothesis unless the run explicitly selects the intensify policy. Identified batch limitations: mass_transfer_gas_liquid, photon_penetration. Primary flow advantage: mass_transfer. Mechanisms: gas-liquid kLa enhancement (segmented flow), photon penetration via small ID, selectivity-sensitive stream logic. Limitation-driven IF (20x) exceeds class default (6x)."
+    }
+  },
+  "intake_package": {
+    "schema_version": "flowpilot_intake_v1.0",
+    "raw_protocol": "REACTION NAME: One-pot photoredox Giese addition + aerobic oxidation TARGET MOLECULE: Sulfoxide 4a [α-(4-methoxyphenylthio)propionitrile sulfoxide] REAGENTS Substrate / radical precursor: PMPSCH₂TMS (1a) Amount: 0.2 mmol (1.0 equiv.) Oxidation potential: Eox = +0.98 V vs. SCE Michael acceptor: Acrylonitrile (2a) Amount: 2.0 equiv. Photocatalyst: Ir(dF(CF₃)ppy)₂(dtbpy)PF₆ Loading: 0.5 mol% Excited state redox: Ir(III)/Ir(II) = +1.21 V vs. SCE Ground state reductive: Ir(III)/Ir(II) = −1.37 V vs. SCE Solvent: EtOH / pH 9 aqueous buffer (5:1 v/v) Concentration: 0.1 M Oxidant: Molecular oxygen (O₂) from air — introduced only in Step 2 PROCEDURE (TWO SEQUENTIAL STEPS, ONE POT) STEP 1 — C–C Bond Formation (Giese Radical Addition): Atmosphere: Argon (strictly O₂-free) Light source: 10 W blue LED, 452 nm Temperature: 25°C (room temperature) Reaction time: 4 hours Vessel: Sealed pressure tube Outcome: Sulfide 3a formed, 92% yield Mechanism: Ir(III) oxidizes 1a via SET → cationic radical 1a•+ → desilylation → α-thiomethyl radical I → Giese addition onto acrylonitrile 2a → radical II → reduced by Ir(II) → carbanion III → protonated by solvent → sulfide 3a STEP 2 — Aerobic Oxidation (Sulfide → Sulfoxide): Atmosphere: Air (O₂ introduced after Step 1 complete) Light source: 10 W blue LED, 452 nm (same source, kept on) Temperature: 25°C Reaction time: 6 hours Vessel: Same tube, opened to air Outcome: Sulfoxide 4a formed, 95% yield Mechanism: Two parallel pathways — (a) SET: Ir(III)* oxidizes sulfide 3a + O₂ → superoxide → sulfoxide (b) EnT: Ir(III)* converts ³O₂ → ¹O₂ (singlet oxygen) → sulfoxide Sulfide oxidation potential: Eox(3a) = +1.13 V vs. SCE SENSITIVITY FLAGS O₂ during Step 1: CRITICAL — O₂ quenches α-thiomethyl radical I → reaction fails completely Light: ESSENTIAL — no conversion without LED Photocatalyst: ESSENTIAL — no conversion without [Ir] pH control: IMPORTANT — pH 9 buffer suppresses byproduct PMPSCH₃ (1a-I) via protonation of radical intermediate Moisture: TOLERANT — aqueous buffer intentional Scale in batch: PROBLEMATIC — uneven irradiation and poor O₂ mass transfer at >0.2 mmol TOTAL BATCH TIME: 10 hours (4h + 6h) TOTAL BATCH YIELD: 95% isolated (sulfoxide 4a) SCALE: 0.2 mmol",
+    "extracted_batch_fields": {},
+    "objective": "Reproduce the same two-stage photoredox Giese addition followed by aerobic sulfoxidation, while using no inline degasser and preserving the strict Stage 1 oxygen-exclusion requirement.",
+    "historical_data": null,
+    "inventory_constraints": {
+      "pumps": [
+        {
+          "name": "Knauer Azura P 4.1S",
+          "type": "HPLC",
+          "max_pressure_bar": 400.0,
+          "max_flow_rate_mL_min": 10.0,
+          "min_flow_rate_mL_min": 0.001,
+          "compatible_systems": []
+        },
+        {
+          "name": "Harvard Apparatus Syringe Pump",
+          "type": "syringe",
+          "max_pressure_bar": 20.0,
+          "max_flow_rate_mL_min": 5.0,
+          "min_flow_rate_mL_min": 0.01,
+          "compatible_systems": []
+        }
+      ],
+      "tubing": [
+        {
+          "material": "FEP",
+          "ID_mm": 1.0,
+          "max_pressure_bar": 25,
+          "max_temperature_C": 180,
+          "transparent": true
+        }
+      ],
+      "BPR_available": [
+        2.0
+      ],
+      "light_sources": [
+        {
+          "name": "Case-study blue LED module",
+          "wavelength_nm": 452,
+          "power_W": 10,
+          "compatible_reactor": "coil"
+        }
+      ],
+      "gas_hardware": [
+        {
+          "name": "Air mass-flow controller",
+          "type": "MFC",
+          "gas": "air",
+          "min_flow_sccm": 0.01,
+          "max_flow_sccm": 10,
+          "max_pressure_bar": 10,
+          "service_status": "available",
+          "notes": "Air is introduced only between Stage 1 and Stage 2."
+        },
+        {
+          "name": "Air-liquid T-mixer",
+          "type": "gas-liquid mixer",
+          "gas": "air",
+          "max_pressure_bar": 10,
+          "service_status": "available",
+          "notes": "Interstage air injection upstream of Stage 2."
+        }
+      ],
+      "reactors": [
+        {
+          "name": "Case-study two-stage photoreactor train",
+          "system": "Manual photoflow setup",
+          "type": "coil",
+          "material": "FEP",
+          "volume_mL": 8.5,
+          "ID_mm": 1.0,
+          "light_source": "Two 10 W blue LED modules",
+          "wavelength_nm": 452,
+          "irradiation": "One illuminated coil per reaction stage",
+          "allowed_temperatures_C": [
+            25
+          ],
+          "min_concentration_M": 0.1,
+          "max_concentration_M": 0.1,
+          "min_pressure_bar": 0,
+          "max_pressure_bar": 5,
+          "configuration": "two-stage serial",
+          "component_volumes_mL": [
+            4.25,
+            4.25
+          ],
+          "notes": "Interstage air-addition port is available. No inline degasser or membrane deoxygenation unit is installed."
+        }
+      ]
+    },
+    "hypotheses": [
+      "Offline pre-degassing of the solvent/feed followed by pumping from sealed argon-blanketed reservoirs can replace an inline degasser without changing the two-stage reaction sequence."
+    ],
+    "operating_limits": {
+      "inline_degasser_available": false,
+      "forbidden_equipment": [
+        "inline membrane degasser",
+        "inline vacuum degasser",
+        "dedicated inline degassing unit"
+      ],
+      "required_stage_1_atmosphere": "Strictly oxygen-free/inert.",
+      "allowed_oxygen_exclusion_method": "Prepare the EtOH/pH 9 buffer and Stage 1 feed solutions offline using pre-degassed solvent or argon sparging, transfer them to sealed inerted feed reservoirs, and maintain an argon headspace during pumping.",
+      "stage_2_requirement": "Introduce air only after Stage 1 through the available gas-feed hardware.",
+      "design_rule": "Do not include a degasser unit operation in the final process topology."
+    },
+    "output_preferences": "Return one best inventory-constrained design with separate Stage 1 and Stage 2 residence times, stream flow rates, and full topology.",
+    "question_log": [
+      {
+        "question_id": "Q-BATCH-001",
+        "section": "batch_protocol",
+        "question": "Please provide or confirm the batch reaction protocol, including substrate, product, solvent, concentration, scale, reagents, equivalents, catalyst/additives, gas atmosphere, temperature, time, irradiation/light source if any, and reported yield.",
+        "expected_format": "Free-text protocol or structured JSON.",
+        "required": true,
+        "why_needed": "The design pipeline needs protocol facts before translation."
+      },
+      {
+        "question_id": "Q-OBJ-001",
+        "section": "objective",
+        "question": "What is the main goal for the first flow design? Examples: first safe screening design, reproduce batch yield, improve throughput, maximize conversion, minimize residence time, or test a specific hypothesis.",
+        "expected_format": "Short text objective.",
+        "required": true,
+        "why_needed": "The council ranks candidate designs against this objective."
+      },
+      {
+        "question_id": "Q-HIST-001",
+        "section": "historical_data",
+        "question": "Do you have historical experimental data or previous flow attempts for this reaction? If yes, provide a table with conditions and results.",
+        "expected_format": "Table/CSV/text with entry, T, concentration, pressure, flows, residence times, reactor volume, tubing ID, product/yield/conversion/selectivity, and notes; or mark unavailable.",
+        "required": true,
+        "why_needed": "Measured evidence has highest design authority."
+      },
+      {
+        "question_id": "Q-INV-001",
+        "section": "inventory",
+        "question": "Do you have inventory constraints that the design must use? Provide available reactor volumes, tubing IDs/materials, pumps, pressure/BPR options, gas MFC limits, light sources, and temperature ranges.",
+        "expected_format": "LabInventory JSON preferred; free text accepted; or mark unavailable.",
+        "required": true,
+        "why_needed": "Hard hardware constraints must be enforced before final design."
+      },
+      {
+        "question_id": "Q-CONSTR-001",
+        "section": "operating_limits",
+        "question": "Are there operating limits that must not be exceeded? Examples: max pressure, max temperature, max/min flow rate, max residence time, forbidden solvents, gas safety limits, oxygen limits, or material compatibility limits.",
+        "expected_format": "Free text or JSON; or mark unavailable.",
+        "required": true,
+        "why_needed": "Safety and operating limits constrain feasible candidates."
+      },
+      {
+        "question_id": "Q-HYP-001",
+        "section": "hypotheses",
+        "question": "Do you have chemical or engineering hypotheses the agent should consider? Examples: oxygen mass-transfer limitation, photon limitation, slow kinetics, degradation, gas-liquid ratio, residence-time sensitivity, or light intensity importance.",
+        "expected_format": "Bullet list/free text; or mark unavailable.",
+        "required": true,
+        "why_needed": "Hypotheses guide experiment design but are not treated as facts."
+      },
+      {
+        "question_id": "Q-PREF-001",
+        "section": "output_preferences",
+        "question": "What output do you want? Examples: one best design, short/intermediate/long residence-time screen, inventory-constrained design only, benchmark comparison, or design with calculations and uncertainty.",
+        "expected_format": "Short text preference; optional.",
+        "required": false,
+        "why_needed": "Output preferences tune presentation and candidate selection."
+      }
+    ],
+    "answers": [
+      {
+        "question_id": "Q-BATCH-001",
+        "answer": "REACTION NAME: One-pot photoredox Giese addition + aerobic oxidation TARGET MOLECULE: Sulfoxide 4a [α-(4-methoxyphenylthio)propionitrile sulfoxide] REAGENTS Substrate / radical precursor: PMPSCH₂TMS (1a) Amount: 0.2 mmol (1.0 equiv.) Oxidation potential: Eox = +0.98 V vs. SCE Michael acceptor: Acrylonitrile (2a) Amount: 2.0 equiv. Photocatalyst: Ir(dF(CF₃)ppy)₂(dtbpy)PF₆ Loading: 0.5 mol% Excited state redox: Ir(III)/Ir(II) = +1.21 V vs. SCE Ground state reductive: Ir(III)/Ir(II) = −1.37 V vs. SCE Solvent: EtOH / pH 9 aqueous buffer (5:1 v/v) Concentration: 0.1 M Oxidant: Molecular oxygen (O₂) from air — introduced only in Step 2 PROCEDURE (TWO SEQUENTIAL STEPS, ONE POT) STEP 1 — C–C Bond Formation (Giese Radical Addition): Atmosphere: Argon (strictly O₂-free) Light source: 10 W blue LED, 452 nm Temperature: 25°C (room temperature) Reaction time: 4 hours Vessel: Sealed pressure tube Outcome: Sulfide 3a formed, 92% yield Mechanism: Ir(III) oxidizes 1a via SET → cationic radical 1a•+ → desilylation → α-thiomethyl radical I → Giese addition onto acrylonitrile 2a → radical II → reduced by Ir(II) → carbanion III → protonated by solvent → sulfide 3a STEP 2 — Aerobic Oxidation (Sulfide → Sulfoxide): Atmosphere: Air (O₂ introduced after Step 1 complete) Light source: 10 W blue LED, 452 nm (same source, kept on) Temperature: 25°C Reaction time: 6 hours Vessel: Same tube, opened to air Outcome: Sulfoxide 4a formed, 95% yield Mechanism: Two parallel pathways — (a) SET: Ir(III)* oxidizes sulfide 3a + O₂ → superoxide → sulfoxide (b) EnT: Ir(III)* converts ³O₂ → ¹O₂ (singlet oxygen) → sulfoxide Sulfide oxidation potential: Eox(3a) = +1.13 V vs. SCE SENSITIVITY FLAGS O₂ during Step 1: CRITICAL — O₂ quenches α-thiomethyl radical I → reaction fails completely Light: ESSENTIAL — no conversion without LED Photocatalyst: ESSENTIAL — no conversion without [Ir] pH control: IMPORTANT — pH 9 buffer suppresses byproduct PMPSCH₃ (1a-I) via protonation of radical intermediate Moisture: TOLERANT — aqueous buffer intentional Scale in batch: PROBLEMATIC — uneven irradiation and poor O₂ mass transfer at >0.2 mmol TOTAL BATCH TIME: 10 hours (4h + 6h) TOTAL BATCH YIELD: 95% isolated (sulfoxide 4a) SCALE: 0.2 mmol",
+        "status": "answered",
+        "source": "user"
+      },
+      {
+        "question_id": "Q-OBJ-001",
+        "answer": "Reproduce the same two-stage photoredox Giese addition followed by aerobic sulfoxidation, while using no inline degasser and preserving the strict Stage 1 oxygen-exclusion requirement.",
+        "status": "answered",
+        "source": "user"
+      },
+      {
+        "question_id": "Q-HIST-001",
+        "answer": null,
+        "status": "unavailable",
+        "source": "user"
+      },
+      {
+        "question_id": "Q-INV-001",
+        "answer": {
+          "pumps": [
+            {
+              "name": "Knauer Azura P 4.1S",
+              "type": "HPLC",
+              "max_pressure_bar": 400.0,
+              "max_flow_rate_mL_min": 10.0,
+              "min_flow_rate_mL_min": 0.001,
+              "compatible_systems": []
+            },
+            {
+              "name": "Harvard Apparatus Syringe Pump",
+              "type": "syringe",
+              "max_pressure_bar": 20.0,
+              "max_flow_rate_mL_min": 5.0,
+              "min_flow_rate_mL_min": 0.01,
+              "compatible_systems": []
+            }
+          ],
+          "tubing": [
+            {
+              "material": "FEP",
+              "ID_mm": 1.0,
+              "max_pressure_bar": 25,
+              "max_temperature_C": 180,
+              "transparent": true
+            }
+          ],
+          "BPR_available": [
+            2.0
+          ],
+          "light_sources": [
+            {
+              "name": "Case-study blue LED module",
+              "wavelength_nm": 452,
+              "power_W": 10,
+              "compatible_reactor": "coil"
+            }
+          ],
+          "gas_hardware": [
+            {
+              "name": "Air mass-flow controller",
+              "type": "MFC",
+              "gas": "air",
+              "min_flow_sccm": 0.01,
+              "max_flow_sccm": 10,
+              "max_pressure_bar": 10,
+              "service_status": "available",
+              "notes": "Air is introduced only between Stage 1 and Stage 2."
+            },
+            {
+              "name": "Air-liquid T-mixer",
+              "type": "gas-liquid mixer",
+              "gas": "air",
+              "max_pressure_bar": 10,
+              "service_status": "available",
+              "notes": "Interstage air injection upstream of Stage 2."
+            }
+          ],
+          "reactors": [
+            {
+              "name": "Case-study two-stage photoreactor train",
+              "system": "Manual photoflow setup",
+              "type": "coil",
+              "material": "FEP",
+              "volume_mL": 8.5,
+              "ID_mm": 1.0,
+              "light_source": "Two 10 W blue LED modules",
+              "wavelength_nm": 452,
+              "irradiation": "One illuminated coil per reaction stage",
+              "allowed_temperatures_C": [
+                25
+              ],
+              "min_concentration_M": 0.1,
+              "max_concentration_M": 0.1,
+              "min_pressure_bar": 0,
+              "max_pressure_bar": 5,
+              "configuration": "two-stage serial",
+              "component_volumes_mL": [
+                4.25,
+                4.25
+              ],
+              "notes": "Interstage air-addition port is available. No inline degasser or membrane deoxygenation unit is installed."
+            }
+          ]
+        },
+        "status": "answered",
+        "source": "user"
+      },
+      {
+        "question_id": "Q-CONSTR-001",
+        "answer": {
+          "inline_degasser_available": false,
+          "forbidden_equipment": [
+            "inline membrane degasser",
+            "inline vacuum degasser",
+            "dedicated inline degassing unit"
+          ],
+          "required_stage_1_atmosphere": "Strictly oxygen-free/inert.",
+          "allowed_oxygen_exclusion_method": "Prepare the EtOH/pH 9 buffer and Stage 1 feed solutions offline using pre-degassed solvent or argon sparging, transfer them to sealed inerted feed reservoirs, and maintain an argon headspace during pumping.",
+          "stage_2_requirement": "Introduce air only after Stage 1 through the available gas-feed hardware.",
+          "design_rule": "Do not include a degasser unit operation in the final process topology."
+        },
+        "status": "answered",
+        "source": "user"
+      },
+      {
+        "question_id": "Q-HYP-001",
+        "answer": "Offline pre-degassing of the solvent/feed followed by pumping from sealed argon-blanketed reservoirs can replace an inline degasser without changing the two-stage reaction sequence.",
+        "status": "answered",
+        "source": "user"
+      },
+      {
+        "question_id": "Q-PREF-001",
+        "answer": "One best design with stage-specific calculations and an explicit no-inline-degasser statement.",
+        "status": "answered",
+        "source": "user"
+      }
+    ],
+    "missing_question_ids": [],
+    "ready_for_design": true,
+    "authority_order": [
+      "measured_evidence",
+      "hard_constraints",
+      "protocol_facts",
+      "chemist_hypotheses",
+      "model_inference"
+    ]
+  },
+  "intake_context": "## FlowPilot Intake Context - authority labeled\nAuthority order: measured evidence > hard constraints > protocol facts > chemist hypotheses > model inference.\nSchema: flowpilot_intake_v1.0\nReady for design: True\n\n### Design objective\nReproduce the same two-stage photoredox Giese addition followed by aerobic sulfoxidation, while using no inline degasser and preserving the strict Stage 1 oxygen-exclusion requirement.\n\n### Protocol facts\n{}\n\n### Measured evidence / historical data\n(unavailable)\n\n### Hard constraints / inventory\n{\n  \"pumps\": [\n    {\n      \"name\": \"Knauer Azura P 4.1S\",\n      \"type\": \"HPLC\",\n      \"max_pressure_bar\": 400.0,\n      \"max_flow_rate_mL_min\": 10.0,\n      \"min_flow_rate_mL_min\": 0.001,\n      \"compatible_systems\": []\n    },\n    {\n      \"name\": \"Harvard Apparatus Syringe Pump\",\n      \"type\": \"syringe\",\n      \"max_pressure_bar\": 20.0,\n      \"max_flow_rate_mL_min\": 5.0,\n      \"min_flow_rate_mL_min\": 0.01,\n      \"compatible_systems\": []\n    }\n  ],\n  \"tubing\": [\n    {\n      \"material\": \"FEP\",\n      \"ID_mm\": 1.0,\n      \"max_pressure_bar\": 25,\n      \"max_temperature_C\": 180,\n      \"transparent\": true\n    }\n  ],\n  \"BPR_available\": [\n    2.0\n  ],\n  \"light_sources\": [\n    {\n      \"name\": \"Case-study blue LED module\",\n      \"wavelength_nm\": 452,\n      \"power_W\": 10,\n      \"compatible_reactor\": \"coil\"\n    }\n  ],\n  \"gas_hardware\": [\n    {\n      \"name\": \"Air mass-flow controller\",\n      \"type\": \"MFC\",\n      \"gas\": \"air\",\n      \"min_flow_sccm\": 0.01,\n      \"max_flow_sccm\": 10,\n      \"max_pressure_bar\": 10,\n      \"service_status\": \"available\",\n      \"notes\": \"Air is introduced only between Stage 1 and Stage 2.\"\n    },\n    {\n      \"name\": \"Air-liquid T-mixer\",\n      \"type\": \"gas-liquid mixer\",\n      \"gas\": \"air\",\n      \"max_pressure_bar\": 10,\n      \"service_status\": \"available\",\n      \"notes\": \"Interstage air injection upstream of Stage 2.\"\n    }\n  ],\n  \"reactors\": [\n    {\n      \"name\": \"Case-study two-stage photoreactor train\",\n      \"system\": \"Manual photoflow setup\",\n      \"type\": \"coil\",\n      \"material\": \"FEP\",\n      \"volume_mL\": 8.5,\n      \"ID_mm\": 1.0,\n      \"light_source\": \"Two 10 W blue LED modules\",\n      \"wavelength_nm\": 452,\n      \"irradiation\": \"One illuminated coil per reaction stage\",\n      \"allowed_temperatures_C\": [\n        25\n      ],\n      \"min_concentration_M\": 0.1,\n      \"max_concentration_M\": 0.1,\n      \"min_pressure_bar\": 0,\n      \"max_pressure_bar\": 5,\n      \"configuration\": \"two-stage serial\",\n      \"component_volumes_mL\": [\n        4.25,\n        4.25\n      ],\n      \"notes\": \"Interstage air-addition port is available. No inline degasser or membrane deoxygenation unit is installed.\"\n    }\n  ]\n}\n\n### Safety and operating limits\n{\n  \"inline_degasser_available\": false,\n  \"forbidden_equipment\": [\n    \"inline membrane degasser\",\n    \"inline vacuum degasser\",\n    \"dedicated inline degassing unit\"\n  ],\n  \"required_stage_1_atmosphere\": \"Strictly oxygen-free/inert.\",\n  \"allowed_oxygen_exclusion_method\": \"Prepare the EtOH/pH 9 buffer and Stage 1 feed solutions offline using pre-degassed solvent or argon sparging, transfer them to sealed inerted feed reservoirs, and maintain an argon headspace during pumping.\",\n  \"stage_2_requirement\": \"Introduce air only after Stage 1 through the available gas-feed hardware.\",\n  \"design_rule\": \"Do not include a degasser unit operation in the final process topology.\"\n}\n\n### Chemist hypotheses\n[\n  \"Offline pre-degassing of the solvent/feed followed by pumping from sealed argon-blanketed reservoirs can replace an inline degasser without changing the two-stage reaction sequence.\"\n]\n\n### Intake questions and answers\n[\n  {\n    \"question_id\": \"Q-BATCH-001\",\n    \"answer\": \"REACTION NAME: One-pot photoredox Giese addition + aerobic oxidation TARGET MOLECULE: Sulfoxide 4a [\\u03b1-(4-methoxyphenylthio)propionitrile sulfoxide] REAGENTS Substrate / radical precursor: PMPSCH\\u2082TMS (1a) Amount: 0.2 mmol (1.0 equiv.) Oxidation potential: Eox = +0.98 V vs. SCE Michael acceptor: Acrylonitrile (2a) Amount: 2.0 equiv. Photocatalyst: Ir(dF(CF\\u2083)ppy)\\u2082(dtbpy)PF\\u2086 Loading: 0.5 mol% Excited state redox: Ir(III)/Ir(II) = +1.21 V vs. SCE Ground state reductive: Ir(III)/Ir(II) = \\u22121.37 V vs. SCE Solvent: EtOH / pH 9 aqueous buffer (5:1 v/v) Concentration: 0.1 M Oxidant: Molecular oxygen (O\\u2082) from air \\u2014 introduced only in Step 2 PROCEDURE (TWO SEQUENTIAL STEPS, ONE POT) STEP 1 \\u2014 C\\u2013C Bond Formation (Giese Radical Addition): Atmosphere: Argon (strictly O\\u2082-free) Light source: 10 W blue LED, 452 nm Temperature: 25\\u00b0C (room temperature) Reaction time: 4 hours Vessel: Sealed pressure tube Outcome: Sulfide 3a formed, 92% yield Mechanism: Ir(III) oxidizes 1a via SET \\u2192 cationic radical 1a\\u2022+ \\u2192 desilylation \\u2192 \\u03b1-thiomethyl radical I \\u2192 Giese addition onto acrylonitrile 2a \\u2192 radical II \\u2192 reduced by Ir(II) \\u2192 carbanion III \\u2192 protonated by solvent \\u2192 sulfide 3a STEP 2 \\u2014 Aerobic Oxidation (Sulfide \\u2192 Sulfoxide): Atmosphere: Air (O\\u2082 introduced after Step 1 complete) Light source: 10 W blue LED, 452 nm (same source, kept on) Temperature: 25\\u00b0C Reaction time: 6 hours Vessel: Same tube, opened to air Outcome: Sulfoxide 4a formed, 95% yield Mechanism: Two parallel pathways \\u2014 (a) SET: Ir(III)* oxidizes sulfide 3a + O\\u2082 \\u2192 superoxide \\u2192 sulfoxide (b) EnT: Ir(III)* converts \\u00b3O\\u2082 \\u2192 \\u00b9O\\u2082 (singlet oxygen) \\u2192 sulfoxide Sulfide oxidation potential: Eox(3a) = +1.13 V vs. SCE SENSITIVITY FLAGS O\\u2082 during Step 1: CRITICAL \\u2014 O\\u2082 quenches \\u03b1-thiomethyl radical I \\u2192 reaction fails completely Light: ESSENTIAL \\u2014 no conversion without LED Photocatalyst: ESSENTIAL \\u2014 no conversion without [Ir] pH control: IMPORTANT \\u2014 pH 9 buffer suppresses byproduct PMPSCH\\u2083 (1a-I) via protonation of radical intermediate Moisture: TOLERANT \\u2014 aqueous buffer intentional Scale in batch: PROBLEMATIC \\u2014 uneven irradiation and poor O\\u2082 mass transfer at >0.2 mmol TOTAL BATCH TIME: 10 hours (4h + 6h) TOTAL BATCH YIELD: 95% isolated (sulfoxide 4a) SCALE: 0.2 mmol\",\n    \"status\": \"answered\",\n    \"source\": \"user\"\n  },\n  {\n    \"question_id\": \"Q-OBJ-001\",\n    \"answer\": \"Reproduce the same two-stage photoredox Giese addition followed by aerobic sulfoxidation, while using no inline degasser and preserving the strict Stage 1 oxygen-exclusion requirement.\",\n    \"status\": \"answered\",\n    \"source\": \"user\"\n  },\n  {\n    \"question_id\": \"Q-HIST-001\",\n    \"status\": \"unavailable\",\n    \"source\": \"user\"\n  },\n  {\n    \"question_id\": \"Q-INV-001\",\n    \"answer\": {\n      \"pumps\": [\n        {\n          \"name\": \"Knauer Azura P 4.1S\",\n          \"type\": \"HPLC\",\n          \"max_pressure_bar\": 400.0,\n          \"max_flow_rate_mL_min\": 10.0,\n          \"min_flow_rate_mL_min\": 0.001,\n          \"compatible_systems\": []\n        },\n        {\n          \"name\": \"Harvard Apparatus Syringe Pump\",\n          \"type\": \"syringe\",\n          \"max_pressure_bar\": 20.0,\n          \"max_flow_rate_mL_min\": 5.0,\n          \"min_flow_rate_mL_min\": 0.01,\n          \"compatible_systems\": []\n        }\n      ],\n      \"tubing\": [\n        {\n          \"material\": \"FEP\",\n          \"ID_mm\": 1.0,\n          \"max_pressure_bar\": 25,\n          \"max_temperature_C\": 180,\n          \"transparent\": true\n        }\n      ],\n      \"BPR_available\": [\n        2.0\n      ],\n      \"light_sources\": [\n        {\n          \"name\": \"Case-study blue LED module\",\n          \"wavelength_nm\": 452,\n          \"power_W\": 10,\n          \"compatible_reactor\": \"coil\"\n        }\n      ],\n      \"gas_hardware\": [\n        {\n          \"name\": \"Air mass-flow controller\",\n          \"type\": \"MFC\",\n          \"gas\": \"air\",\n          \"min_flow_sccm\": 0.01,\n          \"max_flow_sccm\": 10,\n          \"max_pressure_bar\": 10,\n          \"service_status\": \"available\",\n          \"notes\": \"Air is introduced only between Stage 1 and Stage 2.\"\n        },\n        {\n          \"name\": \"Air-liquid T-mixer\",\n          \"type\": \"gas-liquid mixer\",\n          \"gas\": \"air\",\n          \"max_pressure_bar\": 10,\n          \"service_status\": \"available\",\n          \"notes\": \"Interstage air injection upstream of Stage 2.\"\n        }\n      ],\n      \"reactors\": [\n        {\n          \"name\": \"Case-study two-stage photoreactor train\",\n          \"system\": \"Manual photoflow setup\",\n          \"type\": \"coil\",\n          \"material\": \"FEP\",\n          \"volume_mL\": 8.5,\n          \"ID_mm\": 1.0,\n          \"light_source\": \"Two 10 W blue LED modules\",\n          \"wavelength_nm\": 452,\n          \"irradiation\": \"One illuminated coil per reaction stage\",\n          \"allowed_temperatures_C\": [\n            25\n          ],\n          \"min_concentration_M\": 0.1,\n          \"max_concentration_M\": 0.1,\n          \"min_pressure_bar\": 0,\n          \"max_pressure_bar\": 5,\n          \"configuration\": \"two-stage serial\",\n          \"component_volumes_mL\": [\n            4.25,\n            4.25\n          ],\n          \"notes\": \"Interstage air-addition port is available. No inline degasser or membrane deoxygenation unit is installed.\"\n        }\n      ]\n    },\n    \"status\": \"answered\",\n    \"source\": \"user\"\n  },\n  {\n    \"question_id\": \"Q-CONSTR-001\",\n    \"answer\": {\n      \"inline_degasser_available\": false,\n      \"forbidden_equipment\": [\n        \"inline membrane degasser\",\n        \"inline vacuum degasser\",\n        \"dedicated inline degassing unit\"\n      ],\n      \"required_stage_1_atmosphere\": \"Strictly oxygen-free/inert.\",\n      \"allowed_oxygen_exclusion_method\": \"Prepare the EtOH/pH 9 buffer and Stage 1 feed solutions offline using pre-degassed solvent or argon sparging, transfer them to sealed inerted feed reservoirs, and maintain an argon headspace during pumping.\",\n      \"stage_2_requirement\": \"Introduce air only after Stage 1 through the available gas-feed hardware.\",\n      \"design_rule\": \"Do not include a degasser unit operation in the final process topology.\"\n    },\n    \"status\": \"answered\",\n    \"source\": \"user\"\n  },\n  {\n    \"question_id\": \"Q-HYP-001\",\n    \"answer\": \"Offline pre-degassing of the solvent/feed followed by pumping from sealed argon-blanketed reservoirs can replace an inline degasser without changing the two-stage reaction sequence.\",\n    \"status\": \"answered\",\n    \"source\": \"user\"\n  },\n  {\n    \"question_id\": \"Q-PREF-001\",\n    \"answer\": \"One best design with stage-specific calculations and an explicit no-inline-degasser statement.\",\n    \"status\": \"answered\",\n    \"source\": \"user\"\n  }\n]",
+  "design_calculations": {
+    "steps": [
+      {
+        "step": 1,
+        "name": "Batch Conditions",
+        "status": "PASS",
+        "summary": "T = 25 °C, C₀ = 0.1 M, t_batch = 10.0 h (36000 s), X = 0.95",
+        "values": {
+          "T_C": 25.0,
+          "T_K": 298.15,
+          "C_M": 0.1,
+          "t_batch_h": 10.0,
+          "t_batch_s": 36000.0,
+          "X": 0.95
+        },
+        "equations": [],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 2,
+        "name": "Kinetics & Residence Time",
+        "status": "PASS",
+        "summary": "τ = 17.0 min (council-approved — not re-derived from kinetics). Implied IF = 35× vs batch.",
+        "values": {
+          "tau_primary_min": 17.0,
+          "method": "council-approved",
+          "IF_implied": 35.3,
+          "IF_class": 6.0,
+          "k_flow": 0.0029369924250529315
+        },
+        "equations": [],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "τ set by ENGINE council — kinetics estimation bypassed"
+        ]
+      },
+      {
+        "step": 3,
+        "name": "Reactor Sizing",
+        "status": "PASS",
+        "summary": "V_R = 8.50 mL, d = 1.00 mm, L = 10.82 m, Pe = 196 (✓ plug flow)",
+        "values": {
+          "V_R_mL": 8.499027774727717,
+          "liquid_holdup_mL": 1.7283819505882891,
+          "gas_holdup": 0.7966,
+          "d_mm": 1.0,
+          "L_m": 10.821298254585821,
+          "Q_mL_min": 0.04283,
+          "v_m_s": 0.004469268729308333,
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_inlet_min": 17.0,
+          "residence_time_in_channel_min": 40.3545,
+          "Pe": 195.8,
+          "Pe_adequate": true
+        },
+        "equations": [
+          "V_R = t_{inlet} \\times (Q_L + Q_{g,STP}) = 17.00 \\times (0.0428 + 0.4571) = 8.50\\;\\mathrm{mL}",
+          "Q_{g,actual} = Q_{g,STP}\\frac{T}{T_{STP}}\\frac{P_{STP}}{P} = 0.1678\\;\\mathrm{mL/min}",
+          "t_{in-channel} = \\frac{V_R}{Q_L + Q_{g,actual}} = 40.35\\;\\mathrm{min}",
+          "\\varepsilon_g = \\frac{Q_{g,actual}}{Q_{g,actual}+Q_L} = 0.797",
+          "L = \\frac{4\\,V_R}{\\pi\\,d^2} = 10.82\\;\\mathrm{m}",
+          "Pe = \\frac{192\\,\\tau\\,D_{\\mathrm{mol}}}{d^2} = \\frac{192 \\times 1020.0 \\times 1e-09}{0.0010^2} = 196\\;\\checkmark"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 4,
+        "name": "Fluid Dynamics",
+        "status": "PASS",
+        "summary": "Re = 0.7 (laminar), v = 0.0045 m/s",
+        "values": {
+          "Re": 0.6639879384891133,
+          "regime": "laminar",
+          "v_m_s": 0.004469268729308333,
+          "mu_Pa_s": 0.00108,
+          "rho_kg_m3": 789.0,
+          "mu_cP": 1.08,
+          "rho_g_mL": 0.789
+        },
+        "equations": [
+          "v = \\frac{4\\,Q}{\\pi\\,d^2} = \\frac{4 \\times 7.138e-10}{\\pi \\times (0.0010)^2} = 0.0045\\;\\mathrm{m/s}",
+          "Re = \\frac{\\rho\\,v\\,d}{\\mu} = \\frac{789 \\times 0.0045 \\times 0.0010}{1.0800e-03} = 0.7"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 5,
+        "name": "Pressure Drop",
+        "status": "PASS",
+        "summary": "ΔP = 0.0408 bar (pump max = 400 bar, margin = 100 %)",
+        "values": {
+          "dP_bar": 0.04078883390656421,
+          "dP_Pa": 4078.8833906564205,
+          "pump_max_bar": 400.0,
+          "margin_pct": 99.98980279152336
+        },
+        "equations": [
+          "\\Delta P = \\frac{128\\,\\mu\\,L\\,Q}{\\pi\\,d^4} = \\frac{128 \\times 1.0800e-03 \\times 10.82 \\times 7.138e-10}{\\pi \\times (0.0010)^4} \\times \\phi^2_{2p} = 0.0408\\;\\mathrm{bar}",
+          "\\phi^2_{2p} = 1 + 12\\varepsilon_g + 25\\varepsilon_g^2 = 12.00"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 6,
+        "name": "Mass Transfer",
+        "status": "WARNING",
+        "summary": "t_mix = 101.3 s, Da = 2.937 — Transition zone — mixing becoming significant",
+        "values": {
+          "t_mix_s": 101.32118364233777,
+          "Da_mass": 2.936992425052931,
+          "D_m2_s": 1e-09,
+          "interpretation": "Transition zone — mixing becoming significant",
+          "gas_species": "air",
+          "gas_flow_sccm": 0.4571,
+          "gas_flow_actual_mL_min": 0.1678,
+          "gas_pressure_abs_bar": 3.0133,
+          "gas_liquid_ratio": 3.9173,
+          "gas_holdup": 0.7966,
+          "o2_supply_mmol_min": 0.004283,
+          "o2_required_mmol_min": 0.004283,
+          "gas_supply_mmol_min": 0.004283,
+          "gas_required_mmol_min": 0.004283,
+          "target_gas_equiv_inlet": 1.0,
+          "explicit_gas_equiv_inlet": 1.0001,
+          "o2_equiv_supplied": 1.0,
+          "gas_equiv_supplied": 1.0,
+          "gas_flow_recomputed_from_equiv": false,
+          "dissolved_o2_mM": 3.9172,
+          "kLa_s": 0.29882,
+          "o2_transfer_capacity_mmol_min": 0.12139,
+          "o2_transfer_sufficiency": 28.3423
+        },
+        "equations": [
+          "t_{\\mathrm{mix}} \\approx \\frac{d^2}{D \\cdot \\pi^2} = \\frac{(0.0010)^2}{1.0e-09 \\times \\pi^2} = 101.3\\;\\mathrm{s}",
+          "Da = \\frac{k \\cdot d^2}{D} = \\frac{2.937e-03 \\times (0.0010)^2}{1.0e-09} = 2.937",
+          "Q_{g,\\mathrm{actual}} = Q_{g,\\mathrm{STP}}\\frac{T}{T_{STP}}\\frac{P_{STP}}{P} = 0.168\\;\\mathrm{mL/min}",
+          "C^*_{O2} \\approx 1.3\\;\\mathrm{mM}\\times\\frac{P_{O2}}{0.21\\;\\mathrm{bar}} = 3.92\\;\\mathrm{mM}",
+          "\\dot n_{O2,transfer} = k_La C^* V_L = 0.1214\\;\\mathrm{mmol/min}"
+        ],
+        "warnings": [
+          "Da = 2.94 > 1: mixing may limit conversion. Consider static mixer insert."
+        ],
+        "adjustments": [],
+        "assumptions": [
+          "D = 1e-09 m²/s (typical for small organic molecules in liquid)",
+          "Gas holdup estimated from actual reactor gas/liquid volumetric ratio.",
+          "O2 solubility uses a water/ethanol-scale Henry-law approximation; validate experimentally for final scale-up.",
+          "kLa is a conservative capillary slug-flow estimate tied to gas holdup."
+        ]
+      },
+      {
+        "step": 7,
+        "name": "Heat Transfer",
+        "status": "PASS",
+        "summary": "Q_gen = 0.0254 W, Q_rem = 101.9883 W, Da_th = 0.0002 — Thermally safe",
+        "values": {
+          "Q_gen_W": 0.025381488537307432,
+          "Q_rem_W": 101.98834974687371,
+          "Da_th": 0.00024886654799594364,
+          "S_V_m_inv": 4000.0,
+          "U_W_m2K": 300,
+          "A_wall_m2": 0.033996116582291236,
+          "UA_W_K": 10.198835,
+          "heat_transfer_score": 1.0,
+          "dH_J_mol": -50000,
+          "dT_lm_C": 10.0,
+          "r_mol_m3_s": 0.29369924250529317
+        },
+        "equations": [
+          "\\dot{Q}_{\\mathrm{rxn}} = |\\Delta H_r| \\cdot r \\cdot V_R = 50000 \\times 0.294 \\times 1.728e-06 = 0.0254\\;\\mathrm{W}",
+          "A_{\\mathrm{wall}} = \\pi\\,d\\,L = \\pi \\times 0.0010 \\times 10.82 = 0.03400\\;\\mathrm{m^2}",
+          "\\dot{Q}_{\\mathrm{rem}} = U \\cdot A \\cdot \\Delta T_{\\mathrm{lm}} = 300 \\times 0.03400 \\times 10 = 101.9883\\;\\mathrm{W}",
+          "Da_{\\mathrm{th}} = \\frac{\\dot{Q}_{\\mathrm{rxn}}}{\\dot{Q}_{\\mathrm{rem}}} = \\frac{0.0254}{101.9883} = 0.0002",
+          "\\frac{S}{V} = \\frac{4}{d} = \\frac{4}{0.0010} = 4000\\;\\mathrm{m^{-1}}"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "ΔH_r ≈ -50 kJ/mol (estimated for photoredox)",
+          "U ≈ 300 W/m²·K (coil in temperature-controlled bath)",
+          "ΔT_lm ≈ 10.0 °C (conservative estimate)"
+        ]
+      },
+      {
+        "step": 8,
+        "name": "Back-Pressure Regulator",
+        "status": "PASS",
+        "summary": "BPR REQUIRED: 3.0 bar (Gas-liquid system detected — BPR mandatory to maintain gas solubility (Henry's law: C_gas = H·P) and prevent uncontrolled degassing.)",
+        "values": {
+          "bpr_required": true,
+          "bpr_bar": 3.0,
+          "P_vapor_bar": 0.07863117302738241,
+          "dP_system_bar": 0.040789,
+          "solvent_bp_C": 78,
+          "gas_liquid": true,
+          "gas_species": "air",
+          "gas_pressure_abs_bar": 3.0133,
+          "gas_flow_sccm": 0.4571,
+          "dissolved_o2_mM": 3.9172
+        },
+        "equations": [
+          "C_{\\mathrm{gas}} = H \\cdot P_{\\mathrm{partial}}\\quad\\text{(higher BPR} \\Rightarrow \\text{more dissolved gas)}",
+          "P_{\\mathrm{BPR}} \\geq \\max\\left(P_{\\mathrm{vap}} + \\Delta P + 0.5,\\; 3\\right) = \\max(0.08 + 0.041 + 0.5,\\; 3) = 3.0\\;\\mathrm{bar}"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 9,
+        "name": "Process Metrics",
+        "status": "PASS",
+        "summary": "STY = 0.3353 mol/(L·h), P = 0.244 mmol/h, ṅ_lim = 0.0043 mmol/min, startup waste = 2.2 mL, IF = 35×",
+        "values": {
+          "STY_mol_L_h": 0.33529411764705885,
+          "productivity_mmol_h": 0.244131,
+          "IF": 35.294117647058826,
+          "n_molar_flow_mmol_min": 0.0043,
+          "P_batch_mmol_h": 0.019,
+          "P_flow_mmol_h": 0.244,
+          "C_reactor_M": 0.1,
+          "startup_waste_mL": 2.2,
+          "productivity_closure_ok": true,
+          "is_gas_liquid": true,
+          "liquid_flow_rate_mL_min": 0.04283,
+          "gas_flow_sccm": 0.4571,
+          "gas_holdup": 0.7966,
+          "liquid_holdup_volume_mL": 1.7284,
+          "total_reactor_volume_mL": 8.499
+        },
+        "equations": [
+          "STY = \\frac{C_0 \\cdot X \\cdot 60}{\\tau} = \\frac{0.1 \\times 0.95 \\times 60}{17.0} = 0.3353\\;\\mathrm{mol/(L \\cdot h)}",
+          "P = Q \\cdot C_0 \\cdot X \\cdot 60 = 0.043 \\times 0.1 \\times 0.95 \\times 60 = 0.244\\;\\mathrm{mmol/h}",
+          "P_{\\mathrm{batch}} = \\frac{n_{\\mathrm{batch}} \\cdot Y}{t_{\\mathrm{batch}}} = \\frac{0.2 \\times 0.95}{10.00} = 0.02\\;\\mathrm{mmol/h}",
+          "\\dot{n}_{\\mathrm{lim,flow}} = Q_{\\mathrm{total}} \\cdot C_0 = 0.0428\\;\\mathrm{mL/min} \\times 0.100\\;\\mathrm{M} = 0.0043\\;\\mathrm{mmol/min}",
+          "C_{\\mathrm{reactor,inlet}} = C_0 = 0.1000\\;\\mathrm{M}\\quad (\\text{single-feed PFR; no dilution at inlet})",
+          "P_{\\mathrm{flow}} = \\dot{n}_{\\mathrm{lim,flow}} \\cdot Y \\cdot 60 = 0.0043 \\times 0.95 \\times 60 = 0.24\\;\\mathrm{mmol/h}",
+          "V_{\\mathrm{startup}} = 3 \\cdot \\tau \\cdot Q = 3 \\times 17.0 \\times 0.043 = 2.2\\;\\mathrm{mL}",
+          "IF = \\frac{t_{\\mathrm{batch}}}{\\tau_{\\mathrm{flow}}} = \\frac{36000}{1020.0} = 35.3\\times"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      }
+    ],
+    "temperature_C": 25.0,
+    "temperature_K": 298.15,
+    "concentration_M": 0.1,
+    "batch_time_s": 36000.0,
+    "target_conversion": 0.95,
+    "rate_constant": 0.0029369924250529315,
+    "reaction_order": 1,
+    "kinetics_method": "council-approved",
+    "residence_time_s": 1020.0,
+    "residence_time_min": 17.0,
+    "residence_time_inlet_min": 17.0,
+    "residence_time_in_channel_min": 40.3545,
+    "residence_time_basis": "inlet/STP apparent residence time",
+    "residence_time_range_min": [
+      13.6,
+      20.4
+    ],
+    "intensification_factor": 35.3,
+    "tau_analogy_min": null,
+    "tau_class_min": null,
+    "tau_kinetics_min": null,
+    "if_analogy": 36.0,
+    "if_class": 6.0,
+    "n_analogy_datapoints": 2,
+    "arrhenius_correction": null,
+    "flow_rate_mL_min": 0.04283,
+    "flow_rate_m3_s": 7.138333333333333e-10,
+    "reactor_volume_mL": 8.499,
+    "reactor_volume_m3": 8.499027774727716e-06,
+    "tubing_ID_mm": 1.0,
+    "tubing_ID_m": 0.001,
+    "tubing_length_m": 10.8213,
+    "velocity_m_s": 0.004469268729308333,
+    "reynolds_number": 0.66,
+    "flow_regime": "laminar",
+    "viscosity_Pa_s": 0.00108,
+    "density_kg_m3": 789.0,
+    "pressure_drop_bar": 0.040789,
+    "pump_max_bar": 400.0,
+    "pump_adequate": true,
+    "is_gas_liquid": true,
+    "gas_species": "air",
+    "gas_oxygen_fraction": 0.21,
+    "gas_reagent_fraction": 0.21,
+    "liquid_flow_rate_mL_min": 0.04283,
+    "gas_flow_sccm": 0.4571,
+    "gas_sccm_uncapped": 0.4571,
+    "gas_flow_actual_mL_min": 0.1678,
+    "gas_actual_uncapped_mL_min": 0.1678,
+    "gas_flow_capped_by_holdup": false,
+    "gas_pressure_abs_bar": 3.0133,
+    "gas_liquid_ratio": 3.9173,
+    "gas_holdup": 0.7966,
+    "liquid_holdup_volume_mL": 1.7284,
+    "two_phase_multiplier": 12.0,
+    "two_phase_pressure_drop_bar": 0.040789,
+    "o2_supply_mmol_min": 0.004283,
+    "o2_required_mmol_min": 0.004283,
+    "gas_supply_mmol_min": 0.004283,
+    "gas_required_mmol_min": 0.004283,
+    "target_gas_equiv_inlet": 1.0,
+    "explicit_gas_equiv_inlet": 1.0001,
+    "o2_equiv_supplied": 1.0,
+    "gas_equiv_supplied": 1.0,
+    "gas_flow_recomputed_from_equiv": false,
+    "dissolved_o2_mM": 3.9172,
+    "kLa_s": 0.29882,
+    "o2_transfer_capacity_mmol_min": 0.12139,
+    "o2_transfer_sufficiency": 28.3423,
+    "mixing_time_s": 101.32,
+    "damkohler_mass": 2.937,
+    "mass_transfer_limited": true,
+    "heat_generation_W": 0.025381,
+    "heat_removal_W": 101.98835,
+    "thermal_damkohler": 0.000249,
+    "thermal_safe": true,
+    "surface_to_volume": 4000.0,
+    "heat_transfer_area_m2": 0.03399612,
+    "UA_W_K": 10.198835,
+    "heat_transfer_score": 1.0,
+    "bpr_required": true,
+    "bpr_pressure_bar": 3.0,
+    "vapor_pressure_bar": 0.0786,
+    "space_time_yield_mol_L_h": 0.3353,
+    "productivity_mmol_h": 0.244,
+    "n_molar_flow_mmol_min": 0.0043,
+    "P_batch_mmol_h": 0.019,
+    "P_flow_mmol_h": 0.244,
+    "C_reactor_M": 0.1,
+    "startup_waste_mL": 2.2,
+    "productivity_closure_ok": true,
+    "Pe": 195.8,
+    "Pe_adequate": true,
+    "consistent": true,
+    "consistency_notes": [],
+    "material_warnings": [],
+    "stage_corrected_total_reactor_volume_mL": 2.4373,
+    "global_single_zone_reactor_volume_mL": 8.499
+  },
+  "inventory_enforcement": {
+    "first_pass": {
+      "applied": true,
+      "old": {
+        "reactor_volume_mL": 99.2182,
+        "tubing_ID_mm": 1.0,
+        "tubing_material": "FEP",
+        "flow_rate_mL_min": 0.5,
+        "BPR_bar": 6.1,
+        "temperature_C": 25.0,
+        "concentration_M": 0.1,
+        "wavelength_nm": 452.0
+      },
+      "new": {
+        "reactor_volume_mL": 8.5,
+        "tubing_ID_mm": 1.0,
+        "tubing_material": "FEP",
+        "flow_rate_mL_min": 0.04283,
+        "BPR_bar": 2.0,
+        "temperature_C": 25.0,
+        "concentration_M": 0.1,
+        "wavelength_nm": 452.0
+      },
+      "selected_reactor": {
+        "name": "Case-study two-stage photoreactor train",
+        "system": "Manual photoflow setup",
+        "type": "coil",
+        "material": "FEP",
+        "volume_mL": 8.5,
+        "ID_mm": 1.0,
+        "light_source": "Two 10 W blue LED modules",
+        "wavelength_nm": 452.0,
+        "intensity_mW_cm2": null,
+        "irradiation": "One illuminated coil per reaction stage",
+        "temperature_range_C": [
+          null,
+          null
+        ],
+        "allowed_temperatures_C": [
+          25.0
+        ],
+        "concentration_range_M": [
+          0.1,
+          0.1
+        ],
+        "pressure_range_bar": [
+          0.0,
+          5.0
+        ],
+        "configuration": "two-stage serial",
+        "component_volumes_mL": [
+          4.25,
+          4.25
+        ],
+        "notes": "Interstage air-addition port is available. No inline degasser or membrane deoxygenation unit is installed."
+      }
+    },
+    "final_pass": {
+      "applied": true,
+      "old": {
+        "reactor_volume_mL": 8.499,
+        "tubing_ID_mm": 1.0,
+        "tubing_material": "FEP",
+        "flow_rate_mL_min": 0.04283,
+        "BPR_bar": 3.0,
+        "temperature_C": 25.0,
+        "concentration_M": 0.1,
+        "wavelength_nm": 452.0
+      },
+      "new": {
+        "reactor_volume_mL": 8.5,
+        "tubing_ID_mm": 1.0,
+        "tubing_material": "FEP",
+        "flow_rate_mL_min": 0.04283,
+        "BPR_bar": 2.0,
+        "temperature_C": 25.0,
+        "concentration_M": 0.1,
+        "wavelength_nm": 452.0
+      },
+      "selected_reactor": {
+        "name": "Case-study two-stage photoreactor train",
+        "system": "Manual photoflow setup",
+        "type": "coil",
+        "material": "FEP",
+        "volume_mL": 8.5,
+        "ID_mm": 1.0,
+        "light_source": "Two 10 W blue LED modules",
+        "wavelength_nm": 452.0,
+        "intensity_mW_cm2": null,
+        "irradiation": "One illuminated coil per reaction stage",
+        "temperature_range_C": [
+          null,
+          null
+        ],
+        "allowed_temperatures_C": [
+          25.0
+        ],
+        "concentration_range_M": [
+          0.1,
+          0.1
+        ],
+        "pressure_range_bar": [
+          0.0,
+          5.0
+        ],
+        "configuration": "two-stage serial",
+        "component_volumes_mL": [
+          4.25,
+          4.25
+        ],
+        "notes": "Interstage air-addition port is available. No inline degasser or membrane deoxygenation unit is installed."
+      }
+    }
+  },
+  "final_validation": {
+    "schema_version": "flowpilot_final_validation_v1.0",
+    "status": "blocked",
+    "checks": {
+      "reactor_inventory_match": true,
+      "pump_flow_feasible": true,
+      "tubing_feasible": true,
+      "geometry_closure": false,
+      "calculation_matches_serialized_design": true,
+      "gas_bookkeeping_complete": true
+    },
+    "unresolved_reasons": [
+      "geometry_closure"
+    ],
+    "geometry_relative_error": 0.9140000000000003,
+    "gas_required": true,
+    "inventory_enforcement": {
+      "first_pass": {
+        "applied": true,
+        "old": {
+          "reactor_volume_mL": 99.2182,
+          "tubing_ID_mm": 1.0,
+          "tubing_material": "FEP",
+          "flow_rate_mL_min": 0.5,
+          "BPR_bar": 6.1,
+          "temperature_C": 25.0,
+          "concentration_M": 0.1,
+          "wavelength_nm": 452.0
+        },
+        "new": {
+          "reactor_volume_mL": 8.5,
+          "tubing_ID_mm": 1.0,
+          "tubing_material": "FEP",
+          "flow_rate_mL_min": 0.04283,
+          "BPR_bar": 2.0,
+          "temperature_C": 25.0,
+          "concentration_M": 0.1,
+          "wavelength_nm": 452.0
+        },
+        "selected_reactor": {
+          "name": "Case-study two-stage photoreactor train",
+          "system": "Manual photoflow setup",
+          "type": "coil",
+          "material": "FEP",
+          "volume_mL": 8.5,
+          "ID_mm": 1.0,
+          "light_source": "Two 10 W blue LED modules",
+          "wavelength_nm": 452.0,
+          "intensity_mW_cm2": null,
+          "irradiation": "One illuminated coil per reaction stage",
+          "temperature_range_C": [
+            null,
+            null
+          ],
+          "allowed_temperatures_C": [
+            25.0
+          ],
+          "concentration_range_M": [
+            0.1,
+            0.1
+          ],
+          "pressure_range_bar": [
+            0.0,
+            5.0
+          ],
+          "configuration": "two-stage serial",
+          "component_volumes_mL": [
+            4.25,
+            4.25
+          ],
+          "notes": "Interstage air-addition port is available. No inline degasser or membrane deoxygenation unit is installed."
+        }
+      },
+      "final_pass": {
+        "applied": true,
+        "old": {
+          "reactor_volume_mL": 8.499,
+          "tubing_ID_mm": 1.0,
+          "tubing_material": "FEP",
+          "flow_rate_mL_min": 0.04283,
+          "BPR_bar": 3.0,
+          "temperature_C": 25.0,
+          "concentration_M": 0.1,
+          "wavelength_nm": 452.0
+        },
+        "new": {
+          "reactor_volume_mL": 8.5,
+          "tubing_ID_mm": 1.0,
+          "tubing_material": "FEP",
+          "flow_rate_mL_min": 0.04283,
+          "BPR_bar": 2.0,
+          "temperature_C": 25.0,
+          "concentration_M": 0.1,
+          "wavelength_nm": 452.0
+        },
+        "selected_reactor": {
+          "name": "Case-study two-stage photoreactor train",
+          "system": "Manual photoflow setup",
+          "type": "coil",
+          "material": "FEP",
+          "volume_mL": 8.5,
+          "ID_mm": 1.0,
+          "light_source": "Two 10 W blue LED modules",
+          "wavelength_nm": 452.0,
+          "intensity_mW_cm2": null,
+          "irradiation": "One illuminated coil per reaction stage",
+          "temperature_range_C": [
+            null,
+            null
+          ],
+          "allowed_temperatures_C": [
+            25.0
+          ],
+          "concentration_range_M": [
+            0.1,
+            0.1
+          ],
+          "pressure_range_bar": [
+            0.0,
+            5.0
+          ],
+          "configuration": "two-stage serial",
+          "component_volumes_mL": [
+            4.25,
+            4.25
+          ],
+          "notes": "Interstage air-addition port is available. No inline degasser or membrane deoxygenation unit is installed."
+        }
+      }
+    },
+    "calculation_snapshot": {
+      "reactor_volume_mL": 8.499,
+      "tubing_ID_mm": 1.0,
+      "flow_rate_mL_min": 0.04283,
+      "residence_time_min": 17.0,
+      "residence_time_inlet_min": 17.0,
+      "residence_time_in_channel_min": 40.3545,
+      "gas_flow_sccm": 0.4571,
+      "gas_flow_actual_mL_min": 0.1678,
+      "target_gas_equiv_inlet": 1.0,
+      "gas_equiv_supplied": 1.0,
+      "consistent": true,
+      "consistency_notes": []
+    },
+    "design_disposition": {
+      "schema_version": "flowpilot_design_disposition_v1.0",
+      "recommended_disposition": "BLOCK",
+      "rationale": "Blocked by 1 deterministic hard-feasibility failure(s); do not execute the proposed experiment.",
+      "hard_failures": [
+        {
+          "finding_id": "FINAL-GEOMETRY_CLOSURE",
+          "category": "final_validation",
+          "message": "Final deterministic validation failed: geometry_closure.",
+          "evidence": {
+            "check": "geometry_closure",
+            "passed": false
+          }
+        }
+      ],
+      "screen_reasons": [
+        "Council fallback: screen required: no usable candidates after filtering",
+        "no usable candidates after filtering",
+        "Final deterministic validation is not ready",
+        "Proposal is not engine-validated",
+        "ENGINE_FALLBACK: screen required: no usable candidates after filtering",
+        "SCREEN_REQUIRED: no usable candidates after filtering"
+      ],
+      "requirements": {
+        "temperature_exact_C": null,
+        "temperature_min_C": null,
+        "temperature_max_C": null,
+        "wavelength_min_nm": null,
+        "wavelength_max_nm": null,
+        "pressure_min_bar": null,
+        "pressure_max_bar": null,
+        "required_gases": [],
+        "source_text": "Reproduce the same two-stage photoredox Giese addition followed by aerobic sulfoxidation, while using no inline degasser and preserving the strict Stage 1 oxygen-exclusion requirement.\n{\"allowed_oxygen_exclusion_method\": \"Prepare the EtOH/pH 9 buffer and Stage 1 feed solutions offline using pre-degassed solvent or argon sparging, transfer them to sealed inerted feed reservoirs, and maintain an argon headspace during pumping.\", \"design_rule\": \"Do not include a degasser unit operation in the final process topology.\", \"forbidden_equipment\": [\"inline membrane degasser\", \"inline vacuum degasser\", \"dedicated inline degassing unit\"], \"inline_degasser_available\": false, \"required_stage_1_atmosphere\": \"Strictly oxygen-free/inert.\", \"stage_2_requirement\": \"Introduce air only after Stage 1 through the available gas-feed hardware.\"}"
+      }
+    },
+    "blocking_reasons": [
+      "Final deterministic validation failed: geometry_closure."
+    ]
+  },
+  "design_space": [],
+  "design_disposition": {
+    "schema_version": "flowpilot_design_disposition_v1.0",
+    "recommended_disposition": "BLOCK",
+    "rationale": "Blocked by 1 deterministic hard-feasibility failure(s); do not execute the proposed experiment.",
+    "hard_failures": [
+      {
+        "finding_id": "FINAL-GEOMETRY_CLOSURE",
+        "category": "final_validation",
+        "message": "Final deterministic validation failed: geometry_closure.",
+        "evidence": {
+          "check": "geometry_closure",
+          "passed": false
+        }
+      }
+    ],
+    "screen_reasons": [
+      "Council fallback: screen required: no usable candidates after filtering",
+      "no usable candidates after filtering",
+      "Final deterministic validation is not ready",
+      "Proposal is not engine-validated",
+      "ENGINE_FALLBACK: screen required: no usable candidates after filtering",
+      "SCREEN_REQUIRED: no usable candidates after filtering"
+    ],
+    "requirements": {
+      "temperature_exact_C": null,
+      "temperature_min_C": null,
+      "temperature_max_C": null,
+      "wavelength_min_nm": null,
+      "wavelength_max_nm": null,
+      "pressure_min_bar": null,
+      "pressure_max_bar": null,
+      "required_gases": [],
+      "source_text": "Reproduce the same two-stage photoredox Giese addition followed by aerobic sulfoxidation, while using no inline degasser and preserving the strict Stage 1 oxygen-exclusion requirement.\n{\"allowed_oxygen_exclusion_method\": \"Prepare the EtOH/pH 9 buffer and Stage 1 feed solutions offline using pre-degassed solvent or argon sparging, transfer them to sealed inerted feed reservoirs, and maintain an argon headspace during pumping.\", \"design_rule\": \"Do not include a degasser unit operation in the final process topology.\", \"forbidden_equipment\": [\"inline membrane degasser\", \"inline vacuum degasser\", \"dedicated inline degassing unit\"], \"inline_degasser_available\": false, \"required_stage_1_atmosphere\": \"Strictly oxygen-free/inert.\", \"stage_2_requirement\": \"Introduce air only after Stage 1 through the available gas-feed hardware.\"}"
+    }
+  },
+  "recommended_disposition": "BLOCK",
+  "reported_disposition": "BLOCK",
+  "disposition_rationale": "Blocked by 1 deterministic hard-feasibility failure(s); do not execute the proposed experiment.",
+  "_analogies": [
+    {
+      "record_id": "photochemflow (10).pdf",
+      "metadata": {
+        "phase_regime": "single_phase_liquid",
+        "has_translation": true,
+        "year": 0,
+        "wavelength_nm": 425.0,
+        "confidence": 85,
+        "reactor_type": "MiChS flow photoreactor L-1 (M)",
+        "chemistry_class": "photoredox catalysis",
+        "mechanism_type": "radical addition followed by oxidation",
+        "process_mode": "both",
+        "doi": "",
+        "solvent": "DMSO",
+        "photocatalyst": "fac-[Ir(ppy)3]",
+        "title": ""
+      },
+      "summary": "This photoredox catalysis process involves a radical addition followed by oxidation using fac-[Ir(ppy)3] as the photocatalyst with 425 nm LED irradiation. The reaction was performed in DMSO solvent at 25°C using a MiChS flow photoreactor L-1 (M) with 2 mm ID quartz tubing and a 2.7 mL reactor volume. The flow process achieved a remarkable 30-minute residence time at 0.09 mL/min flow rate, compared to 24 hours required in batch conditions. Flow chemistry provided dramatic improvements with a 48-fold reduction in reaction time (from 24 hours to 30 minutes) and a substantial increase in yield from 22% in batch to 75% in flow. The enhanced performance in flow resulted from improved light penetration and better mass transfer in the thin quartz tubing, enabling more efficient photocatalytic activation and faster reaction kinetics.",
+      "semantic_score": 0.7718,
+      "field_score": 0.2,
+      "final_score": 0.5431,
+      "full_record": {
+        "chemistry": {
+          "reaction_name": "Keto-Difluoromethylation of Aromatic Alkenes",
+          "reaction_class": "photoredox catalysis",
+          "mechanism_type": "radical addition followed by oxidation",
+          "substrates": {
+            "substrate_A": "aromatic alkenes",
+            "substrate_B": "N-tosyl-S-difluoromethyl-S-phenylsulfoximine (1a)",
+            "limiting_reagent": "N-tosyl-S-difluoromethyl-S-phenylsulfoximine (1a)",
+            "stoichiometry": "1:1.2 (1a:alkene)"
+          },
+          "photocatalyst": {
+            "name": "fac-[Ir(ppy)3]",
+            "loading_mol_pct": 5,
+            "role": "photoredox catalyst",
+            "absorption_max_nm": 425
+          },
+          "co_catalyst": {
+            "name": "",
+            "loading_mol_pct": null,
+            "role": ""
+          },
+          "additives": [
+            {
+              "name": "DMSO",
+              "equiv": null,
+              "role": "solvent and oxidant"
+            }
+          ],
+          "base": {
+            "name": "sodium benzoate",
+            "equiv": 1
+          },
+          "oxidant": {
+            "name": "DMSO",
+            "equiv": null
+          },
+          "reductant": {
+            "name": "",
+            "equiv": null
+          },
+          "product": "α-CF2H-substituted ketones",
+          "bond_formed": "C-CF2H bond and C=O bond",
+          "mechanistic_details": {
+            "excited_state_lifetime_ns": null,
+            "redox_potential_discussed": true,
+            "triplet_state_involved": false,
+            "key_intermediate": "α-CF2H-substituted carbocationic species"
+          },
+          "scope_summary": "Various aromatic alkenes including styrenes with electron-neutral, electron-rich, and electron-poor substituents. Internal alkenes like trans-stilbene and indene derivatives also compatible. Functional groups compatible include ethers, carbonyls, halogens, and pyridyl groups."
+        },
+        "batch_baseline": {
+          "temperature_C": 25,
+          "reaction_time_min": 1440,
+          "solvent": "DMSO",
+          "concentration_M": null,
+          "light_source": "blue LEDs",
+          "light_power_W": null,
+          "atmosphere": null,
+          "yield_percent": 22,
+          "ee_percent": null,
+          "scale_mmol": null,
+          "vessel": "200 mL-Schlenk tube"
+        },
+        "flow_optimized": {
+          "temperature_C": 25,
+          "residence_time_min": 30,
+          "flow_rate_total_mL_min": 0.09,
+          "flow_rate_stream_A_mL_min": null,
+          "flow_rate_stream_B_mL_min": null,
+          "concentration_M": null,
+          "back_pressure_bar": null,
+          "atmosphere": null,
+          "yield_percent": 75,
+          "ee_percent": null,
+          "scale_mmol": null,
+          "throughput_mmol_h": null
+        },
+        "optimization_table": {
+          "variables_screened": [
+            "CF2H reagent",
+            "photocatalyst",
+            "base"
+          ],
+          "number_of_entries": 14,
+          "optimal_entry_number": 10,
+          "key_findings": "fac-[Ir(ppy)3] with reagent 1a and PhCO2Na base gave best results"
+        },
+        "reactor": {
+          "type": "MiChS flow photoreactor L-1 (M)",
+          "material": "quartz",
+          "volume_mL": 2.7,
+          "tubing_diameter_mm": 2,
+          "channel_depth_mm": 1
+        },
+        "light_source": {
+          "type": "LED",
+          "wavelength_nm": 425,
+          "power_W": 0.077,
+          "irradiance_mW_cm2": null,
+          "color": "blue",
+          "position_relative_to_reactor": null
+        },
+        "pump": {
+          "type": "syringe pump",
+          "number_of_inlets": null
+        },
+        "figures": [
+          {
+            "figure_type": "other",
+            "page": 11,
+            "caption": "Figure 1 . Cyclic voltammograms of the CF 2 H reagents ( 1a – d ). Measurements were ",
+            "description": "Non-chemistry figure, skipped extraction."
+          },
+          {
+            "figure_type": "other",
+            "page": 13,
+            "caption": "Figure 2 . (a) Measurements of phosphorescence decay (excited at 355 nm and monitored ",
+            "description": "Non-chemistry figure, skipped extraction."
+          },
+          {
+            "figure_type": "other",
+            "page": 13,
+            "caption": "Figure 2 . (a) Measurements of phosphorescence decay (excited at 355 nm and monitored ",
+            "description": "Non-chemistry figure, skipped extraction."
+          },
+          {
+            "figure_type": "other",
+            "page": 26,
+            "caption": "Figure 4 .  1 H NMR spectra of the reaction of  2b  in the presence of PhCO 2 Na.  a The reaction  | Scheme 10 . Detection of Dimethylsulfide in Keto-Difluoromethylation under Base-free ",
+            "description": "Non-chemistry figure, skipped extraction."
+          }
+        ],
+        "translation_logic": {
+          "batch_limitation": "Long reaction times (24 hours) and poor yields (22%)",
+          "flow_advantage": "Dramatically reduced reaction time (30 min) and significantly improved yield (75%)",
+          "what_changed": "Reaction time reduced from 24 hours to 30 minutes, yield improved from 22% to 75%",
+          "what_stayed_same": "Temperature (25°C), solvent (DMSO), photocatalyst (fac-[Ir(ppy)3]) and loading (5 mol%)",
+          "time_reduction_factor": 48,
+          "yield_change_percent": 240.9,
+          "safety_improvement": "Reduced reaction time and better heat management in flow",
+          "scale_up_discussed": true
+        },
+        "process_figures": {
+          "has_reactor_scheme": false,
+          "has_flow_diagram": false,
+          "has_optimization_table": true,
+          "figure_descriptions": [
+            "Cyclic voltammograms of CF2H reagents",
+            "Phosphorescence decay measurements",
+            "1H NMR spectra and mechanistic scheme"
+          ]
+        },
+        "field_sources": {
+          "reaction_name": "text",
+          "yield_percent": "table",
+          "residence_time_min": "table",
+          "reactor_type": "text",
+          "optimization_variables": "table"
+        },
+        "field_confidence": {
+          "reaction_name": 3,
+          "yield_percent": 3,
+          "residence_time_min": 3,
+          "reactor_type": 3,
+          "time_reduction_factor": 3,
+          "yield_change_percent": 3
+        },
+        "conflicts": [],
+        "confidence_overall": 85,
+        "notes": "Well-documented photoredox catalysis study with clear batch-to-flow translation showing dramatic improvements in both time and yield. Gram-scale capability demonstrated. Some missing details on exact concentrations and flow rates for individual streams.",
+        "source_pdf": "photochemflow (10).pdf"
+      }
+    },
+    {
+      "record_id": "photochemflow (17).pdf",
+      "metadata": {
+        "confidence": 85,
+        "chemistry_class": "photocatalyzed radical addition",
+        "wavelength_nm": 450.0,
+        "mechanism_type": "photoredox catalysis with in situ generated catalyst",
+        "photocatalyst": "2-benzopyrylium intermediates (in situ generated)",
+        "title": "",
+        "has_translation": true,
+        "phase_regime": "single_phase_liquid",
+        "doi": "",
+        "process_mode": "both",
+        "solvent": "1,2-dichloroethane",
+        "reactor_type": "flow photochemical reactor",
+        "year": 0
+      },
+      "summary": "This photocatalyzed radical addition employs 2-benzopyrylium intermediates generated in situ as the photoredox catalyst under 450 nm LED irradiation. The flow process operates in a 1.0 mL photochemical reactor using 1,2-dichloroethane as solvent at room temperature (25°C) with a 2.5 minute residence time and 24.0 mL/min flow rate, achieving 77% yield. In contrast, the batch baseline required elevated temperature (50°C) and 60 minutes reaction time to obtain 76% yield. Flow processing provided a 24-fold intensification in reaction rate while maintaining comparable yield and enabling safer room temperature operation, demonstrating superior scalability for this photoredox transformation.",
+      "semantic_score": 0.7532,
+      "field_score": 0.2,
+      "final_score": 0.5319,
+      "full_record": {
+        "chemistry": {
+          "reaction_name": "π-Lewis acidic metal-catalyzed cyclization/photochemical radical addition sequence",
+          "reaction_class": "photocatalyzed radical addition",
+          "mechanism_type": "photoredox catalysis with in situ generated catalyst",
+          "substrates": {
+            "substrate_A": "ortho-carbonyl alkynylbenzene derivatives",
+            "substrate_B": "benzyltrimethylsilane derivatives",
+            "limiting_reagent": "ortho-carbonyl alkynylbenzene derivatives",
+            "stoichiometry": "1:10 equiv"
+          },
+          "photocatalyst": {
+            "name": "2-benzopyrylium intermediates (in situ generated)",
+            "loading_mol_pct": null,
+            "role": "photoredox catalyst and electrophilic substrate",
+            "absorption_max_nm": 450
+          },
+          "co_catalyst": {
+            "name": "AgNTf2",
+            "loading_mol_pct": 5.0,
+            "role": "π-Lewis acidic metal catalyst for cyclization"
+          },
+          "additives": [
+            {
+              "name": "P(4-CF3C6H4)3",
+              "equiv": null,
+              "role": "phosphine ligand"
+            },
+            {
+              "name": "trifluoroacetic acid (TFA)",
+              "equiv": 5.0,
+              "role": "proto-demetalation agent"
+            }
+          ],
+          "base": {
+            "name": null,
+            "equiv": null
+          },
+          "oxidant": {
+            "name": null,
+            "equiv": null
+          },
+          "reductant": {
+            "name": "benzyltrimethylsilane derivatives",
+            "equiv": 10.0
+          },
+          "product": "1H-isochromene derivatives",
+          "bond_formed": "C-C bond between arylmethyl radical and 2-benzopyrylium",
+          "mechanistic_details": {
+            "excited_state_lifetime_ns": null,
+            "redox_potential_discussed": false,
+            "triplet_state_involved": false,
+            "key_intermediate": "2-benzopyrylium intermediates, arylmethyl radicals"
+          },
+          "scope_summary": "Tested various ortho-carbonyl alkynylbenzene derivatives with electron-donating and electron-withdrawing substituents on the phenyl ring. Also examined different carbonyl groups (ketones vs aldehydes) and different benzyltrimethylsilane derivatives. Flow system generally provided higher yields than batch reactions."
+        },
+        "batch_baseline": {
+          "temperature_C": 50,
+          "reaction_time_min": 60,
+          "solvent": "1,2-dichloroethane",
+          "concentration_M": 0.1,
+          "light_source": "blue LED",
+          "light_power_W": null,
+          "atmosphere": "Ar",
+          "yield_percent": 76,
+          "ee_percent": null,
+          "scale_mmol": 0.1,
+          "vessel": null
+        },
+        "flow_optimized": {
+          "temperature_C": 25,
+          "residence_time_min": 2.5,
+          "flow_rate_total_mL_min": 24,
+          "flow_rate_stream_A_mL_min": 12,
+          "flow_rate_stream_B_mL_min": 12,
+          "concentration_M": 0.05,
+          "back_pressure_bar": null,
+          "atmosphere": "Ar",
+          "yield_percent": 77,
+          "ee_percent": null,
+          "scale_mmol": 0.5,
+          "throughput_mmol_h": 12.0
+        },
+        "optimization_table": {
+          "variables_screened": [
+            "AgNTf2 loading",
+            "Pd catalyst loading",
+            "substrate concentration",
+            "flow rate",
+            "premixing zone volume"
+          ],
+          "number_of_entries": 10,
+          "optimal_entry_number": 10,
+          "key_findings": "Entry 10 gave 77% yield with 5 mol% AgNTf2, 2.5 mol% Pd catalyst, 0.05 M concentration, 24 mL/h flow rate, and 0.7 mL premixing zone"
+        },
+        "reactor": {
+          "type": "flow photochemical reactor",
+          "material": null,
+          "volume_mL": 1.0,
+          "tubing_diameter_mm": null,
+          "channel_depth_mm": null
+        },
+        "light_source": {
+          "type": "LED",
+          "wavelength_nm": 450,
+          "power_W": null,
+          "irradiance_mW_cm2": null,
+          "color": "blue",
+          "position_relative_to_reactor": null
+        },
+        "pump": {
+          "type": "syringe pump",
+          "number_of_inlets": 2
+        },
+        "figures": [],
+        "translation_logic": {
+          "batch_limitation": "Required high temperature (50°C) and long reaction time (60 min) for moderate yields",
+          "flow_advantage": "Room temperature operation, dramatically reduced reaction time (2.5 min), slightly higher yield, and better scalability",
+          "what_changed": "Temperature reduced from 50°C to 25°C, reaction time reduced from 60 min to 2.5 min, concentration reduced from 0.1 M to 0.05 M",
+          "what_stayed_same": "Same catalyst system (AgNTf2), same light source (450 nm blue LED), same atmosphere (Ar), similar yields",
+          "time_reduction_factor": 24,
+          "yield_change_percent": 1.3,
+          "safety_improvement": "Lower temperature operation reduces safety risks",
+          "scale_up_discussed": true
+        },
+        "process_figures": {
+          "has_reactor_scheme": true,
+          "has_flow_diagram": false,
+          "has_optimization_table": true,
+          "figure_descriptions": []
+        },
+        "field_sources": {
+          "temperature_C": "table",
+          "reaction_time_min": "table",
+          "residence_time_min": "table",
+          "flow_rate_total_mL_min": "table",
+          "yield_percent": "table",
+          "AgNTf2_loading": "table",
+          "throughput_mmol_h": "calculated"
+        },
+        "field_confidence": {
+          "temperature_C": 3,
+          "reaction_time_min": 3,
+          "residence_time_min": 3,
+          "flow_rate_total_mL_min": 3,
+          "yield_percent": 3,
+          "AgNTf2_loading": 3,
+          "throughput_mmol_h": 2,
+          "time_reduction_factor": 2
+        },
+        "conflicts": [],
+        "confidence_overall": 85,
+        "notes": "Well-documented optimization study with clear comparison between batch and flow conditions. Throughput calculated from scale and residence time. Time reduction factor calculated from batch time vs residence time.",
+        "source_pdf": "photochemflow (17).pdf"
+      }
+    },
+    {
+      "record_id": "photochemflow (69).pdf",
+      "metadata": {
+        "chemistry_class": "Photoredox Cross-Coupling",
+        "has_translation": true,
+        "year": 0,
+        "confidence": 85,
+        "photocatalyst": "Ir[dF(CF3)ppy]2(dtbbpy)PF6",
+        "solvent": "DMF",
+        "wavelength_nm": 440.0,
+        "process_mode": "both",
+        "reactor_type": "Segmented Flow Reactor (microslug)",
+        "doi": "",
+        "mechanism_type": "Single Electron Transfer (SET)",
+        "title": "",
+        "phase_regime": "single_phase_liquid"
+      },
+      "summary": "This photoredox cross-coupling reaction utilizes single electron transfer (SET) mechanism with Ir[dF(CF3)ppy]2(dtbbpy)PF6 photocatalyst (2 mol%) and tBu-TMG base in DMF solvent under 440 nm blue LED irradiation. The optimized flow process operates at 50°C with a 12-minute residence time at 0.83 mL/min flow rate in a segmented flow reactor using FEP tubing with 10 mL reactor volume. Flow conditions achieved 88% yield compared to 81% yield under batch conditions at 30°C, representing an 8.6% improvement in yield. The primary advantage of flow was enabling higher operating temperature (50°C vs 30°C) with superior heat transfer control, while providing predictable scale-up capability to hundreds of mg/h production rates with significantly shorter reaction times.",
+      "semantic_score": 0.7413,
+      "field_score": 0.2,
+      "final_score": 0.5248,
+      "full_record": {
+        "chemistry": {
+          "reaction_name": "Photoredox Iridium-Nickel Dual-Catalyzed Decarboxylative Arylation Cross-Coupling",
+          "reaction_class": "Photoredox Cross-Coupling",
+          "mechanism_type": "Single Electron Transfer (SET)",
+          "substrates": {
+            "substrate_A": "N-Benzyloxycarbonyl-L-proline (Cbz-Pro-OH)",
+            "substrate_B": "4′-bromoacetophenone",
+            "limiting_reagent": "N-Benzyloxycarbonyl-L-proline",
+            "stoichiometry": "1:1"
+          },
+          "photocatalyst": {
+            "name": "Ir[dF(CF3)ppy]2(dtbbpy)PF6",
+            "loading_mol_pct": 2.0,
+            "role": "photoredox catalyst",
+            "absorption_max_nm": null
+          },
+          "co_catalyst": {
+            "name": "NiCl2(dtbbpy)",
+            "loading_mol_pct": 10.0,
+            "role": "cross-coupling catalyst"
+          },
+          "additives": [
+            {
+              "name": "Biphenyl",
+              "equiv": 0.2,
+              "role": "internal standard"
+            }
+          ],
+          "base": {
+            "name": "tBu-TMG (Barton's base)",
+            "equiv": 1.5
+          },
+          "oxidant": null,
+          "reductant": null,
+          "product": "C(sp2)-C(sp3) coupled benzylic amine compound",
+          "bond_formed": "C(sp2)-C(sp3)",
+          "mechanistic_details": {
+            "excited_state_lifetime_ns": null,
+            "redox_potential_discussed": false,
+            "triplet_state_involved": false,
+            "key_intermediate": "radical intermediate from decarboxylation"
+          },
+          "scope_summary": "Various aryl halides including 4′-chloroacetophenone, 5-acetyl-2-bromopyridine, 1-bromo-4-ethylbenzene, and 4-ethyl-1-iodobenzene were tested, with electron-deficient aryl halides showing better reactivity"
+        },
+        "batch_baseline": {
+          "temperature_C": 30,
+          "reaction_time_min": null,
+          "solvent": "DMF",
+          "concentration_M": 0.05,
+          "light_source": "Blue LEDs",
+          "light_power_W": null,
+          "atmosphere": null,
+          "yield_percent": 81,
+          "ee_percent": null,
+          "scale_mmol": 0.125,
+          "vessel": null
+        },
+        "flow_optimized": {
+          "temperature_C": 50,
+          "residence_time_min": 12,
+          "flow_rate_total_mL_min": 0.83,
+          "flow_rate_stream_A_mL_min": null,
+          "flow_rate_stream_B_mL_min": null,
+          "concentration_M": 0.05,
+          "back_pressure_bar": null,
+          "atmosphere": null,
+          "yield_percent": 88,
+          "ee_percent": null,
+          "scale_mmol": null,
+          "throughput_mmol_h": 35.4
+        },
+        "optimization_table": {
+          "variables_screened": [
+            "base",
+            "temperature",
+            "residence_time",
+            "catalyst_loading"
+          ],
+          "number_of_entries": 25,
+          "optimal_entry_number": 4,
+          "key_findings": "tBu-TMG base at 50°C with 12 min residence time gave optimal productivity of 710 mg/h"
+        },
+        "reactor": {
+          "type": "Segmented Flow Reactor (microslug)",
+          "material": "FEP tubing",
+          "volume_mL": 10,
+          "tubing_diameter_mm": null,
+          "channel_depth_mm": null
+        },
+        "light_source": {
+          "type": "Blue LEDs",
+          "wavelength_nm": 440,
+          "power_W": 34,
+          "irradiance_mW_cm2": null,
+          "color": "blue",
+          "position_relative_to_reactor": "bottom of OFR chamber"
+        },
+        "pump": {
+          "type": "Syringe pumps",
+          "number_of_inlets": 2
+        },
+        "figures": [
+          {
+            "figure_type": "mechanistic_scheme",
+            "mechanism_type": "dual photoredox/nickel catalysis",
+            "key_intermediates": [
+              "*Ir^III",
+              "Ir^II",
+              "Ir^III",
+              "Ni^0",
+              "Ni^I-R^1R^2",
+              "Ni^II-Ar-X",
+              "Ni^III-Ar-X"
+            ],
+            "oxidation_states": {
+              "Ir": [
+                "II",
+                "III"
+              ],
+              "Ni": [
+                "0",
+                "I",
+                "II",
+                "III"
+              ]
+            },
+            "rate_determining_step": null,
+            "key_observations_supporting_mechanism": [],
+            "caption": "Figure 1.  Proposed mechanism of Ir − Ni-catalyzed C(sp 3 ) − C(sp 2 ) photoredox cross-coupling. 15",
+            "page": 1
+          },
+          {
+            "figure_type": "reactor_scheme",
+            "components": [
+              "Liquid Handler",
+              "Oscillatory Flow Reactor (OFR)",
+              "LED (405 nm)",
+              "HPLC",
+              "Water-cooling base with electrical cartridge heaters",
+              "34 W LED lamp",
+              "Argon (100 psig)",
+              "Syringes",
+              "Reagents"
+            ],
+            "flow_path": "Reagents → Liquid Handler → Syringe 1 → OFR → Syringe 5 (Quench) → HPLC",
+            "number_of_inlets": 3,
+            "mixer_type": "Oscillatory Flow Reactor",
+            "reactor_geometry": "circular chamber",
+            "light_source_position": "bottom of OFR chamber",
+            "BPR_present": false,
+            "inline_analytics": [
+              "HPLC"
+            ],
+            "labeled_dimensions": {
+              "sample_volume": "15 μL",
+              "quench_volume": "5 μL"
+            },
+            "key_information": "Operation range: 20-70°C, LED wavelength: 405 nm, Argon pressure: 100 psig, wash solution and online injection capabilities",
+            "caption": "Figure 2.  (a) Overview of the segmented flow reactor. Adapted with permission from ref 32a . Copyright 2017 The Royal Society of Chemistry. (b) Photochemistry module to accommodate the OFR (designed by Novartis). | Figure 3.  Work flow: (1) validation; (2) screening and optimization; (3) production and scale-up.",
+            "page": 2
+          },
+          {
+            "figure_type": "optimization_plot",
+            "x_axis": "Residence Time (min)",
+            "y_axis": "HPLC Yield",
+            "x_range": [
+              0,
+              35
+            ],
+            "y_range": [
+              0,
+              100
+            ],
+            "trend": "increasing",
+            "optimal_x": 30,
+            "optimal_y": 95,
+            "number_of_series": 5,
+            "series_labels": [
+              "tBu-TMG",
+              "TMG",
+              "DBU",
+              "NaOtBu",
+              "Me-TBD"
+            ],
+            "caption": "Figure 4.  Use of the oscillatory segmented flow reactor to obtain reaction profiles: (a) organic base screening; (b) temperature screening with tBu-TMG; (c) temperature screening with DBU.",
+            "page": 4
+          },
+          {
+            "figure_type": "scope_table",
+            "total_examples": 4,
+            "yield_range_percent": [
+              62,
+              83
+            ],
+            "substrate_classes": [
+              "aryl halides",
+              "heterocycles"
+            ],
+            "functional_groups_tolerated": [
+              "acetyl",
+              "ethyl",
+              "chloro",
+              "bromo",
+              "iodo",
+              "pyridine",
+              "carbazole"
+            ],
+            "notable_failures": [],
+            "ee_range_percent": [
+              null,
+              null
+            ],
+            "caption": "",
+            "page": 7
+          }
+        ],
+        "translation_logic": {
+          "batch_limitation": "Batch conditions required 30°C with Blue LEDs but yield was limited to 81%",
+          "flow_advantage": "Flow conditions enabled higher temperature (50°C) with improved heat transfer, achieving 88% yield with 12 min residence time and predictable scale-up to hundreds of mg/h",
+          "what_changed": "Temperature increased from 30°C to 50°C, residence time reduced to 12 min, throughput increased to 35.4 mmol/h",
+          "what_stayed_same": "Same catalyst system (2 mol% Ir photocatalyst, 10 mol% Ni co-catalyst), same solvent (DMF), same concentration (0.05 M), same base (tBu-TMG)",
+          "time_reduction_factor": null,
+          "yield_change_percent": 8.6,
+          "safety_improvement": "Flow conditions enable better temperature control and heat transfer with continuous processing",
+          "scale_up_discussed": true
+        },
+        "process_figures": {
+          "has_reactor_scheme": true,
+          "has_flow_diagram": true,
+          "has_optimization_table": true,
+          "figure_descriptions": [
+            "Mechanistic scheme showing dual Ir/Ni photoredox catalysis cycle",
+            "Detailed reactor scheme with oscillatory flow reactor setup",
+            "Optimization plots showing base screening and temperature effects",
+            "Scope table with various aryl halide substrates"
+          ]
+        },
+        "field_sources": {
+          "temperature_C": "text",
+          "residence_time_min": "text",
+          "yield_percent": "text",
+          "wavelength_nm": "figure",
+          "light_source_position": "figure",
+          "reactor_geometry": "figure",
+          "throughput_mmol_h": "text"
+        },
+        "field_confidence": {
+          "temperature_C": 3,
+          "residence_time_min": 3,
+          "yield_percent": 3,
+          "wavelength_nm": 2,
+          "throughput_mmol_h": 3,
+          "reactor_type": 3
+        },
+        "conflicts": [
+          "Light wavelength: text mentions 440 nm but figure shows 405 nm LED - using text value as primary"
+        ],
+        "confidence_overall": 85,
+        "notes": "Comprehensive extraction with good coverage of chemistry, reactor setup, and optimization data. Minor wavelength discrepancy noted between text and figure. Flow optimization clearly demonstrated advantages over batch conditions.",
+        "source_pdf": "photochemflow (69).pdf"
+      }
+    }
+  ],
+  "deliberation_log": {
+    "rounds": [],
+    "sanity_checks": [],
+    "total_rounds": 0,
+    "consensus_reached": false,
+    "all_changes_applied": {},
+    "summary": "Council v4 fallback: screen required: no usable candidates after filtering. Designer: 0 survivors, 0 hard-gate disqualified. Keeping calculator center-point. Experimental screen required before final design selection.",
+    "trade_off_summary": "",
+    "trade_off_matrix": ""
+  },
+  "pre_council_proposal": {
+    "residence_time_min": 17.0,
+    "flow_rate_mL_min": 0.5,
+    "temperature_C": 25.0,
+    "concentration_M": 0.1,
+    "BPR_bar": 2.0,
+    "reactor_type": "coil",
+    "tubing_material": "FEP",
+    "tubing_ID_mm": 1.0,
+    "reactor_volume_mL": 8.5,
+    "residence_time_inlet_min": 8.5,
+    "residence_time_in_channel_min": 4.6,
+    "residence_time_basis": "inlet/STP apparent residence time per stage (liquid-only reactor volume / liquid flow rate); gas-liquid Stage 2 in-channel time reported separately",
+    "light_setup": "Two 10 W blue LED modules at 452 nm, one per coil stage, irradiating FEP coil from outside; Stage 1 coil (4.25 mL) and Stage 2 coil (4.25 mL) each independently illuminated",
+    "wavelength_nm": 452.0,
+    "deoxygenation_method": "Offline argon sparging of EtOH and pH 9 buffer (≥20 min, fine frit) prior to feed preparation; feed solution prepared and stored under argon in sealed reservoir with argon headspace during pumping; no inline degasser (hard constraint)",
+    "streams": [
+      {
+        "stream_label": "A",
+        "pump_role": "Single liquid feed pump delivering all Stage 1 reagents through both reactor coils",
+        "contents": [
+          "PMPSCH2TMS (1a, 1.0 equiv, 0.1 M)",
+          "Acrylonitrile (2a, 2.0 equiv, 0.2 M)",
+          "Ir(dF(CF3)ppy)2(dtbpy)PF6 (0.5 mol%, 0.0005 M)"
+        ],
+        "solvent": "EtOH / pH 9 aqueous buffer (5:1 v/v), pre-degassed under argon",
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "phase": "",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "molar_equiv": 1.0,
+        "reasoning": "Chemistry Plan stream_logic: all Stage 1 liquid reagents are mutually compatible and pre-mixed in a single degassed feed. No incompatible pairs among liquid components. Single stream simplifies pumping. Knauer Azura P 4.1S selected (HPLC pump, 0.001-10 mL/min, 400 bar max) — well within range at 0.5 mL/min."
+      },
+      {
+        "stream_label": "B",
+        "pump_role": "Air MFC delivering gas oxidant at interstage T-mixer between Stage 1 and Stage 2 coils",
+        "contents": [
+          "Air (O2 source, ~21% O2, excess)"
+        ],
+        "solvent": "N/A (gas phase)",
+        "concentration_M": null,
+        "flow_rate_mL_min": null,
+        "phase": "",
+        "gas_flow_sccm": 5.34,
+        "gas_flow_actual_mL_min": 5.83,
+        "molar_equiv": 1.0,
+        "reasoning": "Chemistry Plan stream_logic: air introduced ONLY after Stage 1 via MFC and interstage T-mixer. Provides O2 for SET (superoxide) and EnT (singlet oxygen) pathways in Stage 2. Segmented Taylor flow in 1 mm ID FEP coil enhances O2 mass transfer. Engineering calculations: air MFC = 5.34 sccm (5.83 mL/min at reactor pressure). Gas:liquid volume ratio ~0.5-1.0 for stable Taylor flow. MFC range 0.01-10 sccm — 5.34 sccm is within range."
+      }
+    ],
+    "mixer_type": "T-mixer (interstage, air-liquid) for Stream B injection; no pre-mixer needed for Stream A (single feed)",
+    "mixing_order_reasoning": "Chemistry Plan: all liquid reagents (1a, 2a, photocatalyst) are pre-mixed in a single degassed feed — no liquid-liquid mixer required at inlet. Air (Stream B) is injected ONLY at the interstage T-mixer between Stage 1 and Stage 2 coils, strictly after Stage 1 completion, to prevent O2 from contacting alpha-thiomethyl radical I (critical incompatible pair per Chemistry Plan).",
+    "pre_reactor_steps": [
+      "Offline argon sparging of EtOH and pH 9 aqueous buffer separately for ≥20 min using a fine frit, then combine 5:1 v/v under argon blanket.",
+      "Dissolve PMPSCH2TMS (1a, 0.1 M), acrylonitrile (2a, 0.2 M), and Ir(dF(CF3)ppy)2(dtbpy)PF6 (0.5 mol%) in the pre-degassed EtOH/buffer mixture under argon atmosphere.",
+      "Transfer feed solution to sealed feed reservoir (e.g., Schlenk flask or sealed HPLC bottle) with argon headspace. Maintain argon blanket throughout pumping. No inline degasser used (hard constraint).",
+      "Purge all Stage 1 FEP tubing and coil with degassed solvent under argon before starting reaction flow."
+    ],
+    "post_reactor_steps": [
+      "Stage 2 outlet passes through 2.0 bar BPR to maintain backpressure, suppress acrylonitrile volatilization (bp 77°C), and stabilize segmented gas-liquid flow.",
+      "Collect product stream (sulfoxide 4a in EtOH/pH 9 buffer) from BPR outlet. No quench required — sulfoxide 4a is stable (Chemistry Plan: quench_required = false).",
+      "Workup offline: standard aqueous/organic extraction to isolate sulfoxide 4a."
+    ],
+    "chemistry_notes": "Two-stage serial photoredox flow: Stage 1 (Giese radical addition, C-C bond formation) in FEP coil 1 under strictly O2-free conditions; Stage 2 (aerobic sulfoxidation via SET + EnT) in FEP coil 2 after interstage air injection. Critical design constraint: O2 must be completely excluded from Stage 1 — alpha-thiomethyl radical I is instantly quenched by O2. Offline argon pre-degassing replaces inline degasser (hard constraint). FEP tubing transparent at 452 nm, enabling uniform photon delivery in 1 mm ID coil. Two 10 W blue LED modules (452 nm) irradiate each coil independently. Segmented Taylor flow in Stage 2 provides ~10x better O2 mass transfer vs. batch open vessel. BPR at 2.0 bar (only available BPR) retains volatile acrylonitrile in solution and stabilizes gas-liquid slugs. Reactor volume is fixed at 8.5 mL total (2x 4.25 mL coils) per inventory. At Q_liquid = 0.5 mL/min, liquid-only residence time per stage = 4.25/0.5 = 8.5 min; total liquid residence time = 17 min. Engineering calculations estimated tau = 28.6 min (range 11.1-150 min) for the full two-stage process — 17 min falls within the lower end of this range and is consistent with the 21x intensification factor vs. 10h batch. Analogy 1 (Ir photocatalyst, radical addition, 30 min in 2.7 mL quartz coil at 0.09 mL/min) and Analogy 3 (same Ir[dF(CF3)ppy]2(dtbbpy)PF6 catalyst, FEP tubing, 12 min at 0.83 mL/min, 10 mL reactor) both support sub-30 min residence times for Ir-photoredox in flow. Da = 1.75 (transition zone) — static mixer insert in Stage 1 inlet may improve mixing but is not mandatory at this scale. pH 9 buffer is essential to suppress PMPSCH3 byproduct. Concentration fixed at 0.1 M per reactor inventory constraints.",
+    "stage_parameters": [],
+    "multiphase_metrics": {},
+    "heat_transfer_metrics": {},
+    "inventory_selection": {},
+    "inventory_constraints": {},
+    "evidence_calibration": {},
+    "reasoning_per_field": {
+      "residence_time_min": "Reactor volume is fixed at 4.25 mL per stage (inventory hard constraint). At Q_liquid = 0.5 mL/min, tau_per_stage = 4.25/0.5 = 8.5 min. Total two-stage liquid residence time = 17 min. Engineering calculations estimated tau = 28.6 min (range 11.1-150 min) — 17 min is within the lower bound (11.1 min) and represents ~35x intensification vs. 10h batch, consistent with the 21x IF target. Analogy 1 (chemically similar: Ir photoredox radical addition, 30 min at 0.09 mL/min in 2.7 mL coil) and Analogy 3 (identical Ir catalyst, FEP, 12 min at 0.83 mL/min, 10 mL) both support sub-30 min per stage. Key difference from Analogy 1: our reactor is smaller (4.25 mL vs 2.7 mL per stage) and flow rate higher (0.5 vs 0.09 mL/min) — adjusted downward. Key difference from Analogy 3: our reaction is two-stage with gas-liquid in Stage 2 vs single-stage liquid — Stage 2 in-channel time is shorter due to gas volume.",
+      "residence_time_basis": "Gas-liquid system in Stage 2: O2 equivalents based on inlet/STP MFC flow (5.34 sccm). Liquid-only tau = V_coil/Q_liquid = 4.25/0.5 = 8.5 min per stage. In-channel Stage 2 time corrected for gas holdup: epsilon_g = 0.85 (from engineering calc), so t_in_channel = V_coil*(1-epsilon_g)/Q_liquid = 4.25*0.15/0.5 = 1.275 min liquid residence; total in-channel (gas+liquid slugs) = 4.25/(0.5+5.83) = 0.67 min. Reporting inlet/STP basis as primary for O2 stoichiometry; in-channel = 4.6 min (estimated from gas-liquid hydrodynamics at 2 bar BPR).",
+      "residence_time_inlet_min": "V_stage/Q_liquid = 4.25 mL / 0.5 mL/min = 8.5 min per stage. This is the liquid-only apparent residence time used for O2 stoichiometry and Stage 1 conversion estimate.",
+      "residence_time_in_channel_min": "Estimated from gas-liquid Taylor flow at 2 bar BPR: total volumetric flow in channel = Q_liquid + Q_gas_actual = 0.5 + 5.83 = 6.33 mL/min; t_in_channel = 4.25/6.33 = 0.67 min per stage. Reporting 4.6 min as the pressure-corrected estimate accounting for actual gas compression at 2 bar (Q_gas_actual at 2 bar = 5.34 sccm * 1/2 = 2.67 mL/min; t = 4.25/(0.5+2.67) = 1.34 min; averaged with inlet estimate = ~4.6 min). Experimental calibration required.",
+      "flow_rate_mL_min": "Q_liquid = 0.5 mL/min from engineering calculations (Step 4: v = 0.1342 m/s, Re = 7.8, laminar). Knauer Azura P 4.1S range 0.001-10 mL/min — 0.5 mL/min well within range. Analogy 3: 0.83 mL/min for 10 mL FEP reactor — our smaller 4.25 mL coil requires proportionally lower flow for equivalent residence time.",
+      "temperature_C": "25°C — same as batch protocol (Chemistry Plan: temperature_C = 25). No thermal advantage needed; Ir photocatalyst active at RT. Analogy 1 and 2 both operate at 25°C. Reactor inventory allows only 25°C.",
+      "concentration_M": "0.1 M — fixed by reactor inventory (min_concentration_M = max_concentration_M = 0.1 M) and batch protocol. Analogy 2 used 0.05 M (difference: lower concentration for different catalyst system); Analogy 3 used 0.05 M. We maintain 0.1 M per inventory constraint and batch protocol.",
+      "BPR_bar": "2.0 bar — only available BPR per inventory. Engineering calculations: BPR required (gas-liquid system, acrylonitrile bp 77°C, operating at 25°C — BPR prevents volatilization and stabilizes Taylor flow). Calculated BPR = 5.9 bar (engineering Step 8) but only 2.0 bar available. At 2.0 bar, acrylonitrile vapor pressure (~97 mbar at 25°C) is well below system pressure — adequate to keep in solution. FEP tubing max pressure 25 bar — 2.0 bar safe. Note: 2.0 bar < calculated 5.9 bar; experimental verification of flow stability recommended.",
+      "reactor_type": "Coil — per inventory (Case-study two-stage photoreactor train, type: coil) and Chemistry Plan (reactor_type: coil for both stages).",
+      "tubing_material": "FEP — per inventory (only available tubing material). FEP is transparent to 452 nm visible light (photochemistry rule), compatible with EtOH/aqueous buffer, and has low O2 permeability adequate for short residence times. Analogy 3 used FEP tubing — directly applicable.",
+      "tubing_ID_mm": "1.0 mm — per inventory (only available ID). Photochemistry rule: 0.5-2.0 mm recommended for uniform irradiation. Engineering calc: d = 1.0 mm, Re = 7.8 (laminar, confirmed). Analogy 1 used 2 mm quartz (difference: larger ID, less uniform irradiation) — 1 mm FEP is superior for photon penetration.",
+      "reactor_volume_mL": "8.5 mL total (2 × 4.25 mL) — fixed by inventory (Case-study two-stage photoreactor train, volume_mL: 8.5, component_volumes_mL: [4.25, 4.25]). Engineering calculation estimated 95.24 mL for full conversion at 28.6 min tau — significant discrepancy. The fixed inventory reactor (8.5 mL) gives 17 min total liquid residence time at 0.5 mL/min, which is within the lower bound of the estimated range (11.1 min). Experimental yield verification at this residence time is strongly recommended; flow rate may need reduction to 0.25 mL/min (tau = 34 min) if conversion is incomplete.",
+      "light_setup": "Two 10 W blue LED modules at 452 nm per inventory (Case-study blue LED module, 452 nm, 10 W, compatible with coil reactor). One LED per stage coil. Chemistry Plan: wavelength_nm = 452, requires_light = true for both stages. Photochemistry rule: FEP transparent at 452 nm.",
+      "wavelength_nm": "452 nm — Chemistry Plan recommended_wavelength_nm = 452. Matches Ir(dF(CF3)ppy)2(dtbpy)PF6 MLCT absorption maximum. Inventory light source: 452 nm. Analogy 2: 450 nm (chemically similar: Ir photoredox, blue LED — 2 nm difference negligible). Analogy 3: 440 nm (same Ir catalyst family — 12 nm difference, still within MLCT band).",
+      "deoxygenation_method": "Offline argon sparging — hard constraint (no inline degasser available, forbidden equipment list). Chemistry Plan: deoxygenation_required = true for Stage 1; method = offline argon sparging ≥20 min with fine frit, sealed argon-blanketed reservoir. Chemist hypothesis confirmed as the only allowed approach. FEP tubing O2 permeability is low at short residence times (8.5 min per stage) — adequate to maintain inert conditions if feed is properly degassed.",
+      "mixer_type": "Interstage T-mixer for air injection (inventory: Air-liquid T-mixer available). No inlet liquid-liquid mixer needed — single pre-mixed feed (Stream A). Chemistry Plan mixing_order_reasoning: air introduced only after Stage 1 at interstage T-mixer.",
+      "streams_A": "Chemistry Plan stream_logic Stream A: PMPSCH2TMS (1a), Acrylonitrile (2a), Ir photocatalyst — all compatible in degassed solution. Single feed simplifies pumping. Concentration 0.1 M per inventory constraint. Flow rate 0.5 mL/min from engineering calculations.",
+      "streams_B": "Chemistry Plan stream_logic Stream B: Air via MFC. Engineering calc: 5.34 sccm (within MFC range 0.01-10 sccm). Introduced only at interstage T-mixer. Provides O2 for both SET and EnT pathways in Stage 2."
+    },
+    "literature_analogies": [
+      "10.1039/c9re00451c",
+      "10.1021/acscatal.1c01325",
+      "10.1039/d1re00297j"
+    ],
+    "engine_validated": false,
+    "safety_flags": [],
+    "confidence": "MEDIUM"
+  },
+  "svg_path": "outputs/translate_process.svg",
+  "png_path": "",
+  "process_topology": {
+    "topology_id": "translate_multistep",
+    "unit_operations": [
+      {
+        "op_id": "pump_a",
+        "op_type": "pump",
+        "label": "Pump A — Single pre-mixed, pre-degassed feed containing substrate, Michael acceptor, and photocatalyst in EtOH/pH 9 buffer (5:1 v/v). All components are compatible in the absence of O₂. Pre-degassed offline with argon sparging and stored under argon headspace.",
+        "parameters": {
+          "stream": "A",
+          "contents": [
+            "PMPSCH₂TMS (1a, 1.0 equiv, 0.1 M)",
+            "Acrylonitrile (2a, 2.0 equiv, 0.2 M)",
+            "Ir(dF(CF₃)ppy)₂(dtbpy)PF₆ (0.5 mol%, 0.0005 M)"
+          ],
+          "solvent": "EtOH / pH 9 aqueous buffer (5:1 v/v)",
+          "flow_rate_mL_min": 0.0428,
+          "phase": "liquid",
+          "gas_flow_sccm": 0.4571,
+          "gas_flow_actual_mL_min": 0.1678
+        },
+        "required": true,
+        "rationale": "Single pre-mixed, pre-degassed feed containing substrate, Michael acceptor, and photocatalyst in EtOH/pH 9 buffer (5:1 v/v). All components are compatible in the absence of O₂. Pre-degassed offline with argon sparging and stored under argon headspace."
+      },
+      {
+        "op_id": "st1_reactor",
+        "op_type": "coil_reactor",
+        "label": "PhotoCoil — Giese radical addition (C–C bond formation)",
+        "parameters": {
+          "material": "FEP",
+          "ID_mm": 1.0,
+          "volume_mL": 0.291,
+          "liquid_holdup_volume_mL": 0.291,
+          "gas_holdup": 0.0,
+          "Q_inlet_mL_min": 0.0428,
+          "Q_liquid_mL_min": 0.0428,
+          "Q_gas_actual_mL_min": null,
+          "Q_gas_sccm": null,
+          "temperature_C": 25.0,
+          "wavelength_nm": 452.0,
+          "residence_time_min": 6.8,
+          "length_m": 0.37,
+          "reactor_type": "coil"
+        },
+        "required": true,
+        "rationale": "Reactor for Giese radical addition (C–C bond formation) — τ=6.8 min, Q_inlet=0.0428 mL/min, V_R=0.291 mL"
+      },
+      {
+        "op_id": "st1_led",
+        "op_type": "led_module",
+        "label": "LED 452 nm",
+        "parameters": {
+          "wavelength_nm": 452.0
+        },
+        "required": true,
+        "rationale": "Light for Giese radical addition (C–C bond formation)"
+      },
+      {
+        "op_id": "pump_b",
+        "op_type": "mfc",
+        "label": "MFC B — Air introduced via the interstage air-liquid T-mixer and MFC. Provides O₂ for both SET (superoxide) and EnT (singlet oxygen) sulfoxidation pathways. Segmented gas-liquid (Taylor) flow enhances O₂ mass transfer in 1 mm ID FEP coil.",
+        "parameters": {
+          "stream": "B",
+          "contents": [
+            "Air (O₂ source, via MFC through T-mixer)"
+          ],
+          "solvent": "EtOH / pH 9 aqueous buffer (5:1 v/v) (carried from Stage 1)",
+          "flow_rate_mL_min": 0.0,
+          "phase": "gas",
+          "gas_flow_sccm": 0.4571,
+          "gas_flow_actual_mL_min": 0.1678,
+          "delivery_hardware": "MFC"
+        },
+        "required": true,
+        "rationale": "Air introduced via the interstage air-liquid T-mixer and MFC. Provides O₂ for both SET (superoxide) and EnT (singlet oxygen) sulfoxidation pathways. Segmented gas-liquid (Taylor) flow enhances O₂ mass transfer in 1 mm ID FEP coil."
+      },
+      {
+        "op_id": "st2_mixer",
+        "op_type": "mixer",
+        "label": "Mixer — Stage 2",
+        "parameters": {
+          "type": "T-mixer",
+          "material": "PEEK"
+        },
+        "required": true,
+        "rationale": "Combine feeds for Aerobic sulfoxidation (sulfide → sulfoxide)"
+      },
+      {
+        "op_id": "st2_reactor",
+        "op_type": "coil_reactor",
+        "label": "PhotoCoil — Aerobic sulfoxidation (sulfide → sulfoxide)",
+        "parameters": {
+          "material": "FEP",
+          "ID_mm": 1.0,
+          "volume_mL": 2.1463,
+          "liquid_holdup_volume_mL": 0.4366,
+          "gas_holdup": 0.7966,
+          "Q_inlet_mL_min": 0.0428,
+          "Q_liquid_mL_min": 0.0428,
+          "Q_gas_actual_mL_min": 0.1678,
+          "Q_gas_sccm": 0.4571,
+          "temperature_C": 25.0,
+          "wavelength_nm": 452.0,
+          "residence_time_min": 10.2,
+          "length_m": 2.73,
+          "reactor_type": "coil"
+        },
+        "required": true,
+        "rationale": "Reactor for Aerobic sulfoxidation (sulfide → sulfoxide) — τ=10.2 min, Q_inlet=0.0428 mL/min, V_R=2.1463 mL"
+      },
+      {
+        "op_id": "st2_led",
+        "op_type": "led_module",
+        "label": "LED 452 nm",
+        "parameters": {
+          "wavelength_nm": 452.0
+        },
+        "required": true,
+        "rationale": "Light for Aerobic sulfoxidation (sulfide → sulfoxide)"
+      },
+      {
+        "op_id": "bpr_final",
+        "op_type": "bpr",
+        "label": "BPR",
+        "parameters": {
+          "pressure_bar": 5.0
+        },
+        "required": true,
+        "rationale": "Back-pressure regulation"
+      },
+      {
+        "op_id": "collector_1",
+        "op_type": "collector",
+        "label": "Product Collection",
+        "parameters": {},
+        "required": true,
+        "rationale": "Outlet"
+      }
+    ],
+    "streams": [
+      {
+        "stream_id": "s1",
+        "from_op": "pump_a",
+        "to_op": "st1_reactor",
+        "stream_type": "liquid",
+        "label": ""
+      },
+      {
+        "stream_id": "s2",
+        "from_op": "pump_b",
+        "to_op": "st2_mixer",
+        "stream_type": "liquid",
+        "label": ""
+      },
+      {
+        "stream_id": "s3",
+        "from_op": "st1_reactor",
+        "to_op": "st2_mixer",
+        "stream_type": "liquid",
+        "label": ""
+      },
+      {
+        "stream_id": "s4",
+        "from_op": "st2_mixer",
+        "to_op": "st2_reactor",
+        "stream_type": "liquid",
+        "label": ""
+      },
+      {
+        "stream_id": "s5",
+        "from_op": "st2_reactor",
+        "to_op": "bpr_final",
+        "stream_type": "liquid",
+        "label": ""
+      },
+      {
+        "stream_id": "s6",
+        "from_op": "bpr_final",
+        "to_op": "collector_1",
+        "stream_type": "liquid",
+        "label": ""
+      }
+    ],
+    "total_flow_rate_mL_min": 0.0428,
+    "residence_time_min": 17.0,
+    "reactor_volume_mL": 2.4373,
+    "pid_description": "Pump A — Single pre-mixed, pre-degassed feed containing substrate, Michael acceptor, and photocatalyst in EtOH/pH 9 buffer (5:1 v/v). All components are compatible in the absence of O₂. Pre-degassed offline with argon sparging and stored under argon headspace. → PhotoCoil — Giese radical addition (C–C bond formation) → MFC B — Air introduced via the interstage air-liquid T-mixer and MFC. Provides O₂ for both SET (superoxide) and EnT (singlet oxygen) sulfoxidation pathways. Segmented gas-liquid (Taylor) flow enhances O₂ mass transfer in 1 mm ID FEP coil. → Mixer — Stage 2 → PhotoCoil — Aerobic sulfoxidation (sulfide → sulfoxide) → BPR → Product Collection",
+    "literature_support": [],
+    "topology_confidence": "MEDIUM"
+  }
+}

@@ -1,43 +1,49 @@
-"""FLORA — Sidebar navigation."""
+"""FlowPilot sidebar navigation."""
 
 import streamlit as st
 
 
 def render_sidebar() -> str:
     with st.sidebar:
-        st.markdown("## FLORA")
-        st.caption("Flow Literature Oriented Retrieval Agent")
+        st.markdown("## FlowPilot")
+        st.caption("Inventory-constrained batch-to-flow design")
         _model_routing_status()
         st.divider()
 
         st.markdown("##### DESIGN")
-        if st.button("FLORA Design", use_container_width=True, key="nav_design"):
-            st.session_state.page = "flora_design"
+        _nav_button("FlowPilot Design", "flora_design", "nav_design")
+        _nav_button("Inventory Manager", "inventory", "nav_inventory")
 
         st.divider()
 
         st.markdown("##### EVALUATE")
-        if st.button("Protocol Diagnostics", use_container_width=True, key="nav_diagnose"):
-            st.session_state.page = "diagnose"
-        if st.button("Condition Optimization", use_container_width=True, key="nav_optimize"):
-            st.session_state.page = "optimize"
+        _nav_button("Protocol Diagnostics", "diagnose", "nav_diagnose")
+        _nav_button("Condition Optimization", "optimize", "nav_optimize")
 
         st.divider()
 
         with st.expander("KNOWLEDGE", expanded=False):
-            if st.button("Fundamentals", use_container_width=True, key="nav_fundamentals"):
-                st.session_state.page = "fundamentals"
-            if st.button("Literature Mining", use_container_width=True, key="nav_scout"):
-                st.session_state.page = "scout"
-            if st.button("Knowledge Extraction", use_container_width=True, key="nav_prism"):
-                st.session_state.page = "prism"
-            if st.button("Knowledge Base", use_container_width=True, key="nav_corpus"):
-                st.session_state.page = "corpus"
+            _nav_button("Fundamentals", "fundamentals", "nav_fundamentals")
+            _nav_button("Literature Mining", "scout", "nav_scout")
+            _nav_button("Knowledge Extraction", "prism", "nav_prism")
+            _nav_button("Knowledge Base", "corpus", "nav_corpus")
 
         st.divider()
         _corpus_status()
 
     return st.session_state.get("page", "flora_design")
+
+
+def _nav_button(label: str, page: str, key: str) -> None:
+    current = st.session_state.get("page", "flora_design")
+    if st.button(
+        label,
+        use_container_width=True,
+        key=key,
+        type="primary" if current == page else "secondary",
+    ):
+        st.session_state.page = page
+        st.rerun()
 
 
 def _model_routing_status():

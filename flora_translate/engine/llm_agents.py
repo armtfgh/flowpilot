@@ -105,6 +105,13 @@ def _openai_token_limit(model: str, max_tokens: int) -> dict:
     return {"max_tokens": max_tokens}
 
 
+def _openai_tool_kwargs(model: str) -> dict:
+    """Return model-specific controls required by Chat Completions tools."""
+    if (model or "").lower().startswith("gpt-5"):
+        return {"reasoning_effort": "none"}
+    return {}
+
+
 def _anthropic_text(content: list) -> str:
     """Extract final text while ignoring adaptive-thinking and tool blocks."""
     return "\n".join(
@@ -221,28 +228,20 @@ def emit_component_llm_event(
 def _get_anthropic_client() -> anthropic.Anthropic:
     global _ANTHROPIC_CLIENT
     if _ANTHROPIC_CLIENT is None:
-        import certifi
-        import httpx
-
-        ssl_context = ssl.create_default_context(cafile=certifi.where())
-        # Python 3.13/OpenSSL may enable X509_STRICT, which rejects otherwise
-        # valid enterprise proxy chains lacking an Authority Key Identifier.
-        # Keep CA and hostname verification enabled; relax only that strict flag.
-        strict_flag = getattr(ssl, "VERIFY_X509_STRICT", 0)
-        if strict_flag:
-            ssl_context.verify_flags &= ~strict_flag
         _ANTHROPIC_CLIENT = anthropic.Anthropic(
-            http_client=httpx.Client(verify=ssl_context),
+            http_client=build_verified_httpx_client(),
         )
     return _ANTHROPIC_CLIENT
 
 
 def build_verified_httpx_client():
-    """Build an HTTP client compatible with strict Python 3.13 TLS defaults."""
-    import certifi
+    """Build a verified client using the host's configured system trust store."""
     import httpx
 
-    ssl_context = ssl.create_default_context(cafile=certifi.where())
+    # The laboratory network adds a trusted TLS inspection certificate to the
+    # host CA store. Forcing certifi bypasses that trust configuration and
+    # produces CERTIFICATE_VERIFY_FAILED despite a valid system-trusted chain.
+    ssl_context = ssl.create_default_context()
     # Preserve certificate and hostname verification. Some enterprise proxy
     # chains omit AKI, which Python 3.13's optional strict flag rejects.
     strict_flag = getattr(ssl, "VERIFY_X509_STRICT", 0)
@@ -263,10 +262,15 @@ def _get_ollama_client():
     """OpenAI-compatible client pointing at the local Ollama server."""
     global _OLLAMA_CLIENT
     if _OLLAMA_CLIENT is None:
+        import httpx
         import openai
         _OLLAMA_CLIENT = openai.OpenAI(
             base_url=OLLAMA_BASE_URL,
             api_key="ollama",          # required by the library, ignored by Ollama
+            # The laboratory endpoint is plain HTTP. An explicit transport keeps
+            # httpx from loading a host SSL_CERT_FILE that may not exist inside
+            # the execution environment and is irrelevant for this connection.
+            http_client=httpx.Client(verify=False, trust_env=False),
         )
     return _OLLAMA_CLIENT
 
@@ -875,6 +879,7 @@ def call_llm_with_tools(
             resp = client.chat.completions.create(
                 model=ENGINE_MODEL_OPENAI,
                 **_openai_token_limit(ENGINE_MODEL_OPENAI, max_tokens),
+                **_openai_tool_kwargs(ENGINE_MODEL_OPENAI),
                 tools=openai_tools,
                 tool_choice="auto",
                 messages=messages,

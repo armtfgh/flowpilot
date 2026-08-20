@@ -27,8 +27,11 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import re
 import shutil
+import sys
+from copy import deepcopy
 from collections import defaultdict
 from html import escape
 from pathlib import Path
@@ -51,6 +54,25 @@ ASSETS = {
     "degasser":     ICONS_DIR / "degasser.png",
     "mfc":          ICONS_DIR / "mfc.png",
 }
+
+
+def _ensure_graphviz_on_path() -> str | None:
+    """Resolve Graphviz from PATH or beside the active Conda Python."""
+
+    executable = shutil.which("dot")
+    if executable:
+        return executable
+
+    environment_bin = Path(sys.executable).resolve().parent
+    candidate = environment_bin / "dot"
+    if not candidate.is_file():
+        return None
+
+    current_path = os.environ.get("PATH", "")
+    path_entries = current_path.split(os.pathsep) if current_path else []
+    if str(environment_bin) not in path_entries:
+        os.environ["PATH"] = os.pathsep.join([str(environment_bin), *path_entries])
+    return str(candidate)
 
 # ── Graph-level style ─────────────────────────────────────────────────────────
 GRAPH_ATTR = {
@@ -192,6 +214,20 @@ def _enforce_mfc_for_gas_streams(ops) -> None:
 
 # ── Label generators ──────────────────────────────────────────────────────────
 
+def _unresolved_inventory_label(op) -> str:
+    p = op.parameters or {}
+    status = str(
+        p.get("inventory_assignment_status")
+        or getattr(op, "assignment_status", "")
+    ).lower()
+    if status != "unresolved":
+        return ""
+    category = str(
+        p.get("unresolved_inventory_category")
+        or getattr(op, "inventory_category", "equipment")
+    ).replace("_", " ")
+    return f"UNRESOLVED: {category}"
+
 def _pump_label(op) -> str:
     """
     Clean pump label: Pump letter, materials, solvent/conc,
@@ -199,7 +235,8 @@ def _pump_label(op) -> str:
     """
     p      = op.parameters or {}
     stream = p.get("stream", "?")
-    title  = f"Pump {stream}"
+    instrument = p.get("instrument_name") or getattr(op, "instrument_name", "")
+    title = _trunc(instrument, 30) if instrument else f"Pump {stream}"
 
     # Materials line
     contents = p.get("contents") or []
@@ -234,6 +271,9 @@ def _pump_label(op) -> str:
             f'<FONT POINT-SIZE="9" COLOR="#2563EB"><B>'
             f'{float(p["flow_rate_mL_min"]):.2f} mL/min</B></FONT>'
         )
+    unresolved = _unresolved_inventory_label(op)
+    if unresolved:
+        rows.append(f'<FONT POINT-SIZE="8" COLOR="#B91C1C"><B>{_esc(unresolved)}</B></FONT>')
     return "<BR/>".join(rows)
 
 
@@ -241,6 +281,7 @@ def _mfc_label(op) -> str:
     """Label for gas MFC node."""
     p      = op.parameters or {}
     stream = p.get("stream", "?")
+    instrument = p.get("instrument_name") or getattr(op, "instrument_name", "")
     contents = p.get("contents") or []
     if isinstance(contents, str):
         contents = [contents]
@@ -249,7 +290,7 @@ def _mfc_label(op) -> str:
     sccm = p.get("gas_flow_sccm")
     actual = p.get("gas_flow_actual_mL_min")
     rows = [
-        f'<FONT POINT-SIZE="10" COLOR="#111827"><B>MFC {stream}</B></FONT>',
+        f'<FONT POINT-SIZE="10" COLOR="#111827"><B>{_esc(_trunc(instrument, 30) if instrument else f"MFC {stream}")}</B></FONT>',
         f'<FONT POINT-SIZE="8.5" COLOR="#DC2626">{_esc(gas_name)}</FONT>',
     ]
     if sccm is not None:
@@ -258,6 +299,9 @@ def _mfc_label(op) -> str:
             rows.append(f'<FONT POINT-SIZE="7.5" COLOR="#6B7280">{float(actual):.3f} mL/min reactor</FONT>')
     elif fr is not None:
         rows.append(f'<FONT POINT-SIZE="8" COLOR="#374151">{float(fr):.2f} mL/min</FONT>')
+    unresolved = _unresolved_inventory_label(op)
+    if unresolved:
+        rows.append(f'<FONT POINT-SIZE="8" COLOR="#B91C1C"><B>{_esc(unresolved)}</B></FONT>')
     return "<BR/>".join(rows)
 
 
@@ -267,25 +311,58 @@ def _reactor_label(op) -> str:
     """
     p = op.parameters or {}
     parts = []
+    instrument = p.get("instrument_name") or getattr(op, "instrument_name", "")
+    light_instrument = p.get("light_instrument_name") or ""
+    temperature_controller = p.get("temperature_controller_name") or ""
 
     if p.get("temperature_C") is not None:
         parts.append(f"{p['temperature_C']}°C")
     if p.get("wavelength_nm") is not None:
         parts.append(f"λ={p['wavelength_nm']:.0f} nm")
-    if p.get("residence_time_min") is not None:
+    tau_inlet = p.get("residence_time_inlet_min")
+    tau_channel = p.get("residence_time_in_channel_min")
+    if (
+        tau_inlet is not None
+        and tau_channel is not None
+        and abs(float(tau_inlet) - float(tau_channel)) > 0.05
+    ):
+        parts.append(f"τin={float(tau_inlet):.1f} min")
+        parts.append(f"τch={float(tau_channel):.1f} min")
+    elif p.get("residence_time_min") is not None:
         rt = float(p["residence_time_min"])
         parts.append(f"τ={rt:.1f} min" if rt >= 1 else f"τ={rt*60:.0f} s")
     volume = p.get("volume_mL") if p.get("volume_mL") is not None else p.get("reactor_volume_mL")
     if volume is not None:
         parts.append(f"V={float(volume):.1f} mL")
 
-    return "  ·  ".join(parts) if parts else ""
+    settings = "  ·  ".join(parts) if parts else ""
+    identity_lines = []
+    if instrument:
+        identity_lines.append(_trunc(instrument, 34))
+    if light_instrument:
+        identity_lines.append(f"Light: {_trunc(light_instrument, 28)}")
+    if temperature_controller:
+        identity_lines.append(f"Temp: {_trunc(temperature_controller, 27)}")
+    if settings:
+        identity_lines.append(settings)
+    serial_status = p.get("serial_connection_status")
+    if serial_status:
+        identity_lines.append(str(serial_status))
+    unresolved = _unresolved_inventory_label(op)
+    if unresolved:
+        identity_lines.append(unresolved)
+    if identity_lines:
+        return "\n".join(identity_lines)
+    return settings
 
 
 def _bpr_label(op) -> str:
     p = op.parameters or {}
     bar = p.get("pressure_bar") or p.get("BPR_bar")
-    return f"BPR\n  {bar:.0f} bar" if bar else "BPR"
+    instrument = p.get("instrument_name") or getattr(op, "instrument_name", "") or "BPR"
+    label = f"{_trunc(instrument, 30)}\n{bar:g} bar" if bar else _trunc(instrument, 30)
+    unresolved = _unresolved_inventory_label(op)
+    return f"{label}\n{unresolved}" if unresolved else label
 
 
 _SHORT_LABELS = {
@@ -306,6 +383,12 @@ def _textbox_label(op) -> str:
     ot  = op.op_type.lower().replace(" ", "_")
     lbl = _SHORT_LABELS.get(ot) or _SHORT_LABELS.get(op.op_type.lower()) or \
           op.label or op.op_type.replace("_", " ").title()
+    instrument = p.get("instrument_name") or getattr(op, "instrument_name", "")
+    if instrument:
+        lbl = f"{lbl.split(' | ', 1)[0]}\n{_trunc(instrument, 30)}"
+    unresolved = _unresolved_inventory_label(op)
+    if unresolved:
+        lbl += f"\n{unresolved}"
 
     # Add one short detail if meaningful
     detail = p.get("method") or p.get("reagent") or ""
@@ -396,14 +479,30 @@ def _add_image_node(dot, node_id: str, label: str, img_path: Path,
     dot.node(node_id, label=html, shape="plain")
 
 
-def _add_mixer_image(dot, node_id: str, n_inputs: int):
+def _add_mixer_image(dot, node_id: str, n_inputs: int, op=None):
     """Mixer image node: mixer2 (T-mixer) for ≤2 inputs, mixer3 (cross) for 3+."""
     asset = ASSETS["mixer3"] if n_inputs >= 3 else ASSETS["mixer2"]
     sz = NODE_ICON_SIZE
+    instrument = ""
+    if op is not None:
+        parameters = op.parameters or {}
+        instrument = parameters.get("instrument_name") or getattr(op, "instrument_name", "")
+    label_row = (
+        f'<TR><TD ALIGN="CENTER" WIDTH="{sz}"><FONT POINT-SIZE="9" COLOR="#111827">'
+        f'{_esc(_trunc(instrument, 30))}</FONT></TD></TR>'
+        if instrument else ""
+    )
+    unresolved = _unresolved_inventory_label(op) if op is not None else ""
+    if unresolved:
+        label_row += (
+            f'<TR><TD ALIGN="CENTER" WIDTH="{sz}"><FONT POINT-SIZE="8" '
+            f'COLOR="#B91C1C"><B>{_esc(unresolved)}</B></FONT></TD></TR>'
+        )
     html = (
         '<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">'
         f'<TR><TD PORT="img" FIXEDSIZE="TRUE" WIDTH="{sz}" HEIGHT="{sz}">'
         f'<IMG SRC="{escape(asset.name)}" SCALE="TRUE"/></TD></TR>'
+        f'{label_row}'
         "</TABLE>>"
     )
     dot.node(node_id, label=html, shape="plain")
@@ -413,7 +512,8 @@ def _add_textbox(dot, node_id: str, op):
     """Styled text box with explicit left/right ports for clean arrow routing."""
     label = _textbox_label(op)
     content_rows = "".join(
-        f'<TD ALIGN="CENTER"><FONT POINT-SIZE="9" COLOR="#1E293B">{_esc(ln)}</FONT></TD>'
+        f'<TR><TD ALIGN="CENTER" WIDTH="145"><FONT POINT-SIZE="9" '
+        f'COLOR="#1E293B">{_esc(ln)}</FONT></TD></TR>'
         for ln in label.split("\n")
     )
     # Outer table: [left-port cell | content cell | right-port cell]
@@ -425,7 +525,7 @@ def _add_textbox(dot, node_id: str, op):
         '<TD>'
         '<TABLE BORDER="1" COLOR="#94A3B8" CELLBORDER="0" CELLSPACING="0"'
         ' CELLPADDING="8" BGCOLOR="#F8FAFC">'
-        f'<TR>{content_rows}</TR>'
+        f'{content_rows}'
         '</TABLE>'
         '</TD>'
         '<TD PORT="out" WIDTH="1" HEIGHT="1"></TD>'
@@ -516,37 +616,32 @@ class FlowsheetBuilder:
         output_png: str = "flora_process.png",
     ) -> tuple[str, str]:
         """Build and save the diagram. Returns (svg_path, png_path)."""
+        self.last_render_info = {"renderer": "graphviz", "warnings": []}
         # Graceful fallback to legacy builder if graphviz not available
-        if not shutil.which("dot"):
+        if not _ensure_graphviz_on_path():
             logger.warning("Graphviz 'dot' not found — falling back to legacy SVG builder")
+            self.last_render_info["warnings"].append("Graphviz executable not available.")
             return self._legacy_fallback(topology, title, output_svg, output_png)
 
         try:
             return self._build_graphviz(topology, title, output_svg, output_png)
         except Exception as e:
             logger.error(f"Graphviz build failed: {e} — falling back to legacy builder", exc_info=True)
+            self.last_render_info["warnings"].append(f"Graphviz renderer failed: {e}")
             return self._legacy_fallback(topology, title, output_svg, output_png)
 
     def _build_graphviz(self, topology, title, output_svg, output_png):
         import graphviz
 
+        # Rendering is a pure projection. Some display helpers normalize node
+        # types, so operate on a deep copy and never mutate the saved topology.
+        topology = deepcopy(topology)
         ops    = self._clean_ops(topology)
         _enforce_mfc_for_gas_streams(ops)
         if not ops:
             return "", ""
 
         pump_img = _prepare_pump_img()
-
-        # Polish topology: remove logically redundant nodes (LLM + deterministic)
-        try:
-            from flora_translate.topology_polisher import polish
-            polished = polish(topology, use_llm=True)
-            ops = polished.unit_operations
-            _enforce_mfc_for_gas_streams(ops)
-            # Use polished streams for adjacency
-            topology = polished
-        except Exception as e:
-            logger.warning(f"Topology polisher failed ({e}) — rendering as-is")
 
         active_ids = {o.op_id for o in ops}
 
@@ -609,7 +704,7 @@ class FlowsheetBuilder:
 
             elif op.op_type in MIXER_TYPES_SET:
                 n_inp = mixer_input_counts.get(op.op_id, 2)
-                _add_mixer_image(dot, vid, n_inp)
+                _add_mixer_image(dot, vid, n_inp, op)
 
             elif op.op_type in ("coil_reactor", "reactor", "heated_coil"):
                 is_photo = bool((op.parameters or {}).get("wavelength_nm"))
@@ -624,7 +719,7 @@ class FlowsheetBuilder:
                 _add_image_node(dot, vid, _reactor_label(op),
                                 ASSETS["reactor"], NODE_ICON_SIZE, NODE_ICON_SIZE)
 
-            elif op.op_type in ("microchannel", "microreactor", "chip",
+            elif op.op_type in ("microchannel", "microreactor", "chip", "chip_reactor",
                                  "microfluidic"):
                 _add_image_node(dot, vid, _reactor_label(op),
                                 ASSETS["microchannel"], NODE_ICON_SIZE, NODE_ICON_SIZE)
@@ -649,7 +744,7 @@ class FlowsheetBuilder:
         IMAGE_TYPES = {
             "coil_reactor", "reactor", "heated_coil", "photoreactor",
             "packed_bed", "packed_bed_reactor", "bpr", "collector",
-            "microchannel", "microreactor", "chip",
+            "microchannel", "microreactor", "chip", "chip_reactor",
             "deoxygenation_unit", "degas", "degasser",
             # Mixers are now image-based too
             "mixer", "t_mixer", "y_mixer", "quench_mixer",
@@ -806,7 +901,13 @@ class FlowsheetBuilder:
         led_ids  = {o.op_id for o in ops if o.op_type == "led_module"}
 
         # Walk main lane (non-pump, non-led) and find consecutive duplicates
-        remove_ids = set(led_ids)  # always remove LED
+        auxiliary_ids = {
+            o.op_id for o in ops
+            if o.op_type in {"heater", "chiller", "heat_exchanger"}
+            and not in_edges.get(o.op_id)
+            and not out_edges.get(o.op_id)
+        }
+        remove_ids = set(led_ids) | auxiliary_ids
 
         DEDUP_TYPES = {"bpr", "inline_filter", "filter"}
 
@@ -835,7 +936,11 @@ class FlowsheetBuilder:
             from flora_design.visualizer.flowsheet_builder_legacy import (
                 FlowsheetBuilder as LegacyBuilder,
             )
-            return LegacyBuilder().build(topology, title, output_svg, output_png)
+            result = LegacyBuilder().build(topology, title, output_svg, output_png)
+            self.last_render_info["renderer"] = "legacy_svg"
+            return result
         except Exception as e:
             logger.error(f"Legacy builder also failed: {e}")
+            self.last_render_info["renderer"] = "failed"
+            self.last_render_info["warnings"].append(f"Legacy renderer failed: {e}")
             return "", ""
