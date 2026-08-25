@@ -128,7 +128,7 @@ def run_problem_framing(
         "ambiguities": [],
     }
     try:
-        raw = call_llm(_FRAMING_SYSTEM, user_msg, max_tokens=400)
+        raw = call_llm(_FRAMING_SYSTEM, user_msg, max_tokens=800)
         s = raw.strip()
         if "```" in s:
             for part in s.split("```")[1::2]:

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from ablation_test.src.newgen_2_outcome import (
-    build_outcome_packet, packet_gate, response_schema, validate_response, write_json,
+    build_outcome_packet, normalize_response, packet_gate, response_schema,
+    validate_response, write_json,
 )
 
 
@@ -73,6 +74,19 @@ def test_response_contract_accepts_only_strict_na_rules():
     response["criterion_scores"][0]["applicability"] = "NOT_APPLICABLE"
     response["criterion_scores"][0]["score"] = None
     assert any("NOT_APPLICABLE is not allowed" in item for item in validate_response(response, _rubric(), packet))
+
+
+def test_normalize_response_canonicalizes_only_na_fields():
+    packet = _packet()
+    response = _response(packet)
+    na_row = response["criterion_scores"][7]
+    na_row.update({"score": 4, "critical_error": True, "severity": "CRITICAL"})
+    applicable_row = response["criterion_scores"][0]
+    normalize_response(response)
+    assert na_row["score"] is None
+    assert na_row["critical_error"] is False
+    assert na_row["severity"] == "NONE"
+    assert applicable_row["score"] == 4
 
 
 def test_low_score_requires_evidence_and_correction():

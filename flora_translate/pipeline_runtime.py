@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
+from flora_translate.engine.council_v4.execution_config import CouncilExecutionConfig
+
 
 @dataclass(frozen=True)
 class PipelineRuntimeOptions:
@@ -26,6 +28,7 @@ class PipelineRuntimeOptions:
     benchmark_branching_revision_mode: bool = False
     benchmark_max_descendants_per_candidate: int = 2
     benchmark_max_total_revised_candidates: int | None = None
+    council_execution: CouncilExecutionConfig | dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if self.candidate_budget < 1:
@@ -35,6 +38,12 @@ class PipelineRuntimeOptions:
         if self.benchmark_max_descendants_per_candidate < 1:
             raise ValueError(
                 "benchmark_max_descendants_per_candidate must be at least 1"
+            )
+        if self.council_execution is not None:
+            object.__setattr__(
+                self,
+                "council_execution",
+                CouncilExecutionConfig.coerce(self.council_execution),
             )
 
     @classmethod
@@ -76,6 +85,11 @@ class PipelineRuntimeOptions:
             ),
             "benchmark_max_total_revised_candidates": (
                 self.benchmark_max_total_revised_candidates
+            ),
+            "council_execution": (
+                self.council_execution.provenance()
+                if isinstance(self.council_execution, CouncilExecutionConfig)
+                else None
             ),
         }
 

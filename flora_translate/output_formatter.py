@@ -124,7 +124,7 @@ class OutputFormatter:
             result = call_model_text(
                 model=cfg.MODEL_OUTPUT_FORMATTER,
                 api_name="output_formatter",
-                max_tokens=1500,
+                max_tokens=3000,
                 system=system_with_numbers,
                 user_content=json.dumps(
                     candidate.model_dump(), indent=2, default=str

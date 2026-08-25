@@ -69,3 +69,35 @@ def test_verified_http_client_uses_system_trust_store(monkeypatch):
 
     assert calls == [((), {})]
     assert client == ("client", context)
+
+
+def test_anthropic_tool_telemetry_captures_final_response_text(monkeypatch):
+    events = []
+    response = SimpleNamespace(
+        stop_reason="end_turn",
+        content=[SimpleNamespace(type="text", text='{"scores": []}')],
+        usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+    )
+    client = SimpleNamespace(
+        messages=SimpleNamespace(create=lambda **kwargs: response)
+    )
+    monkeypatch.setattr(llm_agents, "ENGINE_PROVIDER", "anthropic")
+    monkeypatch.setattr(llm_agents, "ENGINE_MODEL_ANTHROPIC", "claude-sonnet-4-6")
+    monkeypatch.setattr(llm_agents, "_get_anthropic_client", lambda: client)
+    llm_agents.set_llm_observer(events.append)
+    llm_agents.set_llm_runtime_overrides(capture_content=True)
+    try:
+        text, tool_calls = llm_agents.call_llm_with_tools(
+            "system",
+            "user",
+            tools=[],
+            tool_executor=lambda *_: {},
+            max_tokens=100,
+        )
+    finally:
+        llm_agents.clear_llm_observer()
+        llm_agents.clear_llm_runtime_overrides()
+
+    assert text == '{"scores": []}'
+    assert tool_calls == []
+    assert events[0]["response_text"] == text

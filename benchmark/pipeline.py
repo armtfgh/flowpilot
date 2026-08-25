@@ -257,6 +257,7 @@ def run_council_from_context(
     benchmark_max_descendants_per_candidate: int = 2,
     benchmark_max_total_revised_candidates: int | None = None,
     capture_llm_content: bool = False,
+    execution_config=None,
 ) -> dict:
     set_llm_observer(recorder.observe_llm)
     set_llm_runtime_overrides(
@@ -279,6 +280,11 @@ def run_council_from_context(
                 "benchmark_branching_revision_mode": benchmark_branching_revision_mode,
                 "benchmark_max_descendants_per_candidate": benchmark_max_descendants_per_candidate,
                 "benchmark_max_total_revised_candidates": benchmark_max_total_revised_candidates,
+                "council_execution": (
+                    execution_config.provenance()
+                    if hasattr(execution_config, "provenance")
+                    else execution_config
+                ),
             },
         )
 
@@ -301,6 +307,7 @@ def run_council_from_context(
             benchmark_branching_revision_mode=benchmark_branching_revision_mode,
             benchmark_max_descendants_per_candidate=benchmark_max_descendants_per_candidate,
             benchmark_max_total_revised_candidates=benchmark_max_total_revised_candidates,
+            execution_config=execution_config,
         )
 
         recorder.start_stage("post_council_final_validation")

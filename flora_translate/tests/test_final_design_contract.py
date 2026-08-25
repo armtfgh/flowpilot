@@ -169,6 +169,117 @@ def test_contract_exposes_one_executable_stagewise_design():
     assert len(contract["process_graph"]["stages"]) == 2
 
 
+def test_contract_preserves_stationary_components_without_adding_them_to_feeds():
+    result = _ready_result()
+    result["proposal"]["inventory_constraints"] = {
+        "stationary_components": [
+            {
+                "name": "Cu/C heterogeneous catalyst",
+                "placement": "stationary_reactor_phase",
+            }
+        ]
+    }
+
+    contract = build_final_design_contract(result)
+
+    assert contract["status"] == "executable"
+    assert contract["stationary_components"][0]["placement"] == "stationary_reactor_phase"
+    assert all(
+        "Cu/C" not in str(stream.get("contents") or [])
+        for stream in contract["streams"]
+    )
+
+
+def test_contract_blocks_stationary_component_serialized_in_a_pumped_feed():
+    result = _ready_result()
+    result["proposal"]["inventory_constraints"] = {
+        "stationary_components": [
+            {
+                "name": "Cu/C heterogeneous catalyst",
+                "placement": "stationary_reactor_phase",
+            }
+        ]
+    }
+    result["proposal"]["streams"][0]["contents"] = [
+        "substrate",
+        "Cu/C heterogeneous catalyst (pre-packed)",
+    ]
+
+    contract = build_final_design_contract(result)
+
+    assert contract["status"] == "blocked"
+    assert "FINAL-STATIONARY-COMPONENT-IN-FEED" in {
+        item["code"] for item in contract["consistency"]["issues"]
+    }
+    assert not contract["consistency"]["semantic_checks"][
+        "stationary_components_not_in_feeds"
+    ]
+
+
+def test_contract_infers_packed_bed_catalyst_and_blocks_feed_duplication():
+    result = _ready_result()
+    result["proposal"]["reactor_type"] = "packed-bed"
+    result["proposal"]["inventory_selection"] = {
+        "name": "Cu/C CatCart packed-bed cartridge",
+        "type": "packed_bed",
+    }
+    result["proposal"]["streams"][0]["contents"] = [
+        "benzyl azide (0.25 M, 1.0 equiv)",
+        "phenylacetylene (0.275 M, 1.1 equiv)",
+        "copper on carbon (0.025 M screening assumption)",
+    ]
+    result["chemistry_plan"]["reagents"] = [
+        {
+            "name": "copper on carbon",
+            "role": "heterogeneous copper catalyst packed in cartridge",
+            "notes": "Use the installed CatCart as the catalytic zone.",
+        }
+    ]
+
+    contract = build_final_design_contract(result)
+
+    assert contract["status"] == "blocked"
+    assert "FINAL-STATIONARY-COMPONENT-IN-FEED" in {
+        item["code"] for item in contract["consistency"]["issues"]
+    }
+
+
+def test_contract_blocks_air_and_pure_oxygen_as_parallel_stage_feeds():
+    result = _ready_result()
+    result["proposal"]["streams"].extend(
+        [
+            {
+                "stream_label": "B",
+                "phase": "gas",
+                "contents": ["air"],
+                "introduction_stage": 1,
+                "gas_flow_sccm": 1.0,
+                "gas_flow_actual_mL_min": 0.3,
+                "molar_equiv": 1.0,
+            },
+            {
+                "stream_label": "G",
+                "phase": "gas",
+                "contents": ["O2"],
+                "introduction_stage": 1,
+                "gas_flow_sccm": 0.21,
+                "gas_flow_actual_mL_min": 0.06,
+                "molar_equiv": 1.0,
+            },
+        ]
+    )
+
+    contract = build_final_design_contract(result)
+
+    assert contract["status"] == "blocked"
+    assert "FINAL-CONFLICTING-OXIDANT-DELIVERY" in {
+        item["code"] for item in contract["consistency"]["issues"]
+    }
+    assert not contract["consistency"]["semantic_checks"][
+        "reagent_gas_delivery_unique"
+    ]
+
+
 def test_contract_compares_multistage_total_using_declared_residence_basis():
     result = _ready_result()
     result["proposal"].update(

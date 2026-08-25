@@ -4,6 +4,7 @@ from flora_translate.main import (
     _store_blocked_topology,
     _store_process_topology,
     _topology_matches_serialized_proposal,
+    _uses_offline_deoxygenation,
 )
 from flora_translate.schemas import FlowProposal, ProcessTopology, UnitOperation
 
@@ -87,3 +88,13 @@ def test_blocked_candidate_has_no_executable_topology():
     assert result["png_path"] == ""
     assert result["process_topology"]["generation_status"] == "blocked"
     assert result["process_topology"]["unit_operations"] == []
+
+
+def test_negated_deoxygenation_text_cannot_create_inline_hardware_requirement():
+    proposal = FlowProposal(
+        deoxygenation_method=(
+            "N2 blanket is optional; deoxygenation is not required for this reaction."
+        )
+    )
+
+    assert _uses_offline_deoxygenation(proposal)

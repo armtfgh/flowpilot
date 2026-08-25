@@ -3,6 +3,7 @@ import flora_translate.design_calculator as design_calculator
 import flora_translate.engine.council_v4.designer as designer
 import flora_translate.engine.council_v4.scoring as scoring
 from flora_translate.engine.council_v4.chief import (
+    _derive_domain_patch,
     _extract_explicit_patch,
     _resolve_disqualify_ids,
     _run_candidate_refinement_loop,
@@ -164,6 +165,79 @@ def test_evidence_first_rejects_model_only_final_tau_reduction(
     )
 
     assert result is None
+
+
+def test_evidence_first_preserves_conservative_tau_revision(monkeypatch) -> None:
+    winner = _candidate()
+    winner.update(
+        {
+            "tau_min": 2.0,
+            "d_mm": 0.75,
+            "Q_mL_min": 0.1,
+            "BPR_bar": 5.0,
+            "tubing_material": "stainless steel",
+            "tau_kinetics_min": 0.1,
+            "IF_used": 1.0,
+            "assumed_MW": 100.0,
+        }
+    )
+    monkeypatch.setattr(
+        scoring,
+        "call_llm",
+        lambda *args, **kwargs: (
+            '{"proposed_changes":{"tau_min":3.0},'
+            '"domains_that_triggered_revision":["kinetics"]}'
+        ),
+    )
+
+    result = scoring.run_revision_stage(
+        winner=winner,
+        scoring={
+            "chemistry_scores": [],
+            "kinetics_scores": [
+                {
+                    "candidate_id": 1,
+                    "verdict": "REVISE",
+                    "reasoning": "increase contact time",
+                }
+            ],
+            "fluidics_scores": [],
+            "safety_scores": [],
+        },
+        chemistry_brief="test",
+        is_photochem=False,
+        is_gas_liquid=False,
+        pump_max_bar=20.0,
+        solvent="EtOH",
+        temperature_C=25.0,
+        concentration_M=0.1,
+        batch_yield_fraction=0.94,
+        translation_policy="evidence_first",
+        measured_evidence_available=False,
+    )
+
+    assert result is not None
+    assert result["tau_min"] == 3.0
+
+
+def test_evidence_first_domain_patch_does_not_enforce_intensification_ceiling() -> None:
+    candidate = _candidate()
+    candidate["batch_time_min"] = 100.0
+    candidate["flow_sense_report"] = {"target_reduction_factor": 20.0}
+
+    patch, _ = _derive_domain_patch(
+        domain="kinetics",
+        entry={
+            "candidate_id": 1,
+            "verdict": "REVISE",
+            "proposed_changes": {"tau_min": 10.0},
+        },
+        candidate=candidate,
+        concentration_M=0.1,
+        translation_policy="evidence_first",
+    )
+
+    assert patch["tau_min"] == 10.0
 
 
 def test_evidence_first_keeps_batch_proximate_candidate(monkeypatch) -> None:

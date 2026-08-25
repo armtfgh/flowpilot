@@ -412,7 +412,7 @@ class ChemistryReasoningAgent:
         return plan
 
     def _call_with_retry(self, system: str, user_prompt: str) -> str:
-        """Call the model. Warn if truncated but do not retry — 8192 is the hard cap."""
+        """Call the model, retrying with compact context when output is incomplete."""
         candidates: list[tuple[str, str, str]] = [
             (cfg.MODEL_CHEMISTRY_AGENT, "chemistry_agent", system),
         ]
@@ -427,10 +427,13 @@ class ChemistryReasoningAgent:
         for idx, (model, api_name, system_prompt) in enumerate(candidates):
             started = time.perf_counter()
             try:
+                max_tokens = cfg.CHEMISTRY_MAX_TOKENS
+                if api_name == "chemistry_agent_compact_fallback":
+                    max_tokens = max(max_tokens * 2, 16384)
                 result = call_model_text(
                     model=model,
                     api_name=api_name,
-                    max_tokens=cfg.CHEMISTRY_MAX_TOKENS,
+                    max_tokens=max_tokens,
                     system=system_prompt,
                     user_content=user_prompt,
                 )
@@ -439,6 +442,22 @@ class ChemistryReasoningAgent:
                     (time.perf_counter() - started) * 1000,
                     model,
                 )
+                if result.stop_reason == "max_tokens" or result.finish_reason == "length":
+                    message = "output hit token limit"
+                    errors.append(f"{api_name}({model}): {message}")
+                    logger.warning("    Chemistry Agent %s; retrying with fallback context", message)
+                    continue
+                try:
+                    _parse_json_from_tagged(result.text)
+                except Exception as exc:
+                    errors.append(f"{api_name}({model}): invalid JSON: {exc}")
+                    logger.warning(
+                        "    Chemistry Agent returned invalid JSON via %s (%s); retrying: %s",
+                        api_name,
+                        model,
+                        exc,
+                    )
+                    continue
                 if idx > 0:
                     self._fallback_note = (
                         f"Chemistry analysis used fallback model {model} after "
@@ -446,8 +465,6 @@ class ChemistryReasoningAgent:
                     )
                     logger.warning("    %s", self._fallback_note)
                 self._last_model_used = model
-                if result.stop_reason == "max_tokens" or result.finish_reason == "length":
-                    logger.warning("    Chemistry Agent output hit token limit — JSON may be incomplete")
                 return result.text
             except Exception as exc:
                 errors.append(f"{api_name}({model}): {exc}")

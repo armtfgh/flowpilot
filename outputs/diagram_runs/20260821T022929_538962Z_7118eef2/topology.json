@@ -1,0 +1,269 @@
+{
+  "topology_id": "translate",
+  "unit_operations": [
+    {
+      "op_id": "pump_a",
+      "op_type": "pump",
+      "label": "Pump A \u2014 Single premixed liquid feed delivery | X-Cube HPLC pump",
+      "parameters": {
+        "stream": "A",
+        "contents": [
+          "benzyl azide (0.25 M, 1.0 equiv)",
+          "phenylacetylene (0.275 M, 1.1 equiv)"
+        ],
+        "solvent": "acetone",
+        "flow_rate_mL_min": 0.17647,
+        "phase": "liquid",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "inventory_equipment_id": "pump_xcube_hplc",
+        "inventory_item_id": "pump_xcube_hplc",
+        "inventory_item_ids": [
+          "pump_xcube_hplc"
+        ],
+        "instrument_name": "X-Cube HPLC pump"
+      },
+      "required": true,
+      "rationale": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.17647 mL/min; equiv=1, C=0.25 M; pump=pump_xcube_hplc; concentration_basis=reference component: benzyl azide; equiv_basis=reference component: benzyl azide.",
+      "inventory_item_id": "pump_xcube_hplc",
+      "inventory_item_ids": [
+        "pump_xcube_hplc"
+      ],
+      "instrument_name": "X-Cube HPLC pump",
+      "inventory_category": "pumps",
+      "assignment_status": "assigned",
+      "capability_checks": {
+        "available": true,
+        "quantity": true,
+        "settings": true
+      }
+    },
+    {
+      "op_id": "reactor_1",
+      "op_type": "packed_bed_reactor",
+      "label": "stainless steel Packed-Bed Reactor | Cu/C CatCart packed-bed cartridge",
+      "parameters": {
+        "material": "stainless steel",
+        "ID_mm": 4.0,
+        "volume_mL": 0.3,
+        "Q_inlet_mL_min": 0.1765,
+        "temperature_C": 150.0,
+        "wavelength_nm": null,
+        "residence_time_min": 1.700006,
+        "reactor_type": "packed-bed",
+        "inventory_item_id": "reactor_cuc_cart_030",
+        "inventory_item_ids": [
+          "reactor_cuc_cart_030"
+        ],
+        "instrument_name": "Cu/C CatCart packed-bed cartridge",
+        "temperature_controller_name": "X-Cube cartridge heater",
+        "temperature_controller_inventory_item_id": "heater_xcube"
+      },
+      "required": true,
+      "rationale": "Flow reactor",
+      "inventory_item_id": "reactor_cuc_cart_030",
+      "inventory_item_ids": [
+        "reactor_cuc_cart_030"
+      ],
+      "instrument_name": "Cu/C CatCart packed-bed cartridge",
+      "inventory_category": "reactors",
+      "assignment_status": "assigned",
+      "capability_checks": {
+        "available": true,
+        "quantity": true,
+        "settings": true,
+        "integrated_flow_path": true
+      }
+    },
+    {
+      "op_id": "heater_1",
+      "op_type": "heater",
+      "label": "Temperature Control 150 deg C | X-Cube cartridge heater",
+      "parameters": {
+        "temperature_C": 150.0,
+        "inventory_item_id": "heater_xcube",
+        "inventory_item_ids": [
+          "heater_xcube"
+        ],
+        "instrument_name": "X-Cube cartridge heater"
+      },
+      "required": true,
+      "rationale": "Active reactor temperature control",
+      "inventory_item_id": "heater_xcube",
+      "inventory_item_ids": [
+        "heater_xcube"
+      ],
+      "instrument_name": "X-Cube cartridge heater",
+      "inventory_category": "temperature_controllers",
+      "assignment_status": "assigned",
+      "capability_checks": {
+        "available": true,
+        "quantity": true,
+        "settings": true
+      }
+    },
+    {
+      "op_id": "bpr_1",
+      "op_type": "bpr",
+      "label": "BPR | X-Cube BPR",
+      "parameters": {
+        "pressure_bar": 20.0,
+        "inventory_item_id": "bpr_xcube_20",
+        "inventory_item_ids": [
+          "bpr_xcube_20"
+        ],
+        "instrument_name": "X-Cube BPR"
+      },
+      "required": true,
+      "rationale": "Maintain liquid phase",
+      "inventory_item_id": "bpr_xcube_20",
+      "inventory_item_ids": [
+        "bpr_xcube_20"
+      ],
+      "instrument_name": "X-Cube BPR",
+      "inventory_category": "pressure_controllers",
+      "assignment_status": "assigned",
+      "capability_checks": {
+        "available": true,
+        "quantity": true,
+        "settings": true
+      }
+    },
+    {
+      "op_id": "collector_1",
+      "op_type": "collector",
+      "label": "Product Collection | Vented collection vessel",
+      "parameters": {
+        "inventory_item_id": "collector_amber_100",
+        "inventory_item_ids": [
+          "collector_amber_100"
+        ],
+        "instrument_name": "Vented collection vessel"
+      },
+      "required": true,
+      "rationale": "Outlet",
+      "inventory_item_id": "collector_amber_100",
+      "inventory_item_ids": [
+        "collector_amber_100"
+      ],
+      "instrument_name": "Vented collection vessel",
+      "inventory_category": "collectors",
+      "assignment_status": "assigned",
+      "capability_checks": {
+        "available": true,
+        "quantity": true,
+        "settings": true
+      }
+    }
+  ],
+  "streams": [
+    {
+      "stream_id": "s2",
+      "from_op": "pump_a",
+      "to_op": "reactor_1",
+      "stream_type": "liquid",
+      "connection_type": "process",
+      "label": ""
+    },
+    {
+      "stream_id": "s3",
+      "from_op": "reactor_1",
+      "to_op": "bpr_1",
+      "stream_type": "liquid",
+      "connection_type": "process",
+      "label": ""
+    },
+    {
+      "stream_id": "s4",
+      "from_op": "bpr_1",
+      "to_op": "collector_1",
+      "stream_type": "liquid",
+      "connection_type": "process",
+      "label": ""
+    }
+  ],
+  "total_flow_rate_mL_min": 0.1765,
+  "residence_time_min": 1.700006,
+  "reactor_volume_mL": 0.3,
+  "pid_description": "Pump A \u2014 Single premixed liquid feed delivery | X-Cube HPLC pump -[liquid]-> stainless steel Packed-Bed Reactor | Cu/C CatCart packed-bed cartridge | stainless steel Packed-Bed Reactor | Cu/C CatCart packed-bed cartridge -[liquid]-> BPR | X-Cube BPR | BPR | X-Cube BPR -[liquid]-> Product Collection | Vented collection vessel",
+  "literature_support": [],
+  "topology_confidence": "LOW",
+  "compilation_status": "inventory_assigned",
+  "inventory_schema_version": "flowpilot_lab_inventory_v2.0",
+  "inventory_sha256": "f74008fe1b4305ea4537954a29e6a861f60f697f47931db73357ce886350525c",
+  "instrument_manifest": [
+    {
+      "equipment_id": "pump_xcube_hplc",
+      "name": "X-Cube HPLC pump",
+      "category": "pumps",
+      "quantity_used": 1,
+      "roles": [
+        "Pump A \u2014 Single premixed liquid feed delivery"
+      ],
+      "settings": [
+        {
+          "equipment_id": "pump_xcube_hplc",
+          "flow_rate_mL_min": 0.17647
+        }
+      ]
+    },
+    {
+      "equipment_id": "reactor_cuc_cart_030",
+      "name": "Cu/C CatCart packed-bed cartridge",
+      "category": "reactors",
+      "quantity_used": 1,
+      "roles": [
+        "stainless steel Packed-Bed Reactor"
+      ],
+      "settings": [
+        {
+          "equipment_id": null,
+          "volume_mL": 0.3,
+          "ID_mm": 4.0,
+          "temperature_C": 150.0,
+          "integrated_flow_path": true
+        }
+      ]
+    },
+    {
+      "equipment_id": "heater_xcube",
+      "name": "X-Cube cartridge heater",
+      "category": "temperature_controllers",
+      "quantity_used": 1,
+      "roles": [
+        "Temperature Control 150 deg C"
+      ],
+      "settings": [
+        {
+          "temperature_C": 150.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "bpr_xcube_20",
+      "name": "X-Cube BPR",
+      "category": "pressure_controllers",
+      "quantity_used": 1,
+      "roles": [
+        "BPR"
+      ],
+      "settings": [
+        {
+          "pressure_bar": 20.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "collector_amber_100",
+      "name": "Vented collection vessel",
+      "category": "collectors",
+      "quantity_used": 1,
+      "roles": [
+        "Product Collection"
+      ],
+      "settings": [
+        {}
+      ]
+    }
+  ]
+}

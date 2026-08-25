@@ -1,0 +1,679 @@
+{
+  "suite_id": "manuscript_three_model_three_repeat_v1",
+  "cases": [
+    {
+      "case_label": "Hydrogenolysis",
+      "case_id": "hydrogenolysis_oprd_9b00416",
+      "scenario_id": "hydrogenolysis_oprd_9b00416",
+      "title": "Three-phase N-diphenylmethyl hydrogenolysis",
+      "protocol": "N-Diphenylmethylazetidin-3-ol (DMAOL; MW 239.32 g/mol) was prepared as a 3.8 wt% solution in methanol. For molarity conversion, explicitly use and label an assumed solution density of 0.792 g/mL, giving approximately 0.126 M DMAOL. A 200 mL charge was contacted with hydrogen over 0.5 g of 7 wt% Pd(OH)2/Al2O3 catalyst in a stirred batch reactor at 60 °C and 21 bar for 5 h. Conversion to 3-azetidinol was 38.1%. Translate this into one conservative continuous-flow packed-bed screening design. Acetic acid is optional and must not be introduced unless explicitly justified as a screening variable. Report feed preparation, gas-liquid mixing, packed-bed operation, temperature, pressure basis, liquid flow, hydrogen inlet/STP flow, pressure-corrected in-channel hydrogen flow, hydrogen equivalents, nominal empty-bed space time, liquid-holdup/contact residence-time basis, separation, collection, startup, shutdown, nitrogen purge, and hydrogen/methanol/pressure safety controls.",
+      "category": "gas_liquid_solid_packed_bed_hydrogenation",
+      "objective": "Produce one executable, inventory-constrained first gas-liquid-solid flow screen without using the held-out source answer.",
+      "hard_constraints": [
+        "Use only the authoritative inventory supplied below.",
+        "Hydrogen is the required reducing reagent and must be delivered through the certified H2 MFC.",
+        "Use a single DMAOL/methanol liquid feed and the declared gas-liquid mixer before the Pd(OH)2/Al2O3 packed bed.",
+        "Operate at 60 °C and the available 21 bar BPR setpoint; explicitly state whether gas compression uses 21 bar absolute or 21 bar gauge.",
+        "Report hydrogen flow at inlet/STP and pressure-corrected in-channel conditions, with the conversion calculation.",
+        "Report H2 equivalents from gas molar flow divided by DMAOL molar flow.",
+        "Distinguish nominal empty-bed space time from liquid-holdup/contact residence time; do not silently use total gas-plus-liquid flow as liquid reaction time.",
+        "Use the nitrogen line for startup leak/purge verification and shutdown displacement of residual hydrogen.",
+        "Return SCREEN unless the inventory cannot support a safe design."
+      ],
+      "inventory": {
+        "schema_version": "flowpilot_lab_inventory_v3.0",
+        "strict_assignment": true,
+        "pumps": [
+          {
+            "equipment_id": "pump_h2_pilot",
+            "name": "Pressure-rated plunger pump",
+            "type": "plunger",
+            "max_pressure_bar": 40.0,
+            "min_flow_rate_mL_min": 0.1,
+            "max_flow_rate_mL_min": 2.0,
+            "compatible_materials": [
+              "methanol",
+              "DMAOL"
+            ]
+          }
+        ],
+        "tubing": [
+          {
+            "equipment_id": "tube_h2_pilot_ss",
+            "name": "Hydrogen-service packed tube",
+            "material": "stainless steel",
+            "ID_mm": 4.35,
+            "max_pressure_bar": 40.0,
+            "max_temperature_C": 100.0,
+            "transparent": false,
+            "length_m": 0.2
+          }
+        ],
+        "BPR_available": [
+          21.0
+        ],
+        "light_sources": [],
+        "gas_hardware": [
+          {
+            "equipment_id": "gas_h2_cylinder",
+            "name": "Certified hydrogen cylinder and regulator",
+            "type": "gas_supply",
+            "gas": "H2",
+            "max_pressure_bar": 40.0
+          },
+          {
+            "equipment_id": "mfc_h2_100",
+            "name": "Hydrogen mass-flow controller",
+            "type": "MFC",
+            "gas": "H2",
+            "min_flow_sccm": 1.0,
+            "max_flow_sccm": 100.0,
+            "max_pressure_bar": 40.0
+          },
+          {
+            "equipment_id": "gas_n2_cylinder",
+            "name": "Nitrogen purge cylinder and regulator",
+            "type": "gas_supply",
+            "gas": "N2",
+            "max_pressure_bar": 40.0
+          }
+        ],
+        "reactors": [
+          {
+            "equipment_id": "reactor_h2_pbr_300",
+            "name": "Pd(OH)2/Al2O3 micro-packed bed",
+            "type": "packed-bed",
+            "material": "stainless steel",
+            "volume_mL": 3.0,
+            "ID_mm": 4.35,
+            "system": "hydrogenation skid",
+            "min_temperature_C": 20.0,
+            "max_temperature_C": 100.0,
+            "allowed_temperatures_C": [
+              60.0
+            ],
+            "min_pressure_bar": 0.0,
+            "max_pressure_bar": 40.0,
+            "configuration": "single 200 mm gas-liquid-solid packed tube"
+          }
+        ],
+        "mixers": [
+          {
+            "equipment_id": "mixer_h2_t",
+            "name": "Hydrogen-service T-mixer",
+            "type": "T-mixer",
+            "material": "stainless steel",
+            "max_inputs": 2,
+            "min_total_flow_mL_min": 0.1,
+            "max_total_flow_mL_min": 5.0,
+            "max_pressure_bar": 40.0,
+            "supported_ID_mm": [
+              4.35
+            ]
+          }
+        ],
+        "pressure_controllers": [
+          {
+            "equipment_id": "bpr_h2_21",
+            "name": "Hydrogen-service BPR",
+            "type": "BPR",
+            "setpoints_bar": [
+              21.0
+            ],
+            "min_pressure_bar": 21.0,
+            "max_pressure_bar": 21.0
+          }
+        ],
+        "degassers": [],
+        "filters": [],
+        "separators": [
+          {
+            "equipment_id": "separator_h2_gl",
+            "name": "Vented gas-liquid separator",
+            "type": "gas-liquid separator",
+            "supported_phases": [
+              "gas",
+              "liquid"
+            ],
+            "max_flow_mL_min": 10.0,
+            "max_pressure_bar": 25.0
+          }
+        ],
+        "connectors": [
+          {
+            "equipment_id": "connector_h2_pbr",
+            "name": "Hydrogen-rated packed-bed connector set",
+            "type": "packed-bed union",
+            "material": "stainless steel",
+            "supported_ID_mm": [
+              4.35
+            ],
+            "max_pressure_bar": 40.0
+          }
+        ],
+        "temperature_controllers": [
+          {
+            "equipment_id": "bath_h2_60",
+            "name": "Packed-bed water bath",
+            "type": "water bath",
+            "min_temperature_C": 20.0,
+            "max_temperature_C": 90.0,
+            "allowed_temperatures_C": [
+              60.0
+            ]
+          }
+        ],
+        "collectors": [
+          {
+            "equipment_id": "collector_h2_250",
+            "name": "Grounded vented liquid collection vessel",
+            "type": "collection vessel",
+            "volume_mL": 250.0,
+            "max_pressure_bar": 1.0
+          }
+        ],
+        "reactor_trains": [],
+        "safety_accessories": [
+          {
+            "equipment_id": "safety_h2_check_valve",
+            "name": "Hydrogen non-return check valve",
+            "type": "check valve",
+            "capabilities": [
+              "backflow_prevention"
+            ],
+            "max_pressure_bar": 40.0,
+            "compatible_hazards": [
+              "hydrogen"
+            ]
+          },
+          {
+            "equipment_id": "safety_h2_vent",
+            "name": "Dedicated hydrogen separator safe vent",
+            "type": "safe vent",
+            "capabilities": [
+              "vented_separator"
+            ],
+            "max_pressure_bar": 25.0,
+            "compatible_hazards": [
+              "hydrogen"
+            ]
+          }
+        ]
+      },
+      "chemistry_identity_confirmation": {
+        "confirmed": true,
+        "reaction_name": "N-diphenylmethyl hydrogenolysis",
+        "reaction_class": "hydrogenolysis",
+        "mechanism_type": "heterogeneous catalytic hydrogenolysis"
+      },
+      "design_input_text": "RAW BATCH PROTOCOL:\nN-Diphenylmethylazetidin-3-ol (DMAOL; MW 239.32 g/mol) was prepared as a 3.8 wt% solution in methanol. For molarity conversion, explicitly use and label an assumed solution density of 0.792 g/mL, giving approximately 0.126 M DMAOL. A 200 mL charge was contacted with hydrogen over 0.5 g of 7 wt% Pd(OH)2/Al2O3 catalyst in a stirred batch reactor at 60 °C and 21 bar for 5 h. Conversion to 3-azetidinol was 38.1%. Translate this into one conservative continuous-flow packed-bed screening design. Acetic acid is optional and must not be introduced unless explicitly justified as a screening variable. Report feed preparation, gas-liquid mixing, packed-bed operation, temperature, pressure basis, liquid flow, hydrogen inlet/STP flow, pressure-corrected in-channel hydrogen flow, hydrogen equivalents, nominal empty-bed space time, liquid-holdup/contact residence-time basis, separation, collection, startup, shutdown, nitrogen purge, and hydrogen/methanol/pressure safety controls.\n\nOBJECTIVE:\nProduce one executable, inventory-constrained first gas-liquid-solid flow screen without using the held-out source answer.\n\nHARD CONSTRAINTS:\n- Use only the authoritative inventory supplied below.\n- Hydrogen is the required reducing reagent and must be delivered through the certified H2 MFC.\n- Use a single DMAOL/methanol liquid feed and the declared gas-liquid mixer before the Pd(OH)2/Al2O3 packed bed.\n- Operate at 60 °C and the available 21 bar BPR setpoint; explicitly state whether gas compression uses 21 bar absolute or 21 bar gauge.\n- Report hydrogen flow at inlet/STP and pressure-corrected in-channel conditions, with the conversion calculation.\n- Report H2 equivalents from gas molar flow divided by DMAOL molar flow.\n- Distinguish nominal empty-bed space time from liquid-holdup/contact residence time; do not silently use total gas-plus-liquid flow as liquid reaction time.\n- Use the nitrogen line for startup leak/purge verification and shutdown displacement of residual hydrogen.\n- Return SCREEN unless the inventory cannot support a safe design.\n\nAVAILABLE INVENTORY (authoritative JSON):\n{\"BPR_available\":[21.0],\"collectors\":[{\"equipment_id\":\"collector_h2_250\",\"max_pressure_bar\":1.0,\"name\":\"Grounded vented liquid collection vessel\",\"type\":\"collection vessel\",\"volume_mL\":250.0}],\"connectors\":[{\"equipment_id\":\"connector_h2_pbr\",\"material\":\"stainless steel\",\"max_pressure_bar\":40.0,\"name\":\"Hydrogen-rated packed-bed connector set\",\"supported_ID_mm\":[4.35],\"type\":\"packed-bed union\"}],\"degassers\":[],\"filters\":[],\"gas_hardware\":[{\"equipment_id\":\"gas_h2_cylinder\",\"gas\":\"H2\",\"max_pressure_bar\":40.0,\"name\":\"Certified hydrogen cylinder and regulator\",\"type\":\"gas_supply\"},{\"equipment_id\":\"mfc_h2_100\",\"gas\":\"H2\",\"max_flow_sccm\":100.0,\"max_pressure_bar\":40.0,\"min_flow_sccm\":1.0,\"name\":\"Hydrogen mass-flow controller\",\"type\":\"MFC\"},{\"equipment_id\":\"gas_n2_cylinder\",\"gas\":\"N2\",\"max_pressure_bar\":40.0,\"name\":\"Nitrogen purge cylinder and regulator\",\"type\":\"gas_supply\"}],\"light_sources\":[],\"mixers\":[{\"equipment_id\":\"mixer_h2_t\",\"material\":\"stainless steel\",\"max_inputs\":2,\"max_pressure_bar\":40.0,\"max_total_flow_mL_min\":5.0,\"min_total_flow_mL_min\":0.1,\"name\":\"Hydrogen-service T-mixer\",\"supported_ID_mm\":[4.35],\"type\":\"T-mixer\"}],\"pressure_controllers\":[{\"equipment_id\":\"bpr_h2_21\",\"max_pressure_bar\":21.0,\"min_pressure_bar\":21.0,\"name\":\"Hydrogen-service BPR\",\"setpoints_bar\":[21.0],\"type\":\"BPR\"}],\"pumps\":[{\"compatible_materials\":[\"methanol\",\"DMAOL\"],\"equipment_id\":\"pump_h2_pilot\",\"max_flow_rate_mL_min\":2.0,\"max_pressure_bar\":40.0,\"min_flow_rate_mL_min\":0.1,\"name\":\"Pressure-rated plunger pump\",\"type\":\"plunger\"}],\"reactor_trains\":[],\"reactors\":[{\"ID_mm\":4.35,\"allowed_temperatures_C\":[60.0],\"configuration\":\"single 200 mm gas-liquid-solid packed tube\",\"equipment_id\":\"reactor_h2_pbr_300\",\"material\":\"stainless steel\",\"max_pressure_bar\":40.0,\"max_temperature_C\":100.0,\"min_pressure_bar\":0.0,\"min_temperature_C\":20.0,\"name\":\"Pd(OH)2/Al2O3 micro-packed bed\",\"system\":\"hydrogenation skid\",\"type\":\"packed-bed\",\"volume_mL\":3.0}],\"safety_accessories\":[{\"capabilities\":[\"backflow_prevention\"],\"compatible_hazards\":[\"hydrogen\"],\"equipment_id\":\"safety_h2_check_valve\",\"max_pressure_bar\":40.0,\"name\":\"Hydrogen non-return check valve\",\"type\":\"check valve\"},{\"capabilities\":[\"vented_separator\"],\"compatible_hazards\":[\"hydrogen\"],\"equipment_id\":\"safety_h2_vent\",\"max_pressure_bar\":25.0,\"name\":\"Dedicated hydrogen separator safe vent\",\"type\":\"safe vent\"}],\"schema_version\":\"flowpilot_lab_inventory_v3.0\",\"separators\":[{\"equipment_id\":\"separator_h2_gl\",\"max_flow_mL_min\":10.0,\"max_pressure_bar\":25.0,\"name\":\"Vented gas-liquid separator\",\"supported_phases\":[\"gas\",\"liquid\"],\"type\":\"gas-liquid separator\"}],\"strict_assignment\":true,\"temperature_controllers\":[{\"allowed_temperatures_C\":[60.0],\"equipment_id\":\"bath_h2_60\",\"max_temperature_C\":90.0,\"min_temperature_C\":20.0,\"name\":\"Packed-bed water bath\",\"type\":\"water bath\"}],\"tubing\":[{\"ID_mm\":4.35,\"equipment_id\":\"tube_h2_pilot_ss\",\"length_m\":0.2,\"material\":\"stainless steel\",\"max_pressure_bar\":40.0,\"max_temperature_C\":100.0,\"name\":\"Hydrogen-service packed tube\",\"transparent\":false}]}\n\nCHEMIST-CONFIRMED CHEMISTRY IDENTITY:\n{\"confirmed\":true,\"mechanism_type\":\"heterogeneous catalytic hydrogenolysis\",\"reaction_class\":\"hydrogenolysis\",\"reaction_name\":\"N-diphenylmethyl hydrogenolysis\"}",
+      "design_input_sha256": "9db2738c38d5b15ba8e79f2e55f0a5f8048c96ebab577b03a19e615f889eb353",
+      "suite_id": "manuscript_five_case_v1",
+      "difficulty": "high",
+      "tags": [
+        "newgen",
+        "held_out_source",
+        "gas_liquid_solid",
+        "packed_bed",
+        "hydrogen"
+      ],
+      "source_record_id": "acs.oprd.9b00416.pdf",
+      "source_record_aliases": [
+        "acs.oprd.9b00416",
+        "acs.oprd.9b00416.json",
+        "Continuous hydrogenolysis of N-diphenylmethyl groups in a micro-packed bed reactor"
+      ],
+      "reference_quality": "page_verified_original_pdf",
+      "expected_features": {
+        "gas_required": true,
+        "light_required": false,
+        "phase_regime": "gas_liquid_solid",
+        "topology": [
+          "liquid_pump",
+          "hydrogen_mass_flow_controller",
+          "gas_liquid_mixer",
+          "heated_packed_bed",
+          "back_pressure_regulator",
+          "gas_liquid_separator",
+          "collector"
+        ],
+        "hazards": [
+          "hydrogen",
+          "flammable_methanol",
+          "high_pressure",
+          "catalyst_bed"
+        ]
+      },
+      "reference_flow": {},
+      "protocol_sha256": "1c7c8e96ad7134c1e3609536329f072f8f10b7eba75fcd0173e4034a30a0ec16",
+      "pair_id": "",
+      "scenario_kind": "",
+      "expected_disposition": "SCREEN",
+      "controlled_change": "",
+      "oracle_constraints": [],
+      "oracle_witness": {}
+    },
+    {
+      "case_label": "Photochemical oxidation",
+      "case_id": "aerobic_oxidation_fmoc_methionine",
+      "scenario_id": "aerobic_oxidation_fmoc_methionine",
+      "title": "Photocatalytic aerobic oxidation of Fmoc-L-methionine",
+      "protocol": "Fmoc-L-methionine (3.7 mmol, 1.0 equiv) and 4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%) were dissolved in acetonitrile at 0.10 M in a round-bottom flask. The solution was exposed to air and irradiated with a 1.5 W LED centered near 420 nm at 21 C for 5 min. Fmoc-methionine sulfoxide was formed in 99% yield. Translate this into one conservative continuous-flow photochemical screening design. Report feed preparation, air delivery and oxygen-equivalent basis, gas-liquid mixing, pressure basis, photoreactor assignment, wavelength, temperature, liquid flow, inlet/STP and pressure-corrected in-channel gas flow, liquid contact residence time, reactor volume, separation, collection, startup, shutdown, and oxygen/acetonitrile/light safety controls.",
+      "category": "photochemical_gas_liquid_oxidation",
+      "objective": "Produce one executable, inventory-constrained first gas-liquid photochemical flow screen without using the held-out source answer.",
+      "hard_constraints": [
+        "Use only the authoritative inventory supplied below.",
+        "Use one premixed Fmoc-L-methionine/photocatalyst/acetonitrile liquid feed and the declared air MFC.",
+        "Use the declared gas-liquid mixer before the 420 nm photoreactor.",
+        "Operate at the available 3 bar BPR setpoint and state whether pressure is absolute or gauge.",
+        "Report air at inlet/STP and pressure-corrected in-channel conditions and calculate oxygen equivalents from 21 mol% oxygen.",
+        "Use liquid flow and the 1.0 mL reactor volume to define liquid contact residence time; do not use total gas-plus-liquid volumetric flow as reaction time.",
+        "No inline degasser is available or required because air is a reagent.",
+        "All selected equipment must be named by its inventory equipment_id.",
+        "Return SCREEN unless the inventory cannot support a safe design."
+      ],
+      "inventory": {
+        "schema_version": "flowpilot_lab_inventory_v3.0",
+        "strict_assignment": true,
+        "pumps": [
+          {
+            "equipment_id": "pump_photo_liquid",
+            "name": "Photochemistry HPLC pump",
+            "type": "HPLC",
+            "max_pressure_bar": 10.0,
+            "min_flow_rate_mL_min": 0.01,
+            "max_flow_rate_mL_min": 1.0,
+            "compatible_materials": [
+              "acetonitrile",
+              "Fmoc-L-methionine",
+              "4,7-diphenyl-2,1,3-benzothiadiazole"
+            ]
+          }
+        ],
+        "tubing": [
+          {
+            "equipment_id": "tubing_photo_pfa_10",
+            "name": "PFA photoreactor coil tubing",
+            "material": "PFA",
+            "ID_mm": 1.0,
+            "max_pressure_bar": 10.0,
+            "max_temperature_C": 60.0,
+            "transparent": true,
+            "length_m": 1.273
+          }
+        ],
+        "BPR_available": [
+          3.0
+        ],
+        "light_sources": [
+          {
+            "equipment_id": "light_photo_420",
+            "name": "420 nm photochemistry LED",
+            "wavelength_nm": 420.0,
+            "power_W": 1.5,
+            "compatible_reactor": "coil",
+            "min_temperature_C": 15.0,
+            "max_temperature_C": 40.0,
+            "allowed_temperatures_C": [
+              21.0,
+              25.0
+            ]
+          }
+        ],
+        "gas_hardware": [
+          {
+            "equipment_id": "gas_air_clean",
+            "name": "Clean dry air supply and regulator",
+            "type": "gas_supply",
+            "gas": "air",
+            "max_pressure_bar": 10.0
+          },
+          {
+            "equipment_id": "mfc_air_10",
+            "name": "Air mass-flow controller",
+            "type": "MFC",
+            "gas": "air",
+            "min_flow_sccm": 0.1,
+            "max_flow_sccm": 10.0,
+            "max_pressure_bar": 10.0
+          }
+        ],
+        "reactors": [
+          {
+            "equipment_id": "reactor_photo_100",
+            "name": "One milliliter PFA photocoil",
+            "type": "photochemical coil",
+            "material": "PFA",
+            "volume_mL": 1.0,
+            "ID_mm": 1.0,
+            "system": "420 nm photochemistry module",
+            "light_source": "light_photo_420",
+            "wavelength_nm": 420.0,
+            "min_temperature_C": 15.0,
+            "max_temperature_C": 40.0,
+            "allowed_temperatures_C": [
+              21.0,
+              25.0
+            ],
+            "min_pressure_bar": 0.0,
+            "max_pressure_bar": 10.0,
+            "configuration": "irradiated PFA coil"
+          }
+        ],
+        "mixers": [
+          {
+            "equipment_id": "mixer_photo_t",
+            "name": "PFA gas-liquid T-mixer",
+            "type": "T-mixer",
+            "material": "PFA",
+            "max_inputs": 2,
+            "min_total_flow_mL_min": 0.01,
+            "max_total_flow_mL_min": 2.0,
+            "max_pressure_bar": 10.0,
+            "supported_ID_mm": [
+              1.0
+            ]
+          }
+        ],
+        "pressure_controllers": [
+          {
+            "equipment_id": "bpr_photo_3",
+            "name": "Photochemistry BPR",
+            "type": "BPR",
+            "setpoints_bar": [
+              3.0
+            ],
+            "min_pressure_bar": 3.0,
+            "max_pressure_bar": 3.0
+          }
+        ],
+        "degassers": [],
+        "filters": [],
+        "separators": [
+          {
+            "equipment_id": "separator_photo_gl",
+            "name": "Vented gas-liquid separator",
+            "type": "gas-liquid separator",
+            "supported_phases": [
+              "gas",
+              "liquid"
+            ],
+            "max_flow_mL_min": 5.0,
+            "max_pressure_bar": 5.0
+          }
+        ],
+        "connectors": [
+          {
+            "equipment_id": "connector_photo_set",
+            "name": "PFA photochemistry connector set",
+            "type": "photoreactor union set",
+            "material": "PFA",
+            "supported_ID_mm": [
+              1.0
+            ],
+            "max_pressure_bar": 10.0
+          }
+        ],
+        "temperature_controllers": [
+          {
+            "equipment_id": "controller_photo_thermostat",
+            "name": "Photoreactor thermostat",
+            "type": "recirculating thermostat",
+            "min_temperature_C": 15.0,
+            "max_temperature_C": 40.0,
+            "allowed_temperatures_C": [
+              21.0,
+              25.0
+            ]
+          }
+        ],
+        "collectors": [
+          {
+            "equipment_id": "collector_photo_100",
+            "name": "Amber vented collection vessel",
+            "type": "collection vessel",
+            "volume_mL": 100.0,
+            "max_pressure_bar": 1.0
+          }
+        ],
+        "reactor_trains": [],
+        "safety_accessories": [
+          {
+            "equipment_id": "safety_photo_enclosure",
+            "name": "Interlocked photochemical enclosure and vent",
+            "type": "interlocked enclosure",
+            "capabilities": [
+              "shield_or_containment",
+              "vented_separator"
+            ],
+            "max_pressure_bar": 1.0,
+            "compatible_hazards": [
+              "high_intensity_light",
+              "oxygen_enriched_organic_stream",
+              "acetonitrile_vapor"
+            ]
+          }
+        ]
+      },
+      "chemistry_identity_confirmation": {
+        "confirmed": true,
+        "reaction_name": "photocatalytic aerobic oxidation of Fmoc-L-methionine",
+        "reaction_class": "oxidation",
+        "mechanism_type": "photocatalytic aerobic oxidation"
+      },
+      "design_input_text": "RAW BATCH PROTOCOL:\nFmoc-L-methionine (3.7 mmol, 1.0 equiv) and 4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%) were dissolved in acetonitrile at 0.10 M in a round-bottom flask. The solution was exposed to air and irradiated with a 1.5 W LED centered near 420 nm at 21 C for 5 min. Fmoc-methionine sulfoxide was formed in 99% yield. Translate this into one conservative continuous-flow photochemical screening design. Report feed preparation, air delivery and oxygen-equivalent basis, gas-liquid mixing, pressure basis, photoreactor assignment, wavelength, temperature, liquid flow, inlet/STP and pressure-corrected in-channel gas flow, liquid contact residence time, reactor volume, separation, collection, startup, shutdown, and oxygen/acetonitrile/light safety controls.\n\nOBJECTIVE:\nProduce one executable, inventory-constrained first gas-liquid photochemical flow screen without using the held-out source answer.\n\nHARD CONSTRAINTS:\n- Use only the authoritative inventory supplied below.\n- Use one premixed Fmoc-L-methionine/photocatalyst/acetonitrile liquid feed and the declared air MFC.\n- Use the declared gas-liquid mixer before the 420 nm photoreactor.\n- Operate at the available 3 bar BPR setpoint and state whether pressure is absolute or gauge.\n- Report air at inlet/STP and pressure-corrected in-channel conditions and calculate oxygen equivalents from 21 mol% oxygen.\n- Use liquid flow and the 1.0 mL reactor volume to define liquid contact residence time; do not use total gas-plus-liquid volumetric flow as reaction time.\n- No inline degasser is available or required because air is a reagent.\n- All selected equipment must be named by its inventory equipment_id.\n- Return SCREEN unless the inventory cannot support a safe design.\n\nAVAILABLE INVENTORY (authoritative JSON):\n{\"BPR_available\":[3.0],\"collectors\":[{\"equipment_id\":\"collector_photo_100\",\"max_pressure_bar\":1.0,\"name\":\"Amber vented collection vessel\",\"type\":\"collection vessel\",\"volume_mL\":100.0}],\"connectors\":[{\"equipment_id\":\"connector_photo_set\",\"material\":\"PFA\",\"max_pressure_bar\":10.0,\"name\":\"PFA photochemistry connector set\",\"supported_ID_mm\":[1.0],\"type\":\"photoreactor union set\"}],\"degassers\":[],\"filters\":[],\"gas_hardware\":[{\"equipment_id\":\"gas_air_clean\",\"gas\":\"air\",\"max_pressure_bar\":10.0,\"name\":\"Clean dry air supply and regulator\",\"type\":\"gas_supply\"},{\"equipment_id\":\"mfc_air_10\",\"gas\":\"air\",\"max_flow_sccm\":10.0,\"max_pressure_bar\":10.0,\"min_flow_sccm\":0.1,\"name\":\"Air mass-flow controller\",\"type\":\"MFC\"}],\"light_sources\":[{\"allowed_temperatures_C\":[21.0,25.0],\"compatible_reactor\":\"coil\",\"equipment_id\":\"light_photo_420\",\"max_temperature_C\":40.0,\"min_temperature_C\":15.0,\"name\":\"420 nm photochemistry LED\",\"power_W\":1.5,\"wavelength_nm\":420.0}],\"mixers\":[{\"equipment_id\":\"mixer_photo_t\",\"material\":\"PFA\",\"max_inputs\":2,\"max_pressure_bar\":10.0,\"max_total_flow_mL_min\":2.0,\"min_total_flow_mL_min\":0.01,\"name\":\"PFA gas-liquid T-mixer\",\"supported_ID_mm\":[1.0],\"type\":\"T-mixer\"}],\"pressure_controllers\":[{\"equipment_id\":\"bpr_photo_3\",\"max_pressure_bar\":3.0,\"min_pressure_bar\":3.0,\"name\":\"Photochemistry BPR\",\"setpoints_bar\":[3.0],\"type\":\"BPR\"}],\"pumps\":[{\"compatible_materials\":[\"acetonitrile\",\"Fmoc-L-methionine\",\"4,7-diphenyl-2,1,3-benzothiadiazole\"],\"equipment_id\":\"pump_photo_liquid\",\"max_flow_rate_mL_min\":1.0,\"max_pressure_bar\":10.0,\"min_flow_rate_mL_min\":0.01,\"name\":\"Photochemistry HPLC pump\",\"type\":\"HPLC\"}],\"reactor_trains\":[],\"reactors\":[{\"ID_mm\":1.0,\"allowed_temperatures_C\":[21.0,25.0],\"configuration\":\"irradiated PFA coil\",\"equipment_id\":\"reactor_photo_100\",\"light_source\":\"light_photo_420\",\"material\":\"PFA\",\"max_pressure_bar\":10.0,\"max_temperature_C\":40.0,\"min_pressure_bar\":0.0,\"min_temperature_C\":15.0,\"name\":\"One milliliter PFA photocoil\",\"system\":\"420 nm photochemistry module\",\"type\":\"photochemical coil\",\"volume_mL\":1.0,\"wavelength_nm\":420.0}],\"safety_accessories\":[{\"capabilities\":[\"shield_or_containment\",\"vented_separator\"],\"compatible_hazards\":[\"high_intensity_light\",\"oxygen_enriched_organic_stream\",\"acetonitrile_vapor\"],\"equipment_id\":\"safety_photo_enclosure\",\"max_pressure_bar\":1.0,\"name\":\"Interlocked photochemical enclosure and vent\",\"type\":\"interlocked enclosure\"}],\"schema_version\":\"flowpilot_lab_inventory_v3.0\",\"separators\":[{\"equipment_id\":\"separator_photo_gl\",\"max_flow_mL_min\":5.0,\"max_pressure_bar\":5.0,\"name\":\"Vented gas-liquid separator\",\"supported_phases\":[\"gas\",\"liquid\"],\"type\":\"gas-liquid separator\"}],\"strict_assignment\":true,\"temperature_controllers\":[{\"allowed_temperatures_C\":[21.0,25.0],\"equipment_id\":\"controller_photo_thermostat\",\"max_temperature_C\":40.0,\"min_temperature_C\":15.0,\"name\":\"Photoreactor thermostat\",\"type\":\"recirculating thermostat\"}],\"tubing\":[{\"ID_mm\":1.0,\"equipment_id\":\"tubing_photo_pfa_10\",\"length_m\":1.273,\"material\":\"PFA\",\"max_pressure_bar\":10.0,\"max_temperature_C\":60.0,\"name\":\"PFA photoreactor coil tubing\",\"transparent\":true}]}\n\nCHEMIST-CONFIRMED CHEMISTRY IDENTITY:\n{\"confirmed\":true,\"mechanism_type\":\"photocatalytic aerobic oxidation\",\"reaction_class\":\"oxidation\",\"reaction_name\":\"photocatalytic aerobic oxidation of Fmoc-L-methionine\"}",
+      "design_input_sha256": "297bf28ec9467cfc8dab2cb01e411474cf292d88bb1413711379f0bdbf258cc2",
+      "suite_id": "manuscript_five_case_v1",
+      "difficulty": "high",
+      "tags": [
+        "manuscript",
+        "held_out_source",
+        "photochemistry",
+        "air",
+        "gas_liquid"
+      ],
+      "source_record_id": "acs.joc.1c01151.pdf",
+      "source_record_aliases": [
+        "acs.joc.1c01151",
+        "acs.joc.1c01151.json"
+      ],
+      "reference_quality": "machine_extracted_unverified",
+      "expected_features": {
+        "gas_required": true,
+        "light_required": true,
+        "phase_regime": "gas_liquid",
+        "topology": [
+          "liquid_pump",
+          "air_mass_flow_controller",
+          "gas_liquid_mixer",
+          "photoreactor",
+          "back_pressure_regulator",
+          "gas_liquid_separator",
+          "collector"
+        ],
+        "hazards": [
+          "oxygen_enriched_organic_stream",
+          "flammable_acetonitrile",
+          "pressurized_gas_liquid",
+          "high_intensity_light"
+        ]
+      },
+      "reference_flow": {},
+      "protocol_sha256": "6777c25ae543d93df834517ce2f9cec7af047f376e05a084b99bcab407755462",
+      "pair_id": "",
+      "scenario_kind": "",
+      "expected_disposition": "SCREEN",
+      "controlled_change": "",
+      "oracle_constraints": [],
+      "oracle_witness": {}
+    },
+    {
+      "case_label": "CuAAC",
+      "case_id": "cuaac_adsc_200900726",
+      "scenario_id": "cuaac_adsc_200900726",
+      "title": "Cu/C-catalyzed azide-alkyne cycloaddition",
+      "protocol": "Benzyl azide (0.50 mmol, 1.0 equiv) and phenylacetylene (0.55 mmol, 1.1 equiv) were combined with Cu/C catalyst (10 mol% Cu) in acetone (2.0 mL; benzyl azide concentration 0.25 M). The homogeneous liquid reaction mixture was heated under microwave batch conditions at 150 °C for 3 min. The corresponding 1,4-disubstituted 1,2,3-triazole was isolated in 94% yield. Translate this batch procedure into one conservative continuous-flow screening design. Preserve the Cu/C catalyst strategy and explicitly report feed preparation, reactor topology, temperature, liquid flow, pressure, reactor/contact volume, residence-time basis, collection, work-up, and azide/pressure safety controls.",
+      "category": "thermal_packed_bed_click_chemistry",
+      "objective": "Produce one executable, inventory-constrained first flow screen without using the held-out source answer.",
+      "hard_constraints": [
+        "Use only the authoritative inventory supplied below.",
+        "Use a single premixed liquid feed through the Cu/C packed-bed cartridge.",
+        "Do not invent a gas stream, photochemical equipment, or unlisted hardware.",
+        "Report catalyst-contact residence time and make reactor volume, liquid flow, and residence time mathematically consistent.",
+        "Return SCREEN unless the inventory cannot support a safe design."
+      ],
+      "inventory": {
+        "schema_version": "flowpilot_lab_inventory_v2.0",
+        "strict_assignment": true,
+        "pumps": [
+          {
+            "equipment_id": "pump_xcube_hplc",
+            "name": "X-Cube HPLC pump",
+            "type": "HPLC",
+            "max_pressure_bar": 40.0,
+            "min_flow_rate_mL_min": 0.1,
+            "max_flow_rate_mL_min": 3.0,
+            "compatible_materials": [
+              "acetone"
+            ]
+          }
+        ],
+        "tubing": [
+          {
+            "equipment_id": "tubing_xcube_ss_4mm",
+            "name": "X-Cube cartridge body",
+            "material": "stainless steel",
+            "ID_mm": 4.0,
+            "max_pressure_bar": 40.0,
+            "max_temperature_C": 200.0,
+            "transparent": false,
+            "length_m": 0.06
+          }
+        ],
+        "BPR_available": [
+          20.0
+        ],
+        "light_sources": [],
+        "gas_hardware": [],
+        "reactors": [
+          {
+            "equipment_id": "reactor_cuc_cart_030",
+            "name": "Cu/C CatCart packed-bed cartridge",
+            "type": "packed-bed",
+            "material": "stainless steel",
+            "volume_mL": 0.3,
+            "ID_mm": 4.0,
+            "system": "X-Cube",
+            "min_temperature_C": 20.0,
+            "max_temperature_C": 200.0,
+            "min_pressure_bar": 0.0,
+            "max_pressure_bar": 40.0,
+            "configuration": "single packed-bed cartridge"
+          }
+        ],
+        "mixers": [],
+        "pressure_controllers": [
+          {
+            "equipment_id": "bpr_xcube_20",
+            "name": "X-Cube BPR",
+            "type": "BPR",
+            "setpoints_bar": [
+              20.0
+            ],
+            "min_pressure_bar": 20.0,
+            "max_pressure_bar": 20.0
+          }
+        ],
+        "degassers": [],
+        "filters": [],
+        "separators": [],
+        "connectors": [
+          {
+            "equipment_id": "connector_xcube_cart",
+            "name": "X-Cube cartridge connector",
+            "type": "cartridge holder",
+            "material": "stainless steel",
+            "supported_ID_mm": [
+              4.0
+            ],
+            "max_pressure_bar": 40.0
+          }
+        ],
+        "temperature_controllers": [
+          {
+            "equipment_id": "heater_xcube",
+            "name": "X-Cube cartridge heater",
+            "type": "heater",
+            "min_temperature_C": 20.0,
+            "max_temperature_C": 200.0
+          }
+        ],
+        "collectors": [
+          {
+            "equipment_id": "collector_amber_100",
+            "name": "Vented collection vessel",
+            "type": "collection vessel",
+            "volume_mL": 100.0,
+            "max_pressure_bar": 1.0
+          }
+        ],
+        "reactor_trains": [],
+        "safety_accessories": [
+          {
+            "equipment_id": "safety_cuaac_shield",
+            "name": "Azide-service blast shield and secondary containment",
+            "type": "shielded enclosure",
+            "capabilities": [
+              "shield_or_containment"
+            ],
+            "compatible_hazards": [
+              "energetic_azide"
+            ]
+          }
+        ]
+      },
+      "chemistry_identity_confirmation": {
+        "confirmed": true,
+        "reaction_name": "copper-catalyzed azide-alkyne cycloaddition",
+        "reaction_class": "cuaac",
+        "mechanism_type": "copper-catalyzed cycloaddition"
+      },
+      "design_input_text": "RAW BATCH PROTOCOL:\nBenzyl azide (0.50 mmol, 1.0 equiv) and phenylacetylene (0.55 mmol, 1.1 equiv) were combined with Cu/C catalyst (10 mol% Cu) in acetone (2.0 mL; benzyl azide concentration 0.25 M). The homogeneous liquid reaction mixture was heated under microwave batch conditions at 150 °C for 3 min. The corresponding 1,4-disubstituted 1,2,3-triazole was isolated in 94% yield. Translate this batch procedure into one conservative continuous-flow screening design. Preserve the Cu/C catalyst strategy and explicitly report feed preparation, reactor topology, temperature, liquid flow, pressure, reactor/contact volume, residence-time basis, collection, work-up, and azide/pressure safety controls.\n\nOBJECTIVE:\nProduce one executable, inventory-constrained first flow screen without using the held-out source answer.\n\nHARD CONSTRAINTS:\n- Use only the authoritative inventory supplied below.\n- Use a single premixed liquid feed through the Cu/C packed-bed cartridge.\n- Do not invent a gas stream, photochemical equipment, or unlisted hardware.\n- Report catalyst-contact residence time and make reactor volume, liquid flow, and residence time mathematically consistent.\n- Return SCREEN unless the inventory cannot support a safe design.\n\nAVAILABLE INVENTORY (authoritative JSON):\n{\"BPR_available\":[20.0],\"collectors\":[{\"equipment_id\":\"collector_amber_100\",\"max_pressure_bar\":1.0,\"name\":\"Vented collection vessel\",\"type\":\"collection vessel\",\"volume_mL\":100.0}],\"connectors\":[{\"equipment_id\":\"connector_xcube_cart\",\"material\":\"stainless steel\",\"max_pressure_bar\":40.0,\"name\":\"X-Cube cartridge connector\",\"supported_ID_mm\":[4.0],\"type\":\"cartridge holder\"}],\"degassers\":[],\"filters\":[],\"gas_hardware\":[],\"light_sources\":[],\"mixers\":[],\"pressure_controllers\":[{\"equipment_id\":\"bpr_xcube_20\",\"max_pressure_bar\":20.0,\"min_pressure_bar\":20.0,\"name\":\"X-Cube BPR\",\"setpoints_bar\":[20.0],\"type\":\"BPR\"}],\"pumps\":[{\"compatible_materials\":[\"acetone\"],\"equipment_id\":\"pump_xcube_hplc\",\"max_flow_rate_mL_min\":3.0,\"max_pressure_bar\":40.0,\"min_flow_rate_mL_min\":0.1,\"name\":\"X-Cube HPLC pump\",\"type\":\"HPLC\"}],\"reactor_trains\":[],\"reactors\":[{\"ID_mm\":4.0,\"configuration\":\"single packed-bed cartridge\",\"equipment_id\":\"reactor_cuc_cart_030\",\"material\":\"stainless steel\",\"max_pressure_bar\":40.0,\"max_temperature_C\":200.0,\"min_pressure_bar\":0.0,\"min_temperature_C\":20.0,\"name\":\"Cu/C CatCart packed-bed cartridge\",\"system\":\"X-Cube\",\"type\":\"packed-bed\",\"volume_mL\":0.3}],\"safety_accessories\":[{\"capabilities\":[\"shield_or_containment\"],\"compatible_hazards\":[\"energetic_azide\"],\"equipment_id\":\"safety_cuaac_shield\",\"name\":\"Azide-service blast shield and secondary containment\",\"type\":\"shielded enclosure\"}],\"schema_version\":\"flowpilot_lab_inventory_v2.0\",\"separators\":[],\"strict_assignment\":true,\"temperature_controllers\":[{\"equipment_id\":\"heater_xcube\",\"max_temperature_C\":200.0,\"min_temperature_C\":20.0,\"name\":\"X-Cube cartridge heater\",\"type\":\"heater\"}],\"tubing\":[{\"ID_mm\":4.0,\"equipment_id\":\"tubing_xcube_ss_4mm\",\"length_m\":0.06,\"material\":\"stainless steel\",\"max_pressure_bar\":40.0,\"max_temperature_C\":200.0,\"name\":\"X-Cube cartridge body\",\"transparent\":false}]}\n\nCHEMIST-CONFIRMED CHEMISTRY IDENTITY:\n{\"confirmed\":true,\"mechanism_type\":\"copper-catalyzed cycloaddition\",\"reaction_class\":\"cuaac\",\"reaction_name\":\"copper-catalyzed azide-alkyne cycloaddition\"}",
+      "design_input_sha256": "0d4ea327767531b59e0d1331aad50e7c0c4263ac1ae4df9cbeae2fc5c7117442",
+      "suite_id": "manuscript_five_case_v1",
+      "difficulty": "high",
+      "tags": [
+        "newgen",
+        "held_out_source",
+        "single_phase_liquid",
+        "packed_bed"
+      ],
+      "source_record_id": "adsc.200900726.pdf",
+      "source_record_aliases": [
+        "adsc.200900726",
+        "adsc.200900726.json",
+        "Mechanistic Insights into Copper(I)-Catalyzed Azide-Alkyne Cycloadditions using Continuous Flow Conditions"
+      ],
+      "reference_quality": "page_verified_original_pdf",
+      "expected_features": {
+        "gas_required": false,
+        "light_required": false,
+        "phase_regime": "single_phase_liquid_feed_through_packed_bed",
+        "topology": [
+          "liquid_pump",
+          "heated_packed_bed",
+          "back_pressure_regulator",
+          "collector"
+        ]
+      },
+      "reference_flow": {},
+      "protocol_sha256": "f9b5e651a0245ee20ff8f396e5fbfc2b72b1f6e0d23f46724a8ae0cfb4769d0b",
+      "pair_id": "",
+      "scenario_kind": "",
+      "expected_disposition": "SCREEN",
+      "controlled_change": "",
+      "oracle_constraints": [],
+      "oracle_witness": {}
+    }
+  ]
+}

@@ -4,14 +4,17 @@ from pathlib import Path
 import pytest
 
 from flora_translate.design_realizer import realize_executable_design
+from flora_translate.main import _build_singlestep_topology
 from flora_translate.residence_time_basis import actual_gas_flow_from_stp
 from flora_translate.inventory_profiles import inventory_profile_from_payload
+from flora_translate.topology_compiler import compile_inventory_topology
 from flora_translate.schemas import (
     BatchRecord,
     ChemistryPlan,
     FlowProposal,
     LabInventory,
     ProcessStage,
+    ReagentRole,
     StreamAssignment,
     StreamLogic,
 )
@@ -389,6 +392,76 @@ def test_air_identity_binds_air_mfc_and_uses_liquid_contact_time():
     assert "sccm" not in " ".join(gas.contents).lower()
 
 
+def test_protocol_air_collapses_duplicate_air_and_pure_oxygen_feeds():
+    case_path = ROOT / "ablation_test/benchmarks/manuscript_five_case_v1/fmoc_case.json"
+    case = json.loads(case_path.read_text())["cases"][0]
+    inventory = LabInventory.model_validate(case["inventory"])
+    batch = BatchRecord(
+        raw_text=case["protocol"],
+        reaction_description=case["protocol"],
+        atmosphere="air",
+    )
+    proposal = FlowProposal(
+        flow_rate_mL_min=0.2,
+        concentration_M=0.1,
+        temperature_C=21,
+        BPR_bar=3,
+        reactor_type="photochemical coil",
+        reactor_volume_mL=1,
+        streams=[
+            StreamAssignment(
+                stream_label="A",
+                contents=["Fmoc-L-methionine", "photocatalyst"],
+                solvent="acetonitrile",
+                concentration_M=0.1,
+            ),
+            StreamAssignment(
+                stream_label="B",
+                contents=["air"],
+                pump_role="air oxidant feed",
+                phase="gas",
+                molar_equiv=1.0,
+            ),
+            StreamAssignment(
+                stream_label="G",
+                contents=["O2"],
+                pump_role="oxygen reagent feed",
+                phase="gas",
+                molar_equiv=1.0,
+            ),
+        ],
+    )
+    plan = ChemistryPlan(
+        reaction_name="Aerobic photooxidation",
+        o2_is_reagent=True,
+        stream_logic=[
+            StreamLogic(stream_label="A", reagents=["Fmoc-L-methionine"], concentration_M=0.1),
+            StreamLogic(stream_label="B", reagents=["air"], phase="gas", molar_equiv=1.0),
+            StreamLogic(stream_label="G", reagents=["O2"], phase="gas", molar_equiv=1.0),
+        ],
+    )
+
+    realized, report, validation = realize_executable_design(
+        proposal,
+        batch_record=batch,
+        chemistry_plan=plan,
+        inventory=inventory,
+        hard_constraints=case["hard_constraints"],
+    )
+
+    gas_streams = [stream for stream in realized.streams if stream.phase == "gas"]
+    assert len(gas_streams) == 1
+    assert gas_streams[0].contents == ["air"]
+    assert gas_streams[0].pump_equipment_id == "mfc_air_10"
+    assert realized.multiphase_metrics["gas_species"] == "air"
+    assert len(realized.multiphase_metrics["gas_streams"]) == 1
+    assert validation["status"] == "ready"
+    assert any(
+        item["decision"] == "remove_duplicate_oxidant_feed"
+        for item in report["decisions"]
+    )
+
+
 def test_gas_mfc_max_is_solved_jointly_with_liquid_flow():
     case_path = ROOT / "ablation_test/benchmarks/manuscript_five_case_v1/fmoc_case.json"
     case = json.loads(case_path.read_text())["cases"][0]
@@ -524,6 +597,144 @@ def test_packed_bed_single_feed_uses_exact_cartridge_and_pressure_setpoint():
     assert realized.reactor_volume_mL == 0.3
     assert realized.residence_time_min == pytest.approx(
         realized.reactor_volume_mL / realized.flow_rate_mL_min, rel=1e-5
+    )
+
+
+def test_packed_bed_catalyst_and_negated_deoxygenation_compile_without_false_block():
+    case = _case("cuaac")
+    inventory = LabInventory.model_validate(case["inventory"])
+    batch = BatchRecord(raw_text=case["protocol"], reaction_description=case["protocol"])
+    catalyst_text = (
+        "Cu/C heterogeneous catalyst (10 mol% Cu, pre-packed in "
+        "reactor_cuc_cart_030 - not in solution)"
+    )
+    proposal = FlowProposal(
+        residence_time_min=2.8,
+        flow_rate_mL_min=0.1,
+        temperature_C=150,
+        concentration_M=0.25,
+        BPR_bar=20,
+        reactor_type="packed-bed",
+        deoxygenation_method=(
+            "N2 blanket on feed reservoir; deoxygenation not required"
+        ),
+        streams=[
+            StreamAssignment(
+                stream_label="A",
+                pump_role="premixed CuAAC feed",
+                contents=[
+                    "Benzyl azide (0.25 M, 1.0 equiv)",
+                    "Phenylacetylene (0.275 M, 1.1 equiv)",
+                    catalyst_text,
+                ],
+                solvent="Acetone",
+                concentration_M=0.25,
+            )
+        ],
+    )
+    plan = ChemistryPlan(
+        reaction_name="CuAAC",
+        deoxygenation_required=False,
+        reagents=[
+            ReagentRole(
+                name="Cu/C heterogeneous catalyst",
+                role="heterogeneous catalyst",
+                equiv_or_loading="10 mol% Cu",
+            )
+        ],
+        stream_logic=[
+            StreamLogic(
+                stream_label="A",
+                reagents=[
+                    "Benzyl azide (0.25 M, 1.0 equiv)",
+                    "Phenylacetylene (0.275 M, 1.1 equiv)",
+                    catalyst_text,
+                ],
+                concentration_M=0.25,
+            )
+        ],
+    )
+
+    realized, report, validation = realize_executable_design(
+        proposal,
+        batch_record=batch,
+        chemistry_plan=plan,
+        inventory=inventory,
+        hard_constraints=case["hard_constraints"],
+    )
+    topology = _build_singlestep_topology(realized, plan, batch, inventory)
+    _, allocation = compile_inventory_topology(
+        topology,
+        proposal=realized,
+        inventory=inventory,
+    )
+
+    assert validation["status"] == "ready"
+    assert realized.deoxygenation_method == ""
+    assert catalyst_text not in realized.streams[0].contents
+    stationary = realized.inventory_constraints["stationary_components"]
+    assert stationary[0]["placement"] == "stationary_reactor_phase"
+    assert not any(op.op_type == "deoxygenation_unit" for op in topology.unit_operations)
+    assert allocation["checks"]["all_required_operations_assigned"]
+    assert not allocation["unresolved_requirements"]
+    assert any(
+        item["decision"] == "move_component_to_stationary_reactor_phase"
+        for item in report["decisions"]
+    )
+
+
+def test_packed_bed_removes_stationary_catalyst_with_variable_role_wording():
+    case = _case("cuaac")
+    inventory = LabInventory.model_validate(case["inventory"])
+    batch = BatchRecord(raw_text=case["protocol"], reaction_description=case["protocol"])
+    proposal = FlowProposal(
+        residence_time_min=3.0,
+        flow_rate_mL_min=0.1,
+        temperature_C=150,
+        concentration_M=0.25,
+        BPR_bar=20,
+        reactor_type="packed-bed",
+        streams=[
+            StreamAssignment(
+                stream_label="A",
+                pump_role="premixed CuAAC feed",
+                contents=[
+                    "benzyl azide (0.25 M, 1.0 equiv)",
+                    "phenylacetylene (0.275 M, 1.1 equiv)",
+                    "copper on carbon (0.025 M screening assumption)",
+                ],
+                solvent="acetone",
+                concentration_M=0.25,
+            )
+        ],
+    )
+    plan = ChemistryPlan(
+        reaction_name="CuAAC",
+        reagents=[
+            ReagentRole(
+                name="copper on carbon",
+                role="heterogeneous copper catalyst packed in cartridge",
+                notes="Use the installed Cu/C CatCart as the catalytic zone.",
+            )
+        ],
+    )
+
+    realized, _, validation = realize_executable_design(
+        proposal,
+        batch_record=batch,
+        chemistry_plan=plan,
+        inventory=inventory,
+        hard_constraints=case["hard_constraints"],
+    )
+
+    assert validation["status"] == "ready"
+    assert all(
+        "copper on carbon" not in item.lower()
+        for item in realized.streams[0].contents
+    )
+    assert (
+        realized.inventory_constraints["stationary_components"][0]["name"]
+        == "copper on carbon"
     )
 
 

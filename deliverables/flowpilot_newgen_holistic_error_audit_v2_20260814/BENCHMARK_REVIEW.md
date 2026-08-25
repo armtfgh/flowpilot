@@ -70,3 +70,4 @@ Raw prompts, responses, telemetry, retry histories, and statuses remain in `abla
 ## Publication Status
 
 Do not use this package to claim that FlowPilot is better or worse than one-shot generation. It is suitable for model debugging and for designing a smaller, tolerance-explicit, source-adjudicated benchmark. Publication use requires deterministic adjudication of numerical claims and chemistry-expert review of chemistry, safety, and evidence claims.
+httpx.ConnectError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1032)
