@@ -269,6 +269,8 @@ def publish_final_design_artifacts(
     """Publish only canonical executable artifacts to legacy top-level keys."""
 
     result["final_design"] = contract
+    result["canonical_explanation"] = canonical_summary_markdown(contract)
+    result["explanation_status"] = "pre_realization_audit_only"
     validation = result.setdefault("final_validation", {})
     checks = validation.setdefault("checks", {})
     semantic_checks = dict((contract.get("consistency") or {}).get("semantic_checks") or {})
@@ -331,6 +333,62 @@ def publish_final_design_artifacts(
     canonical_topology = ((contract.get("process_graph") or {}).get("topology") or {})
     if canonical_topology:
         result["process_topology"] = canonical_topology
+
+
+def canonical_summary_markdown(contract: dict[str, Any]) -> str:
+    """Render a concise summary using only the frozen final-design contract."""
+
+    if contract.get("status") != "executable":
+        issues = list((contract.get("consistency") or {}).get("issues") or [])
+        lines = [
+            "### No Executable Final Design",
+            "The deterministic final-design contract is blocked. Do not execute intermediate candidate values.",
+        ]
+        for issue in issues:
+            lines.append(
+                f"- **{issue.get('code', 'FINAL-CHECK')}**: "
+                f"{issue.get('message', 'Final consistency check failed.')}"
+            )
+        return "\n\n".join(lines[:2]) + (
+            "\n" + "\n".join(lines[2:]) if len(lines) > 2 else ""
+        )
+
+    parameters = dict(contract.get("parameters") or {})
+    fields = (
+        ("residence_time_min", "Residence time", "min"),
+        ("residence_time_inlet_min", "Inlet/STP apparent residence time", "min"),
+        ("residence_time_in_channel_min", "In-channel apparent residence time", "min"),
+        ("flow_rate_mL_min", "Total liquid flow", "mL/min"),
+        ("reactor_volume_mL", "Reactor volume", "mL"),
+        ("temperature_C", "Temperature", "deg C"),
+        ("BPR_bar", "BPR", "bar"),
+        ("concentration_M", "Concentration", "M"),
+        ("wavelength_nm", "Wavelength", "nm"),
+    )
+    lines = ["### Final Executable Design"]
+    for key, label, unit in fields:
+        value = parameters.get(key)
+        if value is None or value == "":
+            continue
+        lines.append(f"- **{label}:** {_display_value(value)} {unit}")
+    basis = str(parameters.get("residence_time_basis") or "").strip()
+    if basis:
+        lines.append(f"- **Residence-time basis:** {basis}")
+    equipment = [
+        str(item.get("name") or item.get("equipment_id") or "").strip()
+        for item in contract.get("instrument_manifest") or []
+        if isinstance(item, dict)
+    ]
+    equipment = [item for item in equipment if item]
+    if equipment:
+        lines.append(f"- **Assigned equipment:** {', '.join(equipment)}")
+    return "\n".join(lines)
+
+
+def _display_value(value: Any) -> str:
+    if isinstance(value, float):
+        return f"{value:.6g}"
+    return str(value)
 
 
 def _build_executable_process_graph(

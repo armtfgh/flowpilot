@@ -64,10 +64,10 @@ JUDGES = {
     },
     "openai": {
         "provider": "openai",
-        "model": "gpt-5.4-2026-03-05",
+        "model": "gpt-4o",
         "upstream_mode": "never",
         "family": "openai",
-        "label": "GPT-5.4 judge",
+        "label": "GPT-4o judge",
     },
     "claude": {
         "provider": "anthropic",

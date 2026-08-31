@@ -203,7 +203,7 @@ def main() -> None:
     write_json(OUTPUT / "tables/model_fix_tickets.json", tickets)
 
     # Error burden is shown as raw criterion counts, never collapsed to a quality score.
-    cells = [(model, arch) for model in ("Qwen3.6-27B", "GPT-5.4") for arch in ("One-shot", "FlowPilot")]
+    cells = [(model, arch) for model in ("Qwen3.6-27B", "GPT-4o") for arch in ("One-shot", "FlowPilot")]
     domains = list(rubric["domains"])
     count_lookup = Counter((row["generator_model"], row["architecture"], row["domain"]) for row in confirmed)
     matrix = np.array([[count_lookup[(model, arch, domain)] for domain in domains] for model, arch in cells])

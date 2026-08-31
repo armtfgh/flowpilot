@@ -37,7 +37,7 @@ DEFAULT_OUTPUT = ROOT / "ablation_results/newgen_benchmark/newgen_2_0_20260818"
 
 JUDGES = {
     "qwen": {"provider": "ollama", "model": "/models/Qwen3.6-27B", "base_url": "http://10.13.24.169:8000/v1", "upstream_mode": "always", "family": "qwen"},
-    "openai": {"provider": "openai", "model": "gpt-5.4-2026-03-05", "upstream_mode": "never", "family": "openai"},
+    "openai": {"provider": "openai", "model": "gpt-4o", "upstream_mode": "never", "family": "openai"},
     "claude": {"provider": "anthropic", "model": "claude-sonnet-4-6", "upstream_mode": "never", "family": "anthropic"},
 }
 ORACLES = {

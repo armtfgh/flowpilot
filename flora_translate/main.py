@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 from flora_translate.analogy_selector import AnalogySelector
+from flora_translate.chemistry_contract import reconcile_chemistry_plan
 from flora_translate.config import LAB_INVENTORY_PATH, RECORDS_DIR
 from flora_translate.design_calculator import GAS_LIQUID_MIN_BPR_BAR
 from flora_translate.design_realizer import realize_executable_design
@@ -1972,6 +1973,15 @@ def translate(
     # 2. Chemistry Reasoning — Layer 1
     logger.info("Step 2: Chemistry analysis (Layer 1)")
     chemistry_plan = analyze_batch_chemistry(batch_record, intake_package=intake)
+    chemistry_plan, chemistry_reconciliation = reconcile_chemistry_plan(
+        batch_record,
+        chemistry_plan,
+        hard_constraints={
+            "inventory_constraints": intake.inventory_constraints if intake else None,
+            "operating_limits": intake.operating_limits if intake else None,
+            "runtime_hard_constraints": list(runtime.hard_constraints),
+        },
+    )
     logger.info(f"  Mechanism: {chemistry_plan.mechanism_type}")
     logger.info(f"  Streams: {len(chemistry_plan.stream_logic)}  O2: {chemistry_plan.oxygen_sensitive}")
     logger.info(f"  Upstream mode: {getattr(chemistry_plan, '_upstream_mode', 'full')}")
@@ -1995,6 +2005,7 @@ def translate(
                 preflight=inventory_preflight,
             )
             blocked_result["pipeline_runtime"] = runtime.provenance()
+            blocked_result["chemistry_reconciliation"] = chemistry_reconciliation
             return blocked_result
 
     # 3. Plan-aware retrieval — Layer 2
@@ -2139,6 +2150,7 @@ def translate(
     logger.info("Step 6: Formatting output")
     result = OutputFormatter().format(design_candidate, analogies)
     result["chemistry_plan"] = chemistry_plan.model_dump(exclude_none=True)
+    result["chemistry_reconciliation"] = chemistry_reconciliation
     result["batch_record"] = batch_record.model_dump(exclude_none=True)
     result["inventory_snapshot"] = inventory.model_dump(exclude_none=True)
     if intake:

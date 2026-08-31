@@ -369,6 +369,9 @@ def _stream_components(
             equivalents, loading = _parse_equiv_or_loading(
                 str((role_entry or {}).get("equiv_or_loading") or "") + " " + source
             )
+            concentration = concentration if concentration is not None and concentration > 0 else None
+            equivalents = equivalents if equivalents is not None and equivalents > 0 else None
+            loading = loading if loading is not None and loading > 0 else None
             provenance = []
             if concentration is not None:
                 provenance.append("component_text")

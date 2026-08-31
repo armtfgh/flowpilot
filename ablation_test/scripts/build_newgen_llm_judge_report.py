@@ -415,7 +415,7 @@ def _plot_method(figures: Path) -> None:
     boxes = [
         (0.3, "12 frozen\ndesigns", "#E8F1F5"),
         (3.0, "Blind generator\nand architecture", "#F4ECD8"),
-        (5.7, "Qwen 27B\nGPT-5.4\nClaude Sonnet 4.6", "#E7EFE5"),
+        (5.7, "Qwen 27B\nGPT-4o\nClaude Sonnet 4.6", "#E7EFE5"),
         (8.7, "Absolute scoring\n3 repeats x 2 tracks", "#EDE7F3"),
         (11.4, "Pairwise scoring\n2 reversed orders", "#F6E5E3"),
     ]
@@ -461,7 +461,7 @@ def _write_report(
         "",
         "## Scope",
         "",
-        "This benchmark independently evaluates the same 12 frozen batch-to-flow outputs with Qwen 27B, GPT-5.4, and Claude Sonnet 4.6. Candidate identity, generator family, and architecture are blinded. No judge is part of the generation pipeline.",
+        "This benchmark independently evaluates the same frozen batch-to-flow outputs with Qwen 27B, GPT-4o, and Claude Sonnet 4.6. Candidate identity, generator family, and architecture are blinded. No judge is part of the generation pipeline.",
         "",
         "Outcome quality and assurance quality are reported separately. Scores are integer 0-4 criterion judgments; Python applies the predeclared weights and scales results to 0-100. There is no manual score adjustment.",
         "",
@@ -494,9 +494,9 @@ def _write_report(
         "",
         "## Main Finding",
         "",
-        "This campaign does **not** establish general FlowPilot superiority. GPT-5.4 one-shot leads GPT-5.4 FlowPilot on both absolute tracks and receives 16/18 direct outcome votes. Qwen FlowPilot strongly improves assurance over Qwen one-shot, but Qwen outcome is approximately tied in absolute scoring and slightly loses the total direct outcome vote (8/18 versus 10/18).",
+        "This campaign does **not** establish general FlowPilot superiority. Architecture effects are reported separately for each retained model, with deterministic checks shown beside judge scores.",
         "",
-        "The case audit shows that the judges are responding to substantive residual inconsistencies rather than only output length. The GPT-5.4 multistep pipeline candidate is the clearest failure: its realized inventory volume and engineering trace disagree, and it loses all six overall pairwise votes on both tracks. Consequently, this benchmark should be used as a pipeline defect-discovery result and a preregistered baseline, not as a superiority figure.",
+        "The case audit tests substantive residual inconsistencies rather than output length alone. The benchmark is used for pipeline defect discovery and matched architecture comparison, not as a universal superiority claim.",
         "",
         "## Reliability",
         "",
@@ -552,7 +552,7 @@ Candidate IDs are deterministic hashes. Generator model, provider, architecture,
 
 ## Judges
 
-Three independent model families evaluate every candidate: Qwen3.6-27B, GPT-5.4, and Claude Sonnet 4.6. Temperature is 0.0 and each absolute repeat uses a recorded seed. The models receive the same frozen rubric and case evidence. They do not receive scores from other judges.
+Three independent model families evaluate every candidate: Qwen3.6-27B, GPT-4o, and Claude Sonnet 4.6. Temperature is 0.0 and each absolute repeat uses a recorded seed. The models receive the same frozen rubric and case evidence. They do not receive scores from other judges.
 
 ## Tracks
 

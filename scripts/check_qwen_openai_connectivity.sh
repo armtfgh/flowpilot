@@ -5,7 +5,7 @@ set -u
 QWEN_BASE_URL="${QWEN_BASE_URL:-http://10.13.24.169:8000/v1}"
 QWEN_MODEL="${QWEN_MODEL:-/models/Qwen3.6-27B}"
 OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://api.openai.com/v1}"
-OPENAI_MODEL="${OPENAI_MODEL:-gpt-5.4-2026-03-05}"
+OPENAI_MODEL="${OPENAI_MODEL:-gpt-4o}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-20}"
 
 workdir="$(mktemp -d)"

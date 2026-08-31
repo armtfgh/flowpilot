@@ -219,6 +219,23 @@ def _normalize_plan_data(data: dict) -> dict:
     The LLM sometimes returns fields in slightly different shapes
     than the schema expects. This normalizes them.
     """
+    def unwrap(value, default=None):
+        if not isinstance(value, dict):
+            return value
+        for key in (
+            "value", "selected", "recommended", "estimate", "nominal",
+            "result", "text", "name",
+        ):
+            if key in value and not isinstance(value[key], (dict, list)):
+                return value[key]
+        return default
+
+    def coerce_bool(value) -> bool:
+        value = unwrap(value, value)
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "yes", "1", "required"}
+        return bool(value)
+
     # incompatible_pairs: expected [[A, B], ...] but LLM may return
     # [{"species_1": A, "species_2": B, ...}, ...]
     pairs = data.get("incompatible_pairs", [])
@@ -261,7 +278,7 @@ def _normalize_plan_data(data: dict) -> dict:
             ("gas_flow_sccm", None),
             ("gas_flow_actual_mL_min", None),
         ):
-            value = stream.get(field)
+            value = unwrap(stream.get(field))
             if value is None:
                 if fallback is not None:
                     stream[field] = fallback
@@ -293,6 +310,15 @@ def _normalize_plan_data(data: dict) -> dict:
     stages = data.get("stages", [])
     for stage in stages:
         if isinstance(stage, dict):
+            for field in ("temperature_C", "wavelength_nm", "batch_time_h", "stage_number"):
+                if field in stage:
+                    stage[field] = unwrap(stage[field])
+            for field in (
+                "requires_light", "oxygen_sensitive", "moisture_sensitive",
+                "deoxygenation_required",
+            ):
+                if field in stage:
+                    stage[field] = coerce_bool(stage[field])
             feeds = stage.get("feed_streams", [])
             for f in feeds:
                 if isinstance(f, dict):
@@ -307,8 +333,20 @@ def _normalize_plan_data(data: dict) -> dict:
         "mixing_order_reasoning", "photocatalyst_loading", "scale_note",
     ]
     for field in _str_fields:
+        if isinstance(data.get(field), dict):
+            value = unwrap(data[field])
+            data[field] = value if value is not None else json.dumps(
+                data[field], sort_keys=True, ensure_ascii=True
+            )
         if data.get(field) is None:
             data[field] = ""
+
+    for field in (
+        "oxygen_sensitive", "o2_is_reagent", "moisture_sensitive",
+        "temperature_sensitive", "deoxygenation_required", "quench_required",
+    ):
+        if field in data:
+            data[field] = coerce_bool(data[field])
 
     # ── Coerce "" / non-numeric strings → None for Optional[float/int] fields ─
     # The LLM sometimes returns "" or "N/A" for numeric fields that have no
@@ -317,7 +355,10 @@ def _normalize_plan_data(data: dict) -> dict:
         "recommended_wavelength_nm", "n_stages",
     ]
     for field in _numeric_fields:
-        val = data.get(field)
+        if field not in data:
+            continue
+        val = unwrap(data.get(field))
+        data[field] = val
         if val is None:
             continue
         if isinstance(val, str):

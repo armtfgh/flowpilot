@@ -1,3 +1,0 @@
-# Scoring Method
-
-Each applicable universal criterion receives an anchored integer score from 0 to 4 from each of three blinded judges. Candidate score is the unweighted mean across applicable criteria and judges divided by four. The primary architecture effect is the paired FlowPilot-minus-one-shot candidate score for the same chemistry, model family, and repeat. No architecture bonuses, post-hoc criterion weights, or score-triggered extra repeats are used. A criterion marked not applicable is excluded symmetrically from both architectures; UO-09 was not applicable to any frozen case in this campaign.

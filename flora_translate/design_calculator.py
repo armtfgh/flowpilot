@@ -136,20 +136,20 @@ def _extract_gas_equiv(
     Priority order:
       1. Evidence-calibrated recommendation attached to the proposal.
       2. Explicit equivalents in the batch protocol.
-      3. Regex extraction from the gas stream's reasoning/reagent text:
-         e.g. "O2 gas (2.0 equiv)" → 2.0
-      4. Structured stream equivalents, except for non-stoichiometric ambient-air
-         exposure where an inferred equivalent is not physically supported.
-      5. The supplied default (typically 1.0 for a screening basis).
+      3. Reconciled structured equivalents with a non-model authority basis.
+      4. The supplied default (typically 1.0 for a screening basis).
+
+    Free-form model reasoning is deliberately not parsed. A model-derived flow
+    calculation must never become protocol evidence merely because it contains
+    the word "equiv".
     """
     import re
 
     if proposal is not None:
-        mp = getattr(proposal, "multiphase_metrics", None) or {}
         calibration = getattr(proposal, "evidence_calibration", None) or {}
         recommended = calibration.get("recommended_conditions") if isinstance(calibration, dict) else None
         anchor = calibration.get("anchor_conditions") if isinstance(calibration, dict) else None
-        for source in (recommended, anchor, mp):
+        for source in (recommended, anchor):
             if not isinstance(source, dict):
                 continue
             for key in ("gas_equiv_inlet", "target_gas_equiv_inlet", "o2_target_equiv"):
@@ -229,12 +229,8 @@ def _extract_gas_equiv(
 
     g = gas_streams[0]
     me = getattr(g, "molar_equiv", None)
-    text = " ".join(getattr(g, "reagents", []) or []) + " " + (getattr(g, "reasoning", "") or "")
-    parsed = _regex_equiv(text)
-    if parsed is not None:
-        return parsed
-
-    if me is not None and me > 0:
+    basis = str(getattr(g, "molar_equiv_basis", "") or "").lower()
+    if me is not None and me > 0 and "model" not in basis:
         return float(me)
     return default
 

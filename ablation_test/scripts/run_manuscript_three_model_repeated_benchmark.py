@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the preregistered three-model, three-repeat manuscript benchmark.
+"""Run the preregistered repeated manuscript benchmark.
 
 The campaign is deliberately separate from the accepted five-case pilot.  It
 uses the top three cases selected by the pilot's frozen ranking, regenerates
@@ -65,13 +65,6 @@ MODELS = {
         "upstream_mode": "always",
         "family": "qwen",
         "display": "Qwen3.6-27B",
-    },
-    "openai": {
-        "provider": "openai",
-        "model": "gpt-5.4-2026-03-05",
-        "upstream_mode": "never",
-        "family": "openai",
-        "display": "GPT-5.4",
     },
     "claude": {
         "provider": "anthropic",
@@ -291,9 +284,22 @@ def initialize(output: Path, cases: list[tuple[str, AblationCase]]) -> None:
     hashes: dict[str, str] = {}
     for source in source_files:
         target = source_dir / source.name
-        shutil.copy2(source, target)
+        if target.is_file():
+            if sha256_file(target) != sha256_file(source):
+                raise RuntimeError(
+                    f"Frozen source mismatch for {source.name}; use a new output directory"
+                )
+        else:
+            shutil.copy2(source, target)
         hashes[source.name] = sha256_file(target)
-    write_json(frozen / "source_code_checksums.json", hashes)
+    checksum_path = frozen / "source_code_checksums.json"
+    if checksum_path.is_file():
+        if read_json(checksum_path) != hashes:
+            raise RuntimeError(
+                "Frozen source checksum manifest changed; use a new output directory"
+            )
+    else:
+        write_json(checksum_path, hashes)
     oracle_dir = frozen / "held_out_oracles"
     oracle_dir.mkdir(exist_ok=True)
     for label, _ in cases:

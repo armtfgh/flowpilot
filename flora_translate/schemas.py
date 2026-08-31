@@ -6,7 +6,7 @@ import hashlib
 import re
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -456,18 +456,82 @@ class MechanismStep(BaseModel):
     is_rate_limiting: bool = False
 
 
+RequirementAuthority = Literal[
+    "measured_evidence",
+    "hard_constraint",
+    "protocol_fact",
+    "chemist_hypothesis",
+    "model_inference",
+    "deterministic_derivation",
+]
+
+
+class CanonicalOperationRequirement(BaseModel):
+    """One provenance-bearing operation in the immutable reaction contract."""
+
+    model_config = ConfigDict(frozen=True)
+
+    requirement_id: str
+    operation_type: Literal[
+        "liquid_feed",
+        "gas_feed",
+        "mixer",
+        "reactor",
+        "light_source",
+        "pressure_control",
+        "interstage_operation",
+    ]
+    stage_number: int = Field(default=1, ge=1)
+    required: bool = True
+    accepted_requirement: bool = True
+    authority: RequirementAuthority = "deterministic_derivation"
+    source_evidence: list[str] = Field(default_factory=list)
+    species: list[str] = Field(default_factory=list)
+    feed_group: str = ""
+    rationale: str = ""
+
+
+class CanonicalReactionContract(BaseModel):
+    """Protocol-anchored process facts that downstream models cannot expand."""
+
+    model_config = ConfigDict(frozen=True)
+
+    schema_version: str = "flowpilot_canonical_reaction_contract_v1.0"
+    protocol_sha256: str = ""
+    reaction_name: str = ""
+    n_stages: int = Field(default=1, ge=1)
+    required_reagent_gases: list[str] = Field(default_factory=list)
+    light_required_stages: list[int] = Field(default_factory=list)
+    operations: list[CanonicalOperationRequirement] = Field(default_factory=list)
+    authority_order: list[str] = Field(
+        default_factory=lambda: [
+            "measured_evidence",
+            "hard_constraint",
+            "protocol_fact",
+            "chemist_hypothesis",
+            "model_inference",
+        ]
+    )
+
+
 class StreamLogic(BaseModel):
     """Chemistry-driven reasoning for which reagents go in which stream."""
     stream_label: str = ""               # "A", "B"
     reagents: list[str] = Field(default_factory=list)   # names of reagents in this stream
     reasoning: str = ""                  # WHY these go together
     molar_equiv: float = 1.0             # stoichiometric equivalents relative to limiting reagent
+    molar_equiv_basis: str = ""
     concentration_M: Optional[float] = None  # concentration of this stream (for Q calculation)
     phase: str = ""                      # "liquid" | "gas" | "solid" | ""
     gas_flow_sccm: Optional[float] = None
     gas_flow_actual_mL_min: Optional[float] = None
     introduction_stage: Optional[int] = Field(default=None, ge=1)
     delivery_mode: Literal["new_feed", "carried_from_previous"] = "new_feed"
+    requirement_authority: RequirementAuthority = "model_inference"
+    source_evidence: list[str] = Field(default_factory=list)
+    accepted_requirement: bool = True
+    separate_feed_required: bool = False
+    feed_group: str = ""
 
     @model_validator(mode="after")
     def _normalize_phase(self):
@@ -597,6 +661,11 @@ class ChemistryPlan(BaseModel):
     # Explicit process-intensification target for downstream design.
     intensification_mandate: IntensificationMandate = Field(default_factory=IntensificationMandate)
 
+    # Frozen after protocol/chemist reconciliation. Downstream stages may use
+    # this contract but may not create new required operations outside it.
+    canonical_contract: Optional[CanonicalReactionContract] = None
+    reconciliation_log: list[dict[str, Any]] = Field(default_factory=list)
+
     @model_validator(mode="after")
     def _normalize_stage_semantics(self):
         self.n_stages = max(int(self.n_stages or 1), len(self.stages or []), 1)
@@ -617,6 +686,7 @@ class ChemistryPlan(BaseModel):
                     feed.concentration_M = authoritative.concentration_M
                 if authoritative.molar_equiv is not None:
                     feed.molar_equiv = authoritative.molar_equiv
+                    feed.molar_equiv_basis = authoritative.molar_equiv_basis
                 feed.introduction_stage = (
                     authoritative.introduction_stage
                     or feed.introduction_stage
@@ -669,6 +739,11 @@ class StreamAssignment(BaseModel):
     pump_equipment_id: Optional[str] = None  # deterministic inventory assignment
     introduction_stage: int = Field(default=1, ge=1)
     reasoning: str = ""                 # why these go together
+    requirement_authority: RequirementAuthority = "model_inference"
+    source_evidence: list[str] = Field(default_factory=list)
+    accepted_requirement: bool = True
+    separate_feed_required: bool = False
+    feed_group: str = ""
 
     @field_validator(
         "stream_label",
@@ -797,6 +872,9 @@ class UnitOperation(BaseModel):
     inventory_category: str = ""
     assignment_status: str = "unassigned"
     capability_checks: dict[str, bool] = Field(default_factory=dict)
+    requirement_authority: RequirementAuthority = "model_inference"
+    source_evidence: list[str] = Field(default_factory=list)
+    accepted_requirement: bool = True
 
 
 class StreamConnection(BaseModel):

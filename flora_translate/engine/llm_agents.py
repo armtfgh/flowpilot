@@ -76,12 +76,7 @@ def get_llm_runtime_overrides() -> dict:
 
 
 def _supports_explicit_temperature(model: str) -> bool:
-    """Return whether the provider model accepts a non-default temperature."""
-    normalized = (model or "").lower()
-    if normalized.startswith("gpt-5"):
-        return False
-    if re.match(r"^claude-[a-z]+-5(?:$|-)", normalized):
-        return False
+    """Return whether models in the supported publication set accept temperature."""
     return True
 
 
@@ -99,16 +94,12 @@ def _runtime_kwargs(provider: str, model: str) -> dict:
 
 
 def _openai_token_limit(model: str, max_tokens: int) -> dict:
-    """Use the token-limit parameter required by the selected OpenAI model."""
-    if (model or "").lower().startswith("gpt-5"):
-        return {"max_completion_tokens": max_tokens}
+    """Use the Chat Completions token-limit parameter for GPT-4o."""
     return {"max_tokens": max_tokens}
 
 
 def _openai_tool_kwargs(model: str) -> dict:
-    """Return model-specific controls required by Chat Completions tools."""
-    if (model or "").lower().startswith("gpt-5"):
-        return {"reasoning_effort": "none"}
+    """Return optional GPT-4o Chat Completions tool controls."""
     return {}
 
 
@@ -360,6 +351,7 @@ def call_model_messages(
     max_tokens: int,
     provider: str | None = None,
     api_name: str = "call_model_messages",
+    json_schema: dict | None = None,
 ) -> TextGenerationResult:
     """Provider-agnostic text generation for upstream modules."""
     resolved_provider = infer_provider_for_model(model, provider)
@@ -367,14 +359,14 @@ def call_model_messages(
 
     if resolved_provider == "openai":
         kwargs = _runtime_kwargs("openai", model)
-        json_schema = _RUNTIME_OVERRIDES.get("json_schema")
-        if json_schema:
+        effective_json_schema = json_schema or _RUNTIME_OVERRIDES.get("json_schema")
+        if effective_json_schema:
             kwargs["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
                     "name": "flowpilot_benchmark_output",
                     "strict": False,
-                    "schema": json_schema,
+                    "schema": effective_json_schema,
                 },
             }
         elif _RUNTIME_OVERRIDES.get("json_mode"):
@@ -424,14 +416,14 @@ def call_model_messages(
             kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
         if "seed" in _RUNTIME_OVERRIDES:
             kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
-        json_schema = _RUNTIME_OVERRIDES.get("json_schema")
-        if json_schema:
+        effective_json_schema = json_schema or _RUNTIME_OVERRIDES.get("json_schema")
+        if effective_json_schema:
             kwargs["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
                     "name": "flowpilot_benchmark_output",
                     "strict": False,
-                    "schema": json_schema,
+                    "schema": effective_json_schema,
                 },
             }
         elif _RUNTIME_OVERRIDES.get("json_mode"):
@@ -499,12 +491,12 @@ def call_model_messages(
         )
 
     kwargs = _runtime_kwargs("anthropic", model)
-    json_schema = _RUNTIME_OVERRIDES.get("json_schema")
-    if json_schema:
+    effective_json_schema = json_schema or _RUNTIME_OVERRIDES.get("json_schema")
+    if effective_json_schema:
         kwargs["output_config"] = {
             "format": {
                 "type": "json_schema",
-                "schema": json_schema,
+                "schema": effective_json_schema,
             }
         }
     started = time.perf_counter()
@@ -555,6 +547,7 @@ def call_model_text(
     max_tokens: int,
     provider: str | None = None,
     api_name: str = "call_model_text",
+    json_schema: dict | None = None,
 ) -> TextGenerationResult:
     return call_model_messages(
         model=model,
@@ -563,6 +556,7 @@ def call_model_text(
         max_tokens=max_tokens,
         provider=provider,
         api_name=api_name,
+        json_schema=json_schema,
     )
 
 

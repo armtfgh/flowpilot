@@ -70,6 +70,7 @@ def realize_executable_design(
     issues: list[dict[str, Any]] = []
     decisions: list[dict[str, Any]] = []
 
+    _reconcile_candidate_operations(current, chemistry_plan, decisions)
     _repair_stage_feed_map(chemistry_plan, protocol_text, decisions)
     current.streams = _normalized_streams(
         current.streams,
@@ -313,7 +314,23 @@ def _normalized_streams(
             phase=feed.phase,
             molar_equiv=feed.molar_equiv,
         )
-        if not stream.contents:
+        if plan and plan.canonical_contract is not None:
+            previous_contents = list(stream.contents)
+            stream.contents = list(feed.reagents or [])
+            if previous_contents != stream.contents and decisions is not None:
+                decisions.append(
+                    {
+                        "decision": "restore_canonical_stream_composition",
+                        "stream_label": label,
+                        "previous_contents": previous_contents,
+                        "canonical_contents": list(stream.contents),
+                        "basis": (
+                            "The downstream candidate cannot add or retain components "
+                            "outside the frozen chemistry contract."
+                        ),
+                    }
+                )
+        elif not stream.contents:
             stream.contents = list(feed.reagents or [])
         stream.phase = feed.phase or stream.phase
         stream.introduction_stage = stage_number
@@ -324,12 +341,32 @@ def _normalized_streams(
             stream.concentration_basis = "model_candidate"
         if feed.molar_equiv and feed.molar_equiv > 0:
             stream.molar_equiv = float(feed.molar_equiv)
-            stream.molar_equiv_basis = "chemistry_plan"
+            stream.molar_equiv_basis = feed.molar_equiv_basis or "chemistry_plan"
         elif not stream.molar_equiv_basis:
             stream.molar_equiv_basis = "model_candidate"
+        stream.requirement_authority = feed.requirement_authority
+        stream.source_evidence = list(feed.source_evidence)
+        stream.accepted_requirement = feed.accepted_requirement
+        stream.separate_feed_required = feed.separate_feed_required
+        stream.feed_group = feed.feed_group
         ordered.append(stream)
 
-    ordered.extend(existing.values())
+    if plan and plan.canonical_contract is not None:
+        for stream in existing.values():
+            if decisions is not None:
+                decisions.append(
+                    {
+                        "decision": "remove_stream_outside_canonical_contract",
+                        "stream_label": stream.stream_label,
+                        "contents": list(stream.contents),
+                        "basis": (
+                            "The downstream candidate cannot add a required physical "
+                            "feed absent from the frozen chemistry contract."
+                        ),
+                    }
+                )
+    else:
+        ordered.extend(existing.values())
     for stream in ordered:
         explicit = _explicit_equivalent(protocol_text, stream.contents)
         if explicit is not None:
@@ -356,6 +393,7 @@ def _normalized_streams(
     filtered = [
         stream
         for stream in ordered
+        if stream.accepted_requirement
         if not (
             stream.phase == "gas"
             and _gas_identity(stream) == "N2"
@@ -370,6 +408,31 @@ def _normalized_streams(
         authoritative_gas=authoritative_gas,
         decisions=decisions,
     )
+
+
+def _reconcile_candidate_operations(
+    proposal: FlowProposal,
+    plan: ChemistryPlan | None,
+    decisions: list[dict[str, Any]],
+) -> None:
+    """Remove candidate-only hardware semantics before deterministic solving."""
+
+    contract = plan.canonical_contract if plan else None
+    if contract is None:
+        return
+    if not contract.light_required_stages and (
+        str(proposal.light_setup or "").strip() or proposal.wavelength_nm is not None
+    ):
+        decisions.append(
+            {
+                "decision": "remove_light_outside_canonical_contract",
+                "previous_light_setup": proposal.light_setup,
+                "previous_wavelength_nm": proposal.wavelength_nm,
+                "basis": "The frozen batch protocol does not require irradiation.",
+            }
+        )
+        proposal.light_setup = ""
+        proposal.wavelength_nm = None
 
 
 def _protocol_reagent_gas(batch_record: BatchRecord) -> str | None:

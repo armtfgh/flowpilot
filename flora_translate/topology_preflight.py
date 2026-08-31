@@ -208,6 +208,8 @@ def build_requirements_topology(chemistry_plan: ChemistryPlan) -> ProcessTopolog
         prefix = f"st{stage_number}"
         feed_ids: list[str] = []
         for feed_index, feed in enumerate(stage.feed_streams or [], 1):
+            if not feed.accepted_requirement:
+                continue
             if _is_auxiliary_purge_feed(feed):
                 continue
             label = str(feed.stream_label or "").upper()
@@ -244,6 +246,9 @@ def build_requirements_topology(chemistry_plan: ChemistryPlan) -> ProcessTopolog
                         "requirement_only": True,
                     },
                     inventory_category="gas_hardware" if is_gas else "pumps",
+                    requirement_authority=feed.requirement_authority,
+                    source_evidence=list(feed.source_evidence),
+                    accepted_requirement=feed.accepted_requirement,
                 )
             )
             feed_ids.append(op_id)
@@ -259,6 +264,8 @@ def build_requirements_topology(chemistry_plan: ChemistryPlan) -> ProcessTopolog
                     label=f"Stage {stage_number} mixer",
                     parameters={"required_inputs": len(inlets), "requirement_only": True},
                     inventory_category="mixers",
+                    requirement_authority="deterministic_derivation",
+                    source_evidence=[f"Stage {stage_number} has {len(inlets)} accepted physical inlets."],
                 )
             )
             for inlet in inlets:
@@ -289,6 +296,8 @@ def build_requirements_topology(chemistry_plan: ChemistryPlan) -> ProcessTopolog
                     "requirement_only": True,
                 },
                 inventory_category="reactors",
+                requirement_authority="protocol_fact",
+                source_evidence=[f"Accepted reaction stage {stage_number}."],
             )
         )
         if reactor_inlet:
@@ -311,6 +320,8 @@ def build_requirements_topology(chemistry_plan: ChemistryPlan) -> ProcessTopolog
                         "requirement_only": True,
                     },
                     inventory_category="light_sources",
+                    requirement_authority="protocol_fact",
+                    source_evidence=["The reconciled protocol contract requires irradiation."],
                 )
             )
         previous_reactor = reactor_id
@@ -324,6 +335,8 @@ def build_requirements_topology(chemistry_plan: ChemistryPlan) -> ProcessTopolog
                 label="Pressure control",
                 parameters={"requirement_only": True},
                 inventory_category="pressure_controllers",
+                requirement_authority="deterministic_derivation",
+                source_evidence=["An accepted continuously metered reagent-gas feed is present."],
             )
         )
         stream_index += 1
@@ -399,11 +412,15 @@ def _required_counts(topology: ProcessTopology) -> Counter:
         mapping[operation.op_type]
         for operation in topology.unit_operations
         if operation.op_type in mapping
+        and operation.required
+        and operation.accepted_requirement
     )
     reactor_ids = {
         operation.op_id
         for operation in topology.unit_operations
         if operation.op_type in {"coil_reactor", "photoreactor"}
+        and operation.required
+        and operation.accepted_requirement
     }
     counts["reactor_connections"] = sum(
         1

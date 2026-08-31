@@ -43,6 +43,33 @@ Input:
 {input_text}
 """
 
+PARSE_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "reaction_description": {"type": "string"},
+        "photocatalyst": {"type": ["string", "null"]},
+        "catalyst_loading_mol_pct": {"type": ["number", "null"]},
+        "base": {"type": ["string", "null"]},
+        "solvent": {"type": ["string", "null"]},
+        "temperature_C": {"type": ["number", "null"]},
+        "reaction_time_h": {"type": ["number", "null"]},
+        "concentration_M": {"type": ["number", "null"]},
+        "scale_mmol": {"type": ["number", "null"]},
+        "yield_pct": {"type": ["number", "null"]},
+        "light_source": {"type": ["string", "null"]},
+        "wavelength_nm": {"type": ["number", "null"]},
+        "additives": {"type": "array", "items": {"type": "string"}},
+        "atmosphere": {"type": ["string", "null"]},
+    },
+    "required": [
+        "reaction_description", "photocatalyst", "catalyst_loading_mol_pct",
+        "base", "solvent", "temperature_C", "reaction_time_h",
+        "concentration_M", "scale_mmol", "yield_pct", "light_source",
+        "wavelength_nm", "additives", "atmosphere",
+    ],
+    "additionalProperties": False,
+}
+
 
 class InputParser:
     """Normalize user input (free text or JSON) into a BatchRecord."""
@@ -76,9 +103,10 @@ class InputParser:
         result = call_model_text(
             model=cfg.MODEL_INPUT_PARSER,
             api_name="input_parser",
-            max_tokens=1024,
+            max_tokens=2048,
             system=PARSE_SYSTEM,
             user_content=PARSE_PROMPT.format(input_text=text),
+            json_schema=PARSE_JSON_SCHEMA,
         )
         logger.debug("Input parser LLM call completed in %.2f ms", (time.perf_counter() - started) * 1000)
         raw = result.text.strip()
@@ -88,7 +116,13 @@ class InputParser:
             if raw.startswith("json"):
                 raw = raw[4:]
             raw = raw.strip()
-        data = json.loads(raw)
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            start, end = raw.find("{"), raw.rfind("}")
+            if start < 0 or end <= start:
+                raise
+            data = json.loads(raw[start : end + 1])
         data["raw_text"] = text
         normalized = enrich_batch_record_dict(data, text)
         return BatchRecord(**normalized)

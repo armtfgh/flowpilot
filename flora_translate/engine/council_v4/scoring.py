@@ -548,6 +548,14 @@ def _run_scoring_agent_claude_compact(
                 still_missing.update(missing)
         remaining = [c for c in candidates if int(c.get("id", 0)) in still_missing and int(c.get("id", 0)) not in score_map]
 
+    repaired_ids: list[int] = []
+    if strict_coverage:
+        repaired_ids = _repair_missing_scores_deterministically(
+            domain=domain,
+            agent_name=agent_name,
+            score_map=score_map,
+            candidates=candidates,
+        )
     ordered_scores = _ordered_scores(score_map, candidates)
     _enforce_coverage(
         agent_name=agent_name,
@@ -555,8 +563,21 @@ def _run_scoring_agent_claude_compact(
         valid_ids={int(c.get("id", 0)) for c in candidates},
         strict_coverage=strict_coverage,
     )
+    if repaired_ids:
+        overall_parts.append(
+            f"Deterministic coverage fallback supplied missing {domain} rows for "
+            f"candidate ids {repaired_ids}; no domain-expert inference is claimed."
+        )
     overall_analysis = " ".join(s for s in overall_parts if s)
-    return overall_analysis, ordered_scores, []
+    fallback_log = []
+    if repaired_ids:
+        fallback_log.append({
+            "name": "deterministic_scoring_coverage_fallback",
+            "domain": domain,
+            "candidate_ids": repaired_ids,
+            "reason": "LLM score missing after bounded retries",
+        })
+    return overall_analysis, ordered_scores, fallback_log
 
 
 def _use_bounded_anthropic_scoring() -> bool:
@@ -1037,6 +1058,122 @@ def _ordered_scores(score_map: dict[int, dict], candidates: list[dict]) -> list[
     return ordered
 
 
+def _deterministic_coverage_score(domain: str, candidate: dict) -> dict:
+    """Return conservative numeric triage when a scoring LLM omits a row.
+
+    This is deliberately not a substitute for domain-expert reasoning. It only
+    applies policies already encoded in the bounded prompts, labels its source,
+    and leaves non-numeric domains at a neutral warning score. Independent hard
+    gates still decide whether a candidate may proceed.
+    """
+    cid = int(candidate.get("id", 0))
+    provenance = {
+        "source": "deterministic_coverage_fallback",
+        "reason": "LLM score missing after bounded retries",
+        "limitations": "Numeric policy triage only; no domain-expert inference was obtained.",
+    }
+    common = {
+        "candidate_id": cid,
+        "proposed_changes": {},
+        "concerns": ["Domain LLM score unavailable; deterministic coverage fallback used."],
+        "score_provenance": provenance,
+    }
+
+    if domain == "kinetics":
+        conversion = _safe_float(candidate.get("expected_conversion"), 0.0)
+        if conversion < 0.15:
+            score, verdict = 0.10, "BLOCK"
+        elif conversion < 0.30:
+            score, verdict = 0.40, "REVISE"
+        else:
+            score, verdict = 0.65, "WARNING"
+        return {
+            **common,
+            "reasoning": (
+                "Deterministic kinetics triage from expected conversion using the "
+                "declared 0.15 hard floor and 0.30 screening floor."
+            ),
+            "kinetics_score": score,
+            "X_estimated": conversion,
+            "tau_proposed_final_min": _safe_float(candidate.get("tau_min")),
+            "verdict": verdict,
+        }
+
+    if domain == "fluidics":
+        length_m = _safe_float(candidate.get("L_m"))
+        delta_p_bar = _safe_float(candidate.get("delta_P_bar"))
+        reynolds = _safe_float(candidate.get("Re"))
+        hard_fail = length_m > 30.0 or delta_p_bar > 5.0 or reynolds > 2300.0
+        soft_fail = length_m > 15.0 or delta_p_bar > 2.0
+        score, verdict = (
+            (0.10, "BLOCK") if hard_fail else
+            (0.45, "REVISE") if soft_fail else
+            (0.65, "WARNING")
+        )
+        return {
+            **common,
+            "reasoning": (
+                "Deterministic fluidics triage from the declared length, pressure-drop, "
+                "and Reynolds-number thresholds."
+            ),
+            "fluidics_score": score,
+            "Re": reynolds,
+            "dP_bar": delta_p_bar,
+            "r_mix": _safe_float(candidate.get("r_mix")),
+            "verdict": verdict,
+        }
+
+    if domain == "safety":
+        bpr_bar = _safe_float(candidate.get("BPR_bar"))
+        return {
+            **common,
+            "reasoning": (
+                "No deterministic rule can replace a chemistry-specific safety review; "
+                "the candidate remains a warning and is still subject to independent hard gates."
+            ),
+            "safety_score": 0.50,
+            "BPR_current_bar": bpr_bar,
+            "BPR_adequate": None,
+            "material_recommendation": str(candidate.get("tubing_material") or ""),
+            "verdict": "WARNING",
+        }
+
+    return {
+        **common,
+        "reasoning": (
+            "No deterministic rule can replace chemistry review; the candidate remains "
+            "a neutral warning and is still subject to independent chemistry hard gates."
+        ),
+        "combined_score": 0.50,
+        "verdict": "WARNING",
+    }
+
+
+def _repair_missing_scores_deterministically(
+    *,
+    domain: str,
+    agent_name: str,
+    score_map: dict[int, dict],
+    candidates: list[dict],
+) -> list[int]:
+    """Fill only omitted score rows and return the repaired candidate IDs."""
+    repaired: list[int] = []
+    for candidate in candidates:
+        cid = int(candidate.get("id", 0))
+        if cid in score_map:
+            continue
+        score_map[cid] = _deterministic_coverage_score(domain, candidate)
+        repaired.append(cid)
+    if repaired:
+        logger.error(
+            "%s exhausted bounded scoring retries for candidate ids %s; "
+            "using explicitly labeled deterministic coverage fallback",
+            agent_name,
+            repaired,
+        )
+    return repaired
+
+
 def _enforce_coverage(
     *,
     agent_name: str,
@@ -1059,6 +1196,7 @@ def _enforce_coverage(
 
 def _run_scoring_agent_batched(
     *,
+    domain: str,
     agent_name: str,
     system_prompt: str,
     candidates: list[dict],
@@ -1117,6 +1255,14 @@ def _run_scoring_agent_batched(
 
         remaining = [c for c in candidates if int(c.get("id", 0)) in still_missing and int(c.get("id", 0)) not in score_map]
 
+    repaired_ids: list[int] = []
+    if strict_coverage:
+        repaired_ids = _repair_missing_scores_deterministically(
+            domain=domain,
+            agent_name=agent_name,
+            score_map=score_map,
+            candidates=candidates,
+        )
     ordered_scores = _ordered_scores(score_map, candidates)
     _enforce_coverage(
         agent_name=agent_name,
@@ -1124,6 +1270,17 @@ def _run_scoring_agent_batched(
         valid_ids={int(c.get("id", 0)) for c in candidates},
         strict_coverage=strict_coverage,
     )
+    if repaired_ids:
+        overall_parts.append(
+            f"Deterministic coverage fallback supplied missing {domain} rows for "
+            f"candidate ids {repaired_ids}; no domain-expert inference is claimed."
+        )
+        all_tc.append({
+            "name": "deterministic_scoring_coverage_fallback",
+            "domain": domain,
+            "candidate_ids": repaired_ids,
+            "reason": "LLM score missing after bounded retries",
+        })
     overall_analysis = " ".join(part for part in overall_parts if part)
     return overall_analysis, ordered_scores, all_tc
 
@@ -1254,6 +1411,7 @@ def run_chemistry_scoring(
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
     if batch_size and batch_size <= len(candidates):
         oa, scores, tc = _run_scoring_agent_batched(
+            domain="chemistry",
             agent_name="Dr. Chemistry",
             system_prompt=_CHEMISTRY_SYSTEM,
             candidates=candidates,
@@ -1332,6 +1490,7 @@ def run_kinetics_scoring(
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
     if batch_size and batch_size <= len(candidates):
         oa, scores, tc = _run_scoring_agent_batched(
+            domain="kinetics",
             agent_name="Dr. Kinetics",
             system_prompt=_KINETICS_SYSTEM,
             candidates=candidates,
@@ -1410,6 +1569,7 @@ def run_fluidics_scoring(
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
     if batch_size and batch_size <= len(candidates):
         oa, scores, tc = _run_scoring_agent_batched(
+            domain="fluidics",
             agent_name="Dr. Fluidics",
             system_prompt=_FLUIDICS_SYSTEM,
             candidates=candidates,
@@ -1488,6 +1648,7 @@ def run_safety_scoring(
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
     if batch_size and batch_size <= len(candidates):
         oa, scores, tc = _run_scoring_agent_batched(
+            domain="safety",
             agent_name="Dr. Safety",
             system_prompt=_SAFETY_SYSTEM,
             candidates=candidates,

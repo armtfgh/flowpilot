@@ -53,7 +53,7 @@ JUDGES = {
     },
     "openai": {
         "provider": "openai",
-        "model": "gpt-5.4-2026-03-05",
+        "model": "gpt-4o",
         "upstream_mode": "never",
         "family": "openai",
     },

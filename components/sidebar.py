@@ -19,6 +19,7 @@ def render_sidebar() -> str:
         st.markdown("##### EVALUATE")
         _nav_button("Protocol Diagnostics", "diagnose", "nav_diagnose")
         _nav_button("Condition Optimization", "optimize", "nav_optimize")
+        _nav_button("Benchmark Figure Studio", "figure_studio", "nav_figure_studio")
 
         st.divider()
 

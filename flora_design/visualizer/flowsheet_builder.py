@@ -53,6 +53,19 @@ ASSETS = {
     "mixer3":       ICONS_DIR / "mixer3.png",
     "degasser":     ICONS_DIR / "degasser.png",
     "mfc":          ICONS_DIR / "mfc.png",
+    "g_l_separator": ICONS_DIR / "g_l_sep.png",
+    "l_l_separator": ICONS_DIR / "l_l_sep.png",
+}
+
+SEPARATOR_TYPES = {
+    "separator",
+    "phase_separator",
+    "gas_liquid_separator",
+    "gas_liquid_separation",
+    "liquid_liquid_separator",
+    "liquid_liquid_extraction",
+    "liq_liq_extraction",
+    "lle",
 }
 
 
@@ -397,6 +410,84 @@ def _textbox_label(op) -> str:
     return lbl
 
 
+def _separator_kind(op, adjacent_stream_types=()) -> str:
+    """Classify a separator from explicit phase metadata before label hints."""
+    p = op.parameters or {}
+    op_type = str(op.op_type).strip().lower().replace("-", "_").replace(" ", "_")
+
+    if op_type in {"gas_liquid_separator", "gas_liquid_separation"}:
+        return "gas_liquid"
+    if op_type in {
+        "liquid_liquid_separator",
+        "liquid_liquid_extraction",
+        "liq_liq_extraction",
+        "lle",
+    }:
+        return "liquid_liquid"
+
+    phases = p.get("phases") or p.get("outlet_phases") or p.get("phase_system") or []
+    if isinstance(phases, dict):
+        phase_values = list(phases.keys()) + list(phases.values())
+    elif isinstance(phases, (list, tuple, set)):
+        phase_values = list(phases)
+    else:
+        phase_values = [phases]
+
+    phase_words = [_normalized_words(value) for value in phase_values]
+    flat_phase_words = [word for words in phase_words for word in words]
+    if any(word in _GAS_PHASE_WORDS for word in flat_phase_words):
+        return "gas_liquid"
+    if sum("liquid" in words for words in phase_words) >= 2:
+        return "liquid_liquid"
+
+    context_values = [
+        op.label,
+        p.get("method"),
+        p.get("separator_type"),
+        p.get("instrument_name"),
+        getattr(op, "instrument_name", ""),
+        *adjacent_stream_types,
+    ]
+    context = " ".join(str(value) for value in context_values if value).lower()
+    normalized_context = " ".join(_normalized_words(context))
+    if (
+        any(word in _GAS_PHASE_WORDS for word in _normalized_words(context))
+        or "gas liquid" in normalized_context
+    ):
+        return "gas_liquid"
+    if (
+        "liquid liquid" in normalized_context
+        or "aqueous organic" in normalized_context
+        or "organic aqueous" in normalized_context
+        or "biphasic liquid" in normalized_context
+    ):
+        return "liquid_liquid"
+
+    # A generic downstream phase separator is conventionally a liquid-liquid
+    # workup unless the topology declares a gas phase.
+    return "liquid_liquid"
+
+
+def _separator_asset(op, adjacent_stream_types=()) -> Path:
+    kind = _separator_kind(op, adjacent_stream_types)
+    return ASSETS["g_l_separator" if kind == "gas_liquid" else "l_l_separator"]
+
+
+def _separator_label(op, adjacent_stream_types=()) -> str:
+    p = op.parameters or {}
+    kind = _separator_kind(op, adjacent_stream_types)
+    fallback = "G-L Separator" if kind == "gas_liquid" else "L-L Separator"
+    instrument = (
+        p.get("instrument_name")
+        or getattr(op, "instrument_name", "")
+        or op.label
+        or fallback
+    )
+    label = _trunc(str(instrument).split(" | ")[-1], 34)
+    unresolved = _unresolved_inventory_label(op)
+    return f"{label}\n{unresolved}" if unresolved else label
+
+
 # ── Node builders ─────────────────────────────────────────────────────────────
 
 NODE_ICON_SIZE = 110   # uniform icon size for all components
@@ -648,10 +739,13 @@ class FlowsheetBuilder:
         # ── Adjacency (filter streams to active ops only) ─────────────────────
         out_edges: dict[str, list[str]] = defaultdict(list)
         in_edges:  dict[str, list[str]] = defaultdict(list)
+        incident_stream_types: dict[str, list[str]] = defaultdict(list)
         for s in topology.streams:
             if s.from_op in active_ids and s.to_op in active_ids:
                 out_edges[s.from_op].append(s.to_op)
                 in_edges[s.to_op].append(s.from_op)
+                incident_stream_types[s.from_op].append(str(s.stream_type))
+                incident_stream_types[s.to_op].append(str(s.stream_type))
 
         op_map   = {o.op_id: o for o in ops}
         pump_ids = {o.op_id for o in ops if o.op_type in ("pump", "mfc")}
@@ -728,6 +822,17 @@ class FlowsheetBuilder:
                 _add_image_node(dot, vid, _textbox_label(op),
                                 ASSETS["degasser"], NODE_ICON_SIZE, NODE_ICON_SIZE)
 
+            elif op.op_type.lower().replace("-", "_").replace(" ", "_") in SEPARATOR_TYPES:
+                stream_types = incident_stream_types.get(op.op_id, [])
+                _add_image_node(
+                    dot,
+                    vid,
+                    _separator_label(op, stream_types),
+                    _separator_asset(op, stream_types),
+                    NODE_ICON_SIZE,
+                    NODE_ICON_SIZE,
+                )
+
             elif op.op_type == "bpr":
                 _add_image_node(dot, vid, _bpr_label(op), ASSETS["bpr"],
                                 NODE_ICON_SIZE, NODE_ICON_SIZE)
@@ -746,6 +851,7 @@ class FlowsheetBuilder:
             "packed_bed", "packed_bed_reactor", "bpr", "collector",
             "microchannel", "microreactor", "chip", "chip_reactor",
             "deoxygenation_unit", "degas", "degasser",
+            *SEPARATOR_TYPES,
             # Mixers are now image-based too
             "mixer", "t_mixer", "y_mixer", "quench_mixer",
         }
@@ -756,7 +862,7 @@ class FlowsheetBuilder:
             if op is None:
                 return gv_id.get(op_id, op_id)
             vid = gv_id[op_id]
-            ot  = op.op_type
+            ot = op.op_type.lower().replace("-", "_").replace(" ", "_")
             if ot in ("pump", "mfc"):
                 return f"{vid}:needle:e"
             if ot == "led_module":
@@ -772,7 +878,7 @@ class FlowsheetBuilder:
             if op is None:
                 return gv_id.get(op_id, op_id)
             vid = gv_id[op_id]
-            ot  = op.op_type
+            ot = op.op_type.lower().replace("-", "_").replace(" ", "_")
             if ot in IMAGE_TYPES:
                 return f"{vid}:img"
             # textbox: use named left port

@@ -32,7 +32,14 @@ def freeze_wrapper_sources(target: Path, *sources: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     for source in sources:
         source = source.resolve()
-        shutil.copy2(source, destination / source.name)
+        frozen = destination / source.name
+        if frozen.is_file():
+            if _sha256(frozen) != _sha256(source):
+                raise RuntimeError(
+                    f"Frozen source mismatch for {source.name}; use a new output directory"
+                )
+            continue
+        shutil.copy2(source, frozen)
 
 
 def bootstrap_repeat_one(source: Path, target: Path) -> dict[str, Any]:

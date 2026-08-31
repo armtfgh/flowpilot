@@ -204,7 +204,7 @@ def figures(output: Path) -> None:
     ax.grid(axis="y", alpha=.2); fig.tight_layout(); fig.savefig(figdir / "fig01_architecture_score.png", dpi=300); plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(8.4, 5.2))
-    model_colors = {"GPT-5.4": "#4C78A8", "Qwen3.6-27B": "#E45756"}
+    model_colors = {"GPT-4o": "#4C78A8", "Qwen3.6-27B": "#E45756"}
     case_markers = {"CuAAC": "o", "Hydrogenolysis": "s", "Two-stage amidation": "^"}
     for _, row in paired.reset_index(drop=True).iterrows():
         ax.plot(

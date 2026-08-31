@@ -64,6 +64,37 @@ def test_commercial_input_parser_accepts_structured_json_fields(monkeypatch):
     assert record.temperature_C == 25
 
 
+def test_input_parser_requests_provider_native_json_schema(monkeypatch):
+    captured = {}
+
+    def fake_call(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(text=json.dumps({
+            "reaction_description": "Thermal reaction",
+            "photocatalyst": None,
+            "catalyst_loading_mol_pct": None,
+            "base": None,
+            "solvent": "methanol",
+            "temperature_C": 60,
+            "reaction_time_h": 1,
+            "concentration_M": 0.1,
+            "scale_mmol": 1,
+            "yield_pct": None,
+            "light_source": None,
+            "wavelength_nm": None,
+            "additives": [],
+            "atmosphere": "N2",
+        }))
+
+    monkeypatch.setattr("flora_translate.input_parser.call_model_text", fake_call)
+
+    record = InputParser().parse("A thermal reaction under nitrogen.")
+
+    assert captured["json_schema"]["additionalProperties"] is False
+    assert captured["max_tokens"] == 2048
+    assert record.temperature_C == 60
+
+
 def test_direct_json_input_uses_same_normalization():
     record = InputParser().parse(
         {

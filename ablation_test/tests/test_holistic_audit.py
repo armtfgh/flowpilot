@@ -65,7 +65,7 @@ def test_stable_seed_depends_on_ids_not_loop_positions():
 
 def test_domain_record_is_complete_untruncated_and_sanitized():
     result = {
-        "proposal": {"note": "FlowPilot generated this with GPT-5.4"},
+        "proposal": {"note": "FlowPilot generated this with GPT-4o"},
         "raw_proposal": {},
         "pre_council_proposal": {},
         "chemistry_plan": {},
@@ -77,7 +77,7 @@ def test_domain_record_is_complete_untruncated_and_sanitized():
     record = build_domain_record(result, candidate_id="H-123", case_label="Case", domain="chemistry_protocol")
     text = json.dumps(record)
     assert "FlowPilot" not in text
-    assert "GPT-5.4" not in text
+    assert "GPT-4o" not in text
     assert "[truncated]" not in text
     assert "[depth-limited]" not in text
     assert record["record_index"]["full_result_coverage"]["coverage_complete"]

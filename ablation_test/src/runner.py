@@ -33,6 +33,7 @@ from flora_translate.translation_llm import TranslationLLM
 from flora_translate.vector_store import VectorStore
 
 from .cases import AblationCase, ROOT
+from .architecture_neutral_validation import assess_candidate
 from .metrics import score_run
 from .providers import activate_bundle, credential_status
 
@@ -484,6 +485,7 @@ def _core_variant(
         )
         recorder.save_snapshot("design_disposition", decision.to_dict())
         recorder.save_snapshot("final_validation", final_validation)
+        result["architecture_neutral_executability"] = assess_candidate(case, result)
         recorder.write_json("result.json", result)
         recorder.finalize(
             status="completed",

@@ -31,7 +31,7 @@ def test_blinding_removes_architecture_and_model_family_terms_from_keys_and_valu
     value = blind_value(
         {
             "flowpilot_mode": "FlowPilot using Qwen and a council-approved result",
-            "provider": "OpenAI GPT-5.4 and Claude by Anthropic",
+            "provider": "OpenAI GPT-4o and Claude by Anthropic",
         }
     )
     text = str(value).lower()

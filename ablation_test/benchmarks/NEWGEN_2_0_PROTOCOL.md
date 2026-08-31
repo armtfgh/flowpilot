@@ -7,11 +7,11 @@ Given identical batch protocols, objectives, inventories, and held-out source ev
 ## Frozen Design
 
 - Cases: CuAAC, gas-liquid hydrogenolysis, and two-stage oxidative amidation.
-- Generators: Qwen3.6-27B and GPT-5.4.
+- Generators: Qwen3.6-27B, Qwen3.8-27B, GPT-4o, Claude Sonnet 4.6, and Claude Opus 4.6.
 - Architectures: one-shot and FlowPilot.
-- Candidates: 12 matched outputs.
-- Judges: Qwen3.6-27B, GPT-5.4, and Claude Sonnet 4.6.
-- Repeats: one deterministic judgment per judge/candidate pair.
+- Candidates: 90 matched outputs across five models, three cases, two architectures, and three generation repeats.
+- Judges: independent Qwen, OpenAI, and Claude judge families.
+- Repeats: three generation repeats per model-case-architecture cell.
 - Primary score: equal-weight mean of 14 universal criterion scores, normalized to 0-1.
 - Secondary outcomes: critical-error flags, judge dispersion, pairwise architecture delta, and generator-family-excluded sensitivity.
 

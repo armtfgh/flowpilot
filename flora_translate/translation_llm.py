@@ -40,6 +40,23 @@ class TranslationLLM:
     @staticmethod
     def _normalize_proposal_data(data: dict) -> dict:
         """Keep basic reactor-volume/flow/residence-time consistency."""
+        def _unwrap(value, default=None):
+            if not isinstance(value, dict):
+                return value
+            for key in (
+                "value",
+                "selected",
+                "recommended",
+                "estimate",
+                "nominal",
+                "result",
+                "text",
+                "name",
+            ):
+                if key in value and not isinstance(value[key], (dict, list)):
+                    return value[key]
+            return default
+
         scalar_defaults = {
             "residence_time_min": 0.0,
             "flow_rate_mL_min": 0.0,
@@ -76,14 +93,28 @@ class TranslationLLM:
             "reasoning_per_field",
         )
         for key, default in scalar_defaults.items():
+            data[key] = _unwrap(data.get(key), default)
             if data.get(key) is None:
                 data[key] = default
         for key, default in string_defaults.items():
-            if data.get(key) is None:
+            value = data.get(key)
+            if isinstance(value, dict):
+                unwrapped = _unwrap(value)
+                data[key] = (
+                    str(unwrapped)
+                    if unwrapped is not None
+                    else json.dumps(value, sort_keys=True, ensure_ascii=True)
+                )
+            elif value is None:
                 data[key] = default
         for key in list_defaults:
             if data.get(key) is None:
                 data[key] = []
+            elif isinstance(data.get(key), dict):
+                value = data[key]
+                data[key] = value.get("items") if isinstance(value.get("items"), list) else [
+                    json.dumps(value, sort_keys=True, ensure_ascii=True)
+                ]
         for key in dict_defaults:
             if data.get(key) is None:
                 data[key] = {}
@@ -97,13 +128,39 @@ class TranslationLLM:
                 )
                 for key, value in reasoning.items()
             }
-        if data.get("engine_validated") is None:
-            data["engine_validated"] = False
+        engine_validated = data.get("engine_validated")
+        if isinstance(engine_validated, dict):
+            unwrapped = _unwrap(engine_validated)
+            if unwrapped is None:
+                status = str(engine_validated.get("status") or "").lower()
+                unwrapped = status in {"valid", "validated", "pass", "passed", "ready"}
+            engine_validated = unwrapped
+        if isinstance(engine_validated, str):
+            engine_validated = engine_validated.strip().lower() in {
+                "true", "yes", "1", "valid", "validated", "pass", "passed", "ready"
+            }
+        data["engine_validated"] = bool(engine_validated)
+        data["literature_analogies"] = [
+            item
+            if isinstance(item, str)
+            else json.dumps(item, sort_keys=True, ensure_ascii=True)
+            for item in (data.get("literature_analogies") or [])
+        ]
         for stream in data.get("streams") or []:
             if not isinstance(stream, dict):
                 continue
             if stream.get("molar_equiv") is None:
                 stream["molar_equiv"] = 1.0
+            for key in (
+                "concentration_M",
+                "flow_rate_mL_min",
+                "gas_flow_sccm",
+                "gas_flow_actual_mL_min",
+                "molar_equiv",
+                "introduction_stage",
+            ):
+                if isinstance(stream.get(key), dict):
+                    stream[key] = _unwrap(stream[key])
 
         def _as_float(value) -> float:
             try:

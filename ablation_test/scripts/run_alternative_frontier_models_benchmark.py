@@ -57,7 +57,7 @@ Frozen before generation:
 1. Run exactly 12 outcomes: three fixed held-out chemistries, two generator models, two architectures, and one fresh call per cell.
 2. Compare GPT-4o and Claude Opus 4.6 separately; do not pool them into one generator estimate.
 3. Use the same authoritative case inputs, strict inventories, hidden source references, and unchanged 14-criterion NewGen 2.0 rubric used by the prior manuscript campaigns.
-4. Use the same three judges: Qwen3.6-27B, GPT-5.4, and Claude Sonnet 4.6. Generator and architecture labels remain withheld from judges.
+4. Use the same three judge families: Qwen, OpenAI, and Claude. Generator and architecture labels remain withheld from judges.
 5. Retain every generation failure, blocked FlowPilot result, invalid judgment, and retry. Do not replace outcomes according to observed scores.
 6. Stop after the frozen 12 outcomes and 36 selected judgments. This is a one-round extension and is not a precision replacement for the three-repeat campaign.
 7. Report deterministic validity and critical-error checks beside LLM-judge scores, including generator-family-excluded sensitivity.

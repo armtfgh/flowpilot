@@ -127,7 +127,10 @@ def render():
             st.error("No executable final design was produced. Intermediate values are withheld.")
             st.json((final_design.get("consistency") or {}).get("issues") or [])
         else:
-            st.markdown(result.get("explanation", ""))
+            st.markdown(result.get("canonical_explanation", ""))
+            if result.get("explanation"):
+                with st.expander("Pre-realization model narrative (audit only)"):
+                    st.markdown(result["explanation"])
         chem_notes = proposal.get("chemistry_notes", "")
         if chem_notes:
             st.divider()

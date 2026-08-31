@@ -24,7 +24,7 @@ _OPUS    = "claude-opus-4-6"
 TRANSLATION_MODEL    = _SONNET
 SUMMARY_MODEL        = _SONNET
 CHEMISTRY_MODEL      = _OPUS
-CHEMISTRY_MAX_TOKENS = 8192          # max output tokens for chemistry agent
+CHEMISTRY_MAX_TOKENS = 16384         # complete frontier-model chemistry schema without a duplicate retry
 EMBEDDING_MODEL      = "text-embedding-3-small"
 EMBEDDING_DIM        = 1536
 

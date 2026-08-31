@@ -70,10 +70,10 @@ MODELS = {
     },
     "openai": {
         "provider": "openai",
-        "model": "gpt-5.4-2026-03-05",
+        "model": "gpt-4o",
         "upstream_mode": "never",
         "family": "openai",
-        "display": "GPT-5.4",
+        "display": "GPT-4o",
     },
 }
 ARCHITECTURES = {
@@ -482,7 +482,7 @@ def build_manuscript_diagnostics(output: Path, report: Path) -> None:
         "CuAAC", "Hydrogenolysis", "Exothermic dinitration",
         "Photochemical oxidation", "Two-stage amidation",
     ]
-    model_order = ["Qwen3.6-27B", "GPT-5.4"]
+    model_order = ["Qwen3.6-27B", "GPT-4o"]
     heat = paired.pivot(index="case", columns="model", values="paired_delta").reindex(
         index=case_order, columns=model_order
     )
@@ -583,7 +583,7 @@ def build_manuscript_diagnostics(output: Path, report: Path) -> None:
     plt.close(fig)
 
     qwen = paired[paired.model == "Qwen3.6-27B"]
-    gpt = paired[paired.model == "GPT-5.4"]
+    gpt = paired[paired.model == "GPT-4o"]
     attempt1 = report.with_name(report.name + "_attempt1_nested_string_contract")
     readme = f"""# Manuscript Five-Case Pilot Dataset
 
@@ -602,15 +602,15 @@ The first pass used a JSON string nested inside a JSON envelope for one-shot out
 ## Primary Findings
 
 - Qwen3.6-27B: FlowPilot {qwen.flowpilot_score_0_1.mean():.3f} vs one-shot {qwen.one_shot_score_0_1.mean():.3f}; delta {qwen.paired_delta.mean():+.3f}.
-- GPT-5.4: FlowPilot {gpt.flowpilot_score_0_1.mean():.3f} vs one-shot {gpt.one_shot_score_0_1.mean():.3f}; delta {gpt.paired_delta.mean():+.3f}.
+- GPT-4o: FlowPilot {gpt.flowpilot_score_0_1.mean():.3f} vs one-shot {gpt.one_shot_score_0_1.mean():.3f}; delta {gpt.paired_delta.mean():+.3f}.
 - Across all ten pairs, the mean delta is {paired.paired_delta.mean():+.3f}.
 - Judge agreement is low. LLM scores are secondary evidence, not the sole endpoint.
 
 ## Recommended Cases For Confirmatory Repeats
 
 1. CuAAC: cleanest comparison; both model families show a small non-negative FlowPilot effect and both final contracts are executable.
-2. Hydrogenolysis: technically discriminating gas-liquid-solid case; Qwen benefits, GPT-5.4 does not.
-3. Exothermic dinitration: safety and heat-transfer case; Qwen benefits while GPT-5.4 one-shot remains stronger.
+2. Hydrogenolysis: technically discriminating gas-liquid-solid case.
+3. Exothermic dinitration: safety and heat-transfer case.
 
 Photochemical oxidation and two-stage amidation should remain in ESI/failure analysis because both FlowPilot outputs were blocked. Run the selected three with at least three independent repeats per condition. Use deterministic error counts and contract closure as primary endpoints and blinded LLM judging as a secondary sensitivity analysis. Do not claim universal superiority from this single-repeat pilot.
 """

@@ -31,10 +31,10 @@ Architecture ablation uses a fixed model bundle:
 Model portability is a separate experiment and does not get mixed with the
 architecture ablation. The harness supports:
 
-- Claude upstream and Claude council.
-- Qwen upstream and Qwen council.
-- Gemma upstream and Gemma council.
-- Claude upstream and Qwen council.
+- Qwen3.6-27B and Qwen3.8-27B.
+- GPT-4o.
+- Claude Sonnet 4.6 and Claude Opus 4.6.
+- Matched one-shot and FlowPilot execution for each retained generator.
 
 The current primary architecture result is a completed, matched GPT-4o matrix:
 seven variants across six protocols (42 cells). It is stored under
@@ -99,29 +99,15 @@ Aggregated CSV/JSON tables, expert-review sheets, figures, and the generated
 report are written under `../ablation_results/` in `tables/`, `figures/`,
 `expert_scoring/`, and `reports/`.
 
-## Cross-model benchmark
+## Current cross-model benchmark
 
-The matched Qwen/frontier experiment compares Qwen 27B one-shot, Qwen 27B with
-Full FlowPilot, GPT-4o one-shot, Claude Sonnet 4.6 one-shot, and GPT-4o with
-Full FlowPilot. It uses the same 12 non-THQ protocols and the frozen v2 scorer.
-
-```bash
-python -m ablation_test.scripts.run_cross_model --profile smoke \
-  --condition qwen_full
-python -m ablation_test.scripts.run_cross_model --profile publication \
-  --workers 2 --output-id qwen_frontier_20260729
-python -m ablation_test.scripts.cross_model_report \
-  --experiment ablation_results/runs/cross_model_publication_qwen_frontier_20260729 \
-  --output ablation_results/packages/cross_model_package_20260729
-```
-
-The collaborator-facing report adds score decomposition, schema-neutral
-sensitivity, protocol-clustered uncertainty, parameter repeatability, functional
-reproducibility, and a figure interpretation guide:
+NewGen 2.0 compares Qwen3.6-27B, Qwen3.8-27B, GPT-4o, Claude Sonnet 4.6,
+and Claude Opus 4.6. Every generator is evaluated in matched one-shot and
+FlowPilot conditions on the same three cases with three generation repeats.
 
 ```bash
-python -m ablation_test.scripts.coworker_report \
-  --benchmark-package ablation_results/packages/cross_model_package_20260729 \
-  --experiment ablation_results/runs/cross_model_publication_qwen_frontier_20260729 \
-  --output ablation_results/packages/coworker_ablation_package_20260729
+python -m ablation_test.scripts.run_manuscript_three_model_repeated_benchmark --phase all
+python -m ablation_test.scripts.run_qwen38_three_repeat_benchmark --phase all
+python -m ablation_test.scripts.run_alternative_frontier_three_repeat_benchmark --phase all
+python -m ablation_test.scripts.build_all_models_three_repeat_summary
 ```

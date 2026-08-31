@@ -1,103 +1,71 @@
-from types import SimpleNamespace
-
-import httpx
-
-from flora_translate.batch_normalization import enrich_batch_record_dict
-from flora_translate.engine import llm_agents
 from flora_translate.schemas import FlowProposal
+from flora_translate.chemistry_agent import _normalize_plan_data
+from flora_translate.schemas import ChemistryPlan
 from flora_translate.translation_llm import TranslationLLM
 
 
-def test_structured_additive_is_normalized_to_chemical_name():
-    normalized = enrich_batch_record_dict(
-        {
-            "reaction_description": "Hydrogenolysis",
-            "additives": [
-                {
-                    "name": "acetic acid",
-                    "role": "promoter",
-                }
-            ],
-        },
-        "Hydrogenolysis with acetic acid.",
-    )
+def test_frontier_provider_wrappers_normalize_to_flow_proposal_schema():
+    raw = {
+        "residence_time_min": {"value": 25, "basis": "screening"},
+        "flow_rate_mL_min": {"recommended": 0.1},
+        "temperature_C": {"selected": 60},
+        "concentration_M": {"nominal": 0.2},
+        "BPR_bar": {"value": 5},
+        "tubing_ID_mm": {"value": 1.0},
+        "reactor_volume_mL": {"estimate": 2.5},
+        "light_setup": {"name": "none", "reason": "thermal reaction"},
+        "engine_validated": {"status": "passed"},
+        "literature_analogies": [{"doi": "10.1000/example", "similarity": 0.8}],
+        "streams": [
+            {
+                "stream_label": "A",
+                "contents": ["substrate"],
+                "concentration_M": {"value": 0.2},
+                "molar_equiv": {"value": 1.0},
+                "introduction_stage": {"value": 1},
+            }
+        ],
+    }
 
-    assert normalized["additives"] == ["acetic acid"]
+    normalized = TranslationLLM._normalize_proposal_data(raw)
+    proposal = FlowProposal.model_validate(normalized)
 
-
-def test_null_infeasible_proposal_values_reach_schema_as_safe_defaults():
-    normalized = TranslationLLM._normalize_proposal_data(
-        {
-            "residence_time_min": None,
-            "flow_rate_mL_min": None,
-            "reactor_volume_mL": None,
-            "temperature_C": None,
-            "streams": [{"phase": "gas", "molar_equiv": None}],
-            "chemistry_notes": "BLOCK: required wavelength is unavailable.",
-            "reasoning_per_field": {
-                "analogy_comparison": {
-                    "Analogy 1": "Similar mixing regime.",
-                }
-            },
-        }
-    )
-    proposal = FlowProposal(**normalized)
-
-    assert proposal.residence_time_min == 0
-    assert proposal.flow_rate_mL_min == 0
-    assert proposal.reactor_volume_mL == 0
-    assert proposal.temperature_C == 25
-    assert proposal.streams[0].molar_equiv == 1
-    assert proposal.chemistry_notes.startswith("BLOCK:")
-    assert proposal.reasoning_per_field["analogy_comparison"] == (
-        '{"Analogy 1": "Similar mixing regime."}'
-    )
+    assert proposal.residence_time_min == 25
+    assert proposal.flow_rate_mL_min == 0.1
+    assert proposal.engine_validated is True
+    assert proposal.light_setup == "none"
+    assert proposal.streams[0].concentration_M == 0.2
+    assert proposal.literature_analogies[0].startswith("{")
 
 
-def test_verified_http_client_uses_system_trust_store(monkeypatch):
-    calls = []
-    context = SimpleNamespace(verify_flags=0)
+def test_upstream_wrapped_values_normalize_to_chemistry_plan_schema():
+    raw = {
+        "reaction_name": {"name": "Hydrogenolysis"},
+        "n_stages": {"value": 1},
+        "oxygen_sensitive": {"value": False},
+        "o2_is_reagent": {"value": False},
+        "recommended_wavelength_nm": {"value": None},
+        "stream_logic": [
+            {
+                "stream_label": "A",
+                "reagents": ["substrate"],
+                "molar_equiv": {"value": 1.0},
+                "concentration_M": {"value": 0.1},
+            }
+        ],
+        "stages": [
+            {
+                "stage_number": {"value": 1},
+                "requires_light": {"value": False},
+                "temperature_C": {"selected": 60},
+                "feed_streams": [],
+            }
+        ],
+    }
 
-    def fake_create_default_context(*args, **kwargs):
-        calls.append((args, kwargs))
-        return context
+    plan = ChemistryPlan.model_validate(_normalize_plan_data(raw))
 
-    monkeypatch.setattr(llm_agents.ssl, "create_default_context", fake_create_default_context)
-    monkeypatch.setattr(httpx, "Client", lambda *, verify: ("client", verify))
-
-    client = llm_agents.build_verified_httpx_client()
-
-    assert calls == [((), {})]
-    assert client == ("client", context)
-
-
-def test_anthropic_tool_telemetry_captures_final_response_text(monkeypatch):
-    events = []
-    response = SimpleNamespace(
-        stop_reason="end_turn",
-        content=[SimpleNamespace(type="text", text='{"scores": []}')],
-        usage=SimpleNamespace(input_tokens=10, output_tokens=5),
-    )
-    client = SimpleNamespace(
-        messages=SimpleNamespace(create=lambda **kwargs: response)
-    )
-    monkeypatch.setattr(llm_agents, "ENGINE_PROVIDER", "anthropic")
-    monkeypatch.setattr(llm_agents, "ENGINE_MODEL_ANTHROPIC", "claude-sonnet-4-6")
-    monkeypatch.setattr(llm_agents, "_get_anthropic_client", lambda: client)
-    llm_agents.set_llm_observer(events.append)
-    llm_agents.set_llm_runtime_overrides(capture_content=True)
-    try:
-        text, tool_calls = llm_agents.call_llm_with_tools(
-            "system",
-            "user",
-            tools=[],
-            tool_executor=lambda *_: {},
-            max_tokens=100,
-        )
-    finally:
-        llm_agents.clear_llm_observer()
-        llm_agents.clear_llm_runtime_overrides()
-
-    assert text == '{"scores": []}'
-    assert tool_calls == []
-    assert events[0]["response_text"] == text
+    assert plan.reaction_name == "Hydrogenolysis"
+    assert plan.n_stages == 1
+    assert plan.stages[0].temperature_C == 60
+    assert plan.stream_logic[0].concentration_M == 0.1

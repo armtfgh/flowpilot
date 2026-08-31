@@ -35,6 +35,10 @@ elif page == "optimize":
     from pages.optimize import render
     render()
 
+elif page == "figure_studio":
+    from pages.benchmark_figure_studio import render
+    render()
+
 elif page == "fundamentals":
     from pages.fundamentals import render
     render()

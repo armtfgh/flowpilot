@@ -19,19 +19,15 @@ MODEL_ORDER = [
     "Qwen3.6-27B",
     "Qwen3.8-27B",
     "GPT-4o",
-    "GPT-5.4",
     "Claude Sonnet 4.6",
     "Claude Opus 4.6",
-    "Claude Opus 5",
 ]
 SOURCES = {
     "Qwen3.6-27B": ROOT / "deliverables/manuscript_three_model_three_repeat_postfix_20260820",
     "Claude Sonnet 4.6": ROOT / "deliverables/manuscript_three_model_three_repeat_postfix_20260820",
-    "GPT-5.4": ROOT / "deliverables/openai_confirmatory_stationary_fix_20260820",
     "Qwen3.8-27B": ROOT / "deliverables/qwen38_three_repeat_20260824",
     "GPT-4o": ROOT / "deliverables/alternative_frontier_three_repeat_20260824",
     "Claude Opus 4.6": ROOT / "deliverables/alternative_frontier_three_repeat_20260824",
-    "Claude Opus 5": ROOT / "deliverables/opus5_three_repeat_20260824",
 }
 ARCHITECTURES = ["One-shot", "FlowPilot"]
 REPEATS = ["repeat_01", "repeat_02", "repeat_03"]

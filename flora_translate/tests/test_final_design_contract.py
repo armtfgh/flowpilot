@@ -1,4 +1,7 @@
-from flora_translate.final_design_contract import build_final_design_contract
+from flora_translate.final_design_contract import (
+    build_final_design_contract,
+    publish_final_design_artifacts,
+)
 
 
 def _ready_result():
@@ -474,3 +477,15 @@ def test_contract_blocks_process_graph_when_stage_v_q_tau_does_not_close():
     assert "FINAL-EXECUTABLE-PROCESS-GRAPH-INVALID" in {
         issue["code"] for issue in contract["consistency"]["issues"]
     }
+
+
+def test_published_canonical_summary_does_not_repeat_stale_model_values():
+    result = _ready_result()
+    result["explanation"] = "Use a stale candidate BPR of 3.0 bar."
+    contract = build_final_design_contract(result)
+
+    publish_final_design_artifacts(result, contract)
+
+    assert "**BPR:** 5 bar" in result["canonical_explanation"]
+    assert "3.0 bar" not in result["canonical_explanation"]
+    assert result["explanation_status"] == "pre_realization_audit_only"
