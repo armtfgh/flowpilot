@@ -19,6 +19,7 @@ from flora_translate.schemas import (
     CanonicalReactionContract,
     ChemistryPlan,
     ProcessStage,
+    ReagentRole,
     StreamLogic,
     normalized_stream_phase,
 )
@@ -37,7 +38,7 @@ def reconcile_chemistry_plan(
 
     plan = chemistry_plan.model_copy(deep=True)
     protocol = _protocol_text(batch_record)
-    constraint_text = _flatten_text(hard_constraints)
+    constraint_text = _chemistry_constraint_text(hard_constraints)
     evidence_text = "\n".join(value for value in (protocol, constraint_text) if value)
     decisions: list[dict[str, Any]] = []
 
@@ -46,6 +47,7 @@ def reconcile_chemistry_plan(
     explicit_separation = _explicit_separate_liquid_feeds(evidence_text)
 
     stages = _materialize_stages(plan)
+    _reconcile_named_photocatalyst(batch_record, plan, decisions)
     if light_required:
         if len(stages) == 1:
             light_stages = {int(stages[0].stage_number)}
@@ -228,6 +230,72 @@ def reconcile_chemistry_plan(
         if not stage.requires_light:
             stage.wavelength_nm = None
 
+    _normalize_feed_stage_ownership(stages, decisions)
+
+    first_stage = min(stages, key=lambda item: int(item.stage_number or 1))
+    first_stage_liquids = [
+        feed
+        for feed in first_stage.feed_streams
+        if feed.accepted_requirement
+        and feed.delivery_mode != "carried_from_previous"
+        and normalized_stream_phase(feed.phase, feed.reagents) != "gas"
+    ]
+    required_initial_species = _initial_liquid_species(batch_record, plan, stages)
+    if not first_stage_liquids:
+        first_stage.feed_streams.insert(
+            0,
+            StreamLogic(
+                stream_label=_next_stream_label(stages, prefix="A"),
+                reagents=required_initial_species,
+                reasoning=(
+                    "Initial liquid reaction mixture restored from the frozen batch "
+                    "protocol because a reaction reactor cannot have no material inlet."
+                ),
+                concentration_M=batch_record.concentration_M,
+                phase="liquid",
+                introduction_stage=first_stage.stage_number,
+                requirement_authority="protocol_fact",
+                source_evidence=[_initial_charge_evidence(protocol)],
+                accepted_requirement=True,
+                separate_feed_required=False,
+                feed_group=f"ST{first_stage.stage_number}-LIQ-1",
+            ),
+        )
+        decisions.append(
+            _decision(
+                "restore_missing_initial_liquid_feed",
+                first_stage.stage_number,
+                first_stage.feed_streams[0].stream_label,
+                "The frozen batch protocol declares a charged reaction mixture.",
+            )
+        )
+    else:
+        existing = {
+            _normalized_species(species)
+            for feed in first_stage_liquids
+            for species in feed.reagents
+        }
+        missing = [
+            species
+            for species in required_initial_species
+            if _normalized_species(species) not in existing
+        ]
+        if missing:
+            first_stage_liquids[0].reagents.extend(missing)
+            first_stage_liquids[0].requirement_authority = "protocol_fact"
+            first_stage_liquids[0].source_evidence = list(dict.fromkeys([
+                *first_stage_liquids[0].source_evidence,
+                _initial_charge_evidence(protocol),
+            ]))
+            decisions.append(
+                _decision(
+                    "restore_missing_initial_charge_components",
+                    first_stage.stage_number,
+                    first_stage_liquids[0].stream_label,
+                    "Explicitly labelled batch reactants were absent from the model feed.",
+                )
+            )
+
     # Add a missing protocol reagent gas exactly once, at the last reaction
     # stage by default. This is deterministic and avoids silently dropping a
     # chemically explicit gas when the upstream model omitted it.
@@ -302,6 +370,149 @@ def reconcile_chemistry_plan(
         "canonical_contract": contract.model_dump(exclude_none=True),
     }
     return plan, report
+
+
+def _reconcile_named_photocatalyst(
+    batch_record: BatchRecord,
+    plan: ChemistryPlan,
+    decisions: list[dict[str, Any]],
+) -> None:
+    name = str(batch_record.photocatalyst or "").strip()
+    if not name:
+        return
+    normalized = _normalized_species(name)
+    match = next(
+        (
+            reagent for reagent in plan.reagents
+            if normalized and normalized in _normalized_species(reagent.name)
+        ),
+        None,
+    )
+    loading = (
+        f"{batch_record.catalyst_loading_mol_pct:g} mol%"
+        if batch_record.catalyst_loading_mol_pct is not None
+        else ""
+    )
+    if match is None:
+        plan.reagents.append(
+            ReagentRole(name=name, role="photocatalyst", equiv_or_loading=loading)
+        )
+    else:
+        match.role = "photocatalyst"
+        if loading:
+            match.equiv_or_loading = loading
+    decisions.append(
+        {
+            "decision": "restore_protocol_photocatalyst_role",
+            "stage": 1,
+            "stream": "",
+            "basis": f"The frozen batch protocol explicitly names {name} as photocatalyst.",
+        }
+    )
+
+
+def _initial_liquid_species(
+    batch_record: BatchRecord,
+    plan: ChemistryPlan,
+    stages: list[ProcessStage],
+) -> list[str]:
+    species: list[str] = []
+    candidates = [
+        (str(reagent.name or "").strip(), str(reagent.role or "").lower())
+        for reagent in plan.reagents
+    ]
+    if stages:
+        first_stage_number = min(int(stage.stage_number or 1) for stage in stages)
+        candidates.extend(
+            (str(name or "").strip(), "")
+            for stage in stages
+            if int(stage.stage_number or 1) == first_stage_number
+            for feed in stage.feed_streams
+            if feed.delivery_mode != "carried_from_previous"
+            for name in feed.reagents
+        )
+    for name, role in candidates:
+        gas_identity = _gas_identity([name])
+        if (
+            not name
+            or role in {"gas", "atmosphere"}
+            or gas_identity in {"air", "o2", "h2", "co2", "co", "n2", "ar"}
+        ):
+            continue
+        if name not in species:
+            species.append(name)
+    if batch_record.photocatalyst and batch_record.photocatalyst not in species:
+        species.append(batch_record.photocatalyst)
+    for name in _protocol_labelled_liquid_species(_protocol_text(batch_record)):
+        if _normalized_species(name) not in {
+            _normalized_species(item) for item in species
+        }:
+            species.append(name)
+    return species or ["reaction mixture from frozen batch protocol"]
+
+
+def _protocol_labelled_liquid_species(protocol: str) -> list[str]:
+    """Extract only explicitly labelled initial-charge identities.
+
+    This is deliberately narrower than general chemical named-entity parsing.
+    It recovers protocol facts such as ``Substrate: X`` without guessing names
+    from prose or treating equipment descriptions as chemistry.
+    """
+
+    labels = (
+        "substrate/radical precursor",
+        "radical precursor",
+        "starting material",
+        "michael acceptor",
+        "coupling partner",
+        "substrate",
+        "reactant",
+        "reagent",
+        "photocatalyst",
+        "catalyst",
+        "base",
+        "additive",
+    )
+    label_pattern = "|".join(re.escape(item) for item in labels)
+    output: list[str] = []
+    sentences = re.split(r"(?<!\d)\.(?!\d)\s+|[;\n]+", protocol)
+    for sentence in sentences:
+        match = re.match(rf"\s*(?:{label_pattern})\s*:\s*(.+)", sentence, re.I)
+        if not match:
+            continue
+        value = match.group(1).strip()
+        value = re.split(
+            r",\s*(?=(?:\d+(?:\.\d+)?\s*(?:mmol|mol|equiv|eq\.?|mol\s*%|mg|g|mL|uL|µL)\b|MW\s*=))",
+            value,
+            maxsplit=1,
+            flags=re.I,
+        )[0]
+        value = re.sub(r"\s*\([A-Za-z]?\d+[A-Za-z]?\)\s*$", "", value).strip(" ,")
+        if value and not _gas_identity([value]) in {
+            "air", "o2", "h2", "co2", "co", "n2", "ar"
+        }:
+            output.append(value)
+    return list(dict.fromkeys(output))
+
+
+def _initial_charge_evidence(protocol: str) -> str:
+    sentence = next(
+        (
+            item.strip() for item in re.split(r"(?<=[.;])\s+", protocol)
+            if re.search(r"\b(?:charged|dissolved|substrate|precursor|reagent)\b", item, re.I)
+        ),
+        "",
+    )
+    return sentence[:500] or "The frozen batch protocol defines the initial reaction charge."
+
+
+def _normalized_species(value: str) -> str:
+    text = re.sub(
+        r"\s*\([A-Za-z]?\d+[A-Za-z]?\)\s*$",
+        "",
+        str(value),
+    )
+    return "".join(re.findall(r"[a-z0-9]+", text.lower()))
 
 
 def _build_contract(
@@ -408,6 +619,66 @@ def _materialize_stages(plan: ChemistryPlan) -> list[ProcessStage]:
             if feed.delivery_mode != "carried_from_previous":
                 feed.introduction_stage = int(feed.introduction_stage or index)
     return stages
+
+
+def _normalize_feed_stage_ownership(
+    stages: list[ProcessStage],
+    decisions: list[dict[str, Any]],
+) -> None:
+    """Place every new feed at its declared introduction stage exactly once."""
+
+    stage_by_number = {int(stage.stage_number): stage for stage in stages}
+    reassigned: dict[int, list[StreamLogic]] = {
+        stage_number: [] for stage_number in stage_by_number
+    }
+    owned: dict[tuple[int, str], StreamLogic] = {}
+
+    for containing_stage in stages:
+        containing_number = int(containing_stage.stage_number)
+        for feed in containing_stage.feed_streams:
+            if feed.delivery_mode == "carried_from_previous":
+                continue
+            target = int(feed.introduction_stage or containing_number)
+            if target not in stage_by_number:
+                target = containing_number
+                feed.introduction_stage = target
+            label = str(feed.stream_label or "").upper()
+            identity = label or "|".join(
+                sorted(_normalized_species(item) for item in feed.reagents)
+            )
+            key = (target, identity)
+            if key in owned:
+                owner = owned[key]
+                for reagent in feed.reagents:
+                    if _normalized_species(reagent) not in {
+                        _normalized_species(item) for item in owner.reagents
+                    }:
+                        owner.reagents.append(reagent)
+                decisions.append(
+                    _decision(
+                        "remove_duplicate_cross_stage_feed",
+                        containing_number,
+                        feed.stream_label,
+                        f"Feed is already introduced at stage {target}; later stages receive it through the preceding reactor outlet.",
+                    )
+                )
+                continue
+            copied = feed.model_copy(deep=True)
+            copied.introduction_stage = target
+            owned[key] = copied
+            reassigned[target].append(copied)
+            if target != containing_number:
+                decisions.append(
+                    _decision(
+                        "move_feed_to_declared_introduction_stage",
+                        target,
+                        feed.stream_label,
+                        f"The model listed this feed under stage {containing_number}, but introduction_stage={target} is authoritative.",
+                    )
+                )
+
+    for stage_number, stage in stage_by_number.items():
+        stage.feed_streams = reassigned[stage_number]
 
 
 def _global_streams_from_stages(stages: Iterable[ProcessStage]) -> list[StreamLogic]:
@@ -661,6 +932,26 @@ def _flatten_text(value: Any) -> str:
         return json.dumps(value, sort_keys=True, ensure_ascii=True)
     except TypeError:
         return str(value)
+
+
+def _chemistry_constraint_text(value: Any) -> str:
+    """Exclude equipment descriptions from chemistry/feed requirements."""
+
+    if value in (None, "", [], {}):
+        return ""
+    if not isinstance(value, dict):
+        return _flatten_text(value)
+    relevant = []
+    for key in (
+        "runtime_hard_constraints",
+        "chemistry_constraints",
+        "feed_constraints",
+        "user_constraints",
+    ):
+        item = value.get(key)
+        if item not in (None, "", [], {}):
+            relevant.append(_flatten_text(item))
+    return "\n".join(relevant)
 
 
 def _decision(action: str, stage: int, stream: str, basis: str) -> dict[str, Any]:

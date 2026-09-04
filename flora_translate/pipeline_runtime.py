@@ -8,7 +8,10 @@ pipeline.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass, field
+from functools import wraps
+import threading
 from typing import Any, Iterable
 
 from flora_translate.engine.council_v4.execution_config import CouncilExecutionConfig
@@ -29,6 +32,11 @@ class PipelineRuntimeOptions:
     benchmark_max_descendants_per_candidate: int = 2
     benchmark_max_total_revised_candidates: int | None = None
     council_execution: CouncilExecutionConfig | dict[str, Any] | None = None
+    upstream_model: str | None = None
+    upstream_provider: str | None = None
+    downstream_model: str | None = None
+    downstream_provider: str | None = None
+    model_endpoints: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.candidate_budget < 1:
@@ -45,6 +53,9 @@ class PipelineRuntimeOptions:
                 "council_execution",
                 CouncilExecutionConfig.coerce(self.council_execution),
             )
+        for provider in (self.upstream_provider, self.downstream_provider):
+            if provider is not None and provider not in {"anthropic", "openai", "ollama"}:
+                raise ValueError(f"Unsupported model provider: {provider}")
 
     @classmethod
     def coerce(
@@ -62,6 +73,11 @@ class PipelineRuntimeOptions:
         data["hard_constraints"] = tuple(
             str(item) for item in data.get("hard_constraints") or () if item
         )
+        data["model_endpoints"] = {
+            str(model): str(base_url)
+            for model, base_url in (data.get("model_endpoints") or {}).items()
+            if model and base_url
+        }
         return cls(**data)
 
     def provenance(self) -> dict[str, Any]:
@@ -91,7 +107,99 @@ class PipelineRuntimeOptions:
                 if isinstance(self.council_execution, CouncilExecutionConfig)
                 else None
             ),
+            "model_routing": {
+                "upstream_model": self.upstream_model,
+                "upstream_provider": self.upstream_provider,
+                "downstream_model": self.downstream_model,
+                "downstream_provider": self.downstream_provider,
+                "model_endpoints": dict(self.model_endpoints),
+            },
         }
+
+
+_MODEL_ROUTING_LOCK = threading.RLock()
+
+
+@contextmanager
+def runtime_model_routing(runtime: PipelineRuntimeOptions):
+    """Apply one run's model choices and restore process defaults afterward."""
+
+    import flora_translate.config as cfg
+    from flora_translate.engine import llm_agents
+
+    with _MODEL_ROUTING_LOCK:
+        config_names = (
+            "MODEL_INPUT_PARSER",
+            "MODEL_CHEMISTRY_AGENT",
+            "MODEL_TRANSLATION",
+            "MODEL_OUTPUT_FORMATTER",
+            "MODEL_CONVERSATION_AGENT",
+            "ENGINE_PROVIDER",
+            "ENGINE_MODEL_ANTHROPIC",
+            "ENGINE_MODEL_OPENAI",
+            "ENGINE_MODEL_OLLAMA",
+        )
+        saved_config = {name: getattr(cfg, name) for name in config_names}
+        saved_engine = {
+            name: getattr(llm_agents, name)
+            for name in (
+                "ENGINE_PROVIDER",
+                "ENGINE_MODEL_ANTHROPIC",
+                "ENGINE_MODEL_OPENAI",
+                "ENGINE_MODEL_OLLAMA",
+            )
+        }
+        saved_endpoints = llm_agents.get_model_endpoint_overrides()
+        try:
+            if runtime.upstream_model:
+                cfg.MODEL_INPUT_PARSER = runtime.upstream_model
+                cfg.MODEL_CHEMISTRY_AGENT = runtime.upstream_model
+            if runtime.downstream_model:
+                cfg.MODEL_TRANSLATION = runtime.downstream_model
+                cfg.MODEL_OUTPUT_FORMATTER = runtime.downstream_model
+                cfg.MODEL_CONVERSATION_AGENT = runtime.downstream_model
+                provider = runtime.downstream_provider or llm_agents.infer_provider_for_model(
+                    runtime.downstream_model
+                )
+                cfg.ENGINE_PROVIDER = provider
+                llm_agents.ENGINE_PROVIDER = provider
+                model_field = {
+                    "anthropic": "ENGINE_MODEL_ANTHROPIC",
+                    "openai": "ENGINE_MODEL_OPENAI",
+                    "ollama": "ENGINE_MODEL_OLLAMA",
+                }.get(provider)
+                if not model_field:
+                    raise ValueError(f"Unsupported downstream provider: {provider}")
+                setattr(cfg, model_field, runtime.downstream_model)
+                setattr(llm_agents, model_field, runtime.downstream_model)
+            llm_agents.set_model_endpoint_overrides(runtime.model_endpoints)
+            yield
+        finally:
+            for name, value in saved_config.items():
+                setattr(cfg, name, value)
+            for name, value in saved_engine.items():
+                setattr(llm_agents, name, value)
+            llm_agents.set_model_endpoint_overrides(saved_endpoints)
+
+
+def with_runtime_model_routing(func):
+    """Decorator that makes ``runtime_options`` model routing run-scoped."""
+
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        positional = list(args)
+        raw_runtime = kwargs.get("runtime_options")
+        if raw_runtime is None and len(positional) >= 4:
+            raw_runtime = positional[3]
+        runtime = PipelineRuntimeOptions.coerce(raw_runtime)
+        if len(positional) >= 4:
+            positional[3] = runtime
+        else:
+            kwargs["runtime_options"] = runtime
+        with runtime_model_routing(runtime):
+            return func(*positional, **kwargs)
+
+    return wrapped
 
 
 def merged_hard_constraints(

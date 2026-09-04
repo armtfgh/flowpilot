@@ -1,0 +1,26 @@
+name: Build FlowPilot Windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows-bundle:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: flowpilot_webapp/frontend/package-lock.json
+      - name: Build portable Windows app
+        shell: powershell
+        run: ./flowpilot_webapp/build_windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FlowPilot-Windows-x64
+          path: flowpilot_webapp/release/FlowPilot-Windows-x64.zip
+          if-no-files-found: error

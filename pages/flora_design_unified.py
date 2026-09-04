@@ -68,7 +68,18 @@ def _render_translate():
             st.info("Complete the standardized intake package before running FlowPilot design.")
             return
 
-        if st.button("Run FlowPilot Design", type="primary", use_container_width=True):
+        from components.model_route_selector import render_model_route_selector
+
+        runtime_options, route_blockers = render_model_route_selector(
+            "flowpilot_design_models"
+        )
+
+        if st.button(
+            "Run FlowPilot Design",
+            type="primary",
+            use_container_width=True,
+            disabled=bool(route_blockers),
+        ):
             with st.spinner("Running FlowPilot pipeline from standardized intake..."):
                 try:
                     from flora_translate.main import translate
@@ -76,6 +87,7 @@ def _render_translate():
                     result = translate(
                         intake_package.raw_protocol,
                         intake_package=intake_package,
+                        runtime_options=runtime_options,
                     )
                     from flora_translate.gui_autosave import autosave_gui_result
 

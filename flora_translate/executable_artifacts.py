@@ -255,11 +255,19 @@ def _chemistry_identity(result: dict[str, Any]) -> ExecutableChemistryIdentity:
     protocol = raw_protocol or str(batch.get("reaction_description") or "")
     intake = result.get("intake_package") or {}
     confirmation = dict(intake.get("chemistry_identity_confirmation") or {})
+    chemist_description = str(confirmation.get("chemist_description") or "").strip()
     confirmed_family = transformation_family(
-        str(
-            confirmation.get("transformation_family")
-            or confirmation.get("reaction_class")
-            or ""
+        " ".join(
+            part
+            for part in (
+                str(
+                    confirmation.get("transformation_family")
+                    or confirmation.get("reaction_class")
+                    or ""
+                ),
+                chemist_description,
+            )
+            if part
         )
     )
     protocol_family = transformation_family(raw_protocol)
@@ -282,7 +290,9 @@ def _chemistry_identity(result: dict[str, Any]) -> ExecutableChemistryIdentity:
         authority_source = "protocol_fact"
         authoritative_family = protocol_family
         confirmed = True
-    elif confirmation.get("confirmed") and confirmed_family != "unknown":
+    elif confirmation.get("confirmed") and (
+        confirmed_family != "unknown" or chemist_description
+    ):
         authority_source = "chemist_confirmed"
         authoritative_family = confirmed_family
         confirmed = True
@@ -324,7 +334,16 @@ def transformation_family(text: str) -> str:
         ("nitration", (r"\bnitration\b", r"\bdinitration\b")),
         ("oxidative_amidation", (r"oxidative amidation",)),
         ("amidation", (r"\bamidation\b",)),
-        ("oxidation", (r"\boxidation\b", r"\boxidative\b")),
+        (
+            "oxidation",
+            (
+                r"\boxidation\b",
+                r"\boxidative\b",
+                r"\bdehydrogenation\b",
+                r"\baromati[sz]ation\b",
+                r"tetrahydroquinoline.*\bquinoline\b",
+            ),
+        ),
         ("reduction", (r"\breduction\b",)),
         ("coupling", (r"\bcoupling\b",)),
         ("substitution", (r"\bsubstitution\b",)),

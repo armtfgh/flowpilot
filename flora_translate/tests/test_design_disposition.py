@@ -23,11 +23,9 @@ from flora_translate.schemas import (
 
 
 SCENARIOS_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "ablation_test"
-    / "benchmarks"
-    / "fair_architecture_benchmark_v1_1_20260730"
-    / "protocol_scenarios.json"
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "design_disposition_scenarios.json"
 )
 
 

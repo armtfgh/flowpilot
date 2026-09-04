@@ -1,0 +1,71 @@
+{
+  "residence_time_min": 15.0,
+  "flow_rate_mL_min": 1.34041,
+  "temperature_C": 120.0,
+  "concentration_M": 0.067,
+  "BPR_bar": 5.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.6,
+  "reactor_volume_mL": 20.106,
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Dipolarophile substrate stream",
+      "contents": [
+        "Phenylacetylene (1.0 equiv, 0.5 M)"
+      ],
+      "solvent": "TBAB/EG (1:5) DES",
+      "concentration_M": 0.5,
+      "flow_rate_mL_min": 0.167,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Dipolarophile in DES; kept separate from nitrile oxide precursor to ensure mixing occurs at the heated zone, minimizing premature nitrile oxide generation and dimerization at room temperature"
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Nitrile oxide precursor stream",
+      "contents": [
+        "Ethyl nitroacetate (2.0 equiv, 1.0 M)"
+      ],
+      "solvent": "TBAB/EG (1:5) DES",
+      "concentration_M": 1.0,
+      "flow_rate_mL_min": 0.333,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: Nitrile oxide precursor in DES; 2.0 equiv relative to phenylacetylene; separate stream allows precise stoichiometric control via flow rate ratio"
+    }
+  ],
+  "mixer_type": "T-mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Phenylacetylene and ethyl nitroacetate should be mixed at a T-mixer immediately before entering the heated coil reactor. This ensures the nitrile oxide intermediate is generated in the presence of the dipolarophile, minimizing competitive nitrile oxide dimerization to furoxan. The DES is viscous (~50-100 cP at RT) so preheating feed lines to ~60°C may be needed to reduce viscosity and ensure good mixing at the T-junction.",
+  "pre_reactor_steps": [
+    "Preheat feed lines to 60°C to reduce DES viscosity for improved mixing"
+  ],
+  "post_reactor_steps": [
+    "Cool product stream to room temperature",
+    "Optional: water quench and DCM extraction for product isolation"
+  ],
+  "chemistry_notes": "This is a thermal 1,3-dipolar cycloaddition where ethyl nitroacetate undergoes in-situ dehydration to generate a nitrile oxide intermediate that then undergoes [3+2] cycloaddition with phenylacetylene. The rate-limiting step is nitrile oxide generation, requiring 120°C. Flow provides superior heat transfer (surface-to-volume ratio ~4000 m⁻¹ vs ~100 m⁻¹ in batch) enabling faster temperature equilibration. The 60-minute residence time from analogies is much longer than the 5-minute target from calculations, suggesting conservative operation. BPR is required due to water generation and high temperature operation. The viscous DES medium requires careful pump selection and preheating.",
+  "stage_parameters": [],
+  "reasoning_per_field": {
+    "residence_time_min": "Analogy 2 used 179 min for thermal cyclization at 154°C. Analogy 3 used 20 min for [3+2] cycloaddition at 60°C. Calculation estimated 60.0 min range [1.0-90.0]. Using 60.0 min as conservative estimate given DES viscosity and thermal nitrile oxide generation requirement.",
+    "flow_rate_mL_min": "Calculation: V_R/τ = 30.0 mL / 60.0 min = 0.5 mL/min total flow rate",
+    "temperature_C": "Same as batch (120°C) - required for thermal nitrile oxide generation from ethyl nitroacetate as specified in Chemistry Plan",
+    "concentration_M": "Calculation result: C_reactor = 0.067 M after mixing streams A (0.5 M) and B (1.0 M) at flow ratio 1:2",
+    "BPR_bar": "Calculation: BPR REQUIRED at 5.0 bar due to gas-liquid system (water generation) and high temperature operation above solvent bp",
+    "reactor_volume_mL": "Calculation: V_R = 30.0 mL based on residence time and flow rate requirements",
+    "tubing_material": "PFA selected for high temperature operation (120°C) and chemical compatibility with DES medium. Not photochemistry so transparency not required.",
+    "tubing_ID_mm": "Calculation: d = 1.0 mm for optimal heat transfer and pressure drop (ΔP = 0.130 bar, Re = 11 laminar)",
+    "flow_rate_stream_A": "0.167 mL/min to deliver 1.0 equiv phenylacetylene at 0.5 M concentration",
+    "flow_rate_stream_B": "0.333 mL/min to deliver 2.0 equiv ethyl nitroacetate at 1.0 M concentration"
+  },
+  "literature_analogies": [
+    "Analogy 1: Photocycloaddition with thermal cascade",
+    "Analogy 2: Thermal cyclization of energetic compound",
+    "Analogy 3: [3+2] dipolar cycloaddition in flow"
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

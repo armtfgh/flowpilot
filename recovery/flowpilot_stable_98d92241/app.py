@@ -1,0 +1,52 @@
+"""FLORA — Streamlit dashboard."""
+
+from pathlib import Path
+import streamlit as st
+
+st.set_page_config(
+    page_title="FLORA",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# Load custom CSS
+css_path = Path("assets/style.css")
+if css_path.exists():
+    st.markdown(f"<style>{css_path.read_text()}</style>", unsafe_allow_html=True)
+
+# Sidebar navigation
+from components.sidebar import render_sidebar
+page = render_sidebar()
+
+# Route to pages
+if page == "flora_design":
+    from pages.flora_design_unified import render
+    render()
+
+elif page == "diagnose":
+    from pages.diagnose import render
+    render()
+
+elif page == "optimize":
+    from pages.optimize import render
+    render()
+
+elif page == "fundamentals":
+    from pages.fundamentals import render
+    render()
+
+elif page == "scout":
+    from pages.scout import render
+    render()
+
+elif page == "prism":
+    from pages.prism import render
+    render()
+
+elif page == "corpus":
+    from pages.corpus import render
+    render()
+
+else:
+    from pages.flora_design_unified import render
+    render()

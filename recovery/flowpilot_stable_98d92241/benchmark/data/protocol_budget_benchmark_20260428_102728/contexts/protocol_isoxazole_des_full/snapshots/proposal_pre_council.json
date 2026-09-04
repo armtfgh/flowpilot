@@ -1,0 +1,70 @@
+{
+  "residence_time_min": 30.0,
+  "flow_rate_mL_min": 0.67021,
+  "temperature_C": 120.0,
+  "concentration_M": 0.067,
+  "BPR_bar": 5.0,
+  "reactor_type": "coil",
+  "tubing_material": "PFA",
+  "tubing_ID_mm": 1.6,
+  "reactor_volume_mL": 20.106,
+  "light_setup": "",
+  "wavelength_nm": null,
+  "deoxygenation_method": null,
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "dipolarophile stream",
+      "contents": [
+        "phenylacetylene (1.0 equiv, 0.5 M)"
+      ],
+      "solvent": "TBAB/EG (1:5) DES",
+      "concentration_M": 0.5,
+      "flow_rate_mL_min": 0.167,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: dipolarophile in DES, separated from nitrile oxide precursor to prevent premature reaction. Concentration matches batch protocol."
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "nitrile oxide precursor stream",
+      "contents": [
+        "ethyl nitroacetate (2.0 equiv, 1.0 M)"
+      ],
+      "solvent": "TBAB/EG (1:5) DES",
+      "concentration_M": 1.0,
+      "flow_rate_mL_min": 0.333,
+      "molar_equiv": 1.0,
+      "reasoning": "From Chemistry Plan stream_logic: nitrile oxide precursor in DES, kept separate until T-mixer. Higher concentration (1.0 M vs 0.5 M) to deliver 2.0 equiv in smaller volume."
+    }
+  ],
+  "mixer_type": "T-mixer",
+  "mixing_order_reasoning": "From Chemistry Plan: Streams A and B combined at T-mixer immediately before heated coil reactor. This ensures transient nitrile oxide intermediate generated from ethyl nitroacetate at 120°C is immediately trapped by phenylacetylene, minimizing nitrile oxide dimerization to furoxan.",
+  "pre_reactor_steps": [
+    "Preheat feed lines to 60°C to improve DES pumpability (viscosity ~50-100 cP at RT)"
+  ],
+  "post_reactor_steps": [
+    "Cool outlet stream to room temperature to stop reaction"
+  ],
+  "chemistry_notes": "Thermal 1,3-dipolar cycloaddition with in-situ nitrile oxide generation. Key design: separate streams prevent premature nitrile oxide formation/dimerization. DES viscosity requires preheated feed lines. No photochemistry involved - purely thermal mechanism. BPR required due to high temperature (120°C) and potential water generation from nitrile oxide formation. Calculations show kinetically controlled regime (Da = 0.492) with excellent plug flow (Pe = 691).",
+  "stage_parameters": [],
+  "reasoning_per_field": {
+    "residence_time_min": "Calculation estimated 60.0 min (range 1.0-90.0 min) via analogy. Analogy 2 used 20 min for [3+2] cycloaddition but at lower temperature (60°C vs 120°C). Analogy 3 used 179 min at 154°C but different mechanism. Using calculation result of 60 min as it accounts for our specific kinetics.",
+    "flow_rate_mL_min": "Calculation: total flow = reactor_volume/residence_time = 30.0 mL / 60.0 min = 0.5 mL/min. Stream A: 0.167 mL/min, Stream B: 0.333 mL/min to deliver proper stoichiometry.",
+    "temperature_C": "Same as batch (120°C) - Chemistry Plan indicates this temperature required for nitrile oxide generation. No adjustment needed.",
+    "concentration_M": "Calculation result: 0.067 M in reactor after mixing. Lower than batch (0.5 M) due to flow dilution but sufficient for reaction.",
+    "BPR_bar": "Calculation required 5.0 bar. High temperature (120°C) and potential water generation from nitrile oxide formation necessitates BPR to maintain liquid phase.",
+    "tubing_material": "PFA chosen for high temperature compatibility (120°C) and chemical resistance to DES. Not photochemistry so transparency not required.",
+    "tubing_ID_mm": "Calculation used 1.0 mm giving Re = 10.6 (laminar flow), Pe = 691 (excellent plug flow), reasonable pressure drop (0.13 bar).",
+    "reactor_volume_mL": "Calculation result: 30.0 mL. Matches Analogy 1 reactor volume, appropriate for 60 min residence time.",
+    "light_setup": "Empty string - Chemistry Plan confirms no photochemistry involved, purely thermal mechanism.",
+    "wavelength_nm": "Null - no light required for thermal cycloaddition reaction."
+  },
+  "literature_analogies": [
+    "Analogy 1: photocycloaddition with thermal cascade",
+    "Analogy 2: [3+2] dipolar cycloaddition in flow",
+    "Analogy 3: high-temperature cyclization in flow"
+  ],
+  "engine_validated": false,
+  "safety_flags": [],
+  "confidence": "MEDIUM"
+}

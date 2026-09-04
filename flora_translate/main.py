@@ -42,6 +42,7 @@ from flora_translate.output_formatter import OutputFormatter
 from flora_translate.pipeline_runtime import (
     PipelineRuntimeOptions,
     merged_hard_constraints,
+    with_runtime_model_routing,
 )
 from flora_translate.prompt_builder import TranslationPromptBuilder
 from flora_translate.residence_time_basis import (
@@ -1106,17 +1107,18 @@ def _build_multistep_topology(
     Q_reference: float = total_Q
     C_reference: float = proposal.concentration_M or 0.1
 
-    # Pre-compute which feed-stream labels first appear in a LATER stage.
-    # The chemistry LLM sometimes lists a quench/workup stream in Stage 1's
-    # feed_streams AND in Stage 2's — deduplicate by only creating the pump
-    # at the LAST stage that declares it. This prevents Pump C from appearing
-    # twice (once before the reactor, once at the inter-stage injection point).
-    _label_last_stage: dict[str, int] = {}
+    # Resolve each feed to its declared injection stage. Provider-specific
+    # plans sometimes repeat a Stage 1 feed under Stage 2 while retaining
+    # introduction_stage=1. The declaration, not list position, owns the pump.
+    _label_injection_stage: dict[str, int] = {}
     for _stg in chemistry_plan.stages:
         for _feed in _stg.feed_streams:
             lbl = (_feed.stream_label or "").upper()
-            if lbl:
-                _label_last_stage[lbl] = _stg.stage_number
+            if lbl and _feed.delivery_mode != "carried_from_previous":
+                declared_stage = int(
+                    _feed.introduction_stage or _stg.stage_number
+                )
+                _label_injection_stage[lbl] = declared_stage
 
     for stage in chemistry_plan.stages:
         sn = stage.stage_number
@@ -1173,13 +1175,14 @@ def _build_multistep_topology(
         stage_id_mm = float(sp.get("d_mm") or proposal.tubing_ID_mm or 1.0)
 
         # ── New feed pump flow rates ────────────────────────────────────────
-        # Filter out feeds whose label first belongs to a later stage — the
-        # chemistry LLM sometimes lists a quench stream in Stage 1 AND Stage 2.
-        # We only create the pump at the LAST declared stage so it appears at
-        # the correct injection point (and Q_inlet is computed correctly).
+        # A physical feed is created once, at its declared introduction stage.
         active_feeds = [
             f for f in stage.feed_streams
-            if _label_last_stage.get((f.stream_label or "").upper(), sn) == sn
+            if f.delivery_mode != "carried_from_previous"
+            and _label_injection_stage.get(
+                (f.stream_label or "").upper(),
+                int(f.introduction_stage or sn),
+            ) == sn
         ]
 
         stage_pump_ids: list[str] = []
@@ -1478,6 +1481,11 @@ def _build_multistep_topology(
             required=True,
             rationale=f"Reactor for {stage.stage_name} — τ={stage_rt} min, Q_inlet={Q_inlet} mL/min, V_R={stage_vol} mL",
         ))
+        if not prev_op:
+            raise ValueError(
+                f"Topology invariant failed: reaction stage {sn} has no material inlet. "
+                "Chemistry reconciliation must provide an accepted liquid feed."
+            )
         _connect(ops, streams, sc, prev_op, reactor_id)
         prev_op = reactor_id
 
@@ -1944,6 +1952,7 @@ def _inventory_preflight_result(
     return result
 
 
+@with_runtime_model_routing
 def translate(
     batch_input: str | dict,
     inventory_path: str = str(LAB_INVENTORY_PATH),

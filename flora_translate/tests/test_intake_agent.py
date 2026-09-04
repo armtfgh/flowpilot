@@ -107,6 +107,44 @@ def test_protocol_stated_identity_is_frozen_without_extra_llm_authority():
     }
 
 
+def test_plain_language_chemist_identity_closes_the_required_question():
+    agent = IntakeAgent()
+    initial = agent.analyze(
+        "Compound A was treated with reagent B and afforded compound C.",
+        use_llm=False,
+    )
+    assert "Q-CHEM-001" in initial.missing_question_ids
+
+    package = agent.analyze(
+        initial.raw_protocol,
+        existing_package=initial,
+        answers=[
+            IntakeAnswer(
+                question_id="Q-CHEM-001",
+                answer="Ring closure of precursor A gives cyclic product C.",
+            )
+        ],
+        use_llm=False,
+    )
+
+    assert "Q-CHEM-001" not in package.missing_question_ids
+    assert package.chemistry_identity_confirmation["confirmed"] is True
+    assert package.chemistry_identity_confirmation["chemist_description"].startswith(
+        "Ring closure"
+    )
+
+
+def test_required_chemist_identity_cannot_be_marked_unavailable():
+    package = IntakeAgent().analyze(
+        "Compound A was treated with reagent B and afforded compound C.",
+        answers=[IntakeAnswer(question_id="Q-CHEM-001", status="unavailable")],
+        use_llm=False,
+    )
+
+    assert "Q-CHEM-001" in package.missing_question_ids
+    assert not package.ready_for_design
+
+
 def test_intake_context_block_preserves_authority_labels():
     package = DesignInputPackage(
         raw_protocol="A to B.",
@@ -123,3 +161,44 @@ def test_intake_context_block_preserves_authority_labels():
     assert "measured evidence > hard constraints > protocol facts" in block
     assert "Measured: 10% product" in block
     assert "photon limitation" in block
+
+
+def test_intake_context_compacts_inventory_answer_without_losing_capabilities():
+    equipment = {
+        "equipment_id": "KHU-REACTOR-10ML",
+        "name": "KHU 10 mL PFA coil",
+        "volume_mL": 10,
+        "ID_mm": 1.0,
+        "max_pressure_bar": 8,
+        "notes": "x" * 40000,
+    }
+    package = DesignInputPackage(
+        raw_protocol="A to B.",
+        objective="screen",
+        inventory_constraints={"reactors": [equipment]},
+        answers=[
+            IntakeAnswer(question_id="Q-INV-001", answer={"reactors": [equipment]})
+        ],
+        ready_for_design=True,
+    )
+
+    block = intake_context_block(package)
+
+    assert "KHU-REACTOR-10ML" in block
+    assert '"volume_mL": 10' in block
+    assert len(block) < 5000
+
+
+def test_fallback_extract_preserves_explicit_photocatalyst_and_solvent():
+    protocol = (
+        "Photocatalyst: Ir(dF(CF3)ppy)2(dtbpy)PF6, 0.5 mol%. "
+        "Solvent: EtOH/pH 9 aqueous buffer, 5:1 v/v. Concentration: 0.10 M. "
+        "Irradiate with a 452 nm LED under argon."
+    )
+
+    package = IntakeAgent().analyze(protocol, use_llm=False)
+
+    assert package.extracted_batch_fields["photocatalyst"] == "Ir(dF(CF3)ppy)2(dtbpy)PF6"
+    assert package.extracted_batch_fields["catalyst_loading_mol_pct"] == 0.5
+    assert package.extracted_batch_fields["solvent"] == "EtOH/pH 9 aqueous buffer, 5:1 v/v"
+    assert package.extracted_batch_fields["atmosphere"] == "argon"

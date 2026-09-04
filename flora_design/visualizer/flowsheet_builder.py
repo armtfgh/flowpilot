@@ -31,6 +31,7 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 from copy import deepcopy
 from collections import defaultdict
 from html import escape
@@ -70,21 +71,53 @@ SEPARATOR_TYPES = {
 
 
 def _ensure_graphviz_on_path() -> str | None:
-    """Resolve Graphviz from PATH or beside the active Conda Python."""
+    """Resolve Graphviz from PATH, Python, Conda, or a portable bundle."""
+
+    # Graphviz/fontconfig may run under a service account without a writable
+    # home cache. Give it a process-local cache so rendering remains reliable.
+    cache_root = Path(
+        os.environ.setdefault(
+            "XDG_CACHE_HOME",
+            str(Path(tempfile.gettempdir()) / "flowpilot-font-cache"),
+        )
+    )
+    cache_root.mkdir(parents=True, exist_ok=True)
 
     executable = shutil.which("dot")
     if executable:
         return executable
 
     environment_bin = Path(sys.executable).resolve().parent
-    candidate = environment_bin / "dot"
-    if not candidate.is_file():
+    home = Path.home()
+    candidates = [
+        environment_bin / "dot",
+        environment_bin / "dot.exe",
+        environment_bin / "graphviz" / "bin" / "dot",
+        environment_bin / "graphviz" / "bin" / "dot.exe",
+        # FlowPilot may run from its own virtualenv while Graphviz is supplied
+        # by a neighbouring Conda environment.
+        home / "anaconda3" / "envs" / "flent" / "bin" / "dot",
+        home / "miniconda3" / "envs" / "flent" / "bin" / "dot",
+    ]
+    conda_exe = os.environ.get("CONDA_EXE")
+    if conda_exe:
+        conda_root = Path(conda_exe).resolve().parent.parent
+        candidates.extend(
+            [
+                conda_root / "bin" / "dot",
+                conda_root / "envs" / "flent" / "bin" / "dot",
+                conda_root / "Library" / "bin" / "dot.exe",
+            ]
+        )
+    candidate = next((path for path in candidates if path.is_file()), None)
+    if candidate is None:
         return None
 
+    graphviz_bin = str(candidate.parent)
     current_path = os.environ.get("PATH", "")
     path_entries = current_path.split(os.pathsep) if current_path else []
-    if str(environment_bin) not in path_entries:
-        os.environ["PATH"] = os.pathsep.join([str(environment_bin), *path_entries])
+    if graphviz_bin not in path_entries:
+        os.environ["PATH"] = os.pathsep.join([graphviz_bin, *path_entries])
     return str(candidate)
 
 # ── Graph-level style ─────────────────────────────────────────────────────────

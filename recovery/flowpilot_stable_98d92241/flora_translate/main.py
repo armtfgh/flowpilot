@@ -1,0 +1,1654 @@
+"""FLORA-Translate — Main entry point.
+
+Pipeline:
+  BatchRecord
+    → ChemistryAgent          (Layer 1 — pure chemistry analysis)
+    → plan-aware Retrieval    (Layer 2 — better semantic search)
+    → TranslationLLM          (Layer 2 — proposal grounded in plan + analogies)
+    → ENGINE + ChemValidator  (Layer 3 — engineering + chemistry validation)
+    → ProcessTopology builder (converts validated proposal → chemistry-aware diagram)
+    → FlowsheetBuilder        (SVG/PNG diagram with actual chemical names)
+    → OutputFormatter
+"""
+
+import json
+import logging
+import re
+import sys
+from pathlib import Path
+
+from flora_translate.analogy_selector import AnalogySelector
+from flora_translate.config import LAB_INVENTORY_PATH, RECORDS_DIR
+from flora_translate.engine.council_v4 import CouncilV4
+from flora_translate.intake_agent import (
+    batch_input_from_package,
+    historical_text_from_package,
+    intake_context_block,
+)
+from flora_translate.inventory_constraints import enforce_reactor_inventory
+from flora_translate.lightweight_upstream import analyze_batch_chemistry, parse_batch_input
+from flora_translate.output_formatter import OutputFormatter
+from flora_translate.prompt_builder import TranslationPromptBuilder
+from flora_translate.retriever import VectorRetriever
+from flora_translate.schemas import (
+    BatchRecord,
+    ChemistryPlan,
+    DesignInputPackage,
+    FlowProposal,
+    LabInventory,
+    LightSourceSpec,
+    ProcessStage,
+    ProcessTopology,
+    ReactorSpec,
+    StreamConnection,
+    UnitOperation,
+)
+from flora_translate.translation_llm import TranslationLLM
+from flora_translate.vector_store import VectorStore
+
+logger = logging.getLogger("flora.translate")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+OUTPUT_DIR = Path("outputs")
+ROUTINE_GAS_LIQUID_BPR_MAX_BAR = 10.0
+
+
+def _safe_float(value, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_intake_package(intake_package) -> DesignInputPackage | None:
+    if intake_package is None:
+        return None
+    if isinstance(intake_package, DesignInputPackage):
+        package = intake_package
+    else:
+        package = DesignInputPackage.model_validate(intake_package)
+    if not package.ready_for_design:
+        missing = ", ".join(package.missing_question_ids or [])
+        raise ValueError(
+            "DesignInputPackage is not ready for design"
+            + (f"; missing intake questions: {missing}" if missing else "")
+        )
+    return package
+
+
+def _inventory_from_intake_or_path(
+    intake_package: DesignInputPackage | None,
+    inventory_path: str,
+) -> LabInventory:
+    inventory_payload = None
+    if intake_package is not None:
+        inventory_payload = intake_package.inventory_constraints
+        if isinstance(inventory_payload, str):
+            stripped = inventory_payload.strip()
+            if stripped.startswith("{"):
+                try:
+                    inventory_payload = json.loads(stripped)
+                except json.JSONDecodeError:
+                    inventory_payload = None
+            else:
+                parsed = _lab_inventory_from_text(stripped)
+                if parsed and parsed.reactors:
+                    return parsed
+                inventory_payload = None
+    if isinstance(inventory_payload, dict):
+        try:
+            return LabInventory.model_validate(inventory_payload)
+        except Exception as exc:
+            logger.warning("Intake inventory was not valid LabInventory JSON; using path inventory: %s", exc)
+    return LabInventory.from_json(inventory_path)
+
+
+def _lab_inventory_from_text(text: str) -> LabInventory | None:
+    """Parse the standardized intake inventory text into LabInventory.
+
+    This intentionally handles the compact human-readable inventory block
+    emitted by ``inventory_prompt_block`` so hard constraints are not lost when
+    a user pastes inventory as text instead of JSON.
+    """
+
+    text = str(text or "")
+    if not text.strip():
+        return None
+
+    reactors: list[ReactorSpec] = []
+    light_sources: list[LightSourceSpec] = []
+    bpr_available: list[float] = []
+
+    bpr_match = re.search(r"Available BPR/pressure settings:\s*\[([^\]]+)\]", text, flags=re.IGNORECASE)
+    if bpr_match:
+        bpr_available = [
+            float(v)
+            for v in re.findall(r"[-+]?\d+(?:\.\d+)?", bpr_match.group(1))
+        ]
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("- "):
+            continue
+        item = line[2:].strip()
+
+        if re.search(r"\b\d+(?:\.\d+)?\s*mL\b", item, flags=re.IGNORECASE) and re.search(
+            r"\b\d+(?:\.\d+)?\s*mm\s*ID\b", item, flags=re.IGNORECASE
+        ):
+            reactors.append(_parse_inventory_reactor_line(item))
+            continue
+
+        if re.search(r"\b\d+(?:\.\d+)?\s*nm\b", item, flags=re.IGNORECASE):
+            src = _parse_inventory_light_line(item)
+            if src:
+                light_sources.append(src)
+
+    if not reactors and not light_sources and not bpr_available:
+        return None
+    return LabInventory(
+        reactors=reactors,
+        light_sources=light_sources,
+        BPR_available=bpr_available,
+    )
+
+
+def _parse_inventory_reactor_line(item: str) -> ReactorSpec:
+    header, _, rest = item.partition(":")
+    body = rest or item
+    full_name = header.strip() if rest else item.strip()
+
+    system = ""
+    name = full_name
+    for prefix in ("Vapourtec System", "Manual Setup"):
+        if full_name.startswith(prefix):
+            system = prefix
+            name = full_name[len(prefix):].strip() or full_name
+            break
+
+    volume = _safe_float(_first_match(body, r"(\d+(?:\.\d+)?)\s*mL\b"), 0.0)
+    id_mm = _safe_float(_first_match(body, r"(\d+(?:\.\d+)?)\s*mm\s*ID\b"), 1.0)
+    material_match = re.search(r"\b(FEP|PFA|PTFE|SS|stainless steel)\b", body, flags=re.IGNORECASE)
+    material = (material_match.group(1).upper() if material_match else "FEP").replace("STAINLESS STEEL", "SS")
+
+    constraints = item[item.find("(") + 1:item.rfind(")")] if "(" in item and ")" in item else item
+    temp_allowed = [
+        float(v)
+        for v in re.findall(r"T\s+in\s+\[([^\]]+)\]", constraints, flags=re.IGNORECASE)
+        for v in re.findall(r"[-+]?\d+(?:\.\d+)?", v)
+    ]
+    temp_range = _range_from_text(constraints, r"T\s+")
+    conc_range = _range_from_text(constraints, r"C\s+")
+    pressure_range = _range_from_text(constraints, r"P\s+")
+    wavelength = _safe_float(_first_match(constraints, r"lambda\s+(\d+(?:\.\d+)?)\s*nm"), 0.0) or None
+    intensity = _safe_float(_first_match(constraints, r"(\d+(?:\.\d+)?)\s*mW/cm2"), 0.0) or None
+
+    light_source = ""
+    if "vapourtec" in system.lower() and wavelength:
+        light_source = f"Vapourtec mirrored LED bar {wavelength:g} nm"
+    elif "manual" in system.lower() and wavelength:
+        light_source = f"Manual strip LED {wavelength:g} nm"
+
+    irradiation = ""
+    lower = item.lower()
+    if "mirrored" in lower:
+        irradiation = "bilateral 360 irradiation with mirrored photoreactor"
+    elif "360" in lower:
+        irradiation = "standard 360 irradiation"
+
+    return ReactorSpec(
+        name=name,
+        system=system,
+        type="coil",
+        material=material,
+        volume_mL=volume,
+        ID_mm=id_mm,
+        light_source=light_source,
+        wavelength_nm=wavelength,
+        intensity_mW_cm2=intensity,
+        irradiation=irradiation,
+        min_temperature_C=temp_range[0],
+        max_temperature_C=temp_range[1],
+        allowed_temperatures_C=temp_allowed,
+        min_concentration_M=conc_range[0],
+        max_concentration_M=conc_range[1],
+        min_pressure_bar=pressure_range[0],
+        max_pressure_bar=pressure_range[1],
+    )
+
+
+def _parse_inventory_light_line(item: str) -> LightSourceSpec | None:
+    header, _, rest = item.partition(":")
+    source_text = rest or item
+    wavelength = _safe_float(_first_match(source_text, r"(\d+(?:\.\d+)?)\s*nm"), 0.0)
+    if wavelength <= 0:
+        return None
+    intensity = _safe_float(_first_match(source_text, r"(\d+(?:\.\d+)?)\s*mW/cm2"), 0.0) or None
+    return LightSourceSpec(
+        name=header.strip() or f"LED {wavelength:g} nm",
+        wavelength_nm=wavelength,
+        power_W=0.0,
+        compatible_reactor="coil",
+        intensity_mW_cm2=intensity,
+    )
+
+
+def _first_match(text: str, pattern: str) -> str | None:
+    match = re.search(pattern, text, flags=re.IGNORECASE)
+    return match.group(1) if match else None
+
+
+def _range_from_text(text: str, prefix_pattern: str) -> tuple[float | None, float | None]:
+    match = re.search(prefix_pattern + r"([-+]?\d+(?:\.\d+)?)\s*[-–]\s*([-+]?\d+(?:\.\d+)?)", text, flags=re.IGNORECASE)
+    if not match:
+        return None, None
+    return float(match.group(1)), float(match.group(2))
+
+
+def _reconcile_final_bpr(result: dict, design_candidate=None) -> None:
+    """Keep final BPR tied to the validated winner, not stale pre-council math."""
+    calc = result.get("design_calculations") or {}
+    proposal = result.get("proposal") or {}
+    if not calc.get("is_gas_liquid"):
+        return
+
+    proposal_bpr = _safe_float(proposal.get("BPR_bar"))
+    calc_bpr = _safe_float(calc.get("bpr_pressure_bar"))
+    final_bpr = max(proposal_bpr, 5.0)
+
+    note = ""
+    if calc_bpr > final_bpr + 0.1:
+        note = (
+            f"Calculator BPR {calc_bpr:.1f} bar exceeds proposal BPR "
+            f"{final_bpr:.1f} bar; this is treated as a validation warning, "
+            "not silently promoted to the final proposal."
+        )
+    if final_bpr > ROUTINE_GAS_LIQUID_BPR_MAX_BAR:
+        note = (
+            f"Final BPR {final_bpr:.1f} bar exceeds the "
+            f"{ROUTINE_GAS_LIQUID_BPR_MAX_BAR:.0f} bar routine gas-liquid ceiling. "
+            "This design requires geometry redesign or manual hardware review."
+        )
+        proposal["engine_validated"] = False
+        flags = proposal.setdefault("safety_flags", [])
+        if isinstance(flags, list):
+            flags.append("SCREEN_REQUIRED: BPR exceeds routine gas-liquid hardware ceiling")
+
+    proposal["BPR_bar"] = round(final_bpr, 1)
+    calc["bpr_required"] = True
+    calc["bpr_pressure_bar"] = round(final_bpr, 1)
+    if note:
+        calc["bpr_reconciliation_note"] = note
+    try:
+        design_candidate.proposal.BPR_bar = round(final_bpr, 1)
+    except Exception:
+        pass
+
+
+def _is_quench_stream_dict(stream: dict) -> bool:
+    role = str(stream.get("pump_role") or "").lower()
+    return any(k in role for k in ("quench", "neutraliz", "neutralis", "workup", "post-reactor"))
+
+
+def _stream_dict_is_gas(stream: dict) -> bool:
+    from types import SimpleNamespace
+
+    return _stream_is_gas(SimpleNamespace(**stream))
+
+
+def _sync_final_stream_flowrates(result: dict, design_candidate=None) -> None:
+    """Make per-stream pump rates match the final proposal/calculator.
+
+    The Chief may initially derive stream rates from molar flow and feed
+    concentrations. Later deterministic gas-liquid sizing can change the final
+    authoritative liquid flow. Without this pass, Summary/Engineering can show
+    the final Q while Stream Assignments and topology still show stale pump Q.
+    """
+    proposal = result.get("proposal") or {}
+    streams = proposal.get("streams") or []
+    if not streams:
+        return
+
+    calc = result.get("design_calculations") or {}
+    target_liquid_q = _safe_float(
+        calc.get("liquid_flow_rate_mL_min"),
+        _safe_float(proposal.get("flow_rate_mL_min")),
+    )
+    if target_liquid_q <= 0:
+        target_liquid_q = _safe_float(proposal.get("flow_rate_mL_min"))
+
+    liquid_streams = [
+        s for s in streams
+        if not _stream_dict_is_gas(s) and not _is_quench_stream_dict(s)
+    ]
+    if target_liquid_q > 0 and liquid_streams:
+        current_sum = sum(_safe_float(s.get("flow_rate_mL_min")) for s in liquid_streams)
+        if len(liquid_streams) == 1:
+            assignments = {id(liquid_streams[0]): round(target_liquid_q, 5)}
+        elif current_sum > 0:
+            scale = target_liquid_q / current_sum
+            assignments = {
+                id(s): round(_safe_float(s.get("flow_rate_mL_min")) * scale, 5)
+                for s in liquid_streams
+            }
+        else:
+            equal = round(target_liquid_q / len(liquid_streams), 5)
+            assignments = {id(s): equal for s in liquid_streams}
+
+        for s in liquid_streams:
+            old_rate = _safe_float(s.get("flow_rate_mL_min"))
+            new_rate = assignments[id(s)]
+            if abs(old_rate - new_rate) > 1e-5:
+                s["flow_rate_mL_min"] = new_rate
+                note = (
+                    f"Final synchronization: liquid pump rate set to {new_rate:.5f} "
+                    f"mL/min so Σ liquid reactor feeds = final Q_liquid "
+                    f"{target_liquid_q:.5f} mL/min."
+                )
+                existing = str(s.get("reasoning") or "").strip()
+                s["reasoning"] = f"{existing}\n{note}".strip() if existing else note
+
+    gas_sccm = calc.get("gas_flow_sccm")
+    gas_actual = calc.get("gas_flow_actual_mL_min")
+    target_gas_equiv = _safe_float(calc.get("target_gas_equiv_inlet"))
+    supplied_gas_equiv = _safe_float(calc.get("o2_equiv_supplied"))
+    for s in streams:
+        if not _stream_dict_is_gas(s):
+            continue
+        s["phase"] = "gas"
+        if gas_sccm is not None:
+            s["gas_flow_sccm"] = round(_safe_float(gas_sccm), 4)
+        if gas_actual is not None:
+            s["gas_flow_actual_mL_min"] = round(_safe_float(gas_actual), 5)
+            s["flow_rate_mL_min"] = round(_safe_float(gas_actual), 5)
+        if target_gas_equiv > 0:
+            s["molar_equiv"] = round(target_gas_equiv, 4)
+            s["reasoning"] = (
+                "Deterministic gas stoichiometry: inlet/STP MFC flow was "
+                f"recomputed from target O2 equivalents ({target_gas_equiv:.2f} equiv), "
+                f"liquid flow {target_liquid_q:.5f} mL/min, and substrate concentration. "
+                f"Pressure-corrected in-channel gas flow is reported separately; "
+                f"supplied O2 equiv = {supplied_gas_equiv:.2f}."
+            )
+
+    # Mirror the synchronized dict streams back into the Pydantic proposal used
+    # by topology generation.
+    try:
+        from flora_translate.schemas import StreamAssignment
+
+        design_candidate.proposal.streams = [StreamAssignment(**s) for s in streams]
+    except Exception:
+        pass
+
+
+def _apply_final_design_guards(result: dict, design_candidate=None) -> None:
+    """Reject final JSON that violates measured evidence or O2 stoichiometry."""
+
+    proposal = result.get("proposal") or {}
+    calc = result.get("design_calculations") or {}
+    flags = proposal.setdefault("safety_flags", [])
+    if not isinstance(flags, list):
+        flags = [str(flags)]
+        proposal["safety_flags"] = flags
+
+    calibration = proposal.get("evidence_calibration") or {}
+    if calibration:
+        basis_label = str(calibration.get("primary_residence_time_basis") or "").lower()
+        best_response = _safe_float(calibration.get("best_response_pct"))
+        target_response = _safe_float(calibration.get("target_response_pct"))
+        if "inlet" in basis_label or "stp" in basis_label:
+            final_tau = _safe_float(
+                proposal.get("residence_time_inlet_min"),
+                _safe_float(proposal.get("residence_time_min")),
+            )
+            best_tau = _safe_float(
+                calibration.get("best_tau_inlet_min"),
+                _safe_float(calibration.get("best_tau_min")),
+            )
+        elif "channel" in basis_label:
+            final_tau = _safe_float(
+                proposal.get("residence_time_in_channel_min"),
+                _safe_float(proposal.get("residence_time_min")),
+            )
+            best_tau = _safe_float(
+                calibration.get("best_tau_in_channel_min"),
+                _safe_float(calibration.get("best_tau_min")),
+            )
+        else:
+            final_tau = _safe_float(proposal.get("residence_time_min"))
+            best_tau = _safe_float(calibration.get("best_tau_min"))
+        if best_tau > 0 and final_tau > 0 and best_response < target_response and final_tau < best_tau * 0.999:
+            proposal["engine_validated"] = False
+            flags.append(
+                "BLOCKED: final residence time is below the best measured evidence anchor "
+                f"({final_tau:.2f} < {best_tau:.2f} min) while response is still below target."
+            )
+
+    target_equiv = _safe_float(calc.get("target_gas_equiv_inlet"))
+    supplied_equiv = _safe_float(calc.get("o2_equiv_supplied"))
+    if calc.get("is_gas_liquid") and target_equiv > 0:
+        if supplied_equiv <= 0 or supplied_equiv < target_equiv * 0.95:
+            proposal["engine_validated"] = False
+            flags.append(
+                "BLOCKED: final O2 feed does not meet the target inlet/STP equivalents "
+                f"({supplied_equiv:.2f} supplied vs {target_equiv:.2f} target)."
+            )
+        proposal.setdefault("multiphase_metrics", {})["target_gas_equiv_inlet"] = target_equiv
+        proposal.setdefault("multiphase_metrics", {})["o2_equiv_supplied"] = supplied_equiv
+
+    try:
+        design_candidate.proposal = FlowProposal(**proposal)
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Chemistry-aware topology builder
+# ---------------------------------------------------------------------------
+
+def _build_translate_topology(
+    proposal: FlowProposal,
+    chemistry_plan: ChemistryPlan | None,
+    batch_record: BatchRecord,
+) -> ProcessTopology:
+    """Convert a FlowProposal + ChemistryPlan into a ProcessTopology.
+
+    Handles both single-step and multi-step processes:
+    - Single-step: pumps → mixer → [degas] → reactor → [BPR] → [quench] → collector
+    - Multi-step: each stage gets its own reactor zone with mid-stream
+      injection points, inter-stage quench/filter/solvent-switch operations.
+    """
+    # Dispatch: multi-step if ChemistryPlan has stages
+    if chemistry_plan and chemistry_plan.stages and chemistry_plan.n_stages > 1:
+        return _build_multistep_topology(proposal, chemistry_plan, batch_record)
+    return _build_singlestep_topology(proposal, chemistry_plan, batch_record)
+
+
+def _connect(ops, streams, counter, from_op, to_op, label=""):
+    """Helper: add a stream connection."""
+    counter[0] += 1
+    streams.append(StreamConnection(
+        stream_id=f"s{counter[0]}", from_op=from_op,
+        to_op=to_op, stream_type="liquid", label=label
+    ))
+
+
+_GAS_IDENTITIES = {
+    "n2", "n₂", "nitrogen", "o2", "o₂", "oxygen", "co2", "co₂", "h2", "h₂",
+    "hydrogen", "ar", "argon", "he", "helium", "air", "compressed air",
+    "co", "carbon monoxide", "cl2", "chlorine", "nh3", "ammonia",
+    "so2", "sulfur dioxide", "n2o", "nitrous oxide",
+}
+_GAS_PHASE_WORDS = {"gas", "gaseous", "vapor", "vapour", "mfc"}
+_LIQUID_PHASE_WORDS = {
+    "liquid", "solution", "solvent", "dissolved", "degassed", "sparged",
+    "reagent", "substrate",
+}
+
+
+def _normalized_words(text: str) -> list[str]:
+    return re.sub(r"[^a-z0-9₂]+", " ", str(text).lower()).split()
+
+
+def _has_explicit_gas_identity(text: str) -> bool:
+    normalized = " " + " ".join(_normalized_words(text)) + " "
+    for kw in _GAS_IDENTITIES:
+        key = re.sub(r"[^a-z0-9₂]+", " ", kw.lower()).strip()
+        if key and f" {key} " in normalized:
+            return True
+    return False
+
+
+def _is_gas_phase_value(value) -> bool:
+    words = set(_normalized_words(value))
+    return bool(words & _GAS_PHASE_WORDS) and not bool(words & _LIQUID_PHASE_WORDS)
+
+
+def _has_real_solvent(value) -> bool:
+    if value is None:
+        return False
+    normalized = " ".join(_normalized_words(value))
+    return normalized not in {"", "none", "no solvent", "na", "n a", "null", "gas"}
+
+
+def _is_pure_gas_text(text: str) -> bool:
+    words = set(_normalized_words(text))
+    if not _has_explicit_gas_identity(text):
+        return False
+    if words & _LIQUID_PHASE_WORDS:
+        return False
+    return True
+
+
+def _is_gas_contents(contents) -> bool:
+    if isinstance(contents, str):
+        contents = [contents]
+    items = [str(c).strip() for c in (contents or []) if str(c).strip()]
+    return bool(items) and all(_is_pure_gas_text(item) for item in items)
+
+def _stream_is_gas(stream) -> bool:
+    """True only for genuine gas feed streams (not degassed liquid solutions)."""
+    phase = getattr(stream, "phase", None) or getattr(stream, "state", None)
+    if phase and _is_gas_phase_value(phase):
+        return True
+    if phase and set(_normalized_words(phase)) & _LIQUID_PHASE_WORDS:
+        return False
+
+    role = getattr(stream, "pump_role", None) or ""
+    role_words = set(_normalized_words(role))
+    if role_words & {"quench", "neutralization", "neutralisation", "workup"}:
+        return False
+    if _is_gas_phase_value(role):
+        return True
+    if _is_pure_gas_text(role):
+        return True
+
+    solvent = getattr(stream, "solvent", None)
+    if _has_real_solvent(solvent):
+        return False
+
+    contents = (
+        getattr(stream, "contents", None)
+        or getattr(stream, "reagents", None)
+        or []
+    )
+    return _is_gas_contents(contents)
+
+
+def _enforce_gas_delivery_hardware(ops: list[UnitOperation]) -> None:
+    """Final topology pass: gas delivery streams must use MFC nodes."""
+    for op in ops:
+        if op.op_type not in ("pump", "mfc"):
+            continue
+        p = op.parameters or {}
+        phase = p.get("phase") or p.get("state") or p.get("stream_type")
+        has_solvent = bool(p.get("solvent"))
+        contents = p.get("contents") or p.get("components") or []
+
+        is_gas = False
+        if phase and _is_gas_phase_value(phase):
+            is_gas = True
+        elif phase and set(_normalized_words(phase)) & _LIQUID_PHASE_WORDS:
+            is_gas = False
+        elif not has_solvent and _is_gas_contents(contents):
+            is_gas = True
+        elif not has_solvent and not contents and _is_pure_gas_text(op.label or ""):
+            is_gas = True
+
+        if not is_gas:
+            continue
+        op.op_type = "mfc"
+        if not str(op.label or "").lower().startswith("mfc"):
+            label = str(op.label or "").replace("Pump", "MFC", 1)
+            op.label = label if label.startswith("MFC") else f"MFC — {label}"
+        p["delivery_hardware"] = "MFC"
+        op.parameters = p
+
+
+def _add_pump(ops, label_char, role, contents, solvent, flow_rate, reasoning,
+              is_gas: bool = False, gas_flow_sccm=None, gas_flow_actual_mL_min=None):
+    """Helper: create a pump (or MFC for gas) UnitOperation."""
+    op_id = f"pump_{label_char.lower()}"
+    ops.append(UnitOperation(
+        op_id=op_id, op_type="mfc" if is_gas else "pump",
+        label=f"{'MFC' if is_gas else 'Pump'} {label_char} — {role}",
+        parameters={
+            "stream": label_char,
+            "contents": contents,
+            "solvent": solvent,
+            "flow_rate_mL_min": flow_rate,
+            "phase": "gas" if is_gas else "liquid",
+            "gas_flow_sccm": gas_flow_sccm,
+            "gas_flow_actual_mL_min": gas_flow_actual_mL_min,
+        },
+        required=True, rationale=reasoning,
+    ))
+    return op_id
+
+
+def _stoich_flow_rates(streams_list, total_Q: float) -> list[float]:
+    """Compute per-stream flow rates from molar_equiv and concentration.
+
+    weight_i = equiv_i / conc_i  (volume of stream i needed per unit substrate volume)
+    Q_i = total_Q × weight_i / Σweights
+
+    Falls back to equal split if all equivs are 1.0 and no concentrations differ.
+    Gas streams are excluded from the calculation (they get zero Q from this function).
+    """
+    liquid = [s for s in streams_list if not _stream_is_gas(s)]
+    if not liquid:
+        return [0.0] * len(streams_list)
+
+    equivs = [max(getattr(s, "molar_equiv", 1.0) or 1.0, 1e-9) for s in liquid]
+    concs  = [max(getattr(s, "concentration_M", None) or 1.0, 1e-9) for s in liquid]
+    weights = [e / c for e, c in zip(equivs, concs)]
+    total_w = sum(weights)
+    qs_liquid = [round(total_Q * w / total_w, 4) for w in weights]
+
+    # Re-expand to full list (gas streams get 0 here — handled separately)
+    liq_iter = iter(qs_liquid)
+    return [0.0 if _stream_is_gas(s) else next(liq_iter) for s in streams_list]
+
+
+def _is_quench_stream(s, chemistry_plan) -> bool:
+    """Classify a stream as a quench/workup stream.
+
+    Quench streams are injected AFTER the main reactor at a separate mixer.
+    They must never feed into the main reactor's T-mixer, or Pump C ends up
+    plumbed to two places at once.
+    """
+    role = (getattr(s, "pump_role", "") or "").lower()
+    if any(kw in role for kw in ("quench", "neutraliz", "workup", "post-reactor")):
+        return True
+    # Also match if the stream contents mention the plan's quench_reagent
+    qr = (getattr(chemistry_plan, "quench_reagent", "") or "").lower() if chemistry_plan else ""
+    if qr:
+        contents = getattr(s, "contents", None) or []
+        for c in contents:
+            if qr in str(c).lower():
+                return True
+    return False
+
+
+def _build_singlestep_topology(proposal, chemistry_plan, batch_record):
+    """Linear single-step topology.
+
+    Design contract — ONE SOURCE OF TRUTH:
+      Every flow rate shown in the diagram comes from proposal.streams
+      (populated by the Chief Engineer). This function does not recompute
+      pump rates from stoichiometry when proposal.streams already carries
+      Chief-normalised values.
+
+    Stream classification:
+      • reactor_feeds → pumps feed the main T-mixer → reactor
+      • quench_streams → injected at a post-reactor Quench T-mixer
+      A stream is NEVER both; this prevents Pump C appearing twice.
+
+    Q conservation:
+      Q_reactor_inlet = Σ Q_i (reactor_feeds)
+      Q_quench_inlet  = Q_reactor_inlet + Σ Q_j (quench_streams)
+    """
+    import math
+
+    ops: list[UnitOperation] = []
+    streams: list[StreamConnection] = []
+    sc = [0]
+
+    is_photochem = proposal.wavelength_nm is not None
+
+    # ── Classify streams ───────────────────────────────────────────────────
+    all_streams = list(proposal.streams or [])
+    reactor_feeds = [s for s in all_streams if not _is_quench_stream(s, chemistry_plan)]
+    quench_streams = [s for s in all_streams if _is_quench_stream(s, chemistry_plan)]
+
+    # ── Pumps for reactor feeds (only) ─────────────────────────────────────
+    pump_ids = []
+    if reactor_feeds:
+        total_Q = proposal.flow_rate_mL_min or 0.5
+        # Only compute stoichiometric split as a fallback when a stream
+        # lacks an explicit flow_rate_mL_min.
+        qs_fallback = _stoich_flow_rates(reactor_feeds, total_Q)
+        for s, fr_fallback in zip(reactor_feeds, qs_fallback):
+            fr = s.flow_rate_mL_min if s.flow_rate_mL_min else fr_fallback
+            gas_sccm = getattr(s, "gas_flow_sccm", None)
+            gas_actual = getattr(s, "gas_flow_actual_mL_min", None)
+            if _stream_is_gas(s) and not gas_sccm:
+                gas_sccm = (proposal.multiphase_metrics or {}).get("gas_flow_sccm")
+                gas_actual = (proposal.multiphase_metrics or {}).get("gas_flow_actual_mL_min")
+                fr = gas_actual if gas_actual is not None else fr
+            pid = _add_pump(ops, s.stream_label, s.pump_role,
+                            s.contents, s.solvent, fr, s.reasoning or "",
+                            is_gas=_stream_is_gas(s),
+                            gas_flow_sccm=gas_sccm,
+                            gas_flow_actual_mL_min=gas_actual)
+            pump_ids.append(pid)
+    else:
+        default_Q = round((proposal.flow_rate_mL_min or 0.5) / 2, 4)
+        for lbl in ("A", "B"):
+            pid = _add_pump(ops, lbl, "reagent", [], "", default_Q, "")
+            pump_ids.append(pid)
+
+    # ── Main T-mixer: reactor feeds only ───────────────────────────────────
+    ops.append(UnitOperation(op_id="mixer_1", op_type="mixer",
+        label=proposal.mixer_type or "T-Mixer",
+        parameters={"type": proposal.mixer_type or "T-mixer", "material": "PEEK"},
+        required=True, rationale=proposal.mixing_order_reasoning or "Combine reactor feeds"))
+    for pid in pump_ids:
+        _connect(ops, streams, sc, pid, "mixer_1")
+    prev = "mixer_1"
+
+    # ── Deoxygenation ──────────────────────────────────────────────────────
+    deoxy = proposal.deoxygenation_method
+    if not deoxy and chemistry_plan and chemistry_plan.deoxygenation_required:
+        deoxy = "N2 sparging"
+    if deoxy:
+        ops.append(UnitOperation(op_id="deoxy_1", op_type="deoxygenation_unit",
+            label="Inline Deoxygenation", parameters={"method": deoxy},
+            required=True, rationale=chemistry_plan.deoxygenation_reasoning if chemistry_plan else ""))
+        _connect(ops, streams, sc, prev, "deoxy_1")
+        prev = "deoxy_1"
+
+    # ── Main reactor ───────────────────────────────────────────────────────
+    mat = proposal.tubing_material
+    reactor_type = (proposal.reactor_type or "coil").lower()
+    if "packed" in reactor_type or "bed" in reactor_type:
+        reactor_op_type = "packed_bed_reactor"
+        reactor_label = f"{mat} Packed-Bed Reactor"
+    else:
+        reactor_op_type = "photoreactor" if is_photochem else "coil_reactor"
+        reactor_label = f"{mat} Photoreactor Coil" if is_photochem else f"{mat} Flow Reactor Coil"
+    vol = proposal.reactor_volume_mL
+    id_mm = proposal.tubing_ID_mm
+    length = round((vol * 1e-6) / (math.pi * (id_mm * 5e-4) ** 2), 2) if vol and id_mm else None
+    # Q entering the main reactor = sum of reactor_feed pump rates (gas excluded)
+    Q_reactor_inlet = sum(
+        (s.flow_rate_mL_min or 0.0)
+        for s in reactor_feeds
+        if not _stream_is_gas(s)
+    ) or proposal.flow_rate_mL_min or 0.0
+    ops.append(UnitOperation(op_id="reactor_1", op_type=reactor_op_type,
+        label=reactor_label, parameters={
+            "material": mat, "ID_mm": id_mm, "volume_mL": vol,
+            "Q_inlet_mL_min": round(Q_reactor_inlet, 4),
+            "temperature_C": proposal.temperature_C, "wavelength_nm": proposal.wavelength_nm,
+            "length_m": length, "residence_time_min": proposal.residence_time_min,
+            "reactor_type": proposal.reactor_type,
+        }, required=True, rationale="Flow reactor"))
+    _connect(ops, streams, sc, prev, "reactor_1")
+    prev = "reactor_1"
+
+    # ── LED ────────────────────────────────────────────────────────────────
+    if is_photochem:
+        ops.append(UnitOperation(op_id="led_1", op_type="led_module",
+            label=f"LED {proposal.wavelength_nm:.0f} nm",
+            parameters={"wavelength_nm": proposal.wavelength_nm},
+            required=True, rationale="Photoexcitation"))
+
+    # ── BPR ────────────────────────────────────────────────────────────────
+    if proposal.BPR_bar and proposal.BPR_bar > 0:
+        ops.append(UnitOperation(op_id="bpr_1", op_type="bpr",
+            label="BPR", parameters={"pressure_bar": proposal.BPR_bar},
+            required=True, rationale="Maintain liquid phase"))
+        _connect(ops, streams, sc, prev, "bpr_1")
+        prev = "bpr_1"
+
+    # ── Quench: T-mixer + short contact coil ───────────────────────────────
+    # Only runs if plan says quench_required OR a quench stream exists.
+    needs_quench = bool(quench_streams) or (
+        chemistry_plan and getattr(chemistry_plan, "quench_required", False)
+    )
+    if needs_quench:
+        # Create pumps for each quench stream. If the plan flags quench_required
+        # but no quench stream exists in proposal.streams, synthesise a default.
+        quench_pump_ids: list[str] = []
+        Q_quench_total = 0.0
+        if quench_streams:
+            for s in quench_streams:
+                fr = s.flow_rate_mL_min or 0.0
+                Q_quench_total += fr
+                pid = _add_pump(
+                    ops, s.stream_label or "Q", s.pump_role or "Inline quench",
+                    s.contents, s.solvent, fr, s.reasoning or "",
+                    is_gas=_stream_is_gas(s),
+                    gas_flow_sccm=getattr(s, "gas_flow_sccm", None),
+                    gas_flow_actual_mL_min=getattr(s, "gas_flow_actual_mL_min", None),
+                )
+                quench_pump_ids.append(pid)
+        else:
+            # Fallback: plan says quench needed but no stream defined. Synthesise.
+            fallback_fr = round(Q_reactor_inlet * 0.1, 4) or 0.1
+            Q_quench_total = fallback_fr
+            pid = _add_pump(
+                ops, "Q", "Inline quench",
+                [chemistry_plan.quench_reagent or "quench reagent"],
+                "H₂O", fallback_fr,
+                chemistry_plan.quench_reasoning or
+                "Quench excess reagent at reactor outlet",
+            )
+            quench_pump_ids.append(pid)
+
+        # Q_inlet to the quench coil = reactor outlet + ALL quench pump rates
+        Q_quench_inlet = round(Q_reactor_inlet + Q_quench_total, 4)
+
+        # Quench T-mixer: reactor outlet + quench pumps
+        ops.append(UnitOperation(op_id="quench_mixer", op_type="mixer",
+            label="Quench T-Mixer",
+            parameters={
+                "type": "T-mixer",
+                "material": "PEEK",
+                "Q_inlet_mL_min": Q_quench_inlet,
+                "quench_flow_rate_mL_min": round(Q_quench_total, 4),
+                "reactor_outlet_flow_rate_mL_min": round(Q_reactor_inlet, 4),
+                "role": "inline safety neutralization, not a reaction stage",
+            },
+            required=True, rationale="Mix reactor outlet with quench stream(s)"))
+        _connect(ops, streams, sc, prev, "quench_mixer")
+        for qpid in quench_pump_ids:
+            _connect(ops, streams, sc, qpid, "quench_mixer")
+        prev = "quench_mixer"
+        final_outlet_Q = Q_quench_inlet
+    else:
+        final_outlet_Q = Q_reactor_inlet
+
+    # ── Collector ──────────────────────────────────────────────────────────
+    ops.append(UnitOperation(op_id="collector_1", op_type="collector",
+        label="Product Collection", parameters={}, required=True, rationale="Outlet"))
+    _connect(ops, streams, sc, prev, "collector_1")
+
+    _enforce_gas_delivery_hardware(ops)
+
+    pid_parts = [o.label for o in ops if o.op_type != "led_module"]
+    return ProcessTopology(
+        topology_id="translate", unit_operations=ops, streams=streams,
+        total_flow_rate_mL_min=round(final_outlet_Q, 4),
+        residence_time_min=proposal.residence_time_min,
+        reactor_volume_mL=proposal.reactor_volume_mL,
+        pid_description=" → ".join(pid_parts),
+        topology_confidence=proposal.confidence,
+    )
+
+
+def _build_multistep_topology(proposal, chemistry_plan, batch_record):
+    """Graph-based multi-step topology.
+
+    Each stage in chemistry_plan.stages becomes:
+      [new feed pumps] → [mixer with previous outlet] → [pre-stage ops] →
+      [reactor for this stage] → [post-stage ops (quench/filter/solvent switch)]
+      → feeds into next stage
+
+    Key correctness rules:
+    - Q_inlet_i = Q_from_previous_stage + sum(Q_new_feeds_i)
+    - New feed Qs are derived from molar_equiv and concentration (stoichiometric split)
+    - V_R_i = τ_i × Q_inlet_i  (not the global Q)
+    - τ_i comes from proposal.stage_parameters (council decision) or equal split
+    - d_mm per stage also comes from stage_parameters if the council set it
+    """
+    import math
+
+    ops: list[UnitOperation] = []
+    streams: list[StreamConnection] = []
+    sc = [0]
+    pump_char_counter = [0]
+
+    def next_pump_char():
+        chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        c = chars[pump_char_counter[0] % 26]
+        pump_char_counter[0] += 1
+        return c
+
+    n_stages = len(chemistry_plan.stages)
+    total_Q   = proposal.flow_rate_mL_min or 0.5
+
+    # Build a lookup for council-provided per-stage diameter overrides
+    stage_params_by_sn: dict[int, dict] = {
+        p["stage_number"]: p
+        for p in (proposal.stage_parameters or [])
+        if isinstance(p, dict) and "stage_number" in p
+    }
+
+    def _planned_stage_residence_times() -> dict[int, float]:
+        """Return complete per-stage tau values for topology construction.
+
+        The council currently selects one global residence time.  If per-stage
+        tau values are incomplete, treat that council value as total process
+        residence time and allocate it across stages.  Never let later stages
+        silently fall back to batch/IF kinetics after council selection.
+        """
+        explicit: dict[int, float] = {}
+        for sn, sp in stage_params_by_sn.items():
+            try:
+                tau = float(sp.get("residence_time_min") or 0.0)
+            except (TypeError, ValueError):
+                tau = 0.0
+            if tau > 0:
+                explicit[int(sn)] = round(tau, 2)
+
+        stage_numbers = [int(s.stage_number) for s in chemistry_plan.stages]
+        if stage_numbers and all(sn in explicit for sn in stage_numbers):
+            return explicit
+
+        total_tau = float(proposal.residence_time_min or 0.0)
+        if total_tau <= 0:
+            return explicit
+
+        weights = []
+        for stage in chemistry_plan.stages:
+            try:
+                stage_batch_h = float(getattr(stage, "batch_time_h", None) or 0.0)
+            except (TypeError, ValueError):
+                stage_batch_h = 0.0
+            weights.append(stage_batch_h if stage_batch_h > 0 else 0.0)
+
+        if not weights or sum(weights) <= 0:
+            weights = [1.0 for _ in chemistry_plan.stages]
+
+        total_weight = sum(weights)
+        return {
+            int(stage.stage_number): round(total_tau * weight / total_weight, 2)
+            for stage, weight in zip(chemistry_plan.stages, weights)
+        }
+
+    stage_tau_by_sn = _planned_stage_residence_times()
+    proposal_gas_by_label: dict[str, object] = {
+        (s.stream_label or "").upper(): s
+        for s in (proposal.streams or [])
+        if (s.stream_label or "") and _stream_is_gas(s)
+    }
+
+    prev_op: str | None = None
+    Q_prev_outlet: float = 0.0  # cumulative Q leaving the previous reactor
+    total_reactor_volume_mL: float = 0.0
+
+    # Reference Q and C for stoichiometric new-feed sizing in stages 2+
+    Q_reference: float = total_Q
+    C_reference: float = proposal.concentration_M or 0.1
+
+    # Pre-compute which feed-stream labels first appear in a LATER stage.
+    # The chemistry LLM sometimes lists a quench/workup stream in Stage 1's
+    # feed_streams AND in Stage 2's — deduplicate by only creating the pump
+    # at the LAST stage that declares it. This prevents Pump C from appearing
+    # twice (once before the reactor, once at the inter-stage injection point).
+    _label_last_stage: dict[str, int] = {}
+    for _stg in chemistry_plan.stages:
+        for _feed in _stg.feed_streams:
+            lbl = (_feed.stream_label or "").upper()
+            if lbl:
+                _label_last_stage[lbl] = _stg.stage_number
+
+    for stage in chemistry_plan.stages:
+        sn = stage.stage_number
+        prefix = f"st{sn}"
+        stage_text = " ".join([
+            stage.stage_name or "",
+            stage.reaction_type or "",
+            stage.post_stage_action or "",
+            stage.post_stage_reasoning or "",
+            " ".join(
+                " ".join([
+                    feed.reasoning or "",
+                    getattr(feed, "pump_role", "") or "",
+                    " ".join(feed.reagents or []),
+                ])
+                for feed in (stage.feed_streams or [])
+            ),
+        ]).lower()
+        is_quench_stage = any(
+            token in stage_text
+            for token in (
+                "inline quench", "quench stage", "acid quench", "aqueous quench",
+                "neutraliz", "protonat", "destroy residual", "reductive workup",
+                "workup only", "not a reaction",
+            )
+        )
+        sp = stage_params_by_sn.get(sn, {})
+
+        # ── Per-stage τ ─────────────────────────────────────────────────────
+        # Council-approved topology uses the complete per-stage allocation.
+        # If the council did not provide all stage taus, the allocation above
+        # splits the global council tau across stages. This prevents an
+        # unreviewed Stage 2 from reverting to batch/IF timing.
+        if stage_tau_by_sn.get(sn):
+            stage_rt = stage_tau_by_sn[sn]
+        else:
+            stage_rt = round((proposal.residence_time_min or 5.0) / max(n_stages, 1), 2)
+
+        # ── Per-stage d_mm (council override or proposal default) ──────────
+        stage_id_mm = float(sp.get("d_mm") or proposal.tubing_ID_mm or 1.0)
+
+        # ── New feed pump flow rates ────────────────────────────────────────
+        # Filter out feeds whose label first belongs to a later stage — the
+        # chemistry LLM sometimes lists a quench stream in Stage 1 AND Stage 2.
+        # We only create the pump at the LAST declared stage so it appears at
+        # the correct injection point (and Q_inlet is computed correctly).
+        active_feeds = [
+            f for f in stage.feed_streams
+            if _label_last_stage.get((f.stream_label or "").upper(), sn) == sn
+        ]
+
+        stage_pump_ids: list[str] = []
+
+        if sn == 1:
+            # Build a lookup of Chief-applied rates from proposal.streams
+            proposal_rate_by_label: dict[str, float] = {
+                s.stream_label.upper(): s.flow_rate_mL_min
+                for s in (proposal.streams or [])
+                if s.stream_label and s.flow_rate_mL_min
+            }
+            # Only use Chief-derived rates if every active liquid feed is covered.
+            active_liquid_labels = {
+                (f.stream_label or "").upper()
+                for f in active_feeds
+                if not _stream_is_gas(f)
+            }
+            if proposal_rate_by_label and active_liquid_labels.issubset(
+                proposal_rate_by_label.keys()
+            ):
+                new_feed_qs = [
+                    0.0 if _stream_is_gas(f)
+                    else proposal_rate_by_label[(f.stream_label or "").upper()]
+                    for f in active_feeds
+                ]
+                liquid_sum = sum(q for f, q in zip(active_feeds, new_feed_qs) if not _stream_is_gas(f))
+                if total_Q > 0 and liquid_sum > 0 and abs(liquid_sum - total_Q) / total_Q > 0.02:
+                    scale = total_Q / liquid_sum
+                    new_feed_qs = [
+                        q if _stream_is_gas(f) else round(q * scale, 4)
+                        for f, q in zip(active_feeds, new_feed_qs)
+                    ]
+            else:
+                new_feed_qs = _stoich_flow_rates(active_feeds, total_Q)
+        else:
+            # Each new feed Q derived from stoichiometry relative to stage-1 substrate
+            new_feed_qs = []
+            for feed in active_feeds:
+                if _stream_is_gas(feed):
+                    new_feed_qs.append(0.0)
+                    continue
+                equiv = max(getattr(feed, "molar_equiv", 1.0) or 1.0, 1e-9)
+                conc  = max(getattr(feed, "concentration_M", None) or C_reference, 1e-9)
+                q = round(Q_reference * equiv * C_reference / conc, 4)
+                new_feed_qs.append(q)
+
+        for feed, q in zip(active_feeds, new_feed_qs):
+            char = feed.stream_label or next_pump_char()
+            contents = feed.reagents if feed.reagents else []
+            matched_gas = proposal_gas_by_label.get((char or "").upper())
+            gas_sccm = getattr(matched_gas, "gas_flow_sccm", None)
+            gas_actual = getattr(matched_gas, "gas_flow_actual_mL_min", None)
+            if _stream_is_gas(feed) and not gas_sccm:
+                gas_sccm = (proposal.multiphase_metrics or {}).get("gas_flow_sccm")
+                gas_actual = (proposal.multiphase_metrics or {}).get("gas_flow_actual_mL_min")
+                q = gas_actual if gas_actual is not None else q
+            pid = _add_pump(
+                ops, char,
+                feed.reasoning or f"Stage {sn} feed",
+                contents, stage.solvent, q,
+                feed.reasoning or f"Feed for {stage.stage_name}",
+                is_gas=_stream_is_gas(feed),
+                gas_flow_sccm=gas_sccm,
+                gas_flow_actual_mL_min=gas_actual,
+            )
+            stage_pump_ids.append(pid)
+
+        # Track reference Q/C from stage 1 for use in stages 2+
+        if sn == 1 and active_feeds:
+            liquid_feeds = [f for f in active_feeds if not _stream_is_gas(f)]
+            if liquid_feeds:
+                ref_feed = liquid_feeds[0]
+                Q_reference = new_feed_qs[active_feeds.index(ref_feed)]
+                C_reference = getattr(ref_feed, "concentration_M", None) or C_reference
+
+        # ── Q entering this reactor ─────────────────────────────────────────
+        Q_new_feeds = sum(
+            q for feed, q in zip(active_feeds, new_feed_qs)
+            if q > 0 and not _stream_is_gas(feed)
+        )
+        Q_inlet = round(Q_prev_outlet + Q_new_feeds, 4)
+
+        # ── Reactor volume V_R = τ_i × Q_inlet_i ───────────────────────────
+        gas_feeds_active = [f for f in active_feeds if _stream_is_gas(f)]
+        gas_holdup = 0.0
+        if gas_feeds_active and proposal.multiphase_metrics:
+            gas_holdup = float(proposal.multiphase_metrics.get("gas_holdup") or 0.0)
+        liquid_stage_vol = stage_rt * Q_inlet
+        stage_vol = round(
+            liquid_stage_vol / max(1.0 - gas_holdup, 1e-9),
+            4,
+        )
+        total_reactor_volume_mL += stage_vol
+        stage_length = (
+            round((stage_vol * 1e-6) / (math.pi * (stage_id_mm * 5e-4) ** 2), 2)
+            if stage_vol and stage_id_mm else None
+        )
+
+        # ── Mixer: combine new feeds + previous stage outlet ───────────────
+        mixer_id = f"{prefix}_mixer"
+        mixer_inputs = stage_pump_ids[:]
+        if prev_op:
+            mixer_inputs.append(prev_op)
+
+        if len(mixer_inputs) > 1:
+            ops.append(UnitOperation(
+                op_id=mixer_id, op_type="mixer",
+                label=f"Mixer — Stage {sn}",
+                parameters={"type": "T-mixer", "material": "PEEK"},
+                required=True,
+                rationale=f"Combine feeds for {stage.stage_name}",
+            ))
+            for mid in mixer_inputs:
+                _connect(ops, streams, sc, mid, mixer_id, "")
+            prev_op = mixer_id
+        elif len(mixer_inputs) == 1:
+            prev_op = mixer_inputs[0]
+
+        if is_quench_stage:
+            Q_prev_outlet = Q_inlet
+            logger.info(
+                "Skipping reactor for stage %s (%s) — classified as inline quench/workup.",
+                sn, stage.stage_name,
+            )
+            continue
+
+        # ── Pre-stage: deoxygenation if needed ─────────────────────────────
+        if stage.deoxygenation_required:
+            deoxy_id = f"{prefix}_deoxy"
+            ops.append(UnitOperation(
+                op_id=deoxy_id, op_type="deoxygenation_unit",
+                label=f"Degas — Stage {sn}",
+                parameters={"method": "N2 sparging"},
+                required=True,
+                rationale=f"O2-sensitive: {stage.stage_name}",
+            ))
+            _connect(ops, streams, sc, prev_op, deoxy_id)
+            prev_op = deoxy_id
+
+        # ── Reactor for this stage ─────────────────────────────────────────
+        reactor_id = f"{prefix}_reactor"
+        rtype = stage.reactor_type or "coil"
+        op_type_map = {
+            "coil": "coil_reactor", "packed_bed": "packed_bed_reactor",
+            "chip": "chip_reactor", "CSTR": "coil_reactor",
+        }
+        is_photo = stage.requires_light
+        mat = "FEP" if is_photo else ("SS" if (stage.temperature_C or 25) > 100 else "FEP")
+        rlabel = f"{'Photo' if is_photo else ''}{rtype.replace('_', ' ').title()} — {stage.stage_name}"
+
+        ops.append(UnitOperation(
+            op_id=reactor_id,
+            op_type=op_type_map.get(rtype, "coil_reactor"),
+            label=rlabel,
+            parameters={
+                "material": mat,
+                "ID_mm": stage_id_mm,
+                "volume_mL": stage_vol,
+                "liquid_holdup_volume_mL": round(liquid_stage_vol, 4),
+                "gas_holdup": round(gas_holdup, 4),
+                "Q_inlet_mL_min": Q_inlet,
+                "Q_liquid_mL_min": Q_inlet,
+                "Q_gas_actual_mL_min": (
+                    proposal.multiphase_metrics.get("gas_flow_actual_mL_min")
+                    if gas_feeds_active and proposal.multiphase_metrics else None
+                ),
+                "Q_gas_sccm": (
+                    proposal.multiphase_metrics.get("gas_flow_sccm")
+                    if gas_feeds_active and proposal.multiphase_metrics else None
+                ),
+                "temperature_C": stage.temperature_C,
+                "wavelength_nm": stage.wavelength_nm if is_photo else None,
+                "residence_time_min": stage_rt,
+                "length_m": stage_length,
+                "reactor_type": rtype,
+            },
+            required=True,
+            rationale=f"Reactor for {stage.stage_name} — τ={stage_rt} min, Q_inlet={Q_inlet} mL/min, V_R={stage_vol} mL",
+        ))
+        _connect(ops, streams, sc, prev_op, reactor_id)
+        prev_op = reactor_id
+
+        # Q leaving this reactor = Q_inlet (incompressible flow)
+        Q_prev_outlet = Q_inlet
+
+        # LED if photochemical stage
+        if is_photo and stage.wavelength_nm:
+            led_id = f"{prefix}_led"
+            ops.append(UnitOperation(
+                op_id=led_id, op_type="led_module",
+                label=f"LED {stage.wavelength_nm:.0f} nm",
+                parameters={"wavelength_nm": stage.wavelength_nm},
+                required=True, rationale=f"Light for {stage.stage_name}",
+            ))
+
+        # ── Post-stage action (quench, filter, solvent switch, separator, BPR) ─
+        if stage.post_stage_action:
+            action = stage.post_stage_action.lower()
+            post_id = f"{prefix}_post"
+            n_ops_before = len(ops)  # track whether a node was actually added
+
+            if "filter" in action:
+                ops.append(UnitOperation(
+                    op_id=post_id, op_type="inline_filter",
+                    label="Filter",
+                    parameters={"pore_size_um": 10},
+                    required=True,
+                    rationale=stage.post_stage_reasoning or stage.post_stage_action,
+                ))
+            elif "quench" in action:
+                ops.append(UnitOperation(
+                    op_id=post_id, op_type="quench_mixer",
+                    label="Quench",
+                    parameters={"reagent": stage.post_stage_action},
+                    required=True,
+                    rationale=stage.post_stage_reasoning or "",
+                ))
+            elif "solvent" in action or "switch" in action:
+                ops.append(UnitOperation(
+                    op_id=post_id, op_type="mixer",
+                    label="Solvent Switch",
+                    parameters={"type": "solvent_switch"},
+                    required=True,
+                    rationale=stage.post_stage_reasoning or "",
+                ))
+            elif any(k in action for k in ("segment", "gas-liquid", "gas_liquid",
+                                            "separator", "l-l", "liquid-liquid",
+                                            "extraction", "phase sep")):
+                # Only insert a separator when TWO IMMISCIBLE PHASES are genuinely
+                # present AND the reasoning is explicit. Prevents hallucinated
+                # separators for atmosphere changes or gas switching.
+                reasoning = stage.post_stage_reasoning or ""
+                if reasoning:
+                    ops.append(UnitOperation(
+                        op_id=post_id, op_type="liq_liq_extraction",
+                        label="L-L Separator",
+                        parameters={},
+                        required=True,
+                        rationale=reasoning,
+                    ))
+                else:
+                    logger.warning(
+                        "Skipping L-L separator for stage %d — "
+                        "no post_stage_reasoning provided (not chemistry-justified).",
+                        stage.stage_number,
+                    )
+            elif any(k in action for k in ("bpr", "back pressure", "back-pressure",
+                                            "backpressure")):
+                ops.append(UnitOperation(
+                    op_id=post_id, op_type="bpr",
+                    label="BPR",
+                    parameters={"pressure_bar": proposal.BPR_bar or 5},
+                    required=True,
+                    rationale=stage.post_stage_reasoning or "",
+                ))
+            else:
+                ops.append(UnitOperation(
+                    op_id=post_id, op_type="mixer",
+                    label=stage.post_stage_action[:25],
+                    parameters={"details": stage.post_stage_action},
+                    required=True,
+                    rationale=stage.post_stage_reasoning or "",
+                ))
+
+            # Only wire into the stream graph if a node was actually appended
+            if len(ops) > n_ops_before:
+                _connect(ops, streams, sc, prev_op, post_id)
+                prev_op = post_id
+
+    # ── Final BPR ─────────────────────────────────────────────────────────
+    # Gas-liquid proposals must always retain a BPR even if the final LLM/Chief
+    # text omitted BPR_bar. The calculator uses this for gas solubility and
+    # controlled degassing; the topology must not silently drop it.
+    bpr_already_in_ops = any(o.op_type == "bpr" for o in ops)
+    gas_liquid_bpr_floor = bool(proposal.multiphase_metrics)
+    bpr_pressure = float(proposal.BPR_bar or 0.0)
+    if gas_liquid_bpr_floor:
+        bpr_pressure = max(bpr_pressure, 5.0)
+    if bpr_pressure > 0 and not bpr_already_in_ops:
+        ops.append(UnitOperation(op_id="bpr_final", op_type="bpr",
+            label="BPR", parameters={"pressure_bar": bpr_pressure},
+            required=True, rationale="Back-pressure regulation"))
+        _connect(ops, streams, sc, prev_op, "bpr_final")
+        prev_op = "bpr_final"
+
+    # ── Collector ──────────────────────────────────────────────────────────
+    ops.append(UnitOperation(op_id="collector_1", op_type="collector",
+        label="Product Collection", parameters={}, required=True, rationale="Outlet"))
+    _connect(ops, streams, sc, prev_op, "collector_1")
+
+    _enforce_gas_delivery_hardware(ops)
+
+    # PID description
+    pid_parts = [o.label for o in ops if o.op_type != "led_module"]
+    # Q_prev_outlet is the true final outlet Q — Stage 1 Q plus any additions
+    # from downstream feeds (e.g. quench). Use it for total_flow_rate so the
+    # process diagram and summary agree on the outlet stream.
+    final_outlet_Q = Q_prev_outlet or proposal.flow_rate_mL_min
+    return ProcessTopology(
+        topology_id="translate_multistep",
+        unit_operations=ops, streams=streams,
+        total_flow_rate_mL_min=final_outlet_Q,
+        residence_time_min=proposal.residence_time_min,
+        reactor_volume_mL=round(total_reactor_volume_mL, 4) or proposal.reactor_volume_mL,
+        pid_description=" → ".join(pid_parts),
+        topology_confidence=proposal.confidence,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Main pipeline
+# ---------------------------------------------------------------------------
+
+def translate(
+    batch_input: str | dict,
+    inventory_path: str = str(LAB_INVENTORY_PATH),
+    intake_package: DesignInputPackage | dict | None = None,
+) -> dict:
+    """Full FLORA-Translate pipeline.
+
+    Returns:
+        Dict with proposal, chemistry_plan, explanation, safety report,
+        council messages, svg_path, png_path.
+    """
+    intake = _coerce_intake_package(intake_package)
+    intake_block = intake_context_block(intake)
+    effective_batch_input = batch_input_from_package(intake) if intake else batch_input
+    objectives = intake.objective if intake and intake.objective else "balanced"
+
+    # 1. Parse input
+    logger.info("Step 1: Parsing batch input")
+    batch_record = parse_batch_input(effective_batch_input)
+    logger.info(f"  Parsed: {batch_record.reaction_description[:80]}...")
+
+    # 2. Chemistry Reasoning — Layer 1
+    logger.info("Step 2: Chemistry analysis (Layer 1)")
+    chemistry_plan = analyze_batch_chemistry(batch_record, intake_package=intake)
+    logger.info(f"  Mechanism: {chemistry_plan.mechanism_type}")
+    logger.info(f"  Streams: {len(chemistry_plan.stream_logic)}  O2: {chemistry_plan.oxygen_sensitive}")
+    logger.info(f"  Upstream mode: {getattr(chemistry_plan, '_upstream_mode', 'full')}")
+
+    # 3. Plan-aware retrieval — Layer 2
+    logger.info("Step 3: Retrieving literature analogies (plan-aware)")
+    store = VectorStore()
+    retriever = VectorRetriever(store=store)
+    raw_analogies = retriever.retrieve(batch_record, top_k=3, chemistry_plan=chemistry_plan)
+    analogies = AnalogySelector(records_dir=RECORDS_DIR).select(raw_analogies)
+    logger.info(f"  Found {len(analogies)} analogies")
+
+    # 3b. Pre-compute engineering calculations (9-step design calculator)
+    logger.info("Step 3b: Running 9-step design calculator")
+    from flora_translate.design_calculator import DesignCalculator
+    inventory = _inventory_from_intake_or_path(intake, inventory_path)
+    calculations = DesignCalculator().run(
+        batch_record,
+        chemistry_plan=chemistry_plan,
+        inventory=inventory,
+        analogies=analogies,
+    )
+    logger.info(
+        f"  τ = {calculations.residence_time_min:.1f} min "
+        f"(range {calculations.residence_time_range_min}), "
+        f"method = {calculations.kinetics_method}, "
+        f"Re = {calculations.reynolds_number:.0f}, "
+        f"Da = {calculations.damkohler_mass:.2f}, "
+        f"ΔP = {calculations.pressure_drop_bar:.4f} bar, "
+        f"BPR = {'yes' if calculations.bpr_required else 'no'}"
+    )
+
+    # 3c. Design space grid search — enumerate feasible (τ, d, Q) candidates
+    logger.info("Step 3c: Design space grid search")
+    from flora_translate.engine.design_space import (
+        DesignSpaceSearch,
+        candidates_to_dicts,
+        get_council_starting_point,
+        feasible_candidates_as_council_seeds,
+    )
+    design_candidates = DesignSpaceSearch().run(
+        batch_record=batch_record,
+        chemistry_plan=chemistry_plan,
+        calculations=calculations,
+        inventory=inventory,
+        reaction_class=chemistry_plan.reaction_class if chemistry_plan else "default",
+    )
+    logger.info(f"  Design space: {len(design_candidates)} candidates, "
+                f"{sum(1 for c in design_candidates if c.feasible)} feasible")
+
+    # Use top design space candidate as council starting point (replaces LLM guess)
+    _top_candidate = get_council_starting_point(design_candidates)
+    if _top_candidate:
+        logger.info(f"  Top candidate: τ={_top_candidate.tau_min}min, "
+                    f"Q={_top_candidate.Q_mL_min}mL/min, d={_top_candidate.d_mm}mm, "
+                    f"L={_top_candidate.L_m}m, score={_top_candidate.score:.3f}")
+
+    # 4. Generate flow proposal
+    logger.info("Step 4: Generating flow proposal via LLM")
+    system_prompt, user_prompt = TranslationPromptBuilder().build(
+        batch_record, analogies, chemistry_plan=chemistry_plan,
+        calculations=calculations, inventory=inventory,
+        intake_package=intake,
+    )
+    proposal = TranslationLLM().generate(system_prompt, user_prompt)
+    logger.info(f"  Proposal: {proposal.residence_time_min}min, {proposal.reactor_type}, "
+                f"{len(proposal.streams)} streams")
+
+    # Override proposal geometry with top design space candidate
+    if _top_candidate:
+        proposal.residence_time_min = _top_candidate.tau_min
+        proposal.flow_rate_mL_min = _top_candidate.Q_mL_min
+        proposal.tubing_ID_mm = _top_candidate.d_mm
+        proposal.reactor_volume_mL = round(_top_candidate.V_R_mL, 3)
+        logger.info("  Proposal geometry updated from design space top candidate")
+
+    # 5. ENGINE deliberation council — Layer 3
+    logger.info("Step 5: Multi-agent deliberation council (ENGINE)")
+    pre_council_proposal = proposal.model_dump()  # snapshot before council modifies it
+    # Pre-package Design Space feasible candidates as council seeds. If the
+    # Council Designer's LLM-guided sampling finds 0 feasible points, the
+    # council falls back to these — preventing silent council-skip when the
+    # sampling envelope happens to miss the design-space sweet spot.
+    _ds_seeds = feasible_candidates_as_council_seeds(
+        design_candidates,
+        BPR_bar=proposal.BPR_bar or 0.0,
+        tubing_material=proposal.tubing_material or "FEP",
+        concentration_M=proposal.concentration_M or 0.1,
+        temperature_C=proposal.temperature_C or 25.0,
+        batch_time_min=(batch_record.reaction_time_h or 0.0) * 60.0 if batch_record else None,
+        n_max=6,
+    )
+    design_candidate, calculations = CouncilV4().run(
+        proposal, batch_record, analogies, inventory,
+        chemistry_plan=chemistry_plan, calculations=calculations,
+        objectives=objectives,
+        design_space_seed_candidates=_ds_seeds,
+        intake_package=intake,
+    )
+
+    # 6. Format output
+    logger.info("Step 6: Formatting output")
+    result = OutputFormatter().format(design_candidate, analogies)
+    result["chemistry_plan"] = chemistry_plan.model_dump(exclude_none=True)
+    if intake:
+        result["intake_package"] = intake.model_dump()
+        result["intake_context"] = intake_block
+
+    # Attach 9-step design calculations for Streamlit rendering
+    from dataclasses import asdict
+    result["design_calculations"] = asdict(calculations)
+    _reconcile_final_bpr(result, design_candidate)
+    _sync_final_stream_flowrates(result, design_candidate)
+
+    # If the user included measured flow experiments in the prompt, apply the
+    # deterministic closed-loop calibration before building the final topology.
+    # This prevents unsupported first-pass intensification from overriding
+    # observed conversion/yield data.
+    try:
+        if intake:
+            raw_input_text = "\n\n".join(
+                part
+                for part in [
+                    intake.raw_protocol,
+                    historical_text_from_package(intake),
+                ]
+                if part
+            )
+        else:
+            raw_input_text = batch_input if isinstance(batch_input, str) else json.dumps(batch_input, default=str)
+        from flora_translate.experiment_loop import (
+            extract_experiments_from_text,
+            refine_from_experimental_campaign,
+        )
+        experiments = extract_experiments_from_text(raw_input_text)
+        if len(experiments) >= 2:
+            logger.info(
+                "Step 6b: Applying evidence-calibrated closed-loop refinement from %d experiments",
+                len(experiments),
+            )
+            closed_loop = refine_from_experimental_campaign(
+                result,
+                experiments,
+                target_yield_pct=75.0,
+                target_conversion_pct=75.0,
+                target_selectivity_pct=85.0,
+            )
+            result = closed_loop.refined_result
+            design_candidate.proposal = FlowProposal(**result["proposal"])
+            _sync_final_stream_flowrates(result, design_candidate)
+    except Exception as exc:
+        logger.warning("Evidence-calibrated closed-loop refinement skipped: %s", exc)
+
+    # Enforce discrete inventory hardware after all model/campaign refinements.
+    # The inventory is a hard physical constraint: final reactor volume/ID/material
+    # must be one of the available options, and flow rates are recalculated from
+    # the selected volume and target residence time.
+    try:
+        inventory_proposal, inventory_report = enforce_reactor_inventory(
+            design_candidate.proposal,
+            inventory,
+        )
+        if inventory_report.get("applied"):
+            enforced_volume = inventory_proposal.reactor_volume_mL
+            enforced_bpr = inventory_proposal.BPR_bar
+            logger.info(
+                "Step 6c: Enforced inventory reactor %s",
+                inventory_report.get("selected_reactor", {}).get("name")
+                or inventory_report.get("selected_reactor", {}).get("system")
+                or inventory_report.get("selected_reactor", {}),
+            )
+            design_candidate.proposal = inventory_proposal
+            calculations = DesignCalculator().run(
+                batch_record,
+                chemistry_plan=chemistry_plan,
+                proposal=design_candidate.proposal,
+                inventory=inventory,
+                analogies=analogies,
+                target_flow_rate_mL_min=design_candidate.proposal.flow_rate_mL_min or None,
+                target_tubing_ID_mm=design_candidate.proposal.tubing_ID_mm or None,
+                target_residence_time_min=design_candidate.proposal.residence_time_min or None,
+            )
+            design_candidate.proposal = DesignCalculator.annotate_proposal_with_calculations(
+                design_candidate.proposal,
+                calculations,
+            )
+            if enforced_volume:
+                design_candidate.proposal.reactor_volume_mL = enforced_volume
+            if enforced_bpr:
+                design_candidate.proposal.BPR_bar = enforced_bpr
+            result["proposal"] = design_candidate.proposal.model_dump()
+            result["design_calculations"] = asdict(calculations)
+            result["inventory_enforcement"] = inventory_report
+            result["explanation"] = (
+                (result.get("explanation") or "").rstrip()
+                + "\n\nInventory enforcement: final reactor hardware was snapped to "
+                + str(inventory_report.get("selected_reactor", {}))
+                + "."
+            ).strip()
+            _reconcile_final_bpr(result, design_candidate)
+            _sync_final_stream_flowrates(result, design_candidate)
+    except Exception as exc:
+        logger.warning("Inventory enforcement skipped: %s", exc)
+
+    # Attach design space grid search results
+    result["design_space"] = candidates_to_dicts(design_candidates)
+
+    # ── Single source of truth: synchronise τ across all result sections ──
+    # The validated proposal is authoritative for residence_time_min and
+    # reactor_volume_mL.  The DesignCalculations may have re-derived a
+    # slightly different τ from kinetics — force them to agree.
+    _τ_proposal = result["proposal"].get("residence_time_min")
+    _Q_proposal  = result["proposal"].get("flow_rate_mL_min")
+    if _τ_proposal and _τ_proposal > 0:
+        result["design_calculations"]["residence_time_min"] = _τ_proposal
+        result["design_calculations"]["residence_time_s"] = round(_τ_proposal * 60, 2)
+        if (
+            _Q_proposal and _Q_proposal > 0
+            and not result["design_calculations"].get("is_gas_liquid")
+        ):
+            result["design_calculations"]["reactor_volume_mL"] = round(
+                _τ_proposal * _Q_proposal, 4
+            )
+
+    _apply_final_design_guards(result, design_candidate)
+
+    # Store analogies for the revision agent (confidence + context)
+    result["_analogies"] = analogies
+
+    # Attach deliberation log for Streamlit rendering
+    if design_candidate.deliberation_log:
+        result["deliberation_log"] = design_candidate.deliberation_log.model_dump()
+
+    # Pre-council snapshot for before/after comparison in UI
+    result["pre_council_proposal"] = pre_council_proposal
+
+    # 7. Build chemistry-aware topology + generate diagram
+    logger.info("Step 7: Generating process flow diagram")
+    try:
+        from flora_design.visualizer.flowsheet_builder import FlowsheetBuilder
+
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        svg_path = str(OUTPUT_DIR / "translate_process.svg")
+        png_path = str(OUTPUT_DIR / "translate_process.png")
+
+        topology = _build_translate_topology(
+            design_candidate.proposal, chemistry_plan, batch_record
+        )
+        svg, png = FlowsheetBuilder().build(
+            topology,
+            title=batch_record.reaction_description[:70],
+            output_svg=svg_path,
+            output_png=png_path,
+        )
+        result["svg_path"] = svg
+        result["png_path"] = png
+        result["process_topology"] = topology.model_dump()
+        if topology.reactor_volume_mL and result.get("proposal"):
+            result["proposal"]["reactor_volume_mL_reported_by_council_mL"] = result["proposal"].get("reactor_volume_mL")
+            result["proposal"]["reactor_volume_mL"] = topology.reactor_volume_mL
+            result["design_calculations"]["stage_corrected_total_reactor_volume_mL"] = topology.reactor_volume_mL
+            if result["design_calculations"].get("is_gas_liquid"):
+                result["design_calculations"]["global_single_zone_reactor_volume_mL"] = result["design_calculations"].get("reactor_volume_mL")
+        logger.info(f"  Diagram saved: {svg}")
+    except Exception as e:
+        logger.warning(f"  Diagram generation failed: {e}")
+        result["svg_path"] = ""
+        result["png_path"] = ""
+
+    logger.info(f"Done — Confidence: {result['confidence']}")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Index helper
+# ---------------------------------------------------------------------------
+
+def index_records(records_dir: str = str(RECORDS_DIR)) -> int:
+    """Index extraction results into ChromaDB."""
+    logger.info(f"Indexing records from {records_dir}")
+    store = VectorStore()
+    count = store.index_folder(records_dir)
+    logger.info(f"Indexed {count} records ({store.pairs_count} with translation pairs)")
+    return count
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage:\n"
+              "  python -m flora_translate.main translate '<batch_protocol>'\n"
+              "  python -m flora_translate.main index [records_dir]\n")
+        sys.exit(1)
+
+    cmd = sys.argv[1]
+    if cmd == "index":
+        records_dir = sys.argv[2] if len(sys.argv) > 2 else str(RECORDS_DIR)
+        index_records(records_dir)
+    elif cmd == "translate":
+        if len(sys.argv) < 3:
+            print("Error: provide batch protocol text or JSON file path")
+            sys.exit(1)
+        batch_input = sys.argv[2]
+        if Path(batch_input).exists():
+            batch_input = Path(batch_input).read_text()
+        result = translate(batch_input)
+        print(json.dumps(result, indent=2, default=str))
+    else:
+        print(f"Unknown command: {cmd}")
+        sys.exit(1)

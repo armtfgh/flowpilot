@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import ssl
 import time
@@ -35,8 +36,10 @@ logger = logging.getLogger("flora.engine.llm_agents")
 _ANTHROPIC_CLIENT = None
 _OPENAI_CLIENT    = None
 _OLLAMA_CLIENT    = None
+_OPENAI_COMPAT_CLIENTS: dict[str, object] = {}
 _LLM_OBSERVER     = None
 _RUNTIME_OVERRIDES: dict = {}
+_MODEL_ENDPOINT_OVERRIDES: dict[str, str] = {}
 
 
 @dataclass
@@ -73,6 +76,20 @@ def clear_llm_runtime_overrides() -> None:
 
 def get_llm_runtime_overrides() -> dict:
     return dict(_RUNTIME_OVERRIDES)
+
+
+def set_model_endpoint_overrides(overrides: dict[str, str] | None) -> None:
+    """Route selected local/OpenAI-compatible models to their own endpoints."""
+    global _MODEL_ENDPOINT_OVERRIDES
+    _MODEL_ENDPOINT_OVERRIDES = {
+        str(model): str(base_url).rstrip("/")
+        for model, base_url in (overrides or {}).items()
+        if model and base_url
+    }
+
+
+def get_model_endpoint_overrides() -> dict[str, str]:
+    return dict(_MODEL_ENDPOINT_OVERRIDES)
 
 
 def _supports_explicit_temperature(model: str) -> bool:
@@ -249,20 +266,29 @@ def _get_openai_client():
     return _OPENAI_CLIENT
 
 
-def _get_ollama_client():
-    """OpenAI-compatible client pointing at the local Ollama server."""
+def _get_ollama_client(model: str | None = None):
+    """OpenAI-compatible client for the selected local model endpoint."""
     global _OLLAMA_CLIENT
-    if _OLLAMA_CLIENT is None:
+    base_url = _MODEL_ENDPOINT_OVERRIDES.get(str(model or ""), OLLAMA_BASE_URL).rstrip("/")
+    if base_url == OLLAMA_BASE_URL.rstrip("/") and _OLLAMA_CLIENT is not None:
+        return _OLLAMA_CLIENT
+    if base_url in _OPENAI_COMPAT_CLIENTS:
+        return _OPENAI_COMPAT_CLIENTS[base_url]
+    if _OLLAMA_CLIENT is None or base_url != OLLAMA_BASE_URL.rstrip("/"):
         import httpx
         import openai
-        _OLLAMA_CLIENT = openai.OpenAI(
-            base_url=OLLAMA_BASE_URL,
+        client = openai.OpenAI(
+            base_url=base_url,
             api_key="ollama",          # required by the library, ignored by Ollama
             # The laboratory endpoint is plain HTTP. An explicit transport keeps
             # httpx from loading a host SSL_CERT_FILE that may not exist inside
             # the execution environment and is irrelevant for this connection.
             http_client=httpx.Client(verify=False, trust_env=False),
         )
+        _OPENAI_COMPAT_CLIENTS[base_url] = client
+        if base_url == OLLAMA_BASE_URL.rstrip("/"):
+            _OLLAMA_CLIENT = client
+        return client
     return _OLLAMA_CLIENT
 
 
@@ -343,6 +369,51 @@ def _stringify_messages(messages: list[dict]) -> str:
     return "\n".join(parts)
 
 
+def _bounded_local_messages(
+    system: str,
+    messages: list[dict],
+    *,
+    max_tokens: int,
+) -> tuple[str, list[dict]]:
+    """Keep local-model requests safely below the deployed 32k context."""
+
+    input_token_budget = max(4096, 32768 - max_tokens - 2048)
+    # Chemistry and JSON tokenize densely. Two characters per token is a
+    # deliberately conservative estimate for the deployed Qwen endpoints.
+    char_budget = input_token_budget * 2
+    total_chars = len(system or "") + sum(
+        len(content) if isinstance(content := msg.get("content", ""), str)
+        else len(json.dumps(content, default=str))
+        for msg in messages
+    )
+    if total_chars <= char_budget:
+        return system, messages
+
+    remaining = max(2000, char_budget - len(system or ""))
+    bounded = [dict(msg) for msg in messages]
+    text_indices = [
+        index for index, msg in enumerate(bounded)
+        if isinstance(msg.get("content"), str)
+    ]
+    if not text_indices:
+        return system, messages
+    per_message = max(1000, math.floor(remaining / len(text_indices)))
+    marker = "\n\n[FlowPilot compacted repeated context for local-model limits.]\n\n"
+    for index in text_indices:
+        content = bounded[index]["content"]
+        if len(content) <= per_message:
+            continue
+        usable = max(500, per_message - len(marker))
+        head = math.floor(usable * 0.65)
+        bounded[index]["content"] = content[:head] + marker + content[-(usable - head):]
+    logger.warning(
+        "Local prompt compacted from %s to at most %s characters for context safety",
+        total_chars,
+        char_budget,
+    )
+    return system, bounded
+
+
 def call_model_messages(
     *,
     model: str,
@@ -410,7 +481,13 @@ def call_model_messages(
         )
 
     if resolved_provider == "ollama":
-        client = _get_ollama_client()
+        client = _get_ollama_client(model)
+        system, messages = _bounded_local_messages(
+            system,
+            messages,
+            max_tokens=max_tokens,
+        )
+        user_content = _stringify_messages(messages)
         kwargs = {}
         if "temperature" in _RUNTIME_OVERRIDES:
             kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
@@ -603,7 +680,7 @@ def call_llm(system: str, user_content: str, max_tokens: int) -> str:
         return content
 
     elif ENGINE_PROVIDER == "ollama":
-        client = _get_ollama_client()
+        client = _get_ollama_client(ENGINE_MODEL_OLLAMA)
         extra_body = {
             "think": False,
             "chat_template_kwargs": {"enable_thinking": False},

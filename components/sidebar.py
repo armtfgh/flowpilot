@@ -49,38 +49,18 @@ def _nav_button(label: str, page: str, key: str) -> None:
 
 def _model_routing_status():
     try:
-        import flora_translate.config as cfg
+        from components.model_route_selector import _route_statuses
+        from flora_translate.model_catalog import available_default_route_ids, model_routes
 
-        upstream_models = [
-            cfg.MODEL_INPUT_PARSER,
-            cfg.MODEL_CHEMISTRY_AGENT,
-            cfg.MODEL_TRANSLATION,
-            cfg.MODEL_OUTPUT_FORMATTER,
-            cfg.MODEL_CONVERSATION_AGENT,
-        ]
-        upstream_is_claude = all(str(model).startswith("claude") for model in upstream_models)
-        council_is_4o = cfg.ENGINE_PROVIDER == "openai" and cfg.ENGINE_MODEL_OPENAI == "gpt-4o"
+        routes = model_routes()
+        defaults = available_default_route_ids(_route_statuses())
+        upstream = routes[defaults["upstream"]]
+        downstream = routes[defaults["downstream"]]
 
         with st.expander("Model routing", expanded=False):
-            if upstream_is_claude:
-                st.success("Upstream: Claude")
-            else:
-                st.warning("Upstream: mixed/non-Claude")
-            st.caption(
-                f"Parser: {cfg.MODEL_INPUT_PARSER}\n\n"
-                f"Chemistry: {cfg.MODEL_CHEMISTRY_AGENT}\n\n"
-                f"Translation: {cfg.MODEL_TRANSLATION}"
-            )
-
-            if council_is_4o:
-                st.success("Council/downstream: OpenAI GPT-4o")
-            else:
-                st.warning("Council/downstream is not GPT-4o")
-            st.caption(
-                f"Provider: {cfg.ENGINE_PROVIDER}\n\n"
-                f"OpenAI model: {cfg.ENGINE_MODEL_OPENAI}\n\n"
-                f"Lightweight upstream mode: {cfg.LIGHTWEIGHT_UPSTREAM_MODE}"
-            )
+            st.success(f"Default upstream: {upstream.label}")
+            st.success(f"Default downstream/council: {downstream.label}")
+            st.caption("Each design can override these defaults using the model selectors.")
     except Exception as exc:
         st.warning(f"Model routing unavailable: {exc}")
 

@@ -1,11 +1,13 @@
 from flora_translate.chemistry_contract import reconcile_chemistry_plan
 from flora_translate.design_realizer import _normalized_streams, _reconcile_candidate_operations
 from flora_translate.design_calculator import _extract_gas_equiv
+from flora_translate.main import _build_multistep_topology
 from flora_translate.schemas import (
     BatchRecord,
     ChemistryPlan,
     FlowProposal,
     ProcessStage,
+    ReagentRole,
     StreamAssignment,
     StreamLogic,
 )
@@ -109,6 +111,120 @@ def test_photochemical_protocol_preserves_light_requirement():
 
     assert counts["light_sources"] == 1
     assert reconciled.stages[0].requires_light
+
+
+def test_empty_first_stage_restores_protocol_anchored_liquid_feed_and_photocatalyst():
+    catalyst = "Ir(dF(CF3)ppy)2(dtbpy)PF6"
+    batch = BatchRecord(
+        raw_text=(
+            "Substrate A and acrylonitrile were charged in ethanol. "
+            f"Photocatalyst: {catalyst}, 0.5 mol%. The mixture was irradiated."
+        ),
+        photocatalyst=catalyst,
+        catalyst_loading_mol_pct=0.5,
+        concentration_M=0.1,
+    )
+    plan = ChemistryPlan(
+        n_stages=2,
+        reagents=[
+            ReagentRole(name="Substrate A", role="substrate"),
+            ReagentRole(name=catalyst, role="substrate"),
+        ],
+        stages=[
+            ProcessStage(stage_number=1, stage_name="photoredox", feed_streams=[]),
+            ProcessStage(stage_number=2, stage_name="oxidation", feed_streams=[]),
+        ],
+    )
+
+    reconciled, report = reconcile_chemistry_plan(batch, plan)
+
+    feed = reconciled.stages[0].feed_streams[0]
+    assert feed.phase == "liquid"
+    assert feed.requirement_authority == "protocol_fact"
+    assert feed.concentration_M == 0.1
+    assert "Substrate A" in feed.reagents
+    assert next(item for item in reconciled.reagents if item.name == catalyst).role == "photocatalyst"
+    assert {item["decision"] for item in report["decisions"]} >= {
+        "restore_missing_initial_liquid_feed",
+        "restore_protocol_photocatalyst_role",
+    }
+
+
+def test_inventory_pump_notes_do_not_hide_qwen_first_stage_feed():
+    catalyst = "Ir(dF(CF3)ppy)2(dtbpy)PF6"
+    batch = BatchRecord(
+        raw_text=(
+            "Substrate/radical precursor: PMPSCH2TMS (1a), 0.20 mmol, 1.0 equiv. "
+            "Michael acceptor: Acrylonitrile (2a), 2.0 equiv. "
+            f"Photocatalyst: {catalyst}, 0.5 mol%. "
+            "Step 1: irradiate under argon. Step 2: open to air and irradiate."
+        ),
+        photocatalyst=catalyst,
+        catalyst_loading_mol_pct=0.5,
+        concentration_M=0.1,
+    )
+    repeated = StreamLogic(
+        stream_label="A",
+        reagents=[catalyst, "PMPSCH2TMS (1a)", "Acrylonitrile (2a)"],
+        introduction_stage=1,
+        separate_feed_required=True,
+        requirement_authority="hard_constraint",
+    )
+    plan = ChemistryPlan(
+        n_stages=2,
+        reagents=[ReagentRole(name=catalyst, role="substrate")],
+        stages=[
+            ProcessStage(
+                stage_number=1,
+                stage_name="Giese addition",
+                feed_streams=[repeated],
+            ),
+            ProcessStage(
+                stage_number=2,
+                stage_name="Aerobic oxidation",
+                feed_streams=[repeated.model_copy(deep=True)],
+            ),
+        ],
+    )
+
+    reconciled, report = reconcile_chemistry_plan(
+        batch,
+        plan,
+        hard_constraints={
+            "inventory_constraints": {
+                "pump_notes": "Two pumps are available for the Vapourtec system."
+            },
+            "runtime_hard_constraints": [],
+        },
+    )
+
+    stage_one = reconciled.stages[0].feed_streams
+    stage_two = reconciled.stages[1].feed_streams
+    assert report["explicit_separate_liquid_feeds"] is False
+    assert len(stage_one) == 1
+    assert catalyst in stage_one[0].reagents
+    assert len([item for item in stage_one[0].reagents if item.startswith("PMPSCH2TMS")]) == 1
+    assert len([item for item in stage_one[0].reagents if item.startswith("Acrylonitrile")]) == 1
+    assert all(feed.stream_label != "A" for feed in stage_two)
+    decisions = {item["decision"] for item in report["decisions"]}
+    assert "remove_duplicate_cross_stage_feed" in decisions
+
+    proposal = FlowProposal(
+        residence_time_min=25,
+        flow_rate_mL_min=0.05,
+        reactor_volume_mL=1.25,
+        streams=[
+            StreamAssignment(
+                stream_label="A",
+                contents=stage_one[0].reagents,
+                phase="liquid",
+                flow_rate_mL_min=0.05,
+            )
+        ],
+    )
+    topology = _build_multistep_topology(proposal, reconciled, batch)
+    assert any(op.op_id == "st1_reactor" for op in topology.unit_operations)
+    assert any(stream.to_op == "st1_reactor" for stream in topology.streams)
 
 
 def test_downstream_candidate_cannot_reintroduce_contract_extras():

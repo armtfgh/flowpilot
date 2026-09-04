@@ -157,7 +157,23 @@ def intake_context_block(package: DesignInputPackage | dict | None) -> str:
     if not package:
         return "## FlowPilot Intake Context\nNo standardized intake package was provided."
     pkg = _coerce_package(package)
-    data = pkg.model_dump(exclude_none=True)
+    # The complete inventory remains frozen on the package for deterministic
+    # allocation. Prompts receive only capability-defining fields so the same
+    # profile is not repeated in Q-INV-001 and the answer log.
+    inventory_context = _compact_inventory_for_prompt(pkg.inventory_constraints)
+    answer_log = [
+        {
+            "question_id": answer.question_id,
+            "status": answer.status,
+            "source": answer.source,
+            "answer": (
+                "See hard constraints and operating limits above."
+                if answer.question_id in {"Q-INV-001", "Q-CONSTR-001"}
+                else answer.answer
+            ),
+        }
+        for answer in pkg.answers
+    ]
     return (
         "## FlowPilot Intake Context - authority labeled\n"
         "Authority order: measured evidence > hard constraints > protocol facts > "
@@ -173,14 +189,47 @@ def intake_context_block(package: DesignInputPackage | dict | None) -> str:
         "### Measured evidence / historical data\n"
         f"{_format_any(pkg.historical_data)}\n\n"
         "### Hard constraints / inventory\n"
-        f"{_format_any(pkg.inventory_constraints)}\n\n"
+        f"{_format_any(inventory_context)}\n\n"
         "### Safety and operating limits\n"
         f"{_format_any(pkg.operating_limits)}\n\n"
         "### Chemist hypotheses\n"
         f"{json.dumps(pkg.hypotheses, indent=2, default=str)}\n\n"
         "### Intake questions and answers\n"
-        f"{json.dumps(data.get('answers', []), indent=2, default=str)}"
+        f"{json.dumps(answer_log, indent=2, default=str)}"
     )
+
+
+_PROMPT_EQUIPMENT_FIELDS = (
+    "equipment_id", "name", "quantity", "service_status", "type", "material",
+    "volume_mL", "ID_mm", "configuration", "component_volumes_mL", "gas",
+    "setpoints_bar", "min_pressure_bar", "max_pressure_bar", "min_temperature_C",
+    "max_temperature_C", "allowed_temperatures_C", "min_flow_rate_mL_min",
+    "max_flow_rate_mL_min", "min_flow_sccm", "max_flow_sccm", "wavelength_nm",
+    "power_W", "intensity_mW_cm2", "compatible_reactor",
+)
+
+
+def _compact_inventory_for_prompt(value: Any) -> Any:
+    """Keep design limits while removing notes and repeated profile metadata."""
+
+    if not isinstance(value, dict):
+        return value
+    compact: dict[str, Any] = {}
+    for category, items in value.items():
+        if isinstance(items, list):
+            compact[category] = [
+                {
+                    key: item[key]
+                    for key in _PROMPT_EQUIPMENT_FIELDS
+                    if key in item and item[key] not in (None, "", [], {})
+                }
+                if isinstance(item, dict)
+                else item
+                for item in items
+            ]
+        elif items not in (None, "", [], {}):
+            compact[category] = items
+    return compact
 
 
 def batch_input_from_package(package: DesignInputPackage | dict) -> str | dict:
@@ -316,11 +365,13 @@ class IntakeAgent:
         chemistry_answer = answer_map.get("Q-CHEM-001")
         if chemistry_answer and chemistry_answer.status == "answered":
             answer_text = str(chemistry_answer.answer or "").strip()
-            family = transformation_family(answer_text)
+            family = transformation_family(
+                " ".join(part for part in (answer_text, package.raw_protocol) if part)
+            )
             package.chemistry_identity_confirmation = {
                 "transformation_family": family,
                 "chemist_description": answer_text,
-                "confirmed": family != "unknown",
+                "confirmed": bool(answer_text),
                 "source": "chemist_confirmed",
             }
 
@@ -361,9 +412,7 @@ class IntakeAgent:
             missing.append("Q-OBJ-001")
 
         identity = package.chemistry_identity_confirmation or {}
-        if not identity.get("confirmed") or transformation_family(
-            str(identity.get("transformation_family") or "")
-        ) == "unknown":
+        if not identity.get("confirmed"):
             missing.append("Q-CHEM-001")
 
         for qid, attr in (
@@ -432,6 +481,31 @@ def _fallback_extract(raw_protocol: str) -> dict[str, Any]:
     yield_pct = re.search(r"(\d+(?:\.\d+)?)\s*%\s*(?:isolated\s*)?yield", raw_protocol, re.I)
     if yield_pct:
         fields["yield_pct"] = float(yield_pct.group(1))
+    photocatalyst = re.search(
+        r"\bphotocatalyst\s*:\s*(.+?)(?=,\s*\d+(?:\.\d+)?\s*mol\s*%|[.;\n])",
+        raw_protocol,
+        re.I,
+    )
+    if photocatalyst:
+        fields["photocatalyst"] = photocatalyst.group(1).strip()
+    loading = re.search(
+        r"\bphotocatalyst\s*:.{0,250}?,\s*(\d+(?:\.\d+)?)\s*mol\s*%",
+        raw_protocol,
+        re.I,
+    )
+    if loading:
+        fields["catalyst_loading_mol_pct"] = float(loading.group(1))
+    solvent = re.search(
+        r"\bsolvent\s*:\s*(.+?)(?=\.\s*(?:Concentration|Step|Stage)\b|[;\n]|$)",
+        raw_protocol,
+        re.I,
+    )
+    if solvent:
+        fields["solvent"] = solvent.group(1).strip().rstrip(".")
+    if re.search(r"\b(?:under|maintain under)\s+argon\b", raw_protocol, re.I):
+        fields["atmosphere"] = "argon"
+    if wave:
+        fields["light_source"] = f"{float(wave.group(1)):g} nm light"
     return fields
 
 
