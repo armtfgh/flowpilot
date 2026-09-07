@@ -17,6 +17,7 @@ from flora_translate.residence_time_basis import (
     IN_CHANNEL_BASIS,
     LIQUID_ONLY_BASIS,
     UNKNOWN_BASIS,
+    gas_equiv_from_stp_flow,
     normalize_residence_time_basis,
     residence_time_basis_label,
 )
@@ -39,7 +40,8 @@ SEMANTIC_GATES = {
         "FINAL-CHEMISTRY-IDENTITY-UNCONFIRMED",
     },
     "component_stoichiometry_complete": {
-        "FINAL-COMPONENT-STOICHIOMETRY-INCOMPLETE"
+        "FINAL-COMPONENT-STOICHIOMETRY-INCOMPLETE",
+        "FINAL-COMPONENT-DESCRIPTIONS-CONFLICT",
     },
     "topology_phase_consistent": {"FINAL-TOPOLOGY-PHASE-INCONSISTENT"},
     "control_edges_not_in_process_path": {"FINAL-CONTROL-IN-PROCESS-PATH"},
@@ -52,6 +54,9 @@ SEMANTIC_GATES = {
     "residence_time_basis_unambiguous": {
         "FINAL-RESIDENCE-TIME-BASIS-UNKNOWN"
     },
+    "gas_primary_basis_inlet_stp": {
+        "FINAL-GAS-BASIS-NOT-INLET-STP"
+    },
     "mixing_regime_matches_topology": {
         "FINAL-MIXING-REGIME-TOPOLOGY-CONFLICT"
     },
@@ -60,6 +65,10 @@ SEMANTIC_GATES = {
     },
     "reagent_gas_delivery_unique": {
         "FINAL-CONFLICTING-OXIDANT-DELIVERY"
+    },
+    "gas_composition_and_equivalent_closure": {
+        "FINAL-GAS-COMPOSITION-INCONSISTENT",
+        "FINAL-GAS-EQUIVALENT-CLOSURE",
     },
 }
 
@@ -269,6 +278,9 @@ def publish_final_design_artifacts(
     """Publish only canonical executable artifacts to legacy top-level keys."""
 
     result["final_design"] = contract
+    from flora_translate.result_reporting import build_result_report
+
+    result["result_report"] = build_result_report(result)
     result["canonical_explanation"] = canonical_summary_markdown(contract)
     result["explanation_status"] = "pre_realization_audit_only"
     validation = result.setdefault("final_validation", {})
@@ -649,6 +661,21 @@ def _consistency_issues(
     elif not proposal.get("stage_parameters"):
         proposal_flow = _number(proposal.get("flow_rate_mL_min"))
         proposal_volume = _number(proposal.get("reactor_volume_mL"))
+        proposal_basis = normalize_residence_time_basis(
+            proposal.get("residence_time_basis")
+        )
+        gas_streams = [
+            stream for stream in proposal.get("streams") or []
+            if str(stream.get("phase") or "").lower() == "gas"
+        ]
+        if proposal_basis == INLET_STP_BASIS:
+            proposal_flow += sum(
+                _number(stream.get("gas_flow_sccm")) for stream in gas_streams
+            )
+        elif proposal_basis == IN_CHANNEL_BASIS:
+            proposal_flow += sum(
+                _number(stream.get("gas_flow_actual_mL_min")) for stream in gas_streams
+            )
         if proposal_flow and proposal_tau and proposal_volume and not _close(
             proposal_volume,
             proposal_flow * proposal_tau,
@@ -656,10 +683,10 @@ def _consistency_issues(
         ):
             issues.append(
                 {
-                    "code": "FINAL-LIQUID-VOLUME-FLOW-TIME-MISMATCH",
+                    "code": "FINAL-VOLUME-FLOW-TIME-MISMATCH",
                     "message": (
-                        "Single-stage reactor volume does not equal liquid flow "
-                        "times the authoritative liquid contact residence time."
+                        "Single-stage reactor volume does not equal the flow on "
+                        "the authoritative residence-time basis times residence time."
                     ),
                 }
             )
@@ -675,6 +702,7 @@ def _consistency_issues(
         )
     issues.extend(_stream_annotation_issues(proposal))
     issues.extend(_gas_delivery_issues(proposal))
+    issues.extend(_gas_composition_and_equivalent_issues(proposal))
     issues.extend(_topology_issues(proposal, topology))
     return _deduplicate_issues(issues)
 
@@ -843,6 +871,75 @@ def _gas_delivery_issues(proposal: dict[str, Any]) -> list[dict[str, Any]]:
             }
         ]
     return []
+
+
+def _gas_composition_and_equivalent_issues(
+    proposal: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Recompute active-gas equivalents from the final serialized stream."""
+
+    issues: list[dict[str, Any]] = []
+    metrics = proposal.get("multiphase_metrics") or {}
+    limiting_flow = _number(metrics.get("limiting_liquid_flow_mL_min"))
+    concentration = _number(metrics.get("limiting_reagent_concentration_M"))
+    if not limiting_flow:
+        liquid_streams = [
+            stream
+            for stream in proposal.get("streams") or []
+            if str(stream.get("phase") or "").lower() != "gas"
+        ]
+        limiting_flow = min(
+            (_number(stream.get("flow_rate_mL_min")) for stream in liquid_streams),
+            default=0.0,
+        )
+    if not concentration:
+        concentration = _number(proposal.get("concentration_M"))
+
+    for stream in proposal.get("streams") or []:
+        if str(stream.get("phase") or "").lower() != "gas":
+            continue
+        text = " ".join(
+            [
+                *[str(item) for item in stream.get("contents") or []],
+                str(stream.get("pump_role") or ""),
+            ]
+        ).lower().replace("₂", "2")
+        fraction = _number(stream.get("gas_reagent_mole_fraction"))
+        if re.search(r"\b(?:pure\s+)?(?:o2|oxygen)\b", text) and not _close(
+            fraction, 1.0, tolerance=0.001
+        ):
+            issues.append(
+                {
+                    "code": "FINAL-GAS-COMPOSITION-INCONSISTENT",
+                    "message": (
+                        "A pure O2 stream does not have active-reagent mole "
+                        "fraction 1.0. Recompute the inlet/STP MFC setpoint."
+                    ),
+                }
+            )
+        sccm = _number(stream.get("gas_flow_sccm"))
+        stated_equiv = _number(stream.get("molar_equiv"))
+        if sccm <= 0 or fraction <= 0 or limiting_flow <= 0 or concentration <= 0:
+            continue
+        recomputed = gas_equiv_from_stp_flow(
+            sccm,
+            limiting_flow,
+            concentration,
+            fraction,
+        )
+        if stated_equiv > 0 and not _close(
+            recomputed, stated_equiv, tolerance=0.02
+        ):
+            issues.append(
+                {
+                    "code": "FINAL-GAS-EQUIVALENT-CLOSURE",
+                    "message": (
+                        "The reported gas equivalents do not match the final "
+                        "inlet/STP flow, active-gas fraction, and limiting-liquid feed."
+                    ),
+                }
+            )
+    return issues
 
 
 def _component_key(value: Any) -> str:

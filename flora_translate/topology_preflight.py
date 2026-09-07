@@ -97,6 +97,14 @@ def analyze_topology_requirements(
             items=combined,
         )
 
+    for item in requirements:
+        if inventory.capability_status.get(item["category"]) == "unavailable":
+            item.update(
+                status="unavailable",
+                available_count=0,
+                reason=f"The chemist explicitly marked {item['category'].replace('_', ' ')} unavailable. This process still requires that capability.",
+            )
+
     unresolved = [
         item
         for item in requirements

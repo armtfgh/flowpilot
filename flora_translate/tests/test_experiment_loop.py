@@ -299,8 +299,12 @@ def test_campaign_calibration_builds_thq_residence_time_ladder():
 
     assert calibration.n_usable == 3
     assert calibration.best_run_id == "khu_manual"
+    assert calibration.primary_residence_time_basis == "inlet/STP apparent residence time"
+    assert calibration.best_tau_inlet_min == 59.91
     assert calibration.best_tau_in_channel_min == 137.08
-    assert 190.0 < calibration.recommended_tau_in_channel_min < 193.0
+    assert 89.0 < calibration.recommended_tau_inlet_min < 91.0
+    assert 205.0 < calibration.recommended_tau_in_channel_min < 207.0
+    assert 112.0 < calibration.target_tau_inlet_min < 114.0
     assert 258.0 < calibration.target_tau_in_channel_min < 260.5
     assert calibration.design_ladder[0]["label"] == "best_observed_anchor"
     assert calibration.design_ladder[-1]["label"] == "target_estimate"
@@ -316,8 +320,10 @@ def test_campaign_refinement_overrides_short_intensification_design():
 
     proposal = closed_loop.refined_result["proposal"]
     next_exp = closed_loop.decision.next_experiment
-    assert proposal["residence_time_min"] > 190.0
-    assert proposal["residence_time_in_channel_min"] > 190.0
+    assert 89.0 < proposal["residence_time_min"] < 91.0
+    assert proposal["residence_time_min"] == proposal["residence_time_inlet_min"]
+    assert proposal["residence_time_in_channel_min"] > 205.0
+    assert proposal["residence_time_basis"] == "inlet/STP apparent residence time"
     assert proposal["flow_rate_mL_min"] < 0.014
     assert next_exp["evidence_calibration"]["best_tau_in_channel_min"] == 137.08
     assert next_exp["evidence_calibration"]["target_tau_in_channel_min"] > 258.0

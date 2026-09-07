@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from typing import Any, Literal, Optional
 
@@ -238,6 +239,7 @@ class SafetyAccessorySpec(InventoryItemSpec):
 class LabInventory(BaseModel):
     schema_version: str = LEGACY_LAB_INVENTORY_SCHEMA_VERSION
     strict_assignment: bool = False
+    capability_status: dict[str, Literal["available", "unavailable", "undocumented"]] = Field(default_factory=dict)
     pumps: list[PumpSpec] = Field(default_factory=list)
     tubing: list[TubingSpec] = Field(default_factory=list)
     BPR_available: list[float] = Field(default_factory=list)
@@ -321,6 +323,11 @@ class IntakeQuestion(BaseModel):
     expected_format: str = ""
     required: bool = False
     why_needed: str = ""
+    origin: Literal["core", "conditional"] = "core"
+    trigger_id: str = ""
+    target_path: str = ""
+    decision_impact: str = ""
+    allow_unavailable: bool = True
 
 
 class IntakeAnswer(BaseModel):
@@ -335,7 +342,8 @@ class IntakeAnswer(BaseModel):
 class DesignInputPackage(BaseModel):
     """Frozen, authority-labeled input package used before design starts."""
 
-    schema_version: str = "flowpilot_intake_v1.0"
+    schema_version: str = "flowpilot_intake_v1.1"
+    question_bank_version: str = "flowpilot_questions_v1.1"
     raw_protocol: str = ""
     extracted_batch_fields: dict[str, Any] = Field(default_factory=dict)
     objective: str = ""
@@ -344,8 +352,13 @@ class DesignInputPackage(BaseModel):
     hypotheses: list[str] = Field(default_factory=list)
     operating_limits: Any = None
     inventory_profile_snapshot: dict[str, Any] = Field(default_factory=dict)
+    inventory_review: dict[str, Any] = Field(default_factory=dict)
     output_preferences: str = ""
     chemistry_identity_confirmation: dict[str, Any] = Field(default_factory=dict)
+    active_domains: list[str] = Field(default_factory=list)
+    active_question_ids: list[str] = Field(default_factory=list)
+    engineering_requirements: dict[str, Any] = Field(default_factory=dict)
+    question_set_hash: str = ""
     question_log: list[IntakeQuestion] = Field(default_factory=list)
     answers: list[IntakeAnswer] = Field(default_factory=list)
     missing_question_ids: list[str] = Field(default_factory=list)
@@ -525,6 +538,7 @@ class StreamLogic(BaseModel):
     phase: str = ""                      # "liquid" | "gas" | "solid" | ""
     gas_flow_sccm: Optional[float] = None
     gas_flow_actual_mL_min: Optional[float] = None
+    gas_reagent_mole_fraction: Optional[float] = Field(default=None, gt=0, le=1)
     introduction_stage: Optional[int] = Field(default=None, ge=1)
     delivery_mode: Literal["new_feed", "carried_from_previous"] = "new_feed"
     requirement_authority: RequirementAuthority = "model_inference"
@@ -734,6 +748,7 @@ class StreamAssignment(BaseModel):
     phase: str = ""                      # "liquid" | "gas" | ""
     gas_flow_sccm: Optional[float] = None # MFC set point at STP for gas streams
     gas_flow_actual_mL_min: Optional[float] = None # gas volume flow at reactor T/P
+    gas_reagent_mole_fraction: Optional[float] = Field(default=None, gt=0, le=1)
     molar_equiv: float = 1.0            # stoichiometric equivalents relative to limiting reagent (substrate=1.0)
     molar_equiv_basis: str = ""          # protocol_fact | chemistry_plan | screening_assumption
     pump_equipment_id: Optional[str] = None  # deterministic inventory assignment
@@ -825,7 +840,33 @@ class FlowProposal(BaseModel):
     # Status
     engine_validated: bool = False
     safety_flags: list[str] = Field(default_factory=list)
-    confidence: str = "LOW"  # "HIGH" / "MEDIUM" / "LOW"
+    # Preserve model-supplied bands or numeric confidence as display metadata;
+    # confidence never overrides deterministic feasibility gates.
+    confidence: str = Field(default="LOW", coerce_numbers_to_str=True)
+
+    @field_validator("pre_reactor_steps", "post_reactor_steps", "literature_analogies", "safety_flags", mode="before")
+    @classmethod
+    def normalize_text_metadata(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        if isinstance(value, dict) and isinstance(value.get("items"), list):
+            value = value["items"]
+        if isinstance(value, (str, dict)):
+            value = [value]
+        if isinstance(value, list):
+            # Lossless serialization: retain equipment, severity, citations,
+            # and instructions, not just the first field of a structured note.
+            return [item if isinstance(item, str) else json.dumps(item, sort_keys=True, ensure_ascii=True)
+                    for item in value if item is not None]
+        return value
+
+    @field_validator("reasoning_per_field", mode="before")
+    @classmethod
+    def normalize_reasoning_metadata(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return {str(key): item if isinstance(item, str) else json.dumps(item, sort_keys=True, ensure_ascii=True)
+                    for key, item in value.items()}
+        return value
 
 
 # ---------------------------------------------------------------------------

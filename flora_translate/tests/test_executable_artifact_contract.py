@@ -1,6 +1,7 @@
 from copy import deepcopy
 
 from flora_translate.final_design_contract import (
+    _gas_composition_and_equivalent_issues,
     build_final_design_contract,
     publish_final_design_artifacts,
 )
@@ -13,13 +14,40 @@ from flora_translate.topology_semantics import (
 )
 
 
+def test_final_contract_rejects_pure_oxygen_with_air_fraction():
+    issues = _gas_composition_and_equivalent_issues(
+        {
+            "concentration_M": 0.1,
+            "multiphase_metrics": {
+                "limiting_liquid_flow_mL_min": 0.2,
+                "limiting_reagent_concentration_M": 0.1,
+            },
+            "streams": [
+                {
+                    "stream_label": "G",
+                    "phase": "gas",
+                    "contents": ["O2"],
+                    "pump_role": "Pure O2 feed",
+                    "gas_flow_sccm": 2.0,
+                    "gas_reagent_mole_fraction": 0.21,
+                    "molar_equiv": 2.0,
+                }
+            ],
+        }
+    )
+
+    codes = {item["code"] for item in issues}
+    assert "FINAL-GAS-COMPOSITION-INCONSISTENT" in codes
+    assert "FINAL-GAS-EQUIVALENT-CLOSURE" in codes
+
+
 def _hydrogen_result() -> dict:
     topology = ProcessTopology.model_validate(
         {
             "topology_id": "hydrogenolysis",
             "compilation_status": "inventory_assigned",
             "total_flow_rate_mL_min": 0.15,
-            "residence_time_min": 20.0,
+            "residence_time_min": 0.6452,
             "reactor_volume_mL": 3.0,
             "unit_operations": [
                 {
@@ -66,8 +94,12 @@ def _hydrogen_result() -> dict:
                         "volume_mL": 3.0,
                         "Q_liquid_mL_min": 0.15,
                         "temperature_C": 60.0,
-                        "residence_time_min": 20.0,
-                        "residence_time_basis": "liquid-only",
+                        "Q_gas_sccm": 4.5,
+                        "Q_gas_actual_mL_min": 0.25,
+                        "residence_time_min": 0.6452,
+                        "residence_time_inlet_min": 0.6452,
+                        "residence_time_in_channel_min": 7.5,
+                        "residence_time_basis": "inlet/STP apparent residence time",
                     },
                     "inventory_item_id": "reactor_3",
                     "assignment_status": "assigned",
@@ -152,10 +184,10 @@ def _hydrogen_result() -> dict:
             ],
         },
         "proposal": {
-            "residence_time_min": 20.0,
-            "residence_time_inlet_min": 20.0,
-            "residence_time_in_channel_min": 20.0,
-            "residence_time_basis": "liquid-only",
+            "residence_time_min": 0.6452,
+            "residence_time_inlet_min": 0.6452,
+            "residence_time_in_channel_min": 7.5,
+            "residence_time_basis": "inlet/STP apparent residence time",
             "flow_rate_mL_min": 0.15,
             "reactor_volume_mL": 3.0,
             "temperature_C": 60.0,
@@ -186,7 +218,10 @@ def _hydrogen_result() -> dict:
             ],
         },
         "design_calculations": {
-            "residence_time_min": 20.0,
+            "residence_time_min": 0.6452,
+            "residence_time_inlet_min": 0.6452,
+            "residence_time_in_channel_min": 7.5,
+            "residence_time_basis": "inlet/STP apparent residence time",
             "reactor_volume_mL": 3.0,
             "flow_rate_mL_min": 0.15,
         },
@@ -200,6 +235,7 @@ def _hydrogen_result() -> dict:
                 "geometry_closure": True,
                 "inventory_topology_assignment_complete": True,
                 "topology_matches_serialized_design": True,
+                "gas_primary_basis_inlet_stp": True,
             },
         },
         "safety_report": {
@@ -348,6 +384,31 @@ def test_rendered_topology_hash_mutation_blocks_release():
 def test_hypothesis_only_segmented_flow_claim_does_not_block_release():
     result = _hydrogen_result()
     result["proposal"]["streams"] = [result["proposal"]["streams"][0]]
+    result["proposal"].update({
+        "residence_time_min": 20.0,
+        "residence_time_inlet_min": 20.0,
+        "residence_time_in_channel_min": 20.0,
+        "residence_time_basis": "liquid-only reactor volume / liquid flow",
+    })
+    result["design_calculations"].update({
+        "residence_time_min": 20.0,
+        "residence_time_inlet_min": 20.0,
+        "residence_time_in_channel_min": 20.0,
+        "residence_time_basis": "liquid-only reactor volume / liquid flow",
+    })
+    result["process_topology"]["residence_time_min"] = 20.0
+    reactor = next(
+        item for item in result["process_topology"]["unit_operations"]
+        if item["op_id"] == "reactor_1"
+    )
+    reactor["parameters"].update({
+        "residence_time_min": 20.0,
+        "residence_time_inlet_min": 20.0,
+        "residence_time_in_channel_min": 20.0,
+        "residence_time_basis": "liquid-only reactor volume / liquid flow",
+    })
+    reactor["parameters"].pop("Q_gas_sccm", None)
+    reactor["parameters"].pop("Q_gas_actual_mL_min", None)
     result["process_topology"]["unit_operations"] = [
         item
         for item in result["process_topology"]["unit_operations"]
@@ -380,6 +441,31 @@ def test_binding_segmented_flow_claim_without_multiphase_topology_blocks_release
     monkeypatch.setattr(config, "FLOW_TRANSLATION_POLICY", "intensify")
     result = _hydrogen_result()
     result["proposal"]["streams"] = [result["proposal"]["streams"][0]]
+    result["proposal"].update({
+        "residence_time_min": 20.0,
+        "residence_time_inlet_min": 20.0,
+        "residence_time_in_channel_min": 20.0,
+        "residence_time_basis": "liquid-only reactor volume / liquid flow",
+    })
+    result["design_calculations"].update({
+        "residence_time_min": 20.0,
+        "residence_time_inlet_min": 20.0,
+        "residence_time_in_channel_min": 20.0,
+        "residence_time_basis": "liquid-only reactor volume / liquid flow",
+    })
+    result["process_topology"]["residence_time_min"] = 20.0
+    reactor = next(
+        item for item in result["process_topology"]["unit_operations"]
+        if item["op_id"] == "reactor_1"
+    )
+    reactor["parameters"].update({
+        "residence_time_min": 20.0,
+        "residence_time_inlet_min": 20.0,
+        "residence_time_in_channel_min": 20.0,
+        "residence_time_basis": "liquid-only reactor volume / liquid flow",
+    })
+    reactor["parameters"].pop("Q_gas_sccm", None)
+    reactor["parameters"].pop("Q_gas_actual_mL_min", None)
     result["process_topology"]["unit_operations"] = [
         item
         for item in result["process_topology"]["unit_operations"]
@@ -424,6 +510,14 @@ def test_explicit_solvent_annotation_overrides_incorrect_upstream_role():
     assert water["role"] == "solvent"
     assert water["quantification_required"] is False
     assert "FINAL-COMPONENT-STOICHIOMETRY-INCOMPLETE" not in _issue_codes(contract)
+
+
+def test_conflicting_component_quantities_cannot_be_released():
+    result = _hydrogen_result()
+    result["proposal"]["streams"][0]["contents"].append("DMAOL (0.5 M, 1.0 equiv)")
+    contract = build_final_design_contract(result)
+    assert contract["status"] == "blocked"
+    assert "FINAL-COMPONENT-DESCRIPTIONS-CONFLICT" in _issue_codes(contract)
 
 
 def test_hydrogen_realization_preserves_target_equiv_except_for_mfc_minimum():

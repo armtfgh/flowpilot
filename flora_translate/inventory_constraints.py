@@ -189,10 +189,13 @@ def enforce_reactor_inventory(
             basis = INLET_STP_BASIS
         elif _num(data.get("residence_time_in_channel_min"), 0.0) > 0:
             basis = "in_channel"
+    has_reagent_gas = _proposal_has_gas(data)
+    if has_reagent_gas:
+        basis = INLET_STP_BASIS
     if basis == INLET_STP_BASIS:
         tau = _first_positive(
-            data.get("residence_time_min"),
             data.get("residence_time_inlet_min"),
+            data.get("residence_time_min"),
             10.0,
         )
     else:
@@ -233,7 +236,7 @@ def enforce_reactor_inventory(
     gas_actual_ratio = min(gas_actual_ratio, 0.85 / 0.15)
     target_gas_equiv = _target_gas_equiv_inlet(data)
     gas_species, gas_reagent_fraction = _gas_species_and_fraction(data)
-    if target_gas_equiv > 0 and _proposal_has_gas(data):
+    if target_gas_equiv > 0 and has_reagent_gas:
         gas_stp_ratio = stp_gas_flow_for_equiv(
             1.0,
             max(concentration, 1e-9),
@@ -632,11 +635,14 @@ def _gas_species_and_fraction(data: dict[str, Any]) -> tuple[str, float]:
     for stream in data.get("streams") or []:
         if not _is_gas_stream(stream):
             continue
+        explicit_fraction = _num(stream.get("gas_reagent_mole_fraction"), 0.0)
+        if explicit_fraction > 0:
+            fraction = explicit_fraction
         text_parts.append(str(stream.get("pump_role") or ""))
         text_parts.extend(str(c) for c in (stream.get("contents") or []))
     text = " ".join(text_parts).lower()
     if re.search(r"\bair\b", text):
-        return "air", 0.21
+        return "air", fraction or 0.21
     species_patterns = (
         ("O2", r"\b(o2|oxygen)\b|o₂"),
         ("H2", r"\b(h2|hydrogen)\b|h₂"),
@@ -650,7 +656,7 @@ def _gas_species_and_fraction(data: dict[str, Any]) -> tuple[str, float]:
     )
     for label, pattern in species_patterns:
         if re.search(pattern, text):
-            return label, 1.0
+            return label, fraction or 1.0
     if "syngas" in text:
         return "syngas", 0.5
     return species or "gas", fraction or 1.0

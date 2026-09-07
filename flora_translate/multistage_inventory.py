@@ -177,6 +177,10 @@ def reconcile_multistage_inventory(
             reactor.min_temperature_C,
             reactor.max_temperature_C,
         )
+        temperature_valid = abs(_temperature_for_light(temperature, light, operating_limits) - temperature) < 1e-9
+        if not temperature_valid:
+            unresolved.append({"stage_number": stage.stage_number, "category": "temperature_controllers",
+                               "reason": "Selected reactor and light-source temperature limits do not overlap."})
 
         active_feeds = [
             feed
@@ -246,10 +250,7 @@ def reconcile_multistage_inventory(
             tau_channel = tau_inlet
             basis = "liquid-only stage residence time"
         else:
-            basis = (
-                "nominal liquid-only stage reactor-volume time; fluid phase "
-                "contact requires measured holdup or RTD"
-            )
+            basis = "inlet/STP apparent residence time"
 
         parameters.update(
             {
@@ -266,11 +267,13 @@ def reconcile_multistage_inventory(
                 "Q_gas_actual_mL_min": round(gas_actual, 6),
                 "gas_flow_sccm": round(gas_sccm, 6),
                 "gas_flow_actual_mL_min": round(gas_actual, 6),
-                "residence_time_min": round(tau_liquid, 4),
+                "residence_time_min": round(
+                    tau_inlet if gas_sccm > 0 else tau_liquid, 4
+                ),
                 "residence_time_inlet_min": round(tau_inlet, 4),
                 "residence_time_in_channel_min": round(tau_channel, 4),
                 "residence_time_basis": basis,
-                "inventory_resolved": not stage.requires_light or light is not None,
+                "inventory_resolved": temperature_valid and (not stage.requires_light or light is not None),
             }
         )
         parameters["notes"] = (
@@ -343,13 +346,21 @@ def reconcile_multistage_inventory(
         }
     if complete:
         current.reactor_volume_mL = round(total_volume, 4)
-        current.residence_time_min = round(total_tau_liquid, 4)
         current.residence_time_inlet_min = round(total_tau_inlet, 4)
         current.residence_time_in_channel_min = round(total_tau_channel, 4)
-        current.residence_time_basis = (
-            "sum of nominal per-stage liquid-only reactor-volume times; "
-            "fluid contact requires measured holdup or RTD"
+        has_reagent_gas = any(
+            float(item.get("Q_gas_sccm") or 0.0) > 0 for item in reconciled
         )
+        if has_reagent_gas:
+            current.residence_time_min = round(total_tau_inlet, 4)
+            current.residence_time_basis = (
+                "sum of per-stage inlet/STP apparent residence times"
+            )
+        else:
+            current.residence_time_min = round(total_tau_liquid, 4)
+            current.residence_time_basis = (
+                "sum of per-stage liquid-only reactor-volume times"
+            )
         metrics = dict(current.multiphase_metrics or {})
         metrics["total_reactor_volume_mL"] = round(total_volume, 4)
         metrics["multistage_residence_time_liquid_min"] = round(total_tau_liquid, 4)
@@ -534,22 +545,24 @@ def _temperature_for_light(
 ) -> float:
     if light is None:
         return value
-    if light.allowed_temperatures_C:
-        return min(light.allowed_temperatures_C, key=lambda item: abs(item - value))
-
     matched_limits = _photoreactor_limits_for_light(light, operating_limits)
-    allowed = matched_limits.get("allowed_temperatures_C") or []
-    if allowed:
-        return min(allowed, key=lambda item: abs(float(item) - value))
-
     standard = matched_limits.get("standard_temperature_C") or {}
+    explicit = matched_limits.get("allowed_temperature_C") or {}
     additional_cooling = matched_limits.get("additional_cooling_temperature_C") or {}
-    lower = light.min_temperature_C
-    upper = light.max_temperature_C
-    if lower is None:
-        lower = additional_cooling.get("minimum", standard.get("minimum"))
-    if upper is None:
-        upper = standard.get("maximum", additional_cooling.get("maximum"))
+    lower_values = [float(item) for item in (light.min_temperature_C, explicit.get("minimum", additional_cooling.get("minimum", standard.get("minimum")))) if item is not None]
+    upper_values = [float(item) for item in (light.max_temperature_C, explicit.get("maximum", standard.get("maximum", additional_cooling.get("maximum")))) if item is not None]
+    lower = max(lower_values) if lower_values else None
+    upper = min(upper_values) if upper_values else None
+    if lower is not None and upper is not None and lower > upper:
+        raise ValueError(f"Conflicting temperature ranges for light source {light.name}.")
+    equipment_settings = set(light.allowed_temperatures_C or [])
+    profile_settings = set(matched_limits.get("allowed_temperatures_C") or [])
+    allowed = equipment_settings & profile_settings if equipment_settings and profile_settings else equipment_settings or profile_settings
+    if equipment_settings or profile_settings:
+        feasible = [float(item) for item in allowed if (lower is None or float(item) >= lower) and (upper is None or float(item) <= upper)]
+        if not feasible:
+            raise ValueError(f"No available temperature setting satisfies all limits for light source {light.name}.")
+        return min(feasible, key=lambda item: (abs(item - value), item))
     return _clamp(value, lower, upper)
 
 

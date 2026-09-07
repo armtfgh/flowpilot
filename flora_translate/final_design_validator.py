@@ -145,6 +145,9 @@ def _validation_report(
         "geometry_closure": geometry_closure,
         "calculation_matches_serialized_design": calculation_match,
         "gas_bookkeeping_complete": gas_complete,
+        "gas_primary_basis_inlet_stp": _gas_primary_basis_is_inlet_stp(
+            proposal
+        ),
     }
     unresolved = [name for name, passed in checks.items() if not passed]
     return {
@@ -286,6 +289,24 @@ def _gas_bookkeeping_complete(proposal: FlowProposal) -> bool:
         and float(proposal.residence_time_in_channel_min or 0.0) > 0
         and float(metrics.get("target_gas_equiv_inlet") or 0.0) > 0
         and float(metrics.get("gas_equiv_supplied") or 0.0) > 0
+    )
+
+
+def _gas_primary_basis_is_inlet_stp(proposal: FlowProposal) -> bool:
+    gas_streams = [
+        stream
+        for stream in proposal.streams or []
+        if str(stream.phase or "").lower() == "gas"
+    ]
+    if not gas_streams:
+        return True
+    return (
+        normalize_residence_time_basis(proposal.residence_time_basis)
+        == INLET_STP_BASIS
+        and abs(
+            float(proposal.residence_time_min or 0.0)
+            - float(proposal.residence_time_inlet_min or 0.0)
+        ) <= 1e-6
     )
 
 

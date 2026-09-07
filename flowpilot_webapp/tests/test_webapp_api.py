@@ -13,6 +13,16 @@ from flora_translate.intake_agent import QUESTION_BANK
 client = TestClient(app)
 
 
+def _complete_design_intake():
+    from flora_translate.intake_agent import IntakeAgent
+    return IntakeAgent().analyze("A to B.", use_llm=False, answers=[
+        {"question_id": "Q-OBJ-001", "answer": "first flow screen"},
+        {"question_id": "Q-CHEM-001", "answer": "Ring closure of A to cyclic B."},
+        *[{"question_id": qid, "status": "unavailable"} for qid in
+          ["Q-HIST-001", "Q-INV-001", "Q-CONSTR-001", "Q-HYP-001"]],
+    ]).model_dump()
+
+
 def test_health_reports_pipeline_and_models() -> None:
     response = client.get("/api/health")
     assert response.status_code == 200
@@ -66,6 +76,33 @@ def test_intake_fallback_returns_only_fixed_question_ids() -> None:
     payload = response.json()
     assert payload["package"]["raw_protocol"]
     assert {item["question_id"] for item in payload["pending_questions"]} <= set(QUESTION_BANK)
+
+
+def test_intake_api_returns_reproducible_conditional_question_set() -> None:
+    request = {
+        "raw_protocol": (
+            "A two-stage photochemical oxidation is performed with oxygen gas "
+            "under 3 bar using a blue LED. A is converted to B."
+        ),
+        "use_llm": False,
+    }
+    payloads = [client.post("/api/intake/analyze", json=request).json() for _ in range(6)]
+    question_sets = [
+        [item["question_id"] for item in payload["pending_questions"]]
+        for payload in payloads
+    ]
+
+    assert all(question_ids == question_sets[0] for question_ids in question_sets)
+    assert len({payload["package"]["question_set_hash"] for payload in payloads}) == 1
+    assert {"Q-GAS-002", "Q-GAS-003", "Q-PHOTO-001", "Q-MULTI-001"} <= set(
+        question_sets[0]
+    )
+    conditional = next(
+        item for item in payloads[0]["pending_questions"]
+        if item["question_id"] == "Q-GAS-002"
+    )
+    assert conditional["origin"] == "conditional"
+    assert conditional["allow_unavailable"] is True
 
 
 def test_intake_routes_the_selected_upstream_model(monkeypatch) -> None:
@@ -138,6 +175,26 @@ def test_plain_language_chemistry_answer_closes_q_chem() -> None:
     }
 
 
+def test_non_llm_intake_does_not_acquire_model_routing_lock(monkeypatch) -> None:
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("deterministic intake must not acquire model routing")
+
+    monkeypatch.setattr(
+        "flora_translate.pipeline_runtime.runtime_model_routing",
+        fail_if_called,
+    )
+    response = client.post(
+        "/api/intake/analyze",
+        json={
+            "raw_protocol": "Compound A gives compound B in acetonitrile.",
+            "use_llm": False,
+            "upstream_model_id": "qwen3.6-27b",
+        },
+    )
+
+    assert response.status_code == 200
+
+
 def test_design_job_receives_selected_upstream_and_council_models(monkeypatch) -> None:
     captured = {}
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -159,12 +216,7 @@ def test_design_job_receives_selected_upstream_and_council_models(monkeypatch) -
         "/api/design/jobs",
         json={
             "batch_input": "A to B.",
-            "intake_package": {
-                "raw_protocol": "A to B.",
-                "objective": "first flow screen",
-                "ready_for_design": True,
-                "missing_question_ids": [],
-            },
+            "intake_package": _complete_design_intake(),
             "upstream_model_id": "claude-opus-4-6",
             "downstream_model_id": "gpt-4o",
         },
@@ -183,12 +235,7 @@ def test_design_job_rejects_an_unconfigured_model_before_submission(monkeypatch)
         "/api/design/jobs",
         json={
             "batch_input": "A to B.",
-            "intake_package": {
-                "raw_protocol": "A to B.",
-                "objective": "first flow screen",
-                "ready_for_design": True,
-                "missing_question_ids": [],
-            },
+            "intake_package": _complete_design_intake(),
             "upstream_model_id": "gpt-4o",
             "downstream_model_id": "gpt-4o",
         },

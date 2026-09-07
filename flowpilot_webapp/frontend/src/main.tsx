@@ -8,13 +8,29 @@ import {
   Layers3, Library, ListChecks, Menu, PackageCheck, Play, Plus,
   RefreshCw, Save, Send, Settings2, ShieldCheck, SlidersHorizontal,
   Sparkles, TestTube2, Thermometer, Trash2, Upload, User, Waypoints,
-  X, Zap
+  X, Zap, ZoomIn, ZoomOut, Maximize2
 } from "lucide-react";
 import "./styles.css";
+import { ProcessSummary, StageOverview, EngineeringHistory, Responses, CouncilTranscript, displayUnits } from "./result_views";
+
+declare const __FLOWPILOT_UI_BUILD__: string;
+const WORKSPACE_STORAGE_KEY = "flowpilot_workspace_v1";
+
+function restoredWorkspace(): Record<string, any> {
+  try { return JSON.parse(sessionStorage.getItem(WORKSPACE_STORAGE_KEY) || "{}"); }
+  catch { return {}; }
+}
+
+function setRunLocation(kind?: "job" | "run", id?: string) {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("job"); url.searchParams.delete("run");
+  if (kind && id) url.searchParams.set(kind, id);
+  window.history.replaceState(null, "", url);
+}
 
 type Json = Record<string, any>;
 type View = "design" | "inventory" | "runs" | "system";
-type ResultTab = "overview" | "topology" | "engineering" | "recipe" | "inventory" | "council" | "cycles" | "json";
+type ResultTab = "overview" | "summary" | "topology" | "engineering" | "responses" | "recipe" | "inventory" | "council" | "cycles" | "json";
 
 type Health = {
   status: string;
@@ -31,6 +47,9 @@ type Question = {
   expected_format: string;
   required: boolean;
   why_needed?: string;
+  origin?: "core" | "conditional";
+  decision_impact?: string;
+  allow_unavailable?: boolean;
 };
 
 type Job = {
@@ -75,10 +94,6 @@ type ModelCatalog = {
   defaults: { upstream: string; downstream: string };
 };
 
-const UNAVAILABLE_QUESTION_IDS = new Set([
-  "Q-HIST-001", "Q-INV-001", "Q-CONSTR-001", "Q-HYP-001", "Q-PREF-001"
-]);
-
 const DEMO_PROTOCOL = `Fmoc-L-methionine (3.7 mmol, 1.0 equiv) and a flavin photocatalyst (10 mol%) were dissolved in acetonitrile (0.10 M). Air was supplied as the oxidant. The mixture was irradiated with a 420 nm LED at 21 °C for 5 min and afforded the product in 99% yield.`;
 
 const DEMO_RESULT: Json = {
@@ -89,8 +104,8 @@ const DEMO_RESULT: Json = {
     status: "executable",
     parameters: {
       concentration_M: 0.10, flow_rate_mL_min: 0.124,
-      residence_time_min: 8.05, residence_time_inlet_min: 8.05,
-      residence_time_in_channel_min: 5.21, reactor_volume_mL: 1.0,
+      residence_time_min: 0.504796, residence_time_inlet_min: 0.504796,
+      reactor_volume_mL: 1.0,
       tubing_ID_mm: 0.8, reactor_type: "PFA photocoil",
       material: "PFA", temperature_C: 21, BPR_bar: 3,
       wavelength_nm: 420, inventory_selection: "KHU photochemical system"
@@ -99,7 +114,7 @@ const DEMO_RESULT: Json = {
       { stream_label: "A", phase: "liquid", flow_rate_mL_min: 0.124, contents: ["substrate", "photocatalyst in MeCN"] },
       { stream_label: "B", phase: "gas", gas_flow_sccm: 1.857, gas_flow_actual_mL_min: 0.505, contents: "air" }
     ],
-    stages: [{ stage_number: "ST-01", stage_name: "photochemical aerobic oxidation", reactor_volume_mL: 1.0, residence_time_min: 8.05 }],
+    stages: [{ stage_number: 1, stage_name: "photochemical aerobic oxidation", reactor_volume_mL: 1.0, residence_time_inlet_min: 0.504796, residence_time_min: 0.504796 }],
     consistency: { passed: true, issues: [] }
   },
   process_topology: {
@@ -112,6 +127,14 @@ const DEMO_RESULT: Json = {
       { op_id: "sep_1", label: "G-L separator", op_type: "separator", inventory_item_id: "sep_1" },
       { op_id: "col_1", label: "Amber collector", op_type: "collector", inventory_item_id: "col_1" }
     ]
+  },
+  result_report: {
+    status: "executable", issues: [], responses: [],
+    stages: [{number: 1, name: "Photochemical aerobic oxidation", reactor: "1 mL PFA photocoil", volume_mL: 1,
+      liquid_flow_mL_min: 0.124, gas_flow_stp_mL_min: 1.857, residence_time_min: 0.504796,
+      residence_basis: "inlet/STP apparent", temperature_C: 21, pressure_bar: 3, pressure_basis: "gauge", wavelength_nm: 420, tubing_ID_mm: 0.8, material: "PFA"}],
+    streams: [{label: "A", introduction_stage: 1, phase: "liquid", contents: ["substrate", "photocatalyst in MeCN"], flow_mL_min: 0.124, flow_basis: "liquid"},
+      {label: "B", introduction_stage: 1, phase: "gas", contents: ["air"], flow_mL_min: 1.857, flow_basis: "inlet/STP"}]
   },
   chemistry_plan: {
     reaction_name: "Photocatalytic aerobic oxidation of Fmoc-L-methionine",
@@ -128,13 +151,14 @@ const DEMO_RESULT: Json = {
   council_rounds: 2,
   council_messages: [
     { agent: "Chemistry", content: "Transformation and oxygen demand are consistent with an aerobic photooxidation screen." },
-    { agent: "Fluidics", content: "Liquid residence time and pressure-corrected gas flow close against the 1.0 mL coil." },
+    { agent: "Fluidics", content: "Demonstration data only: inlet/STP time closes against the 1.0 mL coil." },
     { agent: "Safety", content: "Use a vented separator and shield the illuminated pressurized coil." }
   ]
 };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { ...(init?.headers as Record<string, string> || {}) };
+  headers["X-FlowPilot-Client-Build"] = __FLOWPILOT_UI_BUILD__;
   if (!(init?.body instanceof FormData)) headers["Content-Type"] = "application/json";
   const response = await fetch(path, { ...init, headers });
   if (!response.ok) {
@@ -181,32 +205,64 @@ function Kpi({ label, value, note, icon, tone = "teal" }: { label: string; value
 
 function App() {
   const demo = new URLSearchParams(window.location.search).get("demo") === "1";
+  const [saved] = useState<Json>(() => demo ? {} : restoredWorkspace());
+  const [runtime, setRuntime] = useState<Json | null>(null);
+  const [runtimeError, setRuntimeError] = useState("");
+  const [storageError, setStorageError] = useState(false);
+  const [restoring, setRestoring] = useState(!demo && /[?&](job|run)=/.test(window.location.search));
   const [view, setView] = useState<View>("design");
   const [mobileNav, setMobileNav] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
   const [profiles, setProfiles] = useState<Json[]>([]);
   const [modelCatalog, setModelCatalog] = useState<ModelCatalog | null>(null);
-  const [upstreamModelId, setUpstreamModelId] = useState("");
-  const [downstreamModelId, setDownstreamModelId] = useState("");
-  const [selectedProfileId, setSelectedProfileId] = useState("");
-  const [selectedProfile, setSelectedProfile] = useState<InventoryProfile | null>(null);
-  const [protocol, setProtocol] = useState(demo ? DEMO_PROTOCOL : "");
+  const [upstreamModelId, setUpstreamModelId] = useState<string>(saved.upstreamModelId || "");
+  const [downstreamModelId, setDownstreamModelId] = useState<string>(saved.downstreamModelId || "");
+  const [selectedProfileId, setSelectedProfileId] = useState<string>(saved.selectedProfile?.profile_id || "");
+  const [selectedProfile, setSelectedProfile] = useState<InventoryProfile | null>(saved.selectedProfile || null);
+  const [inventoryAlternatives, setInventoryAlternatives] = useState<Json[]>([]);
+  const [protocol, setProtocol] = useState(demo ? DEMO_PROTOCOL : saved.protocol || "");
   const [intakePackage, setIntakePackage] = useState<Json | null>(demo ? {
     raw_protocol: DEMO_PROTOCOL, objective: "Produce one conservative inventory-constrained first flow screen.",
     ready_for_design: true, missing_question_ids: [], historical_data: null,
     hypotheses: ["oxygen transfer may control the practical rate"], operating_limits: { max_pressure_bar: 3 },
     extracted_batch_fields: { solvent: "acetonitrile", concentration_M: 0.1, reaction_time_min: 5, temperature_C: 21 }
-  } : null);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [unavailable, setUnavailable] = useState<Record<string, boolean>>({});
-  const [useLlm, setUseLlm] = useState(true);
+  } : saved.intakePackage || null);
+  const [questions, setQuestions] = useState<Question[]>(saved.questions || []);
+  const [answers, setAnswers] = useState<Record<string, string>>(saved.answers || {});
+  const [unavailable, setUnavailable] = useState<Record<string, boolean>>(saved.unavailable || {});
+  const [useLlm, setUseLlm] = useState(saved.useLlm ?? true);
   const [job, setJob] = useState<Job | null>(demo ? { job_id: "demo", status: "completed", progress: 1, phase: "Design complete", messages: [], result: DEMO_RESULT } : null);
   const [result, setResult] = useState<Json | null>(demo ? DEMO_RESULT : null);
   const [resultTab, setResultTab] = useState<ResultTab>("overview");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [runs, setRuns] = useState<Json[]>([]);
+  const [activeJobs, setActiveJobs] = useState<Job[]>([]);
+  const deploymentBlocked = !demo && (!runtime || runtime.backend_stale || runtime.frontend_build_id !== __FLOWPILOT_UI_BUILD__);
+
+  useEffect(() => {
+    if (demo) return;
+    let active = true;
+    const check = async () => {
+      try {
+        const next = await api<Json>("/api/runtime", { cache: "no-store" });
+        if (active) { setRuntime(next); setRuntimeError(""); }
+      } catch { if (active) { setRuntime(null); setRuntimeError("The running server cannot verify this workspace version."); } }
+    };
+    check();
+    const timer = window.setInterval(check, 30000);
+    window.addEventListener("focus", check);
+    return () => { active = false; clearInterval(timer); window.removeEventListener("focus", check); };
+  }, []);
+  useEffect(() => {
+    if (demo || restoring) return;
+    try {
+      sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify({
+        protocol, intakePackage, questions, answers, unavailable, selectedProfile, upstreamModelId, downstreamModelId, useLlm
+      }));
+      setStorageError(false);
+    } catch { setStorageError(true); }
+  }, [protocol, intakePackage, questions, answers, unavailable, selectedProfile, upstreamModelId, downstreamModelId, useLlm, restoring]);
 
   const refreshSystem = async () => {
     try {
@@ -229,27 +285,79 @@ function App() {
 
   useEffect(() => { if (!demo) refreshSystem(); }, []);
   useEffect(() => {
-    if (!selectedProfileId) { setSelectedProfile(null); return; }
-    api<InventoryProfile>(`/api/inventory/profiles/${selectedProfileId}`).then(setSelectedProfile).catch((e) => setError(String(e.message || e)));
-  }, [selectedProfileId]);
-  useEffect(() => {
     if (!job || !job.job_id || job.status === "completed" || job.status === "failed" || job.job_id === "demo") return;
     const timer = window.setInterval(async () => {
       try {
         const next = await api<Job>(`/api/design/jobs/${job.job_id}`);
-        setJob(next);
-        if (next.status === "completed" && next.result) { setResult(next.result); setResultTab("overview"); }
-        if (next.status === "failed") setError(next.error || "Design failed");
+        await acceptJob(next);
       } catch (e) { setError(String((e as Error).message || e)); }
     }, 1200);
     return () => window.clearInterval(timer);
   }, [job?.job_id, job?.status]);
 
+  const acceptIntake = (response: Json) => {
+    setIntakePackage(response.package); setQuestions(response.pending_questions || []);
+    setInventoryAlternatives(response.alternatives || []);
+  };
+  const reviewPackage = async (pkg: Json, profile: InventoryProfile | null, plan?: Json) => {
+    const response = await api<Json>("/api/inventory/review", { method: "POST", body: JSON.stringify({
+      intake_package: pkg, inventory_profile: profile, chemistry_plan: plan
+    }) });
+    acceptIntake(response);
+  };
+  const acceptJob = async (next: Job) => {
+    setJob(next);
+    if (next.status === "completed" && next.result) {
+      setResult(next.result); setResultTab("overview");
+      const pkg = next.result.intake_package;
+      if (pkg) {
+        setIntakePackage(pkg); setProtocol(pkg.raw_protocol || "");
+        setSelectedProfile(pkg.inventory_profile_snapshot || null);
+        setSelectedProfileId(pkg.inventory_profile_snapshot?.profile_id || "");
+        if (next.result.final_design?.status !== "executable") {
+          await reviewPackage(pkg, pkg.inventory_profile_snapshot, next.result.chemistry_plan);
+        }
+      }
+    }
+    if (next.status === "failed") setError(next.error || "Design failed");
+  };
+  const applyProfile = async (profile: InventoryProfile | null) => {
+    setBusy(true); setError("");
+    try {
+      if (intakePackage) {
+        const pkg = profile ? intakePackage : { ...intakePackage,
+          inventory_profile_snapshot: {}, inventory_constraints: null, operating_limits: null,
+          answers: (intakePackage.answers || []).filter((a: Json) => a.source !== "inventory_profile") };
+        await reviewPackage(pkg, profile, result?.chemistry_plan);
+      }
+      setSelectedProfile(profile); setSelectedProfileId(profile?.profile_id || "");
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  const chooseProfile = async (id: string) => {
+    setBusy(true); setError("");
+    try { await applyProfile(id ? await api<InventoryProfile>(`/api/inventory/profiles/${id}`) : null); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  const resolveInventory = async (confirmation: Json) => {
+    setBusy(true); setError("");
+    try {
+      const response = await api<Json>("/api/inventory/resolve", { method: "POST", body: JSON.stringify({
+        intake_package: intakePackage, inventory_profile: selectedProfile || intakePackage?.inventory_profile_snapshot,
+        chemistry_plan: result?.chemistry_plan, ...confirmation
+      }) });
+      acceptIntake(response); setSelectedProfile(response.profile); setSelectedProfileId(response.profile.profile_id);
+      setProfiles((await api<{ profiles: Json[] }>("/api/inventory/profiles")).profiles);
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  };
+
   const analyze = async (newAnswers: Json[] = []) => {
     if (!protocol.trim()) return;
     setBusy(true); setError("");
     try {
-      const response = await api<{ package: Json; pending_questions: Question[] }>("/api/intake/analyze", {
+      const response = await api<Json>("/api/intake/analyze", {
         method: "POST",
         body: JSON.stringify({
           raw_protocol: protocol,
@@ -260,7 +368,7 @@ function App() {
           upstream_model_id: upstreamModelId || undefined
         })
       });
-      setIntakePackage(response.package); setQuestions(response.pending_questions);
+      acceptIntake(response);
       setAnswers({}); setUnavailable({});
     } catch (e) { setError(String((e as Error).message || e)); }
     finally { setBusy(false); }
@@ -277,8 +385,8 @@ function App() {
   };
 
   const runDesign = async () => {
-    if (!intakePackage?.ready_for_design) return;
-    setBusy(true); setError(""); setResult(null);
+    if (!intakePackage?.ready_for_design || deploymentBlocked || restoring) return;
+    setBusy(true); setError("");
     try {
       const next = await api<Job>("/api/design/jobs", {
         method: "POST",
@@ -290,14 +398,27 @@ function App() {
           downstream_model_id: downstreamModelId || undefined
         })
       });
-      setJob(next);
+      setJob(next); setResult(null);
+      setRunLocation("job", next.job_id);
     } catch (e) { setError(String((e as Error).message || e)); }
     finally { setBusy(false); }
   };
 
   const loadRuns = async () => {
-    try { setRuns((await api<{ runs: Json[] }>("/api/runs")).runs); }
+    try {
+      setRuns((await api<{ runs: Json[] }>("/api/runs")).runs);
+      setActiveJobs((await api<{ jobs: Job[] }>("/api/design/jobs")).jobs.filter((item) => ["queued", "running", "unknown"].includes(item.status)));
+    }
     catch (e) { setError(String((e as Error).message || e)); }
+  };
+  const openJob = async (jobId: string) => {
+    setBusy(true); setError("");
+    try {
+      const next = await api<Job>(`/api/design/jobs/${encodeURIComponent(jobId)}`);
+      setResult(null); await acceptJob(next);
+      setView("design"); setRunLocation("job", jobId);
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
   };
   const openRun = async (runId: string) => {
     setBusy(true); setError("");
@@ -307,12 +428,37 @@ function App() {
       const archivedIntake = archived.intake_package || archived.intake_context || null;
       setIntakePackage(archivedIntake);
       if (archivedIntake?.raw_protocol) setProtocol(archivedIntake.raw_protocol);
+      const snapshot = archivedIntake?.inventory_profile_snapshot || null;
+      setSelectedProfile(snapshot); setSelectedProfileId(snapshot?.profile_id || "");
+      if (archivedIntake && archived.final_design?.status !== "executable") {
+        await reviewPackage(archivedIntake, snapshot, archived.chemistry_plan);
+      }
       setJob({ job_id: `archive-${runId}`, archive_run_id: runId, status: "completed", progress: 1, phase: "Archived design", messages: [], result: archived });
       setResultTab("overview"); setView("design");
+      setRunLocation("run", runId);
     } catch (e) { setError(String((e as Error).message || e)); }
     finally { setBusy(false); }
   };
-  useEffect(() => { if (view === "runs") loadRuns(); }, [view]);
+  useEffect(() => {
+    if (view !== "runs") return;
+    loadRuns();
+    const timer = window.setInterval(loadRuns, 10000);
+    return () => window.clearInterval(timer);
+  }, [view]);
+  useEffect(() => {
+    if (demo) return;
+    const query = new URLSearchParams(window.location.search);
+    const jobId = query.get("job"), runId = query.get("run");
+    const restore = async () => {
+      try {
+        if (jobId) await acceptJob(await api<Job>(`/api/design/jobs/${encodeURIComponent(jobId)}`));
+        else if (runId) await openRun(runId);
+        else if (saved.intakePackage) await reviewPackage(saved.intakePackage, saved.selectedProfile);
+      } catch (e) { setError((e as Error).message); }
+      finally { setRestoring(false); }
+    };
+    restore();
+  }, []);
 
   const nav = (next: View) => { setView(next); setMobileNav(false); };
   return <div className="appShell">
@@ -326,8 +472,9 @@ function App() {
         <button className={view === "system" ? "active" : ""} onClick={() => nav("system")}><CircleGauge size={17}/>Status<ChevronRight size={14}/></button>
       </nav>
       <div className="sideStatus">
-        <div><span className={`liveDot ${health || demo ? "ok" : ""}`}/><b>{health || demo ? "Core online" : "Connecting"}</b></div>
-        <p>{health?.models?.chemistry || "Validated pipeline"}</p>
+        <div><span className={`liveDot ${health || runtime || demo ? "ok" : ""}`}/><b>{health || runtime || demo ? "Core online" : "Connecting"}</b></div>
+        <p>{result?.pipeline_runtime?.model_routing?.upstream_model ? `Upstream: ${result.pipeline_runtime.model_routing.upstream_model}` : "Backend connected"}</p>
+        {result?.pipeline_runtime?.model_routing?.downstream_model && <p>Downstream: {result.pipeline_runtime.model_routing.downstream_model}</p>}
       </div>
       <div className="sideFooter"><ShieldCheck size={14}/>Deterministic gates authoritative</div>
     </aside>
@@ -340,21 +487,34 @@ function App() {
         <div className="topbarRight"><span className="version">v{health?.version || "2.0"}</span><button className="iconButton" onClick={refreshSystem} title="Refresh"><RefreshCw size={16}/></button></div>
       </header>
 
+      {!demo && <div className="workspaceIdentity"><span>{window.location.host}</span><code>UI {__FLOWPILOT_UI_BUILD__}</code>
+        <code>Server {runtime?.backend_build_id || "unverified"}</code><code>{job?.archive_run_id ? `Run ${job.archive_run_id}` : job ? `Job ${job.job_id}` : "No active job"}</code></div>}
+      {deploymentBlocked && (runtime || runtimeError) && <div className="deploymentBanner" role="status"><AlertTriangle size={18}/><span>{runtimeError || (runtime?.backend_stale ? "Server update pending. Active jobs are not cancelled; new submissions are paused." : "Workspace update available. This open page is an older build.")}</span><button disabled={storageError} onClick={() => window.location.reload()}><RefreshCw size={15}/>Reload workspace</button></div>}
+      {storageError && <div className="errorBanner">Browser draft storage is unavailable. Export your intake before reloading.</div>}
+
       {error && <div className="errorBanner"><AlertTriangle size={17}/><span>{error}</span><button onClick={() => setError("")}><X size={15}/></button></div>}
       {view === "design" && <DesignStudio
         protocol={protocol} setProtocol={setProtocol} intakePackage={intakePackage}
         questions={questions} answers={answers} setAnswers={setAnswers}
         unavailable={unavailable} setUnavailable={setUnavailable} useLlm={useLlm}
         setUseLlm={setUseLlm} profiles={profiles} selectedProfileId={selectedProfileId}
-        setSelectedProfileId={setSelectedProfileId} selectedProfile={selectedProfile}
+        setSelectedProfileId={chooseProfile} selectedProfile={selectedProfile}
+        inventoryAlternatives={inventoryAlternatives} resolveInventory={resolveInventory}
+        editIntake={() => { setResult(null); setJob(null); setResultTab("overview"); setRunLocation(); }}
         modelCatalog={modelCatalog} upstreamModelId={upstreamModelId}
         setUpstreamModelId={setUpstreamModelId} downstreamModelId={downstreamModelId}
         setDownstreamModelId={setDownstreamModelId}
         analyze={() => analyze()} submitAnswers={submitAnswers} runDesign={runDesign}
-        busy={busy} job={job} result={result} resultTab={resultTab} setResultTab={setResultTab}
+        busy={busy || restoring || deploymentBlocked} job={job} result={result} resultTab={resultTab} setResultTab={setResultTab}
       />}
-      {view === "inventory" && <InventoryWorkspace profiles={profiles} refresh={refreshSystem} onUse={(profile) => { setSelectedProfile(profile); setSelectedProfileId(profile.profile_id); setView("design"); }}/>} 
-      {view === "runs" && <RunsView runs={runs} onOpen={openRun}/>} 
+      {view === "inventory" && <InventoryWorkspace profiles={profiles} refresh={refreshSystem} onUse={(profile) => { applyProfile(profile); setView("design"); }}/>}
+      {view === "runs" && <div className="viewStack">
+        {!!activeJobs.length && <section className="activeJobList"><h2>In-progress designs</h2>{activeJobs.map((item) => <div key={item.job_id}>
+          <span><code>{item.job_id}</code><b>{item.phase}</b><small>{shortTime(item.created_at)}</small></span>
+          <button onClick={() => openJob(item.job_id)}><Activity size={15}/>Open current job</button>
+        </div>)}</section>}
+        <RunsView runs={runs} onOpen={openRun}/>
+      </div>}
       {view === "system" && <SystemView health={health}/>} 
     </main>
   </div>;
@@ -364,27 +524,34 @@ function DesignStudio(props: any) {
   const { protocol, setProtocol, intakePackage, questions, answers, setAnswers, unavailable, setUnavailable,
     useLlm, setUseLlm, profiles, selectedProfileId, setSelectedProfileId, selectedProfile,
     modelCatalog, upstreamModelId, setUpstreamModelId, downstreamModelId, setDownstreamModelId,
-    analyze, submitAnswers, runDesign, busy, job, result, resultTab, setResultTab } = props;
+    analyze, submitAnswers, runDesign, busy, job, result, resultTab, setResultTab,
+    inventoryAlternatives, resolveInventory, editIntake } = props;
   const upstreamRoute = modelCatalog?.models.find((model: ModelRoute) => model.route_id === upstreamModelId);
   const downstreamRoute = modelCatalog?.models.find((model: ModelRoute) => model.route_id === downstreamModelId);
   const modelsReady = Boolean(upstreamRoute?.available && downstreamRoute?.available);
-  const ready = Boolean(intakePackage?.ready_for_design && modelsReady);
+  const running = Boolean(job && ["queued", "running", "unknown"].includes(job.status));
+  const intakeReady = Boolean(intakePackage?.ready_for_design && protocol === intakePackage.raw_protocol);
+  const ready = intakeReady && modelsReady && !running;
+  const review = intakePackage?.inventory_review;
+  const withheld = result && result.final_design?.status !== "executable";
   const answered = intakePackage?.answers?.length || 0;
   const hasEvidence = Boolean(intakePackage?.historical_data && String(intakePackage.historical_data).trim());
   const inventoryBound = selectedProfile || intakePackage?.inventory_profile_snapshot || intakePackage?.inventory_constraints;
+  const profileChoices = profiles.map((item: Json) => item.profile_id === selectedProfile?.profile_id ? {...item, ...selectedProfile} : item);
+  if (selectedProfile && !profileChoices.some((item: Json) => item.profile_id === selectedProfile.profile_id)) profileChoices.push(selectedProfile);
   return <div className="viewStack">
-    <section className="kpiGrid">
-      <Kpi label="Intake" value={ready ? "READY" : intakePackage ? "OPEN" : "NEW"} note={ready ? "package frozen" : `${questions.length || "--"} questions pending`} icon={<ClipboardCheck size={14}/>} tone={ready ? "green" : "amber"}/>
+    {!running && <section className="kpiGrid">
+      <Kpi label="Intake" value={intakeReady ? "READY" : intakePackage ? "OPEN" : "NEW"} note={intakeReady ? "package frozen" : `${questions.length + (review?.questions?.length || 0)} questions pending`} icon={<ClipboardCheck size={14}/>} tone={intakeReady ? "green" : "amber"}/>
       <Kpi label="Evidence" value={hasEvidence ? "MEASURED" : "NONE"} note="highest authority" icon={<TestTube2 size={14}/>} tone={hasEvidence ? "blue" : "gray"}/>
       <Kpi label="Inventory" value={inventoryBound ? "BOUND" : "OPEN"} note={selectedProfile?.name || intakePackage?.inventory_profile_snapshot?.name || (inventoryBound ? "frozen intake constraints" : "select a laboratory")} icon={<PackageCheck size={14}/>} tone={inventoryBound ? "green" : "amber"}/>
-      <Kpi label="Design" value={job?.status?.toUpperCase() || "IDLE"} note={job?.phase || "no active run"} icon={<Activity size={14}/>} tone={job?.status === "completed" ? "green" : job?.status === "failed" ? "red" : "teal"}/>
-    </section>
+      <Kpi label="Design" value={withheld ? "REVIEW" : job?.status?.toUpperCase() || "IDLE"} note={job?.phase || "no active run"} icon={<Activity size={14}/>} tone={withheld ? "amber" : job?.status === "completed" ? "green" : job?.status === "failed" ? "red" : "teal"}/>
+    </section>}
 
-    {!result && <section className="designGrid">
+    {!result && !running && <section className="designGrid">
       <div className="panel intakePanel">
         <div className="panelHead"><div><span className="eyebrow">01 / protocol</span><h2><Bot size={17}/>Standardized intake</h2></div><span className="tag">{answered} answers stored</span></div>
         <div className="messageList compact">
-          <div className="message agent"><div className="messageMeta"><Bot size={13}/>FlowPilot intake</div><p>Provide the batch protocol. I will extract protocol facts and ask only the fixed questions required to freeze the design input.</p></div>
+          <div className="message agent"><div className="messageMeta"><Bot size={13}/>FlowPilot intake</div><p>Provide the batch protocol. I will extract stated facts and apply the versioned core and deterministic conditional question bank.</p></div>
           {protocol && intakePackage && <div className="message user"><div className="messageMeta"><User size={13}/>Chemist</div><p>{protocol}</p></div>}
         </div>
         <label className="field"><span>Initial batch protocol</span><textarea className="protocolInput" value={protocol} onChange={(e) => setProtocol(e.target.value)} placeholder="Paste the complete batch protocol…"/></label>
@@ -392,13 +559,15 @@ function DesignStudio(props: any) {
       </div>
 
       <div className="panel questionsPanel">
-        <div className="panelHead"><div><span className="eyebrow">02 / clarify</span><h2><ListChecks size={17}/>Fixed questions</h2></div><span className={`statusPill ${ready ? "success" : "warning"}`}>{ready ? <Check size={13}/> : <Clock3 size={13}/>} {ready ? "complete" : `${questions.length} pending`}</span></div>
+        <div className="panelHead"><div><span className="eyebrow">02 / clarify</span><h2><ListChecks size={17}/>Fixed + conditional questions</h2></div><span className={`statusPill ${ready ? "success" : "warning"}`}>{ready ? <Check size={13}/> : <Clock3 size={13}/>} {ready ? "complete" : `${questions.length} pending`}</span></div>
+        {intakePackage?.question_set_hash && <div className="questionSetMeta"><span>{intakePackage.question_bank_version}</span><code>{intakePackage.question_set_hash.slice(0, 12)}</code></div>}
         {!intakePackage && <Empty icon={<Send size={22}/>} title="Analyze the protocol first" text="The reproducible question bank will appear here."/>}
-        {intakePackage && !questions.length && <div className="successState"><CheckCircle2 size={30}/><h3>Design input is frozen</h3><p>All mandatory questions are answered or explicitly unavailable.</p></div>}
+        {intakePackage && !questions.length && <div className="successState"><CheckCircle2 size={30}/><h3>{intakePackage.ready_for_design ? "Design input is frozen" : "Protocol answers saved"}</h3><p>{review?.ready === false ? "Equipment requirements remain unresolved." : "All mandatory questions are answered or explicitly unavailable."}</p></div>}
         {!!questions.length && <div className="questionScroll">{questions.map((q: Question) => <div className="question" key={q.question_id}>
-          <div className="questionHead"><code>{q.question_id}</code><span>{q.section.replaceAll("_", " ")}</span></div><p>{q.question}</p>
-          <textarea disabled={unavailable[q.question_id]} value={answers[q.question_id] || ""} onChange={(e) => setAnswers({...answers, [q.question_id]: e.target.value})} placeholder={q.expected_format}/>
-          {UNAVAILABLE_QUESTION_IDS.has(q.question_id) && <label className="check"><input type="checkbox" checked={Boolean(unavailable[q.question_id])} onChange={(e) => setUnavailable({...unavailable, [q.question_id]: e.target.checked})}/><span>Explicitly unavailable</span></label>}
+          <div className="questionHead"><code>{q.question_id}</code><span>{q.section.replaceAll("_", " ")} · {q.origin || "core"}</span></div><p>{q.question}</p>
+          {q.decision_impact && <small className="questionImpact">Design impact: {q.decision_impact}</small>}
+          <textarea disabled={busy || unavailable[q.question_id]} value={answers[q.question_id] || ""} onChange={(e) => setAnswers((current: Json) => ({...current, [q.question_id]: e.target.value}))} placeholder={q.expected_format}/>
+          {q.allow_unavailable !== false && <label className="check"><input type="checkbox" disabled={busy} checked={Boolean(unavailable[q.question_id])} onChange={(e) => setUnavailable((current: Json) => ({...current, [q.question_id]: e.target.checked}))}/><span>Explicitly unavailable</span></label>}
         </div>)}</div>}
         {!!questions.length && <button className="primary full" disabled={busy || !questions.some((q: Question) => unavailable[q.question_id] || answers[q.question_id]?.trim())} onClick={submitAnswers}><CheckCircle2 size={15}/>Save answers</button>}
       </div>
@@ -410,16 +579,70 @@ function DesignStudio(props: any) {
           <label className="field"><span>Upstream chemistry</span><select aria-label="Upstream chemistry model" value={upstreamModelId} onChange={(e) => setUpstreamModelId(e.target.value)} disabled={!modelCatalog?.models.length}>{modelCatalog?.models.map((model: ModelRoute) => <option disabled={!model.available} value={model.route_id} key={`up-${model.route_id}`}>{model.label}{model.available ? "" : " · unavailable"}</option>)}</select><small>{upstreamRoute?.available ? "Protocol interpretation and chemistry plan" : upstreamRoute?.reason || "Select an available model"}</small></label>
           <label className="field"><span>Downstream and council</span><select aria-label="Downstream and council model" value={downstreamModelId} onChange={(e) => setDownstreamModelId(e.target.value)} disabled={!modelCatalog?.models.length}>{modelCatalog?.models.map((model: ModelRoute) => <option disabled={!model.available} value={model.route_id} key={`down-${model.route_id}`}>{model.label}{model.available ? "" : " · unavailable"}</option>)}</select><small>{downstreamRoute?.available ? "Flow proposal, council agents, revision, and selection" : downstreamRoute?.reason || "Select an available model"}</small></label>
         </div>
-        <label className="field"><span>Inventory profile</span><select value={selectedProfileId} onChange={(e) => setSelectedProfileId(e.target.value)}><option value="">No saved profile selected</option>{profiles.map((p: Json) => <option value={p.profile_id} key={p.profile_id}>{p.name} · v{p.version}</option>)}</select></label>
+        <label className="field"><span>Inventory profile</span><select aria-label="Inventory profile" disabled={busy || running} value={selectedProfileId} onChange={(e) => setSelectedProfileId(e.target.value)}><option value="">No saved profile selected</option>{profileChoices.map((p: Json) => <option value={p.profile_id} key={p.profile_id}>{p.name} · v{p.version}</option>)}</select></label>
         {selectedProfile ? <InventorySnapshot profile={selectedProfile}/> : <Empty icon={<Archive size={22}/>} title="Inventory not bound" text="Select a validated profile or mark inventory unavailable during intake."/>}
         <div className="authorityOrder"><span>Design authority</span><ol><li>Measured evidence</li><li>Hard constraints</li><li>Protocol facts</li><li>Chemist hypotheses</li><li>Model inference</li></ol></div>
         <button className="runButton" disabled={busy || !ready} onClick={runDesign}><Play size={17}/><span><b>Run FlowPilot design</b><small>{!intakePackage?.ready_for_design ? "Complete intake to unlock" : !modelsReady ? "Select available upstream and downstream models" : "Start constrained pipeline"}</small></span><ArrowRight size={16}/></button>
       </div>
     </section>}
 
+    {withheld && <section className="inventoryRecovery">
+      <div className="panelHead"><h2><PackageCheck size={17}/>Resolve laboratory requirements</h2><button disabled={busy} onClick={editIntake}><RefreshCw size={15}/>Return to intake</button></div>
+      <label className="field"><span>Inventory profile</span><select aria-label="Inventory profile" disabled={busy} value={selectedProfileId} onChange={(e) => setSelectedProfileId(e.target.value)}><option value="">No saved profile selected</option>{profileChoices.map((p: Json) => <option key={p.profile_id} value={p.profile_id}>{p.name} · v{p.version}</option>)}</select></label>
+      <p>Original run preserved. Current profile: {selectedProfile?.name || "intake inventory"}, version {selectedProfile?.version || "unsaved"}.</p>
+      <button className="primary" disabled={busy || !ready} onClick={runDesign}><Play size={15}/>Run with resolved inventory</button>
+    </section>}
+    {intakePackage && !running && (!result || withheld) && <InventoryResolutionPanel review={review} alternatives={inventoryAlternatives}
+      busy={busy || running} onChoose={setSelectedProfileId} onConfirm={resolveInventory}/>}
+
     {job && job.status !== "completed" && !result && <JobProgress job={job}/>} 
+    {withheld && review?.ready && <h2 className="previousRunHeading">Previous run: original inventory</h2>}
     {result && <ResultWorkspace result={result} job={job} tab={resultTab} setTab={setResultTab}/>} 
   </div>;
+}
+
+function InventoryResolutionPanel({ review, alternatives, busy, onChoose, onConfirm }: {
+  review?: Json; alternatives: Json[]; busy: boolean;
+  onChoose: (id: string) => void; onConfirm: (data: Json) => void;
+}) {
+  if (!review || !review.requirements?.length) return null;
+  return <section className="inventoryRecovery" aria-label="Equipment requirements">
+    <div className="panelHead"><h2><PackageCheck size={17}/>Equipment requirements</h2>
+      <span className={`statusPill ${review.ready ? "success" : "warning"}`}>{review.ready ? "Precheck passed" : review.status === "conceptual_only" ? "Required equipment unavailable" : "Confirmation needed"}</span></div>
+    <p>{review.profile_name || "Intake inventory"}{review.profile_version ? ` · v${review.profile_version}` : ""}</p>
+    <div className="requirementRows">{review.requirements.map((item: Json) => <div key={item.requirement_id}>
+      <b>{item.category.replaceAll("_", " ")}</b><span>{item.available_count} available / {item.required_count} needed</span>
+      <span className={item.status === "available" ? "requirementAvailable" : "requirementMissing"}>{item.status.replaceAll("_", " ")}</span>
+    </div>)}</div>
+    {!!review.assumed_standard_accessories?.length && <p className="questionImpact">Standard-accessory assumptions: {review.assumed_standard_accessories.map((item: Json) => item.category).join(", ")}. These are not confirmed equipment assignments.</p>}
+    {(alternatives || []).map((profile: Json) => <div className="profileAlternative" key={profile.profile_id}>
+      <span><b>{profile.name} · v{profile.version}</b><small>{profile.basis}</small></span>
+      <button disabled={busy} onClick={() => onChoose(profile.profile_id)}><Archive size={15}/>Select profile</button>
+    </div>)}
+    {(review.questions || []).map((question: Json) => <EquipmentConfirmation key={`${review.input_sha256}-${question.question_id}`} question={question} busy={busy} onConfirm={onConfirm}/>)}
+    {(review.confirmations || []).map((question: Json) => <details key={question.question_id}><summary>{question.title}: marked unavailable. Revise confirmation</summary>
+      <EquipmentConfirmation question={question} busy={busy} onConfirm={onConfirm}/></details>)}
+  </section>;
+}
+
+function EquipmentConfirmation({ question, busy, onConfirm }: { question: Json; busy: boolean; onConfirm: (data: Json) => void }) {
+  const [status, setStatus] = useState("available");
+  const [values, setValues] = useState<Json>({ quantity: "1" });
+  const [note, setNote] = useState("");
+  const fields = [{key: "equipment_id", label: "Equipment ID", type: "text"}, {key: "name", label: "Equipment name", type: "text"},
+    {key: "quantity", label: "Quantity available", type: "integer"}, ...question.fields];
+  return <form className="equipmentConfirmation" onSubmit={(event) => { event.preventDefault(); onConfirm({ category: question.category, status, equipment: values, note }); }}>
+    <div className="questionHead"><code>{question.question_id}</code><b>{question.title}</b></div>
+    <p>{question.question}</p><p>{question.reason}</p>
+    <label className="field"><span>Equipment availability</span><select aria-label="Equipment availability" disabled={busy} value={status} onChange={(e) => setStatus(e.target.value)}>
+      <option value="available">Available: confirm specifications</option><option value="unavailable">Unavailable in our laboratory</option></select></label>
+    {status === "available" && <div className="confirmationFields">{fields.map((field: Json) => <label className="field" key={field.key}><span>{field.label}</span>
+      <input disabled={busy} required type={["number", "integer"].includes(field.type) ? "number" : "text"}
+        step={field.type === "integer" ? "1" : "any"} value={values[field.key] || ""}
+        onChange={(e) => setValues({...values, [field.key]: e.target.value})}/></label>)}</div>}
+    <label className="field"><span>Confirmation note or specification source</span><input disabled={busy} value={note} onChange={(e) => setNote(e.target.value)}/></label>
+    <button className="primary" disabled={busy} type="submit"><Save size={15}/>Save inventory confirmation</button>
+  </form>;
 }
 
 function JobProgress({ job }: { job: Job }) {
@@ -432,10 +655,14 @@ function ResultWorkspace({ result, job, tab, setTab }: { result: Json; job: Job 
   const final = result.final_design || {};
   const params = final.parameters || {};
   const executable = final.status === "executable";
+  const assumedEquipment = (result.instrument_manifest || []).filter((item: Json) => item.requires_pre_run_verification);
+  const pendingAssumptions = (result.design_realization?.decisions || []).filter((item: Json) => item.confirmation_required);
   const tabs: [ResultTab, string, React.ReactNode][] = [
     ["overview", "Overview", <Gauge size={14}/>], ["topology", "Process", <GitBranch size={14}/>],
+    ["summary", "Process summary", <ListChecks size={14}/>],
     ["engineering", "Engineering", <SlidersHorizontal size={14}/>], ["recipe", "Chemistry", <Beaker size={14}/>],
     ["inventory", "Equipment", <Archive size={14}/>], ["council", "Council", <Layers3 size={14}/>],
+    ["responses", "Responses", <ClipboardCheck size={14}/>],
     ["cycles", "Experiment loop", <RefreshCw size={14}/>], ["json", "JSON", <FileJson size={14}/>]
   ];
   const download = () => {
@@ -444,40 +671,67 @@ function ResultWorkspace({ result, job, tab, setTab }: { result: Json; job: Job 
   };
   return <section className="resultWorkspace">
     <div className={`resultBanner ${executable ? "executable" : "blocked"}`}><div>{executable ? <CheckCircle2 size={22}/> : <AlertTriangle size={22}/>}<span><b>{executable ? "Executable screening design" : "Design withheld"}</b><small>{result.disposition_rationale || (executable ? "Canonical contract closed against inventory and engineering gates." : "Inspect blocking reasons before execution.")}</small></span></div><div className="bannerActions"><span className="confidence">{result.confidence || "--"} confidence</span><button onClick={download} disabled={job?.job_id === "demo"}><Download size={15}/>JSON</button></div></div>
+    {!!assumedEquipment.length && <div className="warningRow"><AlertTriangle size={17}/><span><b>Equipment verification required before laboratory use</b>{assumedEquipment.map((item: Json) => item.name || item.equipment_id).join("; ")}</span></div>}
+    {!!pendingAssumptions.length && <div className="warningRow"><AlertTriangle size={17}/><div><b>Chemist review required before laboratory use</b><ul>{pendingAssumptions.map((item: Json, i: number) => <li key={i}>{item.decision === "oxidant_gas_inventory_substitution"
+      ? `Gas substitution: ${item.from_gas} to ${item.to_gas}. ${item.basis}`
+      : item.decision === "component_quantity_screening_assumption"
+        ? `${item.component}: ${item.loading_mol_pct != null ? `${item.loading_mol_pct} mol%` : `${item.selected_concentration_M} M`} is a screening assumption, not a measured or confirmed recipe.`
+        : item.basis || item.decision.replaceAll("_", " ")}</li>)}</ul></div></div>}
     <div className="resultTabs">{tabs.map(([id, label, icon]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{icon}{label}</button>)}</div>
     <div className="resultBody">
       {tab === "overview" && <Overview result={result} params={params} executable={executable}/>} 
       {tab === "topology" && <Topology result={result} job={job}/>} 
-      {tab === "engineering" && <Engineering final={final} result={result}/>} 
+      {tab === "summary" && <ProcessSummary result={result}/>}
+      {tab === "responses" && <Responses result={result}/>}
+      {tab === "engineering" && (executable ? <EngineeringHistory result={result}/> : <Overview result={result} params={{}} executable={false}/>)}
       {tab === "recipe" && <Chemistry result={result} final={final}/>} 
       {tab === "inventory" && <Equipment result={result}/>} 
-      {tab === "council" && <Council result={result}/>} 
-      {tab === "cycles" && <ExperimentLoop job={job} result={result}/>} 
+      {tab === "council" && <CouncilTranscript result={result}/>}
+      {tab === "cycles" && (executable ? <ExperimentLoop job={job} result={result}/> : <Empty icon={<TestTube2 size={22}/>} title="No executable design to refine" text="Resolve the design requirements before recording an experiment against this proposal."/>)}
       {tab === "json" && <JsonViewer value={result}/>} 
     </div>
   </section>;
 }
 
 function Overview({ result, params, executable }: { result: Json; params: Json; executable: boolean }) {
-  const gas = (result.final_design?.streams || []).find((s: Json) => s.phase === "gas") || {};
+  if (!executable) return <div className="withheldSummary"><h2>{result.inventory_preflight ? "Equipment review required" : "Design validation requires review"}</h2>
+    <p>{result.explanation || result.disposition_rationale}</p>
+    {(result.inventory_preflight?.unresolved_requirements || result.inventory_allocation?.unresolved_requirements || []).map((item: Json, i: number) =>
+      <div className="warningRow" key={i}><AlertTriangle size={17}/><span><b>{item.category?.replaceAll("_", " ") || item.operation_id}</b>{item.reason}</span></div>)}
+    {(result.final_design?.consistency?.issues || []).map((issue: any, i: number) => <p key={i}>{typeof issue === "string" ? issue : issue.message || JSON.stringify(issue)}</p>)}
+  </div>;
+  const report = result.result_report || {};
+  const gases = (report.streams || []).filter((s: Json) => s.phase === "gas");
+  const hasGas = gases.length > 0;
+  const stages = report.stages || [];
+  if (stages.length > 1) return <StageOverview result={result} closure={<Closure result={result}/>}/>;
+  const stage = stages[0] || {};
+  const exact = (v: any) => v == null ? "--" : String(Number(Number(v).toPrecision(6)));
+  const conditions = {...params, reactor_volume_mL: stage.volume_mL, flow_rate_mL_min: stage.liquid_flow_mL_min,
+    temperature_C: stage.temperature_C, BPR_bar: stage.pressure_bar, wavelength_nm: stage.wavelength_nm,
+    tubing_ID_mm: stage.tubing_ID_mm, material: stage.material, tubing_material: stage.material};
   return <div className="overviewGrid">
     <div className="metricBand">
-      <Kpi label="Residence time" value={`${formatValue(params.residence_time_min)} min`} note={`inlet ${formatValue(params.residence_time_inlet_min)} · channel ${formatValue(params.residence_time_in_channel_min)}`} icon={<Clock3 size={14}/>} tone="teal"/>
-      <Kpi label="Liquid flow" value={`${formatValue(params.flow_rate_mL_min)} mL/min`} note={`${formatValue(params.concentration_M)} M feed`} icon={<Activity size={14}/>} tone="blue"/>
-      <Kpi label="Reactor" value={`${formatValue(params.reactor_volume_mL)} mL`} note={`${params.reactor_type || params.material || "--"} · ${formatValue(params.tubing_ID_mm)} mm ID`} icon={<Box size={14}/>} tone="amber"/>
-      <Kpi label="Gas at inlet" value={`${formatValue(gas.gas_flow_sccm)} sccm`} note={`${formatValue(gas.gas_flow_actual_mL_min)} mL/min in-channel`} icon={<Zap size={14}/>} tone="green"/>
+      <Kpi label={hasGas ? "Residence time · inlet/STP" : "Residence time"} value={`${exact(stage.residence_time_min)} min`} note={stage.residence_basis || "not recorded"} icon={<Clock3 size={14}/>} tone="teal"/>
+      <Kpi label="Liquid flow" value={`${exact(stage.liquid_flow_mL_min)} mL/min`} note={`${formatValue(params.concentration_M)} M feed`} icon={<Activity size={14}/>} tone="blue"/>
+      <Kpi label="Reactor" value={`${exact(stage.volume_mL)} mL`} note={`${stage.reactor || stage.material || "--"} · ${exact(stage.tubing_ID_mm)} mm ID`} icon={<Box size={14}/>} tone="amber"/>
+      <Kpi label="Gas at inlet/STP" value={hasGas ? `${exact(stage.gas_flow_stp_mL_min)} mL/min` : "No gas feed"} note={hasGas ? `${gases.map((s: Json) => `${s.label}: ${exact(s.equiv)} equiv`).join("; ")} · 273.15 K, 1.01325 bar` : "liquid-only process"} icon={<Zap size={14}/>} tone="green"/>
     </div>
-    <div className="panel unframed"><div className="panelHead"><h2><ClipboardCheck size={17}/>Run conditions</h2><span className={`statusPill ${executable ? "success" : "danger"}`}>{executable ? "authoritative" : "diagnostic"}</span></div><ConditionTable params={params}/></div>
+    {(report.issues || []).map((issue: string) => <div className="warningRow" key={issue}>{issue}</div>)}
+    <div className="panel unframed"><div className="panelHead"><h2><ClipboardCheck size={17}/>Run conditions</h2><span className={`statusPill ${executable ? "success" : "danger"}`}>{executable ? "authoritative" : "diagnostic"}</span></div><ConditionTable params={conditions}/></div>
     <div className="panel unframed"><div className="panelHead"><h2><ShieldCheck size={17}/>Closure</h2></div><Closure result={result}/></div>
   </div>;
 }
 
-function ConditionTable({ params }: { params: Json }) {
+function ConditionTable({ params, stages = [] }: { params: Json; stages?: Json[] }) {
+  const condition = (key: string, value: any) => value !== null && value !== undefined ? formatValue(value)
+    : stages.some((stage) => stage[key] !== null && stage[key] !== undefined)
+      ? stages.map((stage, i) => `Stage ${stage.stage_number || i + 1}: ${formatValue(stage[key])}`).join("; ") : "--";
   const rows = [
-    ["Concentration", formatValue(params.concentration_M), "M"], ["Temperature", formatValue(params.temperature_C), "°C"],
-    ["Pressure", formatValue(params.BPR_bar), "bar"], ["Wavelength", formatValue(params.wavelength_nm), "nm"],
+    ["Concentration", formatValue(params.concentration_M), "M"], ["Temperature", condition("temperature_C", params.temperature_C), "°C"],
+    ["Pressure", formatValue(params.BPR_bar), "bar"], ["Wavelength", condition("wavelength_nm", params.wavelength_nm), "nm"],
     ["Liquid flow", formatValue(params.flow_rate_mL_min), "mL/min"], ["Reactor volume", formatValue(params.reactor_volume_mL), "mL"],
-    ["Tubing ID", formatValue(params.tubing_ID_mm), "mm"], ["Material", formatValue(params.material || params.tubing_material || params.reactor_type), ""]
+    ["Tubing ID", condition("d_mm", params.tubing_ID_mm), "mm"], ["Material", condition("material", params.material || params.tubing_material), ""]
   ];
   return <div className="conditionTable">{rows.map(([label, value, unit]) => <div key={label}><span>{label}</span><b>{value} <small>{unit}</small></b></div>)}</div>;
 }
@@ -502,12 +756,18 @@ function Topology({ result, job }: { result: Json; job: Job | null }) {
     ? `/api/runs/${job.archive_run_id}/artifacts/${executable ? "process-svg" : "diagnostic-svg"}`
     : job?.job_id && job.job_id !== "demo" ? `/api/design/jobs/${job.job_id}/artifacts/${executable ? "process-svg" : "diagnostic-svg"}` : "";
   const [artifactFailed, setArtifactFailed] = useState(false);
+  const [zoom, setZoom] = useState(1);
   useEffect(() => setArtifactFailed(false), [artifact]);
+  useEffect(() => setZoom(1), [artifact]);
   return <div className="topologyLayout"><div className="topologyCanvas">
-    <div className="topologyHead"><div><h2>{executable ? "Executable process topology" : "Requirements topology"}</h2><p>{ops.length} declared unit operations · inventory identifiers preserved</p></div>{artifact && <a href={artifact} target="_blank"><ExternalLink size={15}/>Open image</a>}</div>
-    {artifact && !artifactFailed ? <img className="processImage" src={artifact} alt="FlowPilot process topology" onError={() => setArtifactFailed(true)}/>: null}
+    <div className="topologyHead"><div><h2>{executable ? "Executable process topology" : "Requirements topology"}</h2><p>{ops.length} declared unit operations · inlet/STP gas basis</p></div><div className="diagramTools">
+      <button className="iconButton" title="Zoom out" aria-label="Zoom out" disabled={zoom <= 1} onClick={() => setZoom(z => Math.max(1, z - 0.5))}><ZoomOut size={16}/></button>
+      <button className="iconButton" title="Zoom in" aria-label="Zoom in" disabled={zoom >= 5} onClick={() => setZoom(z => Math.min(5, z + 0.5))}><ZoomIn size={16}/></button>
+      <button className="iconButton" title="Fit diagram" aria-label="Fit diagram" onClick={() => setZoom(1)}><Maximize2 size={16}/></button>
+      {artifact && <a className="iconButton" title="Open full image" aria-label="Open full image" href={artifact} target="_blank"><ExternalLink size={16}/></a>}</div></div>
+    {artifact && !artifactFailed ? <div className="diagramViewport"><div style={{width: `${zoom * 100}%`}}><img className="processImage" src={artifact} alt="FlowPilot process topology" onError={() => setArtifactFailed(true)}/></div></div>: null}
     {(!artifact || artifactFailed) && <ProcessChain operations={ops}/>} 
-  </div><div className="operationList"><h3>Unit operations</h3>{ops.map((op: Json, i: number) => <div key={op.operation_id || op.op_id || i}><span>{String(i + 1).padStart(2, "0")}</span><div><b>{op.instrument_name || operationTitle(op)}</b><small>{operationId(op)}</small></div></div>)}</div></div>;
+  </div><div className="operationList"><h3>Unit operations</h3>{ops.map((op: Json, i: number) => <div key={op.operation_id || op.op_id || i}><span>{String(i + 1).padStart(2, "0")}</span><div><b>{op.instrument_name || op.parameters?.instrument_name || operationTitle(op)}</b><small>{operationId(op)}</small></div></div>)}</div></div>;
 }
 
 function ProcessChain({ operations }: { operations: Json[] }) {
@@ -524,15 +784,16 @@ function OperationIcon({ type }: { type: string }) {
   return <Waypoints size={19}/>;
 }
 
-function Engineering({ final, result }: { final: Json; result: Json }) {
-  const stages = final.stages || [];
-  const streams = final.streams || [];
-  return <div className="splitView"><section><div className="sectionTitle"><h2>Canonical stages</h2><span>{stages.length} stages</span></div>{stages.length ? <table className="dataTable"><thead><tr><th>Stage</th><th>Operation</th><th>Volume</th><th>Residence (inlet / channel)</th><th>Temperature</th></tr></thead><tbody>{stages.map((s: Json, i: number) => <tr key={i}><td>{s.stage_id || s.stage_number || i + 1}</td><td>{s.operation || s.stage_name || s.reaction_name || "reaction"}</td><td>{formatValue(s.reactor_volume_mL ?? s.V_R_mL)} mL</td><td>{formatValue(s.residence_time_inlet_min ?? s.residence_time_min)} / {formatValue(s.residence_time_in_channel_min ?? s.residence_time_min)} min</td><td>{formatValue(s.temperature_C ?? final.parameters?.temperature_C)} °C</td></tr>)}</tbody></table> : <ConditionTable params={final.parameters || {}}/>}</section><section><div className="sectionTitle"><h2>Stream assignments</h2><span>{streams.length} streams</span></div><table className="dataTable"><thead><tr><th>Stream</th><th>Phase</th><th>Composition</th><th>Flow</th></tr></thead><tbody>{streams.map((s: Json, i: number) => <tr key={i}><td>{s.stream_label || i + 1}</td><td><span className={`phase ${s.phase}`}>{s.phase || "liquid"}</span></td><td>{streamContents(s)}</td><td>{s.phase === "gas" ? `${formatValue(s.gas_flow_sccm)} sccm` : `${formatValue(s.flow_rate_mL_min)} mL/min`}</td></tr>)}</tbody></table></section></div>;
-}
 
 function Chemistry({ result, final }: { result: Json; final: Json }) {
   const plan = result.chemistry_plan || {};
-  return <div className="splitView"><section><div className="sectionTitle"><h2>Chemistry plan</h2><span>upstream analysis</span></div><dl className="detailList"><dt>Reaction</dt><dd>{plan.reaction_name || result.batch_record?.reaction_description || "--"}</dd><dt>Mechanism</dt><dd>{plan.mechanism_type || "--"}</dd><dt>Solvent</dt><dd>{plan.solvent_rationale || result.batch_record?.solvent || "--"}</dd></dl><TagList values={plan.key_risks || plan.safety_flags || []}/></section><section><div className="sectionTitle"><h2>Operating procedure</h2><span>compiled from final design</span></div><ol className="procedure"><li>Prepare the declared feeds at {formatValue(final.parameters?.concentration_M)} M using the assigned inventory.</li><li>Prime liquid and gas paths independently and verify pressure control.</li><li>Set liquid flow to {formatValue(final.parameters?.flow_rate_mL_min)} mL/min and stabilize the reactor at {formatValue(final.parameters?.temperature_C)} °C.</li><li>Start the reaction stage only after the final stream and topology checks are closed.</li><li>Collect after the declared startup volume and document actual run conditions.</li></ol></section></div>;
+  if (final.status !== "executable") return <div className="withheldSummary"><h2>Chemistry analysis</h2>
+    <p>{plan.reaction_name || result.batch_record?.reaction_description || "No chemistry analysis stored."}</p>
+    <p>{plan.mechanism_type}</p><TagList values={plan.key_risks || plan.safety_flags || []}/>
+    <p>No accepted operating procedure is available for this withheld design.</p></div>;
+  return <div className="splitView"><section><div className="sectionTitle"><h2>Chemistry plan</h2><span>upstream analysis</span></div><dl className="detailList"><dt>Reaction</dt><dd>{plan.reaction_name || result.batch_record?.reaction_description || "--"}</dd><dt>Mechanism</dt><dd>{plan.mechanism_type || "--"}</dd><dt>Solvent</dt><dd>{plan.solvent_rationale || result.batch_record?.solvent || "--"}</dd></dl><TagList values={plan.key_risks || plan.safety_flags || []}/>
+    {!!final.stream_components?.length && <><div className="sectionTitle"><h2>Feed components</h2><span>final quantities</span></div><table className="dataTable"><thead><tr><th>Stream</th><th>Component</th><th>Quantity</th></tr></thead><tbody>{final.stream_components.map((item: Json, i: number) => <tr key={i}><td>{item.stream_label}</td><td>{item.name}</td><td>{item.quantification_required === false ? "Solvent" : <>{item.concentration_M != null ? `${item.concentration_M} M` : "Not specified"}{item.loading_mol_pct != null ? `; ${item.loading_mol_pct} mol%` : item.molar_equiv != null ? `; ${item.molar_equiv} equiv` : ""}</>}{item.provenance?.includes("screening_assumption_requires_confirmation") && <small>Unconfirmed screening assumption</small>}</td></tr>)}</tbody></table></>}
+    </section><section><div className="sectionTitle"><h2>Operating procedure</h2><span>compiled from final design</span></div>{final.operating_procedure?.length ? <ol className="procedure">{final.operating_procedure.map((step: Json, i: number) => <li key={step.step_id || i}>{displayUnits(step.instruction)}</li>)}</ol> : <p>No compiled procedure is stored in this result.</p>}</section></div>;
 }
 
 function Equipment({ result }: { result: Json }) {
@@ -541,10 +802,6 @@ function Equipment({ result }: { result: Json }) {
   return <div><div className="sectionTitle"><h2>Assigned equipment</h2><span>{items.length} instruments</span></div>{items.length ? <div className="equipmentGrid">{items.map((item: Json, i: number) => <div className="equipmentItem" key={item.equipment_id || i}><div className="equipmentIcon"><Box size={18}/></div><div><b>{item.name || item.label || item.equipment_id}</b><small>{item.role || item.category || "process equipment"}</small><code>{item.equipment_id || "unassigned"}</code></div></div>)}</div> : <Empty icon={<Archive size={22}/>} title="No final allocation" text="Resolve inventory requirements before execution."/>}{unresolved.map((item: Json, i: number) => <div className="warningRow" key={i}><AlertTriangle size={16}/><span><b>{item.operation_id}</b>{item.reason}</span></div>)}</div>;
 }
 
-function Council({ result }: { result: Json }) {
-  const messages = result.council_messages || [];
-  return <div><div className="sectionTitle"><h2>Council deliberation</h2><span>{result.council_rounds || 0} rounds · {messages.length} records</span></div><div className="councilTimeline">{messages.length ? messages.map((m: Json, i: number) => <div key={i}><div className="agentAvatar">{String(m.agent || m.role || "A").slice(0, 1)}</div><div><b>{m.agent || m.role || `Agent ${i + 1}`}</b><p>{m.content || m.message || m.reasoning || JSON.stringify(m)}</p></div></div>) : <Empty icon={<Layers3 size={22}/>} title="No council transcript" text="No deliberation messages were stored with this result."/>}</div></div>;
-}
 
 function ExperimentLoop({ job, result }: { job: Job | null; result: Json }) {
   const params = result.final_design?.parameters || {};
@@ -565,7 +822,8 @@ function ExperimentLoop({ job, result }: { job: Job | null; result: Json }) {
     try { setRefinement(await api<Json>("/api/refinement", { method: "POST", body: JSON.stringify({ job_id: job?.job_id === "demo" ? null : job?.job_id, current_result: job?.job_id === "demo" ? result : null, experiments }) })); }
     catch (e) { setError(String((e as Error).message || e)); } finally { setBusy(false); }
   };
-  const fields = [["Residence time", "residence_time_min", "min"], ["Liquid flow", "flow_rate_mL_min", "mL/min"], ["Temperature", "temperature_C", "°C"], ["Reactor volume", "reactor_volume_mL", "mL"], ["Yield", "yield_pct", "%"], ["Conversion", "conversion_pct", "%"]];
+  const hasGas = Boolean((result.final_design?.streams || []).some((s: Json) => s.phase === "gas"));
+  const fields = [[hasGas ? "Residence time (inlet/STP)" : "Residence time", "residence_time_min", "min"], ["Liquid flow", "flow_rate_mL_min", "mL/min"], ["Temperature", "temperature_C", "°C"], ["Reactor volume", "reactor_volume_mL", "mL"], ["Yield", "yield_pct", "%"], ["Conversion", "conversion_pct", "%"]];
   return <div className="cycleLayout"><section><div className="sectionTitle"><h2>Add experimental result</h2><span>actual wet-lab values</span></div><div className="formGrid">{fields.map(([label, key, unit]) => <label className="field" key={key}><span>{label} <small>{unit}</small></span><input type="number" value={form[key]} onChange={(e) => setForm({...form, [key]: e.target.value})}/></label>)}</div><label className="field"><span>Observations</span><textarea value={form.notes} onChange={(e) => setForm({...form, notes: e.target.value})} placeholder="Pressure drift, precipitation, gas-liquid stability, impurities…"/></label><div className="actions"><button onClick={add}><Plus size={15}/>Add cycle</button><button className="primary" disabled={!experiments.length || busy} onClick={refine}><Sparkles size={15}/>Refine from {experiments.length} cycle{experiments.length === 1 ? "" : "s"}</button></div>{error && <div className="inlineError">{error}</div>}</section><section><div className="sectionTitle"><h2>Campaign history</h2><span>{experiments.length} cycles</span></div>{experiments.length ? <div className="cycleList">{experiments.map((e, i) => <div key={i}><span>v{i + 1}</span><div><b>{formatValue(e.outcomes.yield_pct ?? e.outcomes.conversion_pct)}%</b><small>{formatValue(e.actual_conditions.residence_time_min)} min · {formatValue(e.actual_conditions.flow_rate_mL_min)} mL/min</small></div><button onClick={() => setExperiments(experiments.filter((_, j) => i !== j))}><Trash2 size={14}/></button></div>)}</div> : <Empty icon={<TestTube2 size={22}/>} title="No wet-lab cycles" text="Add the actual conditions and analytical result from the first run."/>}{refinement && <div className="refinement"><span className="eyebrow">Next design</span><h3>{refinement.decision?.status?.replaceAll("_", " ")}</h3><p>{refinement.decision?.diagnosis}</p><TagList values={refinement.decision?.recommended_actions || []}/><JsonViewer value={refinement.decision?.next_experiment || {}} compact/></div>}</section></div>;
 }
 

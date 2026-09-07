@@ -202,7 +202,7 @@ def test_inventory_pump_notes_do_not_hide_qwen_first_stage_feed():
     stage_two = reconciled.stages[1].feed_streams
     assert report["explicit_separate_liquid_feeds"] is False
     assert len(stage_one) == 1
-    assert catalyst in stage_one[0].reagents
+    assert any(item.startswith(catalyst + " (0.5 mol%)") for item in stage_one[0].reagents)
     assert len([item for item in stage_one[0].reagents if item.startswith("PMPSCH2TMS")]) == 1
     assert len([item for item in stage_one[0].reagents if item.startswith("Acrylonitrile")]) == 1
     assert all(feed.stream_label != "A" for feed in stage_two)

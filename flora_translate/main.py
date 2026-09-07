@@ -26,6 +26,7 @@ from flora_translate.design_disposition import apply_design_disposition_gate
 from flora_translate.diagram_artifacts import render_topology_artifacts
 from flora_translate.engine.council_v4 import CouncilV4
 from flora_translate.intake_agent import (
+    apply_intake_requirements_to_chemistry_plan,
     batch_input_from_package,
     historical_text_from_package,
     intake_context_block,
@@ -644,7 +645,7 @@ def _enforce_gas_delivery_hardware(ops: list[UnitOperation]) -> None:
 
 def _add_pump(ops, label_char, role, contents, solvent, flow_rate, reasoning,
               is_gas: bool = False, gas_flow_sccm=None, gas_flow_actual_mL_min=None,
-              inventory_equipment_id=None):
+              inventory_equipment_id=None, molar_equiv=None):
     """Helper: create a pump (or MFC for gas) UnitOperation."""
     op_id = f"pump_{label_char.lower()}"
     ops.append(UnitOperation(
@@ -658,6 +659,7 @@ def _add_pump(ops, label_char, role, contents, solvent, flow_rate, reasoning,
             "phase": "gas" if is_gas else "liquid",
             "gas_flow_sccm": gas_flow_sccm,
             "gas_flow_actual_mL_min": gas_flow_actual_mL_min,
+            "molar_equiv": molar_equiv,
             "inventory_equipment_id": inventory_equipment_id,
         },
         required=True, rationale=reasoning,
@@ -798,7 +800,8 @@ def _build_singlestep_topology(
                             is_gas=_stream_is_gas(s),
                             gas_flow_sccm=gas_sccm,
                             gas_flow_actual_mL_min=gas_actual,
-                            inventory_equipment_id=s.pump_equipment_id)
+                            inventory_equipment_id=s.pump_equipment_id,
+                            molar_equiv=s.molar_equiv)
             pump_ids.append(pid)
     else:
         default_Q = round((proposal.flow_rate_mL_min or 0.5) / 2, 4)
@@ -1275,6 +1278,7 @@ def _build_multistep_topology(
                 is_gas=_stream_is_gas(feed),
                 gas_flow_sccm=gas_sccm,
                 gas_flow_actual_mL_min=gas_actual,
+                molar_equiv=getattr(matched_proposal_stream, "molar_equiv", None),
                 inventory_equipment_id=(
                     matched_proposal_stream.pump_equipment_id
                     if matched_proposal_stream is not None
@@ -1927,6 +1931,9 @@ def _inventory_preflight_result(
         "batch_record": batch_record.model_dump(exclude_none=True),
     }
     if intake:
+        from flora_translate.inventory_resolution import review_inventory
+        intake.inventory_review = review_inventory(intake, chemistry_plan)
+        intake.ready_for_design = False
         result["intake_package"] = intake.model_dump()
         result["intake_context"] = intake_block
     try:
@@ -1991,6 +1998,13 @@ def translate(
             "runtime_hard_constraints": list(runtime.hard_constraints),
         },
     )
+    chemistry_plan, intake_requirement_decisions = (
+        apply_intake_requirements_to_chemistry_plan(chemistry_plan, intake)
+    )
+    if intake_requirement_decisions:
+        chemistry_reconciliation["intake_requirement_decisions"] = (
+            intake_requirement_decisions
+        )
     logger.info(f"  Mechanism: {chemistry_plan.mechanism_type}")
     logger.info(f"  Streams: {len(chemistry_plan.stream_logic)}  O2: {chemistry_plan.oxygen_sensitive}")
     logger.info(f"  Upstream mode: {getattr(chemistry_plan, '_upstream_mode', 'full')}")
@@ -2119,6 +2133,10 @@ def translate(
     # 5. ENGINE deliberation council — Layer 3
     logger.info("Step 5: Multi-agent deliberation council (ENGINE)")
     pre_council_proposal = proposal.model_dump()  # snapshot before council modifies it
+    from copy import deepcopy
+    from dataclasses import asdict
+
+    pre_council_calculations = deepcopy(asdict(calculations))
     # Pre-package Design Space feasible candidates as council seeds. If the
     # Council Designer's LLM-guided sampling finds 0 feasible points, the
     # council falls back to these — preventing silent council-skip when the
@@ -2158,6 +2176,19 @@ def translate(
     # 6. Format output
     logger.info("Step 6: Formatting output")
     result = OutputFormatter().format(design_candidate, analogies)
+    result["engineering_history"] = {
+        "schema_version": "flowpilot_engineering_history_v1",
+        "before_council": {
+            "source": "calculator and translation proposal before CouncilV4.run",
+            "proposal": deepcopy(pre_council_proposal),
+            "calculations": pre_council_calculations,
+        },
+        "after_council": {
+            "source": "CouncilV4 selection before deterministic inventory realization",
+            "proposal": deepcopy(result.get("proposal") or {}),
+            "calculations": deepcopy(asdict(calculations)),
+        },
+    }
     result["chemistry_plan"] = chemistry_plan.model_dump(exclude_none=True)
     result["chemistry_reconciliation"] = chemistry_reconciliation
     result["batch_record"] = batch_record.model_dump(exclude_none=True)
@@ -2359,6 +2390,14 @@ def translate(
         )
         calculation_payload.update(realized_proposal.multiphase_metrics or {})
         result["design_calculations"] = calculation_payload
+        from flora_translate.final_engineering import calculate_final_stages
+
+        result["final_stage_engineering"] = calculate_final_stages(
+            realized_proposal, batch_record, chemistry_plan, inventory, analogies,
+        )
+        result["design_calculations"]["annotation_scope"] = (
+            "lumped diagnostic; final engineering is in final_stage_engineering"
+        )
         logger.info(
             "Step 6d: Deterministic design realization %s",
             realization_report["status"],

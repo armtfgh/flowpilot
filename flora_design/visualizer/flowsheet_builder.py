@@ -32,6 +32,7 @@ import re
 import shutil
 import sys
 import tempfile
+import textwrap
 from copy import deepcopy
 from collections import defaultdict
 from html import escape
@@ -163,9 +164,19 @@ def _html_lines(*lines: str, sizes: list[int] | None = None,
     return "<BR/>".join(parts)
 
 
-def _trunc(s: str, n: int = 35) -> str:
-    s = str(s).strip()
-    return s if len(s) <= n else s[:n - 1] + "…"
+def _wrap(s: str, n: int = 32) -> str:
+    """Wrap captions without dropping chemical names or equipment qualifiers."""
+    return "\n".join(line for paragraph in str(s).splitlines()
+                     for line in textwrap.wrap(paragraph, width=n, break_long_words=True,
+                                               break_on_hyphens=False))
+
+
+def _font_lines(text, size=10, color="#111827", bold=False):
+    return "<BR/>".join(
+        f'<FONT POINT-SIZE="{size}" COLOR="{color}">'
+        + (f"<B>{_esc(line)}</B>" if bold else _esc(line)) + "</FONT>"
+        for line in _wrap(text).splitlines()
+    )
 
 
 # ── Gas stream detection ──────────────────────────────────────────────────────
@@ -282,19 +293,16 @@ def _pump_label(op) -> str:
     p      = op.parameters or {}
     stream = p.get("stream", "?")
     instrument = p.get("instrument_name") or getattr(op, "instrument_name", "")
-    title = _trunc(instrument, 30) if instrument else f"Pump {stream}"
+    title = f"Stream {stream}\n{instrument}" if instrument else f"Pump {stream}"
 
     # Materials line
     contents = p.get("contents") or []
     if isinstance(contents, str):
         contents = [contents]
     material_parts = []
-    for item in contents[:3]:
-        name = str(item).split("(")[0].strip()
-        material_parts.append(_trunc(name, 22))
-    if len(contents) > 3:
-        material_parts.append(f"+{len(contents)-3}")
-    materials_line = ",  ".join(material_parts) if material_parts else ""
+    for item in contents:
+        material_parts.append(str(item).strip())
+    materials_line = "\n".join(material_parts)
 
     # Solvent · concentration line
     cond_parts = []
@@ -305,17 +313,17 @@ def _pump_label(op) -> str:
     cond_line = "  ·  ".join(cond_parts)
 
     rows = [
-        f'<FONT POINT-SIZE="10" COLOR="#111827"><B>{_esc(title)}</B></FONT>',
+        _font_lines(title, bold=True),
     ]
     if materials_line:
-        rows.append(f'<FONT POINT-SIZE="8.5" COLOR="#1E40AF">{_esc(materials_line)}</FONT>')
+        rows.append(_font_lines(materials_line, 10, "#1E40AF"))
     if cond_line:
-        rows.append(f'<FONT POINT-SIZE="8" COLOR="#374151">{_esc(cond_line)}</FONT>')
+        rows.append(_font_lines(cond_line, 10, "#374151"))
     # Flow rate: separate blue line for visibility
     if p.get("flow_rate_mL_min") is not None:
         rows.append(
             f'<FONT POINT-SIZE="9" COLOR="#2563EB"><B>'
-            f'{float(p["flow_rate_mL_min"]):.2f} mL/min</B></FONT>'
+            f'{float(p["flow_rate_mL_min"]):.6g} mL/min</B></FONT>'
         )
     unresolved = _unresolved_inventory_label(op)
     if unresolved:
@@ -331,20 +339,18 @@ def _mfc_label(op) -> str:
     contents = p.get("contents") or []
     if isinstance(contents, str):
         contents = [contents]
-    gas_name = str(contents[0]).split("(")[0].strip() if contents else "Gas"
-    fr   = p.get("flow_rate_mL_min")
+    gas_name = ", ".join(map(str, contents)) if contents else "Gas"
     sccm = p.get("gas_flow_sccm")
-    actual = p.get("gas_flow_actual_mL_min")
     rows = [
-        f'<FONT POINT-SIZE="10" COLOR="#111827"><B>{_esc(_trunc(instrument, 30) if instrument else f"MFC {stream}")}</B></FONT>',
-        f'<FONT POINT-SIZE="8.5" COLOR="#DC2626">{_esc(gas_name)}</FONT>',
+        _font_lines(f"Stream {stream}\n{instrument or 'MFC'}", bold=True),
+        _font_lines(gas_name, 10, "#DC2626"),
     ]
     if sccm is not None:
-        rows.append(f'<FONT POINT-SIZE="8" COLOR="#374151">{float(sccm):.2f} sccm</FONT>')
-        if actual is not None:
-            rows.append(f'<FONT POINT-SIZE="7.5" COLOR="#6B7280">{float(actual):.3f} mL/min reactor</FONT>')
-    elif fr is not None:
-        rows.append(f'<FONT POINT-SIZE="8" COLOR="#374151">{float(fr):.2f} mL/min</FONT>')
+        rows.append(_font_lines(f"{float(sccm):.6g} mL/min at STP", 10))
+    else:
+        rows.append(_font_lines("Inlet/STP flow not recorded", 10, "#B91C1C"))
+    if p.get("molar_equiv") is not None:
+        rows.append(_font_lines(f"{float(p['molar_equiv']):.4g} equiv (inlet/STP)", 10))
     unresolved = _unresolved_inventory_label(op)
     if unresolved:
         rows.append(f'<FONT POINT-SIZE="8" COLOR="#B91C1C"><B>{_esc(unresolved)}</B></FONT>')
@@ -366,29 +372,27 @@ def _reactor_label(op) -> str:
     if p.get("wavelength_nm") is not None:
         parts.append(f"λ={p['wavelength_nm']:.0f} nm")
     tau_inlet = p.get("residence_time_inlet_min")
-    tau_channel = p.get("residence_time_in_channel_min")
-    if (
-        tau_inlet is not None
-        and tau_channel is not None
-        and abs(float(tau_inlet) - float(tau_channel)) > 0.05
-    ):
-        parts.append(f"τin={float(tau_inlet):.1f} min")
-        parts.append(f"τch={float(tau_channel):.1f} min")
-    elif p.get("residence_time_min") is not None:
+    if tau_inlet is not None:
+        basis = "liquid" if not (p.get("gas_flow_sccm") or p.get("Q_gas_sccm")) and "liquid" in str(p.get("residence_time_basis")) else "inlet/STP"
+        parts.append(f"Time ({basis}): {float(tau_inlet):.6g} min")
+    elif p.get("residence_time_min") is not None and not (p.get("gas_flow_sccm") or p.get("Q_gas_sccm")):
         rt = float(p["residence_time_min"])
         parts.append(f"τ={rt:.1f} min" if rt >= 1 else f"τ={rt*60:.0f} s")
     volume = p.get("volume_mL") if p.get("volume_mL") is not None else p.get("reactor_volume_mL")
     if volume is not None:
         parts.append(f"V={float(volume):.1f} mL")
 
-    settings = "  ·  ".join(parts) if parts else ""
+    diameter = p.get("ID_mm") or p.get("tubing_ID_mm") or p.get("d_mm")
+    if diameter is not None:
+        parts.append(f"ID={float(diameter):g} mm")
+    settings = "\n".join(parts)
     identity_lines = []
     if instrument:
-        identity_lines.append(_trunc(instrument, 34))
+        identity_lines.append(instrument)
     if light_instrument:
-        identity_lines.append(f"Light: {_trunc(light_instrument, 28)}")
+        identity_lines.append(f"Light: {light_instrument}")
     if temperature_controller:
-        identity_lines.append(f"Temp: {_trunc(temperature_controller, 27)}")
+        identity_lines.append(f"Temp: {temperature_controller}")
     if settings:
         identity_lines.append(settings)
     serial_status = p.get("serial_connection_status")
@@ -406,7 +410,7 @@ def _bpr_label(op) -> str:
     p = op.parameters or {}
     bar = p.get("pressure_bar") or p.get("BPR_bar")
     instrument = p.get("instrument_name") or getattr(op, "instrument_name", "") or "BPR"
-    label = f"{_trunc(instrument, 30)}\n{bar:g} bar" if bar else _trunc(instrument, 30)
+    label = f"{instrument}\n{bar:g} bar" if bar else str(instrument)
     unresolved = _unresolved_inventory_label(op)
     return f"{label}\n{unresolved}" if unresolved else label
 
@@ -431,14 +435,14 @@ def _textbox_label(op) -> str:
           op.label or op.op_type.replace("_", " ").title()
     instrument = p.get("instrument_name") or getattr(op, "instrument_name", "")
     if instrument:
-        lbl = f"{lbl.split(' | ', 1)[0]}\n{_trunc(instrument, 30)}"
+        lbl = f"{lbl}\n{instrument}"
     unresolved = _unresolved_inventory_label(op)
     if unresolved:
         lbl += f"\n{unresolved}"
 
     # Add one short detail if meaningful
     detail = p.get("method") or p.get("reagent") or ""
-    if detail and len(str(detail)) < 20:
+    if detail:
         return lbl + "\n" + str(detail)
     return lbl
 
@@ -516,7 +520,7 @@ def _separator_label(op, adjacent_stream_types=()) -> str:
         or op.label
         or fallback
     )
-    label = _trunc(str(instrument).split(" | ")[-1], 34)
+    label = str(instrument)
     unresolved = _unresolved_inventory_label(op)
     return f"{label}\n{unresolved}" if unresolved else label
 
@@ -591,7 +595,7 @@ def _add_image_node(dot, node_id: str, label: str, img_path: Path,
     label_rows = "".join(
         f'<TR><TD ALIGN="CENTER" WIDTH="{img_w}"><FONT POINT-SIZE="9" COLOR="#111827">'
         f'{_esc(ln)}</FONT></TD></TR>'
-        for ln in label.split("\n") if ln.strip()
+        for ln in _wrap(label).split("\n") if ln.strip()
     )
     html = (
         '<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="3">'
@@ -611,10 +615,10 @@ def _add_mixer_image(dot, node_id: str, n_inputs: int, op=None):
     if op is not None:
         parameters = op.parameters or {}
         instrument = parameters.get("instrument_name") or getattr(op, "instrument_name", "")
-    label_row = (
+    label_row = "".join(
         f'<TR><TD ALIGN="CENTER" WIDTH="{sz}"><FONT POINT-SIZE="9" COLOR="#111827">'
-        f'{_esc(_trunc(instrument, 30))}</FONT></TD></TR>'
-        if instrument else ""
+        f'{_esc(line)}</FONT></TD></TR>'
+        for line in _wrap(instrument).splitlines()
     )
     unresolved = _unresolved_inventory_label(op) if op is not None else ""
     if unresolved:
@@ -638,7 +642,7 @@ def _add_textbox(dot, node_id: str, op):
     content_rows = "".join(
         f'<TR><TD ALIGN="CENTER" WIDTH="145"><FONT POINT-SIZE="9" '
         f'COLOR="#1E293B">{_esc(ln)}</FONT></TD></TR>'
-        for ln in label.split("\n")
+        for ln in _wrap(label).split("\n")
     )
     # Outer table: [left-port cell | content cell | right-port cell]
     # Named ports ensure arrows attach exactly to the left/right border edge.

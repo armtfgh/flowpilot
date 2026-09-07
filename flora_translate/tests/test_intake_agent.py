@@ -1,5 +1,24 @@
-from flora_translate.intake_agent import IntakeAgent, QUESTION_BANK, intake_context_block
-from flora_translate.schemas import DesignInputPackage, IntakeAnswer
+import itertools
+
+import pytest
+
+from flora_translate.design_calculator import DesignCalculator
+from flora_translate.intake_agent import (
+    IntakeAgent,
+    QUESTION_BANK,
+    apply_intake_requirements_to_chemistry_plan,
+    intake_context_block,
+)
+from flora_translate.schemas import (
+    BatchRecord,
+    ChemistryPlan,
+    DesignInputPackage,
+    FlowProposal,
+    IntakeAnswer,
+    ProcessStage,
+    StreamAssignment,
+    StreamLogic,
+)
 
 
 def test_design_input_package_roundtrip():
@@ -15,7 +34,8 @@ def test_design_input_package_roundtrip():
 
     restored = DesignInputPackage.model_validate_json(package.model_dump_json())
 
-    assert restored.schema_version == "flowpilot_intake_v1.0"
+    assert restored.schema_version == "flowpilot_intake_v1.1"
+    assert restored.question_bank_version == "flowpilot_questions_v1.1"
     assert restored.objective == "first safe screening design"
     assert restored.hypotheses == ["kinetics may be slow"]
 
@@ -36,6 +56,7 @@ def test_intake_agent_generates_stable_fixed_question_ids_without_llm():
         "Q-INV-001",
         "Q-CONSTR-001",
         "Q-HYP-001",
+        "Q-PHOTO-001",
     ]
     assert not first.ready_for_design
 
@@ -202,3 +223,145 @@ def test_fallback_extract_preserves_explicit_photocatalyst_and_solvent():
     assert package.extracted_batch_fields["catalyst_loading_mol_pct"] == 0.5
     assert package.extracted_batch_fields["solvent"] == "EtOH/pH 9 aqueous buffer, 5:1 v/v"
     assert package.extracted_batch_fields["atmosphere"] == "argon"
+
+
+ADAPTIVE_PROTOCOL = (
+    "A two-stage photochemical oxidation is performed with oxygen gas under "
+    "3 bar using a blue LED. Compound A is converted to product B."
+)
+
+
+def _required_answers(gas_equiv: float) -> list[IntakeAnswer]:
+    return [
+        IntakeAnswer(question_id="Q-OBJ-001", answer="first executable screen"),
+        IntakeAnswer(question_id="Q-CHEM-001", answer="Two-stage oxidation of A to B."),
+        IntakeAnswer(question_id="Q-HIST-001", status="unavailable"),
+        IntakeAnswer(question_id="Q-INV-001", status="unavailable"),
+        IntakeAnswer(question_id="Q-CONSTR-001", status="unavailable"),
+        IntakeAnswer(question_id="Q-HYP-001", status="unavailable"),
+        IntakeAnswer(question_id="Q-GAS-002", answer=f"{gas_equiv} equiv"),
+        IntakeAnswer(question_id="Q-GAS-003", answer="Stage 2"),
+        IntakeAnswer(question_id="Q-PHOTO-001", answer="450 nm"),
+        IntakeAnswer(
+            question_id="Q-MULTI-001",
+            answer="Stage 1: photochemical formation. Stage 2: oxygen oxidation.",
+        ),
+    ]
+
+
+def test_conditional_question_set_is_identical_over_repeated_analysis():
+    agent = IntakeAgent()
+    packages = [agent.analyze(ADAPTIVE_PROTOCOL, use_llm=False) for _ in range(20)]
+
+    assert len({tuple(pkg.active_question_ids) for pkg in packages}) == 1
+    assert len({tuple(pkg.missing_question_ids) for pkg in packages}) == 1
+    assert len({pkg.question_set_hash for pkg in packages}) == 1
+    assert packages[0].active_question_ids[-4:] == [
+        "Q-GAS-002", "Q-GAS-003", "Q-PHOTO-001", "Q-MULTI-001"
+    ]
+
+
+def test_question_selection_does_not_depend_on_varying_llm_extraction(monkeypatch):
+    agent = IntakeAgent()
+    variants = itertools.cycle([
+        {"reaction_description": "model extraction A", "temperature_C": 20},
+        {"reaction_description": "model extraction B", "temperature_C": 80},
+    ])
+    monkeypatch.setattr(agent, "_extract_batch_fields", lambda *args, **kwargs: next(variants))
+
+    packages = [agent.analyze(ADAPTIVE_PROTOCOL, use_llm=True) for _ in range(8)]
+
+    assert len({tuple(pkg.active_question_ids) for pkg in packages}) == 1
+    assert len({pkg.question_set_hash for pkg in packages}) == 1
+
+
+def test_gas_equivalent_answer_changes_stp_flow_and_primary_residence_geometry():
+    agent = IntakeAgent()
+    packages = [
+        agent.analyze(
+            ADAPTIVE_PROTOCOL,
+            answers=_required_answers(equiv),
+            use_llm=False,
+        )
+        for equiv in (1.0, 2.0)
+    ]
+    base_plan = ChemistryPlan(
+        reaction_class="photochemical oxidation",
+        mechanism_type="gas-liquid oxidation",
+        n_stages=2,
+        stream_logic=[
+            StreamLogic(stream_label="A", reagents=["A"], concentration_M=0.5),
+            StreamLogic(stream_label="G", reagents=["O2"], phase="gas"),
+        ],
+        stages=[
+            ProcessStage(stage_number=1, stage_name="formation", requires_light=True),
+            ProcessStage(stage_number=2, stage_name="oxidation"),
+        ],
+    )
+    batch = BatchRecord(
+        reaction_description=ADAPTIVE_PROTOCOL + " Stage 2 is open to air.",
+        raw_text=ADAPTIVE_PROTOCOL + " Stage 2 is open to air.",
+        concentration_M=0.5,
+        temperature_C=40,
+        reaction_time_h=10,
+        atmosphere="O2",
+    )
+    results = []
+    for package in packages:
+        assert package.ready_for_design
+        plan, _ = apply_intake_requirements_to_chemistry_plan(base_plan, package)
+        proposal = FlowProposal(
+            residence_time_min=60,
+            residence_time_basis="inlet/STP apparent residence time",
+            flow_rate_mL_min=0.02,
+            concentration_M=0.5,
+            temperature_C=40,
+            BPR_bar=6,
+            tubing_ID_mm=1.0,
+            streams=[
+                StreamAssignment(
+                    stream_label="A", contents=["A"], concentration_M=0.5,
+                    flow_rate_mL_min=0.02,
+                ),
+                StreamAssignment(stream_label="G", contents=["O2"], phase="gas"),
+            ],
+        )
+        results.append(DesignCalculator().run(batch, chemistry_plan=plan, proposal=proposal))
+
+    one, two = results
+    assert one.residence_time_basis == "inlet/STP apparent residence time"
+    assert two.residence_time_basis == "inlet/STP apparent residence time"
+    assert two.gas_flow_sccm == pytest.approx(2 * one.gas_flow_sccm, rel=1e-3)
+    assert two.gas_equiv_supplied == pytest.approx(2.0, rel=1e-3)
+    assert two.reactor_volume_mL > one.reactor_volume_mL
+
+
+def test_explicit_gas_composition_answer_propagates_to_chemistry_plan():
+    protocol = "A gas-liquid oxidation uses a reagent gas under 3 bar."
+    package = IntakeAgent().analyze(
+        protocol,
+        answers=[
+            *_required_answers(2.0)[:6],
+            IntakeAnswer(question_id="Q-GAS-001", answer="O2, 0.50 mole fraction"),
+            IntakeAnswer(question_id="Q-GAS-002", answer="2 equiv"),
+        ],
+        use_llm=False,
+    )
+    plan, _ = apply_intake_requirements_to_chemistry_plan(ChemistryPlan(), package)
+    gas = next(feed for feed in plan.stream_logic if feed.phase == "gas")
+
+    assert gas.gas_reagent_mole_fraction == pytest.approx(0.5)
+    assert gas.molar_equiv == pytest.approx(2.0)
+
+
+def test_oxygen_free_first_stage_does_not_steal_second_stage_air_feed():
+    protocol = (
+        "Step 1: Maintain strictly oxygen-free conditions under argon. "
+        "Step 2: Open to air and continue irradiation for aerobic oxidation."
+    )
+
+    package = IntakeAgent().analyze(protocol, use_llm=False)
+
+    assert package.engineering_requirements["gas"]["species"] == "air"
+    assert package.engineering_requirements["gas"]["introduction_stage"] == 2
+    assert "Q-GAS-003" not in package.active_question_ids

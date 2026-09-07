@@ -8,10 +8,10 @@ import time
 import flora_translate.config as cfg
 from flora_translate.engine.llm_agents import call_model_text
 from flora_translate.residence_time_basis import (
-    IN_CHANNEL_BASIS,
     INLET_STP_BASIS,
     UNKNOWN_BASIS,
     normalize_residence_time_basis,
+    stp_gas_flow_from_actual,
 )
 from flora_translate.schemas import FlowProposal
 
@@ -112,9 +112,7 @@ class TranslationLLM:
                 data[key] = []
             elif isinstance(data.get(key), dict):
                 value = data[key]
-                data[key] = value.get("items") if isinstance(value.get("items"), list) else [
-                    json.dumps(value, sort_keys=True, ensure_ascii=True)
-                ]
+                data[key] = value.get("items") if isinstance(value.get("items"), list) else [value]
         for key in dict_defaults:
             if data.get(key) is None:
                 data[key] = {}
@@ -140,12 +138,6 @@ class TranslationLLM:
                 "true", "yes", "1", "valid", "validated", "pass", "passed", "ready"
             }
         data["engine_validated"] = bool(engine_validated)
-        data["literature_analogies"] = [
-            item
-            if isinstance(item, str)
-            else json.dumps(item, sort_keys=True, ensure_ascii=True)
-            for item in (data.get("literature_analogies") or [])
-        ]
         for stream in data.get("streams") or []:
             if not isinstance(stream, dict):
                 continue
@@ -179,23 +171,25 @@ class TranslationLLM:
                 gas_stp = _as_float(stream.get("gas_flow_sccm"))
                 break
         basis = normalize_residence_time_basis(data.get("residence_time_basis"))
-        if basis == UNKNOWN_BASIS and gas_stp > 0:
+        if gas_actual > 0 or gas_stp > 0:
             basis = INLET_STP_BASIS
             data["residence_time_basis"] = "inlet/STP apparent residence time"
-        elif basis == UNKNOWN_BASIS and gas_actual > 0:
-            basis = IN_CHANNEL_BASIS
-            data["residence_time_basis"] = "in-channel pressure-corrected total residence time"
+            if gas_stp <= 0 and gas_actual > 0:
+                gas_stp = stp_gas_flow_from_actual(
+                    gas_actual,
+                    _as_float(data.get("temperature_C")) or 25.0,
+                    _as_float(data.get("BPR_bar")),
+                )
+                for stream in data.get("streams") or []:
+                    if str(stream.get("phase", "")).lower() == "gas":
+                        stream["gas_flow_sccm"] = round(gas_stp, 6)
+                        break
         if vol > 0 and flow > 0 and rt > 0:
             if basis == INLET_STP_BASIS and gas_stp > 0:
                 computed_rt = vol / (flow + gas_stp)
                 data["residence_time_inlet_min"] = round(computed_rt, 2)
                 if gas_actual > 0:
                     data["residence_time_in_channel_min"] = round(vol / (flow + gas_actual), 2)
-            elif basis == IN_CHANNEL_BASIS and gas_actual > 0:
-                computed_rt = vol / (flow + gas_actual)
-                data["residence_time_in_channel_min"] = round(computed_rt, 2)
-                if gas_stp > 0:
-                    data["residence_time_inlet_min"] = round(vol / (flow + gas_stp), 2)
             else:
                 computed_rt = vol / flow
             if abs(computed_rt - rt) / max(rt, 0.01) > 0.1:

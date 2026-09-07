@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from flora_translate.component_identity import (
+    component_key, component_name, is_solvent_component, unique_components,
+)
+
 import hashlib
 import json
 import math
@@ -19,7 +23,11 @@ from flora_translate.schemas import (
     ExecutableSafetyControl,
     ExecutableValidationExperiment,
 )
-from flora_translate.residence_time_basis import UNKNOWN_BASIS
+from flora_translate.residence_time_basis import (
+    INLET_STP_BASIS,
+    UNKNOWN_BASIS,
+    normalize_residence_time_basis,
+)
 from flora_translate.topology_semantics import topology_semantic_issues
 
 
@@ -27,7 +35,6 @@ QUANTIFIED_ROLES = {
     "substrate", "reactant", "reagent", "oxidant", "reductant", "base",
     "catalyst", "photocatalyst", "co-catalyst", "additive", "quencher",
 }
-SOLVENT_WORDS = {"solvent", "carrier", "diluent"}
 
 
 def compile_executable_artifacts(
@@ -123,6 +130,29 @@ def artifact_semantic_issues(
             }
         )
 
+    gas_streams = [
+        stream
+        for stream in (result.get("proposal") or {}).get("streams") or []
+        if str(stream.get("phase") or "").lower() == "gas"
+    ]
+    if gas_streams and (
+        parameters.get("residence_time_basis_code") != INLET_STP_BASIS
+        or abs(
+            float(parameters.get("residence_time_min") or 0.0)
+            - float(parameters.get("residence_time_inlet_min") or 0.0)
+        ) > 1e-6
+    ):
+        issues.append(
+            {
+                "code": "FINAL-GAS-BASIS-NOT-INLET-STP",
+                "message": (
+                    "A reagent-gas design must use inlet/STP as the primary "
+                    "gas-flow, equivalence, reactor-sizing, and apparent "
+                    "residence-time basis."
+                ),
+            }
+        )
+
     missing_components = [
         f"{item.stream_label}:{item.name}"
         for item in bundle.stream_components
@@ -138,6 +168,19 @@ def artifact_semantic_issues(
                 ),
             }
         )
+
+    by_component: dict[tuple[str, str], list[CanonicalStreamComponent]] = {}
+    for item in bundle.stream_components:
+        by_component.setdefault((item.stream_label, component_key(item.name)), []).append(item)
+    for (label, _), items in by_component.items():
+        if len(items) > 1:
+            issues.append({
+                "code": "FINAL-COMPONENT-DESCRIPTIONS-CONFLICT",
+                "message": (
+                    f"Stream {label} contains multiple annotated entries for {items[0].name}. "
+                    "Resolve to one component quantity before release."
+                ),
+            })
 
     issues.extend(topology_semantic_issues(process_graph.topology))
     regime = str(
@@ -368,8 +411,8 @@ def _stream_components(
     for stream in streams:
         component_start = len(output)
         label = str(stream.get("stream_label") or "?")
-        solvent = _normalize_name(stream.get("solvent"))
-        contents = [str(item) for item in stream.get("contents") or []]
+        solvent = str(stream.get("solvent") or "")
+        contents = unique_components(stream.get("contents") or [])
         reactive = []
         for item in contents:
             item_name = _component_name(item)
@@ -392,6 +435,8 @@ def _stream_components(
             equivalents = equivalents if equivalents is not None and equivalents > 0 else None
             loading = loading if loading is not None and loading > 0 else None
             provenance = []
+            if "screening assumption" in source.lower():
+                provenance.append("screening_assumption_requires_confirmation")
             if concentration is not None:
                 provenance.append("component_text")
             if equivalents is not None or loading is not None:
@@ -482,7 +527,7 @@ def _infer_component_concentrations(
 
 
 def _component_name(source: str) -> str:
-    return re.sub(r"\s*\([^)]*\)\s*$", "", source).strip() or source.strip()
+    return component_name(source)
 
 
 def _is_explicit_solvent(
@@ -493,14 +538,7 @@ def _is_explicit_solvent(
 ) -> bool:
     """Prefer final component annotations over a fallible upstream role label."""
 
-    inline_solvent = bool(
-        re.search(r"(?i)\([^)]*\b(?:solvent|co-solvent|carrier|diluent)\b[^)]*\)", source)
-    )
-    return (
-        inline_solvent
-        or _normalize_name(component_name) == declared_solvent
-        or planned_role in SOLVENT_WORDS
-    )
+    return is_solvent_component(source, declared_solvent, planned_role)
 
 
 def _intensification_is_binding(result: dict[str, Any]) -> bool:
@@ -891,7 +929,7 @@ def _stream_preparation_instruction(
         )
         return (
             f"connect {gas or 'the declared gas'} to the assigned MFC at "
-            f"{float(stream.get('gas_flow_sccm') or 0):g} sccm on the declared "
+            f"{float(stream.get('gas_flow_sccm') or 0):g} mL/min at STP on the declared "
             "STP basis (273.15 K, 1.01325 bar; 22.414 L/mol); no liquid stock is prepared."
         )
 
@@ -900,8 +938,12 @@ def _stream_preparation_instruction(
     needed = max(10.0, 4.5 * tau * flow)
     basis_mL = math.ceil(needed / 5.0) * 5.0
     quantities = []
+    pending = []
     for component in components:
         if not component.quantification_required:
+            continue
+        if "screening_assumption_requires_confirmation" in component.provenance:
+            pending.append(component.name)
             continue
         if component.concentration_M is None:
             quantities.append(f"{component.name}: quantity unresolved")
@@ -912,11 +954,19 @@ def _stream_preparation_instruction(
         )
     solvent = str(stream.get("solvent") or "the declared solvent")
     recipe = "; ".join(quantities) or "declared reactive contents"
-    return (
+    instruction = (
         f"on a {basis_mL:g} mL final-volume basis, charge {recipe}; add {solvent} "
         f"to {basis_mL:g} mL total. Convert mmol to weighed/dispensed amount using "
         "the verified reagent MW, assay, and density recorded at preparation."
     )
+    if pending:
+        instruction = (
+            "DRAFT ONLY: confirm the identity, assay, and quantity of "
+            + ", ".join(pending)
+            + " before preparing this feed; the screening assumptions are not dispensing instructions. "
+            + instruction
+        )
+    return instruction
 
 
 def _workup_instruction(result: dict[str, Any], hazards: list[str]) -> str:
@@ -980,7 +1030,7 @@ def _matching_role(name: str, roles: dict[str, dict]) -> dict | None:
 
 
 def _normalize_name(value: Any) -> str:
-    text = re.sub(r"\([^)]*\)", "", str(value or "")).lower()
+    text = component_name(str(value or "")).lower()
     return re.sub(r"[^a-z0-9]+", " ", text).strip()
 
 

@@ -7,6 +7,11 @@ that downstream inventory and engineering gates are allowed to require.
 
 from __future__ import annotations
 
+from flora_translate.component_identity import (
+    component_key, component_name, declared_solvent_member,
+    protocol_component_quantity, unique_components,
+)
+
 import hashlib
 import json
 import re
@@ -48,6 +53,7 @@ def reconcile_chemistry_plan(
 
     stages = _materialize_stages(plan)
     _reconcile_named_photocatalyst(batch_record, plan, decisions)
+    reconcile_reagent_facts(batch_record, plan, stages=stages, decisions=decisions)
     if light_required:
         if len(stages) == 1:
             light_stages = {int(stages[0].stage_number)}
@@ -82,11 +88,11 @@ def reconcile_chemistry_plan(
 
         for feed in feeds:
             original_reagents = list(feed.reagents)
-            feed.reagents = [
+            feed.reagents = unique_components([
                 reagent
                 for reagent in feed.reagents
                 if not _is_excluded_component(reagent, evidence_text)
-            ]
+            ])
             removed_reagents = [
                 reagent for reagent in original_reagents if reagent not in feed.reagents
             ]
@@ -411,6 +417,41 @@ def _reconcile_named_photocatalyst(
     )
 
 
+def reconcile_reagent_facts(
+    batch_record: BatchRecord,
+    plan: ChemistryPlan,
+    *,
+    stages: list[ProcessStage] | None = None,
+    decisions: list[dict[str, Any]] | None = None,
+) -> None:
+    """Preserve exact protocol doses and declared solvent identities in every adapter."""
+    protocol = _protocol_text(batch_record)
+    for reagent in plan.reagents:
+        before = (reagent.role, reagent.equiv_or_loading)
+        dose = protocol_component_quantity(reagent.name, protocol)
+        if dose:
+            reagent.equiv_or_loading = dose
+        elif declared_solvent_member(reagent.name, batch_record.solvent or "") and reagent.role.lower() in {"substrate", "unknown", "solvent"}:
+            reagent.role = "solvent"
+        if before != (reagent.role, reagent.equiv_or_loading) and decisions is not None:
+            decisions.append({"decision": "restore_protocol_component_facts", "component": reagent.name,
+                              "role": reagent.role, "equiv_or_loading": reagent.equiv_or_loading,
+                              "basis": "Exact protocol dose or explicitly named batch solvent component."})
+    entries = {component_key(item.name): item for item in plan.reagents}
+    feeds = [*plan.stream_logic, *(feed for stage in (stages if stages is not None else plan.stages) for feed in stage.feed_streams)]
+    for feed in feeds:
+        revised = []
+        for text in unique_components(feed.reagents):
+            entry = entries.get(component_key(text))
+            if entry and entry.equiv_or_loading and text == component_name(text):
+                if re.search(r"\d+(?:\.\d+)?\s*(?:equiv|eq\b|mol\s*%)", entry.equiv_or_loading, re.I):
+                    text = f"{text} ({entry.equiv_or_loading})"
+            if entry and entry.role == "solvent" and text == component_name(text):
+                text = f"{text} (solvent)"
+            revised.append(text)
+        feed.reagents = revised
+
+
 def _initial_liquid_species(
     batch_record: BatchRecord,
     plan: ChemistryPlan,
@@ -448,7 +489,7 @@ def _initial_liquid_species(
             _normalized_species(item) for item in species
         }:
             species.append(name)
-    return species or ["reaction mixture from frozen batch protocol"]
+    return unique_components(species) or ["reaction mixture from frozen batch protocol"]
 
 
 def _protocol_labelled_liquid_species(protocol: str) -> list[str]:
@@ -507,12 +548,7 @@ def _initial_charge_evidence(protocol: str) -> str:
 
 
 def _normalized_species(value: str) -> str:
-    text = re.sub(
-        r"\s*\([A-Za-z]?\d+[A-Za-z]?\)\s*$",
-        "",
-        str(value),
-    )
-    return "".join(re.findall(r"[a-z0-9]+", text.lower()))
+    return component_key(value)
 
 
 def _build_contract(
@@ -702,7 +738,7 @@ def _merge_liquid_feeds(feeds: list[StreamLogic], stage_number: int) -> StreamLo
             if reagent not in reagents:
                 reagents.append(reagent)
     base.stream_label = base.stream_label or f"A{stage_number}"
-    base.reagents = reagents
+    base.reagents = unique_components(reagents)
     base.phase = "liquid"
     base.introduction_stage = stage_number
     base.delivery_mode = "new_feed"

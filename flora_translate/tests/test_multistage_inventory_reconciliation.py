@@ -3,7 +3,8 @@ from flora_translate.main import (
     _sync_stage_hardware_from_compiled_topology,
     _topology_matches_serialized_proposal,
 )
-from flora_translate.multistage_inventory import reconcile_multistage_inventory
+from flora_translate.multistage_inventory import reconcile_multistage_inventory, _temperature_for_light
+import pytest
 from flora_translate.schemas import (
     BatchRecord,
     ChemistryPlan,
@@ -104,6 +105,22 @@ def _inventory():
             )
         ],
     )
+
+
+@pytest.mark.parametrize("requested,expected", [(25, 40), (50, 50), (95, 80)])
+def test_profile_allowed_temperature_range_is_hard_even_with_broader_equipment_range(requested, expected):
+    light = LightSourceSpec(name="Vapourtec UV-150 450 nm", wavelength_nm=450, compatible_reactor="coil", min_temperature_C=10, max_temperature_C=100)
+    limits = {"photoreactor_limits": {"Vapourtec UV-150": {"allowed_temperature_C": {"minimum": 40, "maximum": 80}}}}
+    assert _temperature_for_light(requested, light, limits) == expected
+
+
+def test_temperature_discrete_settings_intersect_profile_range():
+    light = LightSourceSpec(name="Manual blue", wavelength_nm=448, compatible_reactor="coil", allowed_temperatures_C=[40, 50])
+    limits = {"photoreactor_limits": {"Manual blue": {"allowed_temperature_C": {"minimum": 45, "maximum": 60}}}}
+    assert _temperature_for_light(40, light, limits) == 50
+    limits["photoreactor_limits"]["Manual blue"]["allowed_temperature_C"]["minimum"] = 55
+    with pytest.raises(ValueError, match="No available temperature setting"):
+        _temperature_for_light(40, light, limits)
 
 
 def _plan():
@@ -316,7 +333,7 @@ def test_multistage_topology_preserves_exact_stage_hardware():
     assert [item.parameters["volume_mL"] for item in reactors] == [10, 20]
     assert [item.parameters["material"] for item in reactors] == ["PFA", "FEP"]
     assert [item.inventory_item_id for item in reactors] == ["stage1_10", "stage2_20"]
-    assert [item.parameters["residence_time_min"] for item in reactors] == [100.0, 200.0]
+    assert [item.parameters["residence_time_min"] for item in reactors] == [100.0, 66.67]
     assert reactors[1].parameters["residence_time_inlet_min"] == 66.6667
     assert reactors[1].parameters["residence_time_in_channel_min"] == 133.3333
     assert reactors[1].parameters["Q_gas_sccm"] == 0.2

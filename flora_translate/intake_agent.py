@@ -8,6 +8,7 @@ reproducible.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -17,7 +18,13 @@ import flora_translate.config as cfg
 from flora_translate.config import PROMPTS_DIR
 from flora_translate.engine.llm_agents import call_model_text
 from flora_translate.executable_artifacts import transformation_family
-from flora_translate.schemas import DesignInputPackage, IntakeAnswer, IntakeQuestion
+from flora_translate.schemas import (
+    ChemistryPlan,
+    DesignInputPackage,
+    IntakeAnswer,
+    IntakeQuestion,
+    StreamLogic,
+)
 
 logger = logging.getLogger("flora.intake")
 
@@ -35,6 +42,7 @@ QUESTION_BANK: dict[str, IntakeQuestion] = {
         expected_format="Free-text protocol or structured JSON.",
         required=True,
         why_needed="The design pipeline needs protocol facts before translation.",
+        allow_unavailable=False,
     ),
     "Q-OBJ-001": IntakeQuestion(
         question_id="Q-OBJ-001",
@@ -48,6 +56,7 @@ QUESTION_BANK: dict[str, IntakeQuestion] = {
         expected_format="Short text objective.",
         required=True,
         why_needed="The council ranks candidate designs against this objective.",
+        allow_unavailable=False,
     ),
     "Q-CHEM-001": IntakeQuestion(
         question_id="Q-CHEM-001",
@@ -65,6 +74,7 @@ QUESTION_BANK: dict[str, IntakeQuestion] = {
         why_needed=(
             "A model-only chemistry identity cannot authorize an executable design."
         ),
+        allow_unavailable=False,
     ),
     "Q-HIST-001": IntakeQuestion(
         question_id="Q-HIST-001",
@@ -134,6 +144,95 @@ QUESTION_BANK: dict[str, IntakeQuestion] = {
         required=False,
         why_needed="Output preferences tune presentation and candidate selection.",
     ),
+    "Q-GAS-001": IntakeQuestion(
+        question_id="Q-GAS-001",
+        section="gas_identity",
+        question=(
+            "Which reagent-gas feed will be used? State the physical feed gas "
+            "and active reagent mole fraction, for example pure O2 (1.00), "
+            "air (0.21 O2), or H2 (1.00)."
+        ),
+        expected_format="Gas name and active mole fraction, for example: O2, 1.00.",
+        required=True,
+        why_needed=(
+            "The physical feed composition is required to convert reagent "
+            "equivalents into an inlet/STP MFC setpoint."
+        ),
+        origin="conditional",
+        trigger_id="gas_liquid_reagent_detected",
+        target_path="engineering_requirements.gas",
+        decision_impact="Sets the gas identity and reagent mole fraction used by the MFC calculation.",
+        allow_unavailable=False,
+    ),
+    "Q-GAS-002": IntakeQuestion(
+        question_id="Q-GAS-002",
+        section="gas_stoichiometry",
+        question=(
+            "How many molar equivalents of active reagent gas should be delivered "
+            "relative to the limiting substrate? FlowPilot will calculate this "
+            "from the inlet/STP MFC flow, not the compressed in-channel flow."
+        ),
+        expected_format="Positive number in equivalents, for example: 2.0 equiv.",
+        required=True,
+        why_needed=(
+            "A target equivalent is required for stoichiometric inlet/STP gas-flow closure."
+        ),
+        origin="conditional",
+        trigger_id="gas_liquid_reagent_detected_without_explicit_equivalents",
+        target_path="engineering_requirements.gas.target_equiv_inlet_stp",
+        decision_impact="Directly changes the inlet/STP MFC setpoint and both reported apparent residence times.",
+        allow_unavailable=True,
+    ),
+    "Q-GAS-003": IntakeQuestion(
+        question_id="Q-GAS-003",
+        section="gas_introduction_stage",
+        question=(
+            "At which reaction stage is the reagent gas first introduced? "
+            "Identify the stage number or describe the stage operation."
+        ),
+        expected_format="Stage number and short description, for example: Stage 2, aerobic oxidation.",
+        required=True,
+        why_needed="The gas feed must be attached to exactly one stage in a multistep topology.",
+        origin="conditional",
+        trigger_id="multistep_gas_liquid_reaction",
+        target_path="engineering_requirements.gas.introduction_stage",
+        decision_impact="Determines the mixer, MFC connection, stage temperature, and stage residence-time calculation.",
+        allow_unavailable=False,
+    ),
+    "Q-PHOTO-001": IntakeQuestion(
+        question_id="Q-PHOTO-001",
+        section="photochemistry",
+        question=(
+            "What irradiation wavelength should the flow design target? If the "
+            "batch wavelength is unknown, provide the catalyst absorption target "
+            "or mark it unavailable so inventory matching can remain provisional."
+        ),
+        expected_format="Wavelength in nm, for example: 450 nm; or mark unavailable.",
+        required=True,
+        why_needed="Wavelength is required to match the chemistry to an available light source.",
+        origin="conditional",
+        trigger_id="photochemical_reaction_without_explicit_wavelength",
+        target_path="engineering_requirements.photochemistry.wavelength_nm",
+        decision_impact="Restricts compatible photoreactors and light sources.",
+        allow_unavailable=True,
+    ),
+    "Q-MULTI-001": IntakeQuestion(
+        question_id="Q-MULTI-001",
+        section="multistep_definition",
+        question=(
+            "Confirm the ordered reaction stages and the operation separating "
+            "them. Include each stage's transformation, temperature, time, new "
+            "feeds, and any interstage mixing, quench, filtration, or solvent change."
+        ),
+        expected_format="Numbered stage list with conditions and interstage operation.",
+        required=True,
+        why_needed="A multistep topology cannot be authorized from an ambiguous stage boundary.",
+        origin="conditional",
+        trigger_id="multistep_reaction_detected",
+        target_path="engineering_requirements.multistep.stage_definition",
+        decision_impact="Controls stage count, feed introduction, equipment topology, and per-stage timing.",
+        allow_unavailable=False,
+    ),
 }
 
 REQUIRED_READINESS_IDS = {
@@ -145,6 +244,24 @@ REQUIRED_READINESS_IDS = {
     "Q-CONSTR-001",
     "Q-HYP-001",
 }
+
+QUESTION_BANK_VERSION = "flowpilot_questions_v1.1"
+CORE_QUESTION_ORDER = (
+    "Q-BATCH-001",
+    "Q-OBJ-001",
+    "Q-CHEM-001",
+    "Q-HIST-001",
+    "Q-INV-001",
+    "Q-CONSTR-001",
+    "Q-HYP-001",
+)
+CONDITIONAL_QUESTION_ORDER = (
+    "Q-GAS-001",
+    "Q-GAS-002",
+    "Q-GAS-003",
+    "Q-PHOTO-001",
+    "Q-MULTI-001",
+)
 
 
 def get_question(question_id: str) -> IntakeQuestion:
@@ -192,6 +309,8 @@ def intake_context_block(package: DesignInputPackage | dict | None) -> str:
         f"{_format_any(inventory_context)}\n\n"
         "### Safety and operating limits\n"
         f"{_format_any(pkg.operating_limits)}\n\n"
+        "### Deterministic engineering requirements\n"
+        f"{json.dumps(pkg.engineering_requirements, indent=2, default=str)}\n\n"
         "### Chemist hypotheses\n"
         f"{json.dumps(pkg.hypotheses, indent=2, default=str)}\n\n"
         "### Intake questions and answers\n"
@@ -254,6 +373,339 @@ def historical_text_from_package(package: DesignInputPackage | dict | None) -> s
     return _format_any(pkg.historical_data)
 
 
+def apply_intake_requirements_to_chemistry_plan(
+    chemistry_plan: ChemistryPlan,
+    package: DesignInputPackage | dict | None,
+) -> tuple[ChemistryPlan, list[dict[str, Any]]]:
+    """Apply chemist-confirmed conditional answers as structured authority."""
+
+    if not package:
+        return chemistry_plan, []
+    pkg = _coerce_package(package)
+    plan = chemistry_plan.model_copy(deep=True)
+    requirements = pkg.engineering_requirements or {}
+    decisions: list[dict[str, Any]] = []
+
+    gas = requirements.get("gas") if isinstance(requirements, dict) else None
+    if isinstance(gas, dict) and gas.get("species"):
+        species = str(gas["species"])
+        reagent_fraction = _positive_number(gas.get("reagent_mole_fraction")) or 1.0
+        target_equiv = _positive_number(gas.get("target_equiv_inlet_stp")) or 1.0
+        target_stage = _positive_integer(gas.get("introduction_stage"))
+        if target_stage is None:
+            target_stage = max(
+                (int(stage.stage_number or 1) for stage in plan.stages or []),
+                default=1,
+            )
+        gas_feeds = [feed for feed in plan.stream_logic or [] if feed.phase == "gas"]
+        if not gas_feeds:
+            gas_feeds = [
+                StreamLogic(
+                    stream_label="G",
+                    reagents=[species],
+                    phase="gas",
+                    introduction_stage=target_stage,
+                    separate_feed_required=True,
+                    accepted_requirement=True,
+                )
+            ]
+            plan.stream_logic.append(gas_feeds[0])
+        for feed in gas_feeds:
+            feed.reagents = [species]
+            feed.phase = "gas"
+            feed.gas_reagent_mole_fraction = reagent_fraction
+            feed.molar_equiv = target_equiv
+            feed.molar_equiv_basis = "chemist_confirmed_intake_inlet_stp"
+            feed.introduction_stage = target_stage
+            feed.requirement_authority = "hard_constraint"
+            feed.source_evidence = [
+                "Structured standardized-intake gas requirement."
+            ]
+            feed.accepted_requirement = True
+            feed.separate_feed_required = True
+            feed.reasoning = (
+                f"Chemist-confirmed {species} feed at {target_equiv:g} equiv; "
+                "equivalents and MFC flow are defined at inlet/STP."
+            )
+        for stage in plan.stages or []:
+            retained = [
+                feed
+                for feed in stage.feed_streams or []
+                if feed.phase != "gas"
+                or feed.stream_label not in {item.stream_label for item in gas_feeds}
+            ]
+            if int(stage.stage_number or 1) == target_stage:
+                retained.extend(item.model_copy(deep=True) for item in gas_feeds)
+            stage.feed_streams = retained
+        plan.o2_is_reagent = species.lower() in {"o2", "oxygen", "air"}
+        decisions.append(
+            {
+                "decision": "apply_intake_gas_requirement",
+                "species": species,
+                "reagent_mole_fraction": reagent_fraction,
+                "target_equiv_inlet_stp": target_equiv,
+                "introduction_stage": target_stage,
+                "authority": "chemist_answer_or_protocol_fact",
+            }
+        )
+
+    photo = requirements.get("photochemistry") if isinstance(requirements, dict) else None
+    if isinstance(photo, dict):
+        wavelength = _positive_number(photo.get("wavelength_nm"))
+        if wavelength is not None:
+            plan.recommended_wavelength_nm = wavelength
+            plan.wavelength_reasoning = (
+                "Target wavelength fixed by the standardized intake package."
+            )
+            light_stages = [stage for stage in plan.stages or [] if stage.requires_light]
+            if not light_stages and plan.stages:
+                light_stages = [plan.stages[0]]
+                light_stages[0].requires_light = True
+            for stage in light_stages:
+                stage.wavelength_nm = wavelength
+            decisions.append(
+                {
+                    "decision": "apply_intake_wavelength",
+                    "wavelength_nm": wavelength,
+                    "authority": photo.get("wavelength_source") or "protocol_fact",
+                }
+            )
+
+    return plan, decisions
+
+
+def _active_domains(protocol: str) -> list[str]:
+    text = str(protocol or "")
+    domains: list[str] = []
+    if _protocol_has_reagent_gas(text):
+        domains.append("gas_liquid")
+    if re.search(r"(?i)\b(?:photo(?:redox|chemical|chemistry)?|irradiat\w*|LED)\b|\d{3,4}\s*nm", text):
+        domains.append("photochemistry")
+    if re.search(r"(?i)\b(?:two[- ]stage|multi[- ]step|step\s*[12]|stage\s*[12]|followed by|sequential(?:ly)?)\b", text):
+        domains.append("multistep")
+    return domains
+
+
+def _conditional_question_ids(protocol: str) -> list[str]:
+    domains = set(_active_domains(protocol))
+    facts = _protocol_engineering_requirements(protocol)
+    selected: list[str] = []
+    gas = facts.get("gas") or {}
+    if "gas_liquid" in domains:
+        if not gas.get("species"):
+            selected.append("Q-GAS-001")
+        if not _positive_number(gas.get("target_equiv_inlet_stp")):
+            selected.append("Q-GAS-002")
+        if "multistep" in domains and not _positive_integer(gas.get("introduction_stage")):
+            selected.append("Q-GAS-003")
+    photo = facts.get("photochemistry") or {}
+    if "photochemistry" in domains and not _positive_number(photo.get("wavelength_nm")):
+        selected.append("Q-PHOTO-001")
+    multistep = facts.get("multistep") or {}
+    if "multistep" in domains and not multistep.get("stage_definition"):
+        selected.append("Q-MULTI-001")
+    return [qid for qid in CONDITIONAL_QUESTION_ORDER if qid in selected]
+
+
+def _protocol_engineering_requirements(protocol: str) -> dict[str, Any]:
+    text = str(protocol or "")
+    requirements: dict[str, Any] = {}
+    if _protocol_has_reagent_gas(text):
+        gas: dict[str, Any] = {
+            "calculation_basis": "inlet_stp",
+            "stp_temperature_K": 273.15,
+            "stp_pressure_bar": 1.01325,
+        }
+        identity = _gas_identity_from_text(text)
+        if identity:
+            species, fraction = identity
+            gas.update(
+                {
+                    "species": species,
+                    "reagent_mole_fraction": fraction,
+                    "identity_source": "protocol_fact",
+                }
+            )
+        equiv = _protocol_gas_equiv(text)
+        if equiv is not None:
+            gas["target_equiv_inlet_stp"] = equiv
+            gas["equiv_source"] = "protocol_fact"
+        stage = _protocol_gas_stage(text)
+        if stage is not None:
+            gas["introduction_stage"] = stage
+            gas["introduction_stage_source"] = "protocol_fact"
+        requirements["gas"] = gas
+
+    wavelength = re.search(r"(?i)(\d{3,4}(?:\.\d+)?)\s*nm\b", text)
+    if wavelength:
+        requirements["photochemistry"] = {
+            "wavelength_nm": float(wavelength.group(1)),
+            "wavelength_source": "protocol_fact",
+        }
+
+    if "multistep" in _active_domains(text) and re.search(
+        r"(?is)\b(?:step|stage)\s*1\b.+\b(?:step|stage)\s*2\b",
+        text,
+    ):
+        requirements["multistep"] = {
+            "stage_definition": text,
+            "stage_definition_source": "protocol_fact",
+        }
+    return requirements
+
+
+def _protocol_has_reagent_gas(protocol: str) -> bool:
+    text = str(protocol or "").lower().replace("₂", "2").replace("₃", "3")
+    for negative in (
+        "oxygen-sensitive", "oxygen sensitive", "o2-sensitive", "o2 sensitive",
+        "oxygen-free", "oxygen free", "o2-free", "deoxygenated",
+    ):
+        text = text.replace(negative, "")
+    gas = r"(?:oxygen|o2|air|hydrogen|h2|carbon dioxide|co2|carbon monoxide|syngas|ozone|o3|chlorine|cl2|ammonia|nh3|hydrogen chloride|hcl gas|sulfur dioxide|so2)"
+    context = r"(?:equiv|atm|bar|balloon|bubbl\w*|sparg\w*|feed|mfc|oxidant|reagent|introduced|exposed|under)"
+    return bool(
+        re.search(rf"\b{gas}\b[^\n]{{0,100}}\b{context}\b", text)
+        or re.search(rf"\b{context}\b[^\n]{{0,100}}\b{gas}\b", text)
+        or re.search(r"\b(?:hydrogenation|carbonylation|aerobic oxidation)\b", text)
+    )
+
+
+def _gas_identity_from_text(text: str) -> tuple[str, float] | None:
+    lower = str(text or "").lower().replace("₂", "2").replace("₃", "3")
+    identities = (
+        ("air", 0.21, r"\bair\b"),
+        ("O2", 1.0, r"\b(?:oxygen|o2)\b"),
+        ("H2", 1.0, r"\b(?:hydrogen|h2)\b"),
+        ("CO2", 1.0, r"\b(?:carbon dioxide|co2)\b"),
+        ("CO", 1.0, r"\bcarbon monoxide\b"),
+        ("syngas", 0.5, r"\bsyngas\b"),
+        ("O3", 1.0, r"\b(?:ozone|o3)\b"),
+        ("Cl2", 1.0, r"\b(?:chlorine|cl2)\b"),
+        ("NH3", 1.0, r"\b(?:ammonia|nh3)\b"),
+        ("HCl", 1.0, r"\b(?:hydrogen chloride|hcl gas)\b"),
+        ("SO2", 1.0, r"\b(?:sulfur dioxide|so2)\b"),
+    )
+    for species, fraction, pattern in identities:
+        if re.search(pattern, lower):
+            return species, fraction
+    return None
+
+
+def _protocol_gas_equiv(text: str) -> float | None:
+    normalized = str(text or "").replace("₂", "2").replace("₃", "3")
+    gas = r"(?:oxygen|o2|air|hydrogen|h2|carbon dioxide|co2|carbon monoxide|syngas|ozone|o3|chlorine|cl2|ammonia|nh3|hydrogen chloride|hcl gas|sulfur dioxide|so2)"
+    for pattern in (
+        rf"\b{gas}\b[^\n]{{0,100}}?(\d+(?:\.\d+)?)\s*(?:mol\s*)?equiv",
+        rf"(\d+(?:\.\d+)?)\s*(?:mol\s*)?equiv[^\n]{{0,100}}?\b{gas}\b",
+    ):
+        match = re.search(pattern, normalized, re.I)
+        if match:
+            value = _positive_number(match.group(1))
+            if value is not None:
+                return value
+    return None
+
+
+def _protocol_gas_stage(text: str) -> int | None:
+    normalized = str(text or "").replace("₂", "2").replace("₃", "3")
+    gas_pattern = r"\b(?:oxygen|o2|air|hydrogen|h2|co2|carbon monoxide|syngas|ozone|o3|chlorine|cl2|ammonia|nh3|hcl gas|so2)\b"
+    for match in re.finditer(r"(?i)\b(?:step|stage)\s*(\d+)\b([^\n.]{0,240})", normalized):
+        segment = match.group(2).lower()
+        for absent_gas_phrase in (
+            "oxygen-free", "oxygen free", "o2-free", "o2 free",
+            "oxygen-sensitive", "oxygen sensitive", "o2-sensitive",
+            "deoxygenated", "without oxygen", "absence of oxygen",
+        ):
+            segment = segment.replace(absent_gas_phrase, "")
+        if re.search(gas_pattern, segment, re.I):
+            return int(match.group(1))
+    return None
+
+
+def _parse_gas_identity_and_fraction(value: Any) -> dict[str, Any] | None:
+    identity = _gas_identity_from_text(str(value or ""))
+    if not identity:
+        return None
+    species, default_fraction = identity
+    text = str(value or "")
+    percent = re.search(r"(\d+(?:\.\d+)?)\s*%", text)
+    decimal = re.search(r"(?:fraction|mole fraction|purity)\s*[:=]?\s*(0(?:\.\d+)?|1(?:\.0+)?)", text, re.I)
+    if not decimal:
+        decimal = re.search(
+            r"(0(?:\.\d+)?|1(?:\.0+)?)\s*(?:mole\s*)?(?:fraction|purity)",
+            text,
+            re.I,
+        )
+    if percent:
+        fraction = float(percent.group(1)) / 100.0
+    elif decimal:
+        fraction = float(decimal.group(1))
+    else:
+        trailing = re.search(r"[,;]\s*(0(?:\.\d+)?|1(?:\.0+)?)\s*$", text)
+        fraction = float(trailing.group(1)) if trailing else default_fraction
+    if not 0 < fraction <= 1:
+        return None
+    return {"species": species, "reagent_mole_fraction": fraction}
+
+
+def _positive_number(value: Any) -> float | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        number = float(value)
+    else:
+        match = re.search(r"(?:^|[^\d.])(\d+(?:\.\d+)?)", str(value or ""))
+        if not match:
+            return None
+        number = float(match.group(1))
+    return number if number > 0 else None
+
+
+def _positive_integer(value: Any) -> int | None:
+    number = _positive_number(value)
+    return int(number) if number is not None and float(number).is_integer() else None
+
+
+def _merge_nested(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(base or {})
+    for key, value in (override or {}).items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _merge_nested(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _question_set_hash(question_ids: list[str]) -> str:
+    payload = {
+        "question_bank_version": QUESTION_BANK_VERSION,
+        "questions": [QUESTION_BANK[qid].model_dump() for qid in question_ids],
+    }
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _conditional_answer_resolved(
+    package: DesignInputPackage,
+    question_id: str,
+) -> bool:
+    requirements = package.engineering_requirements or {}
+    gas = requirements.get("gas") or {}
+    photo = requirements.get("photochemistry") or {}
+    multistep = requirements.get("multistep") or {}
+    if question_id == "Q-GAS-001":
+        return bool(gas.get("species")) and bool(
+            _positive_number(gas.get("reagent_mole_fraction"))
+        )
+    if question_id == "Q-GAS-002":
+        return bool(_positive_number(gas.get("target_equiv_inlet_stp")))
+    if question_id == "Q-GAS-003":
+        return bool(_positive_integer(gas.get("introduction_stage")))
+    if question_id == "Q-PHOTO-001":
+        return bool(_positive_number(photo.get("wavelength_nm")))
+    if question_id == "Q-MULTI-001":
+        return bool(str(multistep.get("stage_definition") or "").strip())
+    return True
+
+
 class IntakeAgent:
     """Build and update a standardized DesignInputPackage."""
 
@@ -267,16 +719,34 @@ class IntakeAgent:
     ) -> DesignInputPackage:
         pkg = _coerce_package(existing_package) if existing_package else DesignInputPackage()
         raw_protocol = raw_protocol or pkg.raw_protocol or ""
-        merged_answers = list(pkg.answers)
+        protocol_changed = bool(pkg.raw_protocol and raw_protocol != pkg.raw_protocol)
+        # Answers are valid only for the exact protocol/question set. Reusing
+        # them after a protocol edit can falsely close unrelated questions.
+        merged_answers = [] if protocol_changed else list(pkg.answers)
         for answer in answers or []:
             merged_answers.append(_coerce_answer(answer))
 
-        extracted = dict(pkg.extracted_batch_fields or {})
+        extracted = {} if protocol_changed else dict(pkg.extracted_batch_fields or {})
         if raw_protocol and not extracted:
             extracted = self._extract_batch_fields(raw_protocol, use_llm=use_llm)
 
+        protocol_requirements = _protocol_engineering_requirements(raw_protocol)
+        existing_requirements = (
+            {} if protocol_changed else dict(pkg.engineering_requirements or {})
+        )
+        engineering_requirements = _merge_nested(
+            protocol_requirements,
+            existing_requirements,
+        )
+        active_domains = _active_domains(raw_protocol)
+        active_question_ids = [
+            *CORE_QUESTION_ORDER,
+            *_conditional_question_ids(raw_protocol),
+        ]
+
         updated = DesignInputPackage(
-            schema_version=pkg.schema_version,
+            schema_version="flowpilot_intake_v1.1",
+            question_bank_version=QUESTION_BANK_VERSION,
             raw_protocol=raw_protocol,
             extracted_batch_fields=extracted,
             objective=pkg.objective,
@@ -289,7 +759,11 @@ class IntakeAgent:
             chemistry_identity_confirmation=dict(
                 pkg.chemistry_identity_confirmation or {}
             ),
-            question_log=list(pkg.question_log or []),
+            active_domains=active_domains,
+            active_question_ids=active_question_ids,
+            engineering_requirements=engineering_requirements,
+            question_set_hash=_question_set_hash(active_question_ids),
+            question_log=[] if protocol_changed else list(pkg.question_log or []),
             answers=merged_answers,
         )
         updated = self._apply_answers(updated)
@@ -310,12 +784,15 @@ class IntakeAgent:
         missing = self._missing_required_ids(updated)
         logged = {q.question_id for q in updated.question_log}
         question_log = list(updated.question_log)
-        for qid in missing:
+        for qid in active_question_ids:
             if qid not in logged:
                 question_log.append(QUESTION_BANK[qid])
         updated.question_log = question_log
         updated.missing_question_ids = missing
-        updated.ready_for_design = not missing
+        from flora_translate.inventory_resolution import review_inventory
+
+        updated.inventory_review = review_inventory(updated)
+        updated.ready_for_design = not missing and updated.inventory_review["ready"]
         return updated
 
     def pending_questions(self, package: DesignInputPackage | dict) -> list[IntakeQuestion]:
@@ -399,6 +876,56 @@ class IntakeAgent:
         if pref_answer and pref_answer.status == "answered":
             package.output_preferences = str(pref_answer.answer or "").strip()
 
+        gas_identity = answer_map.get("Q-GAS-001")
+        if gas_identity and gas_identity.status == "answered":
+            parsed = _parse_gas_identity_and_fraction(gas_identity.answer)
+            if parsed:
+                gas = package.engineering_requirements.setdefault("gas", {})
+                gas.update(parsed)
+                gas.setdefault("calculation_basis", "inlet_stp")
+                gas["identity_source"] = "chemist_answer"
+
+        gas_equiv = answer_map.get("Q-GAS-002")
+        if gas_equiv:
+            gas = package.engineering_requirements.setdefault("gas", {})
+            if gas_equiv.status == "unavailable":
+                gas["target_equiv_inlet_stp"] = 1.0
+                gas["equiv_source"] = "deterministic_screening_assumption"
+            else:
+                value = _positive_number(gas_equiv.answer)
+                if value is not None:
+                    gas["target_equiv_inlet_stp"] = value
+                    gas["equiv_source"] = "chemist_answer"
+            gas.setdefault("calculation_basis", "inlet_stp")
+
+        gas_stage = answer_map.get("Q-GAS-003")
+        if gas_stage and gas_stage.status == "answered":
+            stage = _positive_integer(gas_stage.answer)
+            if stage is not None:
+                gas = package.engineering_requirements.setdefault("gas", {})
+                gas["introduction_stage"] = stage
+                gas["introduction_stage_source"] = "chemist_answer"
+
+        photo = answer_map.get("Q-PHOTO-001")
+        if photo and photo.status == "answered":
+            wavelength = _positive_number(photo.answer)
+            if wavelength is not None:
+                requirements = package.engineering_requirements.setdefault(
+                    "photochemistry", {}
+                )
+                requirements["wavelength_nm"] = wavelength
+                requirements["wavelength_source"] = "chemist_answer"
+
+        multistep = answer_map.get("Q-MULTI-001")
+        if multistep and multistep.status == "answered":
+            definition = str(multistep.answer or "").strip()
+            if definition:
+                requirements = package.engineering_requirements.setdefault(
+                    "multistep", {}
+                )
+                requirements["stage_definition"] = definition
+                requirements["stage_definition_source"] = "chemist_answer"
+
         return package
 
     def _missing_required_ids(self, package: DesignInputPackage) -> list[str]:
@@ -428,6 +955,16 @@ class IntakeAgent:
             if _has_value(value):
                 continue
             missing.append(qid)
+
+        for qid in package.active_question_ids:
+            if qid not in CONDITIONAL_QUESTION_ORDER:
+                continue
+            answer = answer_map.get(qid)
+            question = QUESTION_BANK[qid]
+            if answer and answer.status == "unavailable" and question.allow_unavailable:
+                continue
+            if not _conditional_answer_resolved(package, qid):
+                missing.append(qid)
 
         return missing
 

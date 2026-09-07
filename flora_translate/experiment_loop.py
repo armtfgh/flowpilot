@@ -331,6 +331,12 @@ def calibrate_experimental_campaign(
     if preferred_basis == INLET_STP_BASIS:
         calibration.target_tau_inlet_min = round(target_tau, 3)
         calibration.recommended_tau_inlet_min = round(recommended_tau, 3)
+        calibration.target_tau_in_channel_min = target_conditions.get(
+            "residence_time_in_channel_min"
+        )
+        calibration.recommended_tau_in_channel_min = recommended.get(
+            "residence_time_in_channel_min"
+        )
     else:
         calibration.target_tau_in_channel_min = round(target_tau, 3)
         calibration.recommended_tau_in_channel_min = round(recommended_tau, 3)
@@ -654,6 +660,14 @@ def _campaign_residence_time_basis(
     experiments: list[ExperimentResult],
     requested_basis: str | None = None,
 ) -> str:
+    # A reagent-gas campaign always uses the inlet/STP convention for fitting
+    # and refinement. In-channel time remains a derived diagnostic.
+    if any(
+        exp.actual_conditions.gas_flow_stp_mL_min
+        or exp.actual_conditions.gas_flow_in_channel_mL_min
+        for exp in experiments
+    ):
+        return INLET_STP_BASIS
     requested = normalize_residence_time_basis(requested_basis)
     if requested != UNKNOWN_BASIS:
         return requested
@@ -674,7 +688,7 @@ def _campaign_residence_time_basis(
             counts[IN_CHANNEL_BASIS] += 1
         elif actual.residence_time_min is not None:
             counts[LIQUID_ONLY_BASIS] += 1
-    return max(counts.items(), key=lambda item: item[1])[0] if any(counts.values()) else IN_CHANNEL_BASIS
+    return max(counts.items(), key=lambda item: item[1])[0] if any(counts.values()) else LIQUID_ONLY_BASIS
 
 
 def _residence_time_for_basis(
@@ -695,7 +709,20 @@ def _residence_time_for_basis(
             basis = IN_CHANNEL_BASIS
 
     if basis == INLET_STP_BASIS:
-        return _num(actual.residence_time_inlet_min, actual.residence_time_min, 0.0), basis
+        tau = _num(actual.residence_time_inlet_min, 0.0)
+        if tau <= 0:
+            volume = _num(actual.reactor_volume_mL, 0.0)
+            liquid_q = _num(actual.substrate_flow_mL_min, actual.flow_rate_mL_min, 0.0)
+            gas_stp = _num(actual.gas_flow_stp_mL_min, 0.0)
+            if gas_stp <= 0 and actual.gas_flow_in_channel_mL_min:
+                gas_stp = stp_gas_flow_from_actual(
+                    actual.gas_flow_in_channel_mL_min,
+                    _num(actual.temperature_C, 25.0),
+                    _num(actual.BPR_bar, 0.0),
+                )
+            if volume > 0 and liquid_q > 0 and gas_stp > 0:
+                tau = volume / (liquid_q + gas_stp)
+        return _num(tau, actual.residence_time_min, 0.0), basis
     if basis == IN_CHANNEL_BASIS:
         return _num(actual.residence_time_in_channel_min, actual.residence_time_min, 0.0), basis
     return _num(actual.residence_time_min, actual.residence_time_inlet_min, actual.residence_time_in_channel_min, 0.0), basis
@@ -752,6 +779,14 @@ def _conditions_for_tau(
     liquid_q = _num(actual.substrate_flow_mL_min, actual.flow_rate_mL_min, 0.0)
     gas_actual = _num(actual.gas_flow_in_channel_mL_min, 0.0)
     gas_stp = _num(actual.gas_flow_stp_mL_min, 0.0)
+    if gas_stp <= 0 and gas_actual > 0:
+        gas_stp = stp_gas_flow_from_actual(
+            gas_actual,
+            _num(actual.temperature_C, 25.0),
+            _num(actual.BPR_bar, 0.0),
+        )
+    if gas_actual > 0 or gas_stp > 0:
+        basis = INLET_STP_BASIS
 
     package: dict[str, Any] = {
         "residence_time_basis": residence_time_basis_label(basis),
@@ -1098,6 +1133,14 @@ def _scaled_flows_for_tau(
     gas_actual, gas_stp = _extract_gas_flows(proposal)
     gas_actual = _num(actual.gas_flow_in_channel_mL_min, gas_actual, 0.0)
     gas_stp = _num(actual.gas_flow_stp_mL_min, gas_stp, 0.0)
+    if gas_stp <= 0 and gas_actual > 0:
+        gas_stp = stp_gas_flow_from_actual(
+            gas_actual,
+            _num(actual.temperature_C, proposal.get("temperature_C"), 25.0),
+            _num(actual.BPR_bar, proposal.get("BPR_bar"), 0.0),
+        )
+    if gas_actual > 0 or gas_stp > 0:
+        basis = INLET_STP_BASIS
     liquid_q = _num(actual.substrate_flow_mL_min, actual.flow_rate_mL_min, fallback_liquid_q)
 
     if gas_actual <= 0 and not (basis == INLET_STP_BASIS and gas_stp > 0):
@@ -1177,9 +1220,13 @@ def _gas_liquid_summary(proposal: dict) -> dict[str, Any]:
     if gas_actual <= 0 or volume <= 0:
         return {}
 
-    basis = normalize_residence_time_basis(proposal.get("residence_time_basis"))
-    if basis == UNKNOWN_BASIS:
-        basis = INLET_STP_BASIS if gas_stp > 0 else IN_CHANNEL_BASIS
+    if gas_stp <= 0:
+        gas_stp = stp_gas_flow_from_actual(
+            gas_actual,
+            _num(proposal.get("temperature_C"), 25.0),
+            _num(proposal.get("BPR_bar"), 0.0),
+        )
+    basis = INLET_STP_BASIS
     summary = {
         "residence_time_basis": residence_time_basis_label(basis),
         "substrate_flow_mL_min": round(liquid_q, 5),

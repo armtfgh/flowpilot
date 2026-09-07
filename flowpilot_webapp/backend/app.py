@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from copy import deepcopy
 from pathlib import Path
 import json
@@ -9,13 +10,14 @@ import os
 import sys
 from typing import Any
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .jobs import JOBS
+from .deployment import runtime_status
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -61,6 +63,19 @@ class InventorySavePayload(BaseModel):
     profile: dict[str, Any]
 
 
+class InventoryReviewPayload(BaseModel):
+    intake_package: dict[str, Any]
+    inventory_profile: dict[str, Any] | None = None
+    chemistry_plan: dict[str, Any] | None = None
+
+
+class InventoryResolutionPayload(InventoryReviewPayload):
+    category: str
+    status: str
+    equipment: dict[str, Any] = Field(default_factory=dict)
+    note: str = ""
+
+
 class RefinementPayload(BaseModel):
     job_id: str | None = None
     current_result: dict[str, Any] | None = None
@@ -78,6 +93,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def deployment_guard(request: Request, call_next):
+    if request.method == "POST" and request.url.path == "/api/design/jobs":
+        runtime = runtime_status(DIST, JOBS.instance_id)
+        client_build = request.headers.get("x-flowpilot-client-build")
+        browser_request = request.headers.get("sec-fetch-mode") in {"cors", "same-origin"}
+        if runtime["backend_stale"]:
+            return JSONResponse(status_code=409, content={"detail": "The backend code changed after this server started. Restart this server after active jobs finish; no new design was started."})
+        if (client_build or browser_request) and client_build != runtime["frontend_build_id"]:
+            return JSONResponse(status_code=409, content={"detail": "This FlowPilot page is outdated. Reload the workspace before submitting; no design was started."})
+    response = await call_next(request)
+    if not request.url.path.startswith("/assets/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.get("/api/runtime")
+def deployment_status() -> dict[str, Any]:
+    return runtime_status(DIST, JOBS.instance_id)
 
 
 @app.get("/api/health")
@@ -140,33 +176,64 @@ def available_models() -> dict[str, Any]:
 def _apply_inventory(package: dict[str, Any], profile_payload: dict[str, Any] | None) -> dict[str, Any]:
     if not profile_payload:
         return package
-    from flora_translate.intake_agent import IntakeAgent
     from flora_translate.inventory_profiles import inventory_profile_from_payload
-    from flora_translate.schemas import IntakeAnswer
+    from flora_translate.inventory_resolution import bind_inventory
 
     profile = inventory_profile_from_payload(profile_payload)
-    answers = [
-        IntakeAnswer(
-            question_id="Q-INV-001",
-            answer=profile.lab_inventory.model_dump(),
-            status="answered",
-            source="inventory_profile",
-        ),
-        IntakeAnswer(
-            question_id="Q-CONSTR-001",
-            answer=profile.design_operating_limits(),
-            status="answered",
-            source="inventory_profile",
-        ),
-    ]
-    updated = IntakeAgent().analyze(
-        package.get("raw_protocol") or "",
-        existing_package=package,
-        answers=answers,
-        use_llm=False,
-    )
-    updated.inventory_profile_snapshot = profile.model_dump()
-    return updated.model_dump()
+    if not profile.validation.valid:
+        raise ValueError("Inventory profile has validation errors: " + "; ".join(profile.validation.errors))
+    return bind_inventory(package, profile).model_dump()
+
+
+def _inventory_response(package: dict, chemistry_plan: dict | None = None) -> dict:
+    from flora_translate.intake_agent import IntakeAgent
+    from flora_translate.inventory_resolution import alternative_profiles, review_inventory
+    from flora_translate.schemas import ChemistryPlan, DesignInputPackage
+
+    pkg = DesignInputPackage.model_validate(package)
+    plan = ChemistryPlan.model_validate(chemistry_plan) if chemistry_plan else None
+    pkg.inventory_review = review_inventory(pkg, plan)
+    pkg.ready_for_design = not pkg.missing_question_ids and pkg.inventory_review["ready"]
+    return {
+        "package": pkg.model_dump(),
+        "pending_questions": [q.model_dump() for q in IntakeAgent().pending_questions(pkg)],
+        "alternatives": alternative_profiles(pkg, plan) if not pkg.inventory_review["ready"] else [],
+    }
+
+
+@app.post("/api/inventory/review")
+def review_inventory_intake(payload: InventoryReviewPayload) -> dict[str, Any]:
+    from flora_translate.intake_agent import IntakeAgent
+
+    try:
+        package = IntakeAgent().analyze(existing_package=payload.intake_package, use_llm=False).model_dump()
+        package = _apply_inventory(package, payload.inventory_profile)
+        return _inventory_response(package, payload.chemistry_plan)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/inventory/resolve")
+def resolve_inventory(payload: InventoryResolutionPayload) -> dict[str, Any]:
+    from flora_translate.inventory_profiles import inventory_profile_from_payload, save_inventory_profile
+    from flora_translate.inventory_resolution import bind_inventory, confirm_inventory
+
+    try:
+        raw = payload.inventory_profile or payload.intake_package.get("inventory_profile_snapshot")
+        if not raw:
+            raise ValueError("Select or import an inventory profile before confirming equipment")
+        profile = inventory_profile_from_payload(raw)
+        updated, changed = confirm_inventory(profile, category=payload.category,
+                                             status=payload.status, equipment=payload.equipment, note=payload.note)
+        # Revalidate the package before persisting an immutable new version.
+        bind_inventory(payload.intake_package, updated)
+        if changed:
+            updated, _ = save_inventory_profile(updated)
+        package = bind_inventory(payload.intake_package, updated)
+        return {**_inventory_response(package.model_dump(), payload.chemistry_plan),
+                "profile": updated.model_dump(), "saved_new_version": changed}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/intake/analyze")
@@ -197,7 +264,12 @@ def analyze_intake(payload: IntakePayload) -> dict[str, Any]:
                 model_endpoints={route.model: route.base_url} if route.base_url else {},
             )
         agent = IntakeAgent()
-        with runtime_model_routing(runtime):
+        routing_context = (
+            runtime_model_routing(runtime)
+            if payload.use_llm and payload.upstream_model_id
+            else nullcontext()
+        )
+        with routing_context:
             package = agent.analyze(
                 payload.raw_protocol,
                 existing_package=payload.existing_package,
@@ -205,11 +277,7 @@ def analyze_intake(payload: IntakePayload) -> dict[str, Any]:
                 use_llm=payload.use_llm,
             ).model_dump()
         package = _apply_inventory(package, payload.inventory_profile)
-        pending = [
-            question.model_dump()
-            for question in agent.pending_questions(package)
-        ]
-        return {"package": package, "pending_questions": pending}
+        return _inventory_response(package)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -294,9 +362,14 @@ def save_inventory(payload: InventorySavePayload) -> dict[str, Any]:
 def create_design_job(payload: DesignPayload) -> dict[str, Any]:
     try:
         package = _apply_inventory(deepcopy(payload.intake_package), payload.inventory_profile)
+        from flora_translate.intake_agent import IntakeAgent
+        package = IntakeAgent().analyze(existing_package=package, use_llm=False).model_dump()
+        if payload.batch_input and payload.batch_input != package.get("raw_protocol"):
+            raise ValueError("Protocol changed after intake. Re-analyze the protocol before design.")
         if not package.get("ready_for_design"):
             missing = ", ".join(package.get("missing_question_ids") or [])
-            raise ValueError(f"Intake is incomplete: {missing}")
+            inventory_reasons = "; ".join(item["reason"] for item in package.get("inventory_review", {}).get("unresolved_requirements", []))
+            raise ValueError(f"Intake is incomplete: {missing or inventory_reasons}. Resolve the equipment requirements or select a compatible profile.")
         request = payload.model_dump()
         request["intake_package"] = package
         if payload.upstream_model_id or payload.downstream_model_id:
@@ -342,13 +415,23 @@ def get_design_job(job_id: str) -> dict[str, Any]:
     job = JOBS.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Design job not found")
-    return job.public(include_result=True)
+    from flora_translate.result_reporting import attach_result_report
+
+    payload = job.public(include_result=True)
+    if payload.get("result"):
+        payload["result"] = attach_result_report(payload["result"])
+    return payload
 
 
 def _artifact_for_job(job_id: str, kind: str) -> Path:
     job = JOBS.get(job_id)
     if not job or not job.result:
         raise HTTPException(status_code=404, detail="Completed design job not found")
+    from flowpilot_webapp.backend.diagram_view import current_diagram
+
+    current = current_diagram(job.result, kind)
+    if current:
+        return current
     keys = {
         "process-png": "png_path",
         "process-svg": "svg_path",
@@ -468,7 +551,9 @@ def saved_run(run_id: str) -> dict[str, Any]:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Saved result is invalid: {exc}") from exc
     result["autosave_dir"] = str(directory)
-    return result
+    from flora_translate.result_reporting import attach_result_report
+
+    return attach_result_report(result)
 
 
 @app.get("/api/runs/{run_id}/artifacts/{kind}")
@@ -484,6 +569,11 @@ def saved_run_artifact(run_id: str, kind: str) -> FileResponse:
     if not filename:
         raise HTTPException(status_code=404, detail="Unknown artifact")
     path = directory / filename
+    from flowpilot_webapp.backend.diagram_view import current_diagram
+
+    current = current_diagram(saved_run(run_id), kind)
+    if current:
+        path = current
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Saved artifact is unavailable")
     media_type = "image/svg+xml" if path.suffix.lower() == ".svg" else "image/png"

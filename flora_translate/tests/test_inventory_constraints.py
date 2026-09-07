@@ -103,7 +103,9 @@ def test_inventory_enforcement_snaps_krict_like_design_to_available_reactor():
     assert revised.reactor_volume_mL == 10.0
     assert revised.tubing_ID_mm == 1.0
     assert revised.inventory_selection["system"] == "Vapourtec System"
-    assert revised.residence_time_in_channel_min == 67.68
+    assert revised.residence_time_basis == "inlet/STP apparent residence time"
+    assert revised.residence_time_min == revised.residence_time_inlet_min == 15.277
+    assert revised.residence_time_in_channel_min > revised.residence_time_inlet_min
     assert revised.flow_rate_mL_min < proposal.flow_rate_mL_min
     assert revised.streams[1].gas_flow_sccm is not None
     assert revised.residence_time_inlet_min is not None

@@ -406,6 +406,8 @@ def _render_result(result: dict, key_prefix: str = ""):
         "Experiment Loop",
         "Raw JSON",
         "Equipment & Inventory",
+        "Process summary",
+        "Responses",
     ])
 
     # ── Tab 0: Summary ────────────────────────────────────────────────────────
@@ -417,7 +419,8 @@ def _render_result(result: dict, key_prefix: str = ""):
         if is_blocked:
             _render_reconciliation(final_design)
         else:
-            _render_final_engineering(final_design)
+            from components.result_reporting import render_engineering_history
+            render_engineering_history(result)
             design_calc = result.get("design_calculations")
             if design_calc and st.checkbox(
                 "Show pre-final calculation audit trail",
@@ -461,9 +464,12 @@ def _render_result(result: dict, key_prefix: str = ""):
             _render_reconciliation(final_design)
         else:
             from components.process_diagram import render_process_diagram
+            from flora_translate.diagram_views import current_diagram
+            current_svg = current_diagram(result, "process-svg")
+            current_png = current_diagram(result, "process-png")
             render_process_diagram(
-                result.get("svg_path", ""),
-                result.get("png_path", ""),
+                str(current_svg) if current_svg else result.get("svg_path", ""),
+                str(current_png) if current_png else result.get("png_path", ""),
                 key_prefix=key_prefix,
                 topology=result.get("process_topology") or {},
                 render_manifest=result.get("diagram_render_manifest") or {},
@@ -509,8 +515,10 @@ def _render_result(result: dict, key_prefix: str = ""):
                         )
                     # Parameters
                     p = op.get("parameters", {})
-                    param_items = [(k, v) for k, v in p.items()
-                                   if v is not None and k not in ("light_required",)]
+                    param_items = [(k.replace("sccm", "inlet_STP_mL_min"), v) for k, v in p.items()
+                                   if v is not None and k not in ("light_required", "gas_holdup", "liquid_holdup_volume_mL")
+                                   and "in_channel" not in k and "actual" not in k
+                                   and not (op.get("op_type") == "mfc" and k == "flow_rate_mL_min")]
                     if param_items:
                         for k, v in param_items:
                             st.markdown(f"**{k.replace('_', ' ')}:** {v}")
@@ -546,8 +554,8 @@ def _render_result(result: dict, key_prefix: str = ""):
                 "These assignments belong to the validated final design shown in "
                 "Summary and Engineering Design."
             )
-            from pages.translate import _render_streams
-            _render_streams(proposal, design_calc=result.get("design_calculations"))
+            from components.result_reporting import render_process_summary
+            render_process_summary(result, streams_only=True)
 
     # ── Tab 5: Council Deliberation ───────────────────────────────────────────
     with tabs[5]:
@@ -586,6 +594,13 @@ def _render_result(result: dict, key_prefix: str = ""):
 
         render_inventory_result(result)
 
+    with tabs[10]:
+        from components.result_reporting import render_process_summary
+        render_process_summary(result)
+    with tabs[11]:
+        from components.result_reporting import render_responses
+        render_responses(result)
+
     from components.feedback import render_feedback_widget
     render_feedback_widget(result, context="flora_design_translate")
 
@@ -619,7 +634,8 @@ def _render_experiment_loop(
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Current version", f"v{design_version}")
-    c2.metric("Target tau", f"{proposal.get('residence_time_min', '?')} min")
+    tau_label = "Target tau (inlet/STP)" if _proposal_has_gas(proposal) else "Target tau"
+    c2.metric(tau_label, f"{proposal.get('residence_time_min', '?')} min")
     c3.metric("Target Q", f"{proposal.get('flow_rate_mL_min', '?')} mL/min")
     c4.metric("Target C", f"{proposal.get('concentration_M', '?')} M")
 
@@ -628,7 +644,7 @@ def _render_experiment_loop(
         st.markdown("#### Actual Run Conditions")
         a1, a2, a3, a4 = st.columns(4)
         residence_time = a1.number_input(
-            "Residence time (min)",
+            "Residence time at inlet/STP (min)" if _proposal_has_gas(proposal) else "Residence time (min)",
             min_value=0.0,
             value=_float_default(proposal.get("residence_time_min"), 10.0),
             step=0.5,
@@ -689,7 +705,7 @@ def _render_experiment_loop(
 
         st.markdown("#### Gas-Liquid Timing")
         gas_stream = _first_gas_stream(proposal)
-        g1, g2, g3, g4 = st.columns(4)
+        g1, g3, g4 = st.columns(3)
         substrate_flow = g1.number_input(
             "Substrate flow (mL/min)",
             min_value=0.0,
@@ -698,16 +714,8 @@ def _render_experiment_loop(
             format="%.5f",
             key=f"{form_key}_substrate_q",
         )
-        gas_in_channel = g2.number_input(
-            "O2 in-channel (mL/min)",
-            min_value=0.0,
-            value=_float_default(gas_stream.get("gas_flow_actual_mL_min"), 0.0),
-            step=0.001,
-            format="%.5f",
-            key=f"{form_key}_gas_channel",
-        )
         gas_stp = g3.number_input(
-            "O2 inlet/STP (mL/min)",
+            "Gas inlet/STP (mL/min)",
             min_value=0.0,
             value=_float_default(gas_stream.get("gas_flow_sccm"), 0.0),
             step=0.001,
@@ -715,16 +723,15 @@ def _render_experiment_loop(
             key=f"{form_key}_gas_stp",
         )
         gas_equiv = g4.number_input(
-            "O2 equiv inlet",
+            "Active gas equiv at inlet/STP",
             min_value=0.0,
-            value=0.0,
+            value=_float_default(gas_stream.get("molar_equiv"), 0.0),
             step=0.1,
             format="%.3f",
             key=f"{form_key}_gas_equiv",
         )
 
-        t1, t2 = st.columns(2)
-        t_inlet = t1.number_input(
+        t_inlet = st.number_input(
             "t inlet (min)",
             min_value=0.0,
             value=_time_default(reactor_volume, substrate_flow, gas_stp),
@@ -732,20 +739,11 @@ def _render_experiment_loop(
             format="%.3f",
             key=f"{form_key}_t_inlet",
         )
-        t_channel = t2.number_input(
-            "t in-channel (min)",
-            min_value=0.0,
-            value=_time_default(reactor_volume, substrate_flow, gas_in_channel),
-            step=1.0,
-            format="%.3f",
-            key=f"{form_key}_t_channel",
-        )
         default_basis_index = 0 if gas_stp > 0 else 1
         basis_choice = st.selectbox(
             "Primary calibration basis",
             [
                 "inlet/STP apparent residence time",
-                "in-channel pressure-corrected total residence time",
                 "liquid-only reactor volume / liquid flow",
             ],
             index=default_basis_index,
@@ -781,8 +779,6 @@ def _render_experiment_loop(
         run_index = len(campaign.get("cycles", [])) + 1
         if basis_choice.startswith("inlet"):
             submitted_residence_time = t_inlet or residence_time
-        elif basis_choice.startswith("in-channel"):
-            submitted_residence_time = t_channel or residence_time
         else:
             submitted_residence_time = residence_time
         experiment = ExperimentResult(
@@ -791,11 +787,9 @@ def _render_experiment_loop(
             actual_conditions=ActualConditions(
                 residence_time_min=submitted_residence_time,
                 residence_time_inlet_min=t_inlet or None,
-                residence_time_in_channel_min=t_channel or None,
                 residence_time_basis=basis_choice,
                 flow_rate_mL_min=flow_rate,
                 substrate_flow_mL_min=substrate_flow or None,
-                gas_flow_in_channel_mL_min=gas_in_channel or None,
                 gas_flow_stp_mL_min=gas_stp or None,
                 gas_equiv_inlet=gas_equiv or None,
                 temperature_C=temperature,
@@ -885,13 +879,14 @@ def _render_experiment_loop(
         st.markdown("#### Evidence-Calibrated Design Ladder")
         st.caption(
             "When multiple experimental cycles are available, measured response "
-            "versus in-channel residence time overrides the original intensification estimate."
+            "at the recorded calibration basis can revise the original residence-time estimate."
         )
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Best observed tau", f"{calibration.get('best_tau_in_channel_min')} min")
+        st.caption(f"Recorded basis: {calibration.get('residence_time_basis', 'not recorded')}")
+        c1.metric("Best observed tau", f"{calibration.get('best_tau_inlet_min')} min at inlet/STP")
         c2.metric("Best response", f"{calibration.get('best_response_pct')}%")
-        c3.metric("Next tau", f"{calibration.get('recommended_tau_in_channel_min')} min")
-        c4.metric("Target estimate", f"{calibration.get('target_tau_in_channel_min')} min")
+        c3.metric("Next tau", f"{calibration.get('recommended_tau_inlet_min')} min at inlet/STP")
+        c4.metric("Target estimate", f"{calibration.get('target_tau_inlet_min')} min at inlet/STP")
         ladder = calibration.get("design_ladder") or []
         if ladder:
             import pandas as pd
@@ -938,10 +933,7 @@ def _render_parameter_metrics(parameters: dict):
         "Residence Time (inlet/STP)",
         _metric_value(parameters.get("residence_time_inlet_min"), "min"),
     )
-    c2.metric(
-        "Residence Time (in-channel)",
-        _metric_value(parameters.get("residence_time_in_channel_min"), "min"),
-    )
+    c2.metric("Concentration", _metric_value(parameters.get("concentration_M"), "M"))
     c3.metric("Liquid Flow Rate", _metric_value(parameters.get("flow_rate_mL_min"), "mL/min"))
     c4.metric("Total Reactor Volume", _metric_value(parameters.get("reactor_volume_mL"), "mL"))
 
@@ -973,9 +965,7 @@ def _render_stage_table(stages: list[dict]):
                 "Wavelength (nm)": stage.get("wavelength_nm"),
                 "Q liquid (mL/min)": stage.get("Q_liquid_mL_min"),
                 "Q gas inlet/STP (mL/min)": stage.get("Q_gas_sccm"),
-                "Q gas in-channel (mL/min)": stage.get("Q_gas_actual_mL_min"),
                 "t inlet/STP (min)": stage.get("residence_time_inlet_min"),
-                "t in-channel (min)": stage.get("residence_time_in_channel_min"),
             }
         )
     st.markdown("### Validated Stage Design")
@@ -984,7 +974,8 @@ def _render_stage_table(stages: list[dict]):
 
 def _render_final_engineering(final_design: dict):
     st.markdown("### Final Engineering Design")
-    _render_parameter_metrics(final_design.get("parameters") or {})
+    if len(final_design.get("stages") or []) <= 1:
+        _render_parameter_metrics(final_design.get("parameters") or {})
     _render_stage_table(final_design.get("stages") or [])
     manifest = final_design.get("instrument_manifest") or []
     if manifest:
@@ -1032,7 +1023,8 @@ def _render_summary(result: dict, final_design: dict):
         _render_reconciliation(final_design)
     else:
         st.markdown("### Final Design Parameters")
-        _render_parameter_metrics(proposal)
+        if len(final_design.get("stages") or []) <= 1:
+            _render_parameter_metrics(proposal)
         _render_stage_table(final_design.get("stages") or [])
 
     intensification = final_design.get("intensification") or {}
@@ -1232,7 +1224,8 @@ def _render_design_result(result):
 def _render_conditions(proposal: dict):
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.metric("Residence time", f"{proposal.get('residence_time_min', 0):.1f} min")
+        residence_label = "Residence time (inlet/STP)" if _proposal_has_gas(proposal) else "Residence time"
+        st.metric(residence_label, f"{proposal.get('residence_time_min', 0):.1f} min")
         st.metric("Flow rate", f"{proposal.get('flow_rate_mL_min', 0):.2f} mL/min")
         st.metric("Temperature", f"{proposal.get('temperature_C', 25):.0f} °C")
         st.metric("Concentration", f"{proposal.get('concentration_M', 0):.3f} M")
@@ -1275,7 +1268,7 @@ def _render_council_deliberation(result: dict):
     council_summary = delib_log.get("summary", "")
 
     # ── Input Design ──────────────────────────────────────────────────────────
-    design_calc = result.get("design_calculations", {})
+    design_calc = ((result.get("engineering_history") or {}).get("before_council") or {}).get("calculations", {})
     pre = result.get("pre_council_proposal", {})
     if design_calc or pre:
         with st.expander("Input Design (fed to the Designer agent)", expanded=True):
@@ -1580,6 +1573,7 @@ def _render_legacy_deliberation(result: dict):
 
 def _render_canonical_procedure(final_design: dict):
     """Render the frozen procedure compiled from the executable design graph."""
+    import re
 
     procedure = list(final_design.get("operating_procedure") or [])
     safety = dict(final_design.get("safety") or {})
@@ -1612,13 +1606,14 @@ def _render_canonical_procedure(final_design: dict):
             continue
         st.markdown(f"#### {label}")
         for item in steps:
+            instruction = re.sub(r"\bsccm\b", "mL/min at STP", item.get("instruction", ""), flags=re.IGNORECASE)
             st.markdown(
-                f"**{item.get('step_id', 'STEP')}**  \n{item.get('instruction', '')}"
+                f"**{item.get('step_id', 'STEP')}**  \n{instruction}"
             )
             bindings = {
-                key: value
+                key.replace("sccm", "inlet_STP_mL_min"): value
                 for key, value in (item.get("parameter_bindings") or {}).items()
-                if value is not None
+                if value is not None and "actual" not in key and "in_channel" not in key and "holdup" not in key
             }
             equipment = item.get("equipment_ids") or []
             if equipment:
@@ -1644,6 +1639,8 @@ _GAS_NAMES = {
 
 def _is_gas_stream(stream: dict) -> bool:
     """Return True if this stream carries a gas (not a liquid solution)."""
+    if str(stream.get("phase") or "").lower() == "gas":
+        return True
     _GAS_KW = {"o2", "o₂", "oxygen", "h2", "h₂", "hydrogen", "co2", "co₂",
                "syngas", "ethylene", "acetylene", "carbon monoxide", "carbonylation",
                "mfc", "gas", "n2 gas", "argon gas"}
@@ -1652,6 +1649,11 @@ def _is_gas_stream(stream: dict) -> bool:
     label = (stream.get("stream_label") or "").lower()
     all_text = " ".join(str(c) for c in contents).lower() + " " + pump_role + " " + label
     return any(kw in all_text for kw in _GAS_KW)
+
+
+def _proposal_has_gas(proposal: dict) -> bool:
+    return any(_is_gas_stream(stream) for stream in proposal.get("streams", []) or [])
+
 
 def _identify_gas(stream: dict) -> str:
     """Return the human-readable gas name from a stream."""
@@ -1736,8 +1738,17 @@ def _render_recipe(result: dict, proposal: dict | None = None):
         for s in gas_streams:
             label    = s.get("stream_label", "?")
             gas_name = _identify_gas(s)
-            fr       = s.get("flow_rate_mL_min")
-            fr_str   = f" at **{fr:.1f} mL/min (≈ {fr * 16.67:.0f} sccm)**" if fr else ""
+            inlet_sccm = s.get("gas_flow_sccm")
+            channel_flow = s.get("gas_flow_actual_mL_min")
+            equiv = s.get("molar_equiv")
+            fr_str = (
+                f" at **{inlet_sccm:.4g} sccm at inlet/STP**"
+                if inlet_sccm is not None else ""
+            )
+            if equiv is not None:
+                fr_str += f" (**{equiv:.3g} equiv** relative to limiting substrate)"
+            if channel_flow is not None:
+                fr_str += f"; derived in-channel flow **{channel_flow:.4g} mL/min**"
 
             step(
                 f"**Stream {label} — Gas feed ({gas_name}):** Connect the "
@@ -1834,19 +1845,24 @@ def _render_recipe(result: dict, proposal: dict | None = None):
 
     if gas_streams:
         for s in gas_streams:
-            fr = s.get("flow_rate_mL_min")
+            inlet_sccm = s.get("gas_flow_sccm")
+            channel_flow = s.get("gas_flow_actual_mL_min")
             label = s.get("stream_label", "?")
             gas_name = _identify_gas(s)
-            if fr:
-                sccm = fr * 16.67
+            if inlet_sccm is not None:
                 step(
                     f"Set **MFC {label}** ({gas_name}) to "
-                    f"**{fr:.2f} mL/min ({sccm:.0f} sccm)**."
+                    f"**{inlet_sccm:.4g} sccm at inlet/STP**. "
+                    + (
+                        f"The pressure-corrected in-channel flow is "
+                        f"**{channel_flow:.4g} mL/min** (derived; do not enter this on the MFC)."
+                        if channel_flow is not None else ""
+                    )
                 )
             else:
                 step(
                     f"Set **MFC {label}** ({gas_name}) to the target flow rate "
-                    "per your stoichiometry calculation."
+                    "from the inlet/STP stoichiometry calculation."
                 )
 
     step(

@@ -13,14 +13,21 @@ import re
 from collections import Counter
 from typing import Any, Iterable
 
+from flora_translate.component_identity import (
+    component_key, component_name, is_solvent_component, unique_components,
+)
+
 from flora_translate.inventory_constraints import (
     available_pressure_settings,
     select_reactor_for_proposal,
 )
 from flora_translate.multistage_inventory import reconcile_multistage_inventory
 from flora_translate.residence_time_basis import (
+    INLET_STP_BASIS,
+    IN_CHANNEL_BASIS,
     actual_gas_flow_from_stp,
     gas_equiv_from_stp_flow,
+    normalize_residence_time_basis,
     stp_gas_flow_for_equiv,
 )
 from flora_translate.schemas import (
@@ -94,7 +101,7 @@ def realize_executable_design(
         issues,
     )
     _solve_liquid_stream_rates(current, assignments, decisions, issues)
-    _resolve_component_quantity_assumptions(current, decisions)
+    _resolve_component_quantity_assumptions(current, decisions, chemistry_plan)
     is_multistage = bool(chemistry_plan and len(chemistry_plan.stages or []) > 1)
     if is_multistage:
         # Bind stage temperatures before converting an introduced gas from STP
@@ -313,10 +320,11 @@ def _normalized_streams(
             concentration_M=feed.concentration_M,
             phase=feed.phase,
             molar_equiv=feed.molar_equiv,
+            gas_reagent_mole_fraction=feed.gas_reagent_mole_fraction,
         )
         if plan and plan.canonical_contract is not None:
             previous_contents = list(stream.contents)
-            stream.contents = list(feed.reagents or [])
+            stream.contents = unique_components(feed.reagents or [])
             if previous_contents != stream.contents and decisions is not None:
                 decisions.append(
                     {
@@ -333,6 +341,8 @@ def _normalized_streams(
         elif not stream.contents:
             stream.contents = list(feed.reagents or [])
         stream.phase = feed.phase or stream.phase
+        if feed.gas_reagent_mole_fraction is not None:
+            stream.gas_reagent_mole_fraction = feed.gas_reagent_mole_fraction
         stream.introduction_stage = stage_number
         if feed.concentration_M and feed.concentration_M > 0:
             stream.concentration_M = feed.concentration_M
@@ -367,12 +377,17 @@ def _normalized_streams(
                 )
     else:
         ordered.extend(existing.values())
+    roles = {component_key(item.name): item.role for item in (plan.reagents if plan else [])}
     for stream in ordered:
-        explicit = _explicit_equivalent(protocol_text, stream.contents)
+        reactive_contents = [text for text in stream.contents
+                             if not is_solvent_component(text, stream.solvent or "", roles.get(component_key(text), ""))]
+        # A mixed stock's reference equivalent must not become the largest
+        # equivalent of any co-reactant. Keep its declared limiting-feed basis.
+        explicit = _explicit_equivalent(protocol_text, reactive_contents) if len(reactive_contents) == 1 else None
         if explicit is not None:
             stream.molar_equiv = explicit
             stream.molar_equiv_basis = "protocol_fact"
-        explicit_concentration = _explicit_concentration(protocol_text, stream.contents)
+        explicit_concentration = _explicit_concentration(protocol_text, reactive_contents) if len(reactive_contents) == 1 else None
         if explicit_concentration is not None:
             stream.concentration_M = explicit_concentration
             stream.concentration_basis = "protocol_fact"
@@ -860,8 +875,14 @@ def _assign_feed_devices(
                 for token in ("oxygen", "oxidation", "oxidant", "aerobic", "air")
             ):
                 candidates = oxygen_candidates
-                stream.contents = ["oxygen"]
+                stream.contents = ["O2"]
                 stream.pump_role = "Pure O2 oxidant feed (inventory substitution)"
+                stream.gas_reagent_mole_fraction = 1.0
+                stream.feed_group = (
+                    re.sub(r"AIR$", "O2", stream.feed_group, flags=re.IGNORECASE)
+                    if stream.feed_group
+                    else f"ST{int(stream.introduction_stage or 1)}-GAS-O2"
+                )
                 decisions.append(
                     {
                         "decision": "oxidant_gas_inventory_substitution",
@@ -1077,7 +1098,10 @@ def _solve_gas_stream_rates(
         # excess is an explicit design decision, not an implicit H2 policy.
         # A declared MFC minimum may still raise the delivered equivalents;
         # that physical excess is calculated and reported below.
-        fraction = 0.21 if gas_identity.lower() == "air" else 1.0
+        fraction = float(
+            stream.gas_reagent_mole_fraction
+            or (0.21 if gas_identity.lower() == "air" else 1.0)
+        )
         limiting_flow, concentration = _limiting_liquid_basis(proposal)
         sccm = stp_gas_flow_for_equiv(
             limiting_flow,
@@ -1166,6 +1190,7 @@ def _solve_gas_stream_rates(
         )
         stream.gas_flow_sccm = round(sccm, 6)
         stream.gas_flow_actual_mL_min = round(actual, 6)
+        stream.gas_reagent_mole_fraction = fraction
         stream.flow_rate_mL_min = round(actual, 6)
         stream.molar_equiv = round(supplied, 4)
         stream.molar_equiv_basis = "deterministic STP molar-flow calculation"
@@ -1338,35 +1363,35 @@ def _limiting_liquid_basis(proposal: FlowProposal) -> tuple[float, float]:
 def _resolve_component_quantity_assumptions(
     proposal: FlowProposal,
     decisions: list[dict[str, Any]],
+    chemistry_plan: ChemistryPlan | None = None,
 ) -> None:
     """Make unresolved reactive cofeed quantities explicit screening inputs."""
 
-    solvent_names = {
-        "water", "dioxane", "acetonitrile", "methanol", "ethanol", "solvent",
-        "carrier", "toluene", "dce", "dcm", "thf", "dmso", "dmf",
+    roles = {
+        component_key(item.name): item
+        for item in (chemistry_plan.reagents if chemistry_plan else [])
     }
     for stream in proposal.streams:
         if stream.phase == "gas" or not stream.concentration_M:
             continue
         revised: list[str] = []
-        for content in stream.contents:
+        for content in unique_components(stream.contents):
             text = str(content)
-            lower = text.lower()
-            name = re.sub(r"\([^)]*\)", "", lower).strip()
-            is_solvent = any(
-                re.search(rf"\b{re.escape(token)}\b", name)
-                for token in solvent_names
-            )
+            name = component_name(text)
+            entry = roles.get(component_key(text))
+            role = entry.role if entry else ""
+            is_solvent = is_solvent_component(text, stream.solvent or "", role)
+            known_quantity = str(entry.equiv_or_loading or "") if entry else ""
             quantified = bool(
                 re.search(
                     r"\d+(?:\.\d+)?\s*(?:mM|M|equiv|eq\.?|mol\s*%|wt\s*%)(?![A-Za-z])",
-                    text,
+                    text + " " + known_quantity,
                     re.I,
                 )
             )
             if not quantified and not is_solvent:
-                clean = re.sub(r"\s*\([^)]*\)\s*$", "", text).strip()
-                if "catalyst" in name:
+                clean = name
+                if "catalyst" in (name + " " + role).lower():
                     assumption = "1 mol% screening assumption"
                     assumption_value = {"loading_mol_pct": 1.0}
                 else:
@@ -1616,20 +1641,24 @@ def _close_single_stage_time(
     # V/Q_liquid is a reproducible geometric reference. It is not the measured
     # fluid contact time in a packed bed or gas-liquid reactor, which requires
     # a holdup/RTD measurement.
-    proposal.residence_time_min = round(tau_liquid, 6)
     packed_bed = "packed" in str(proposal.reactor_type or "").lower()
-    if packed_bed:
+    if gas_sccm > 0:
+        proposal.residence_time_min = round(tau_inlet, 6)
+        proposal.residence_time_basis = "inlet/STP apparent residence time"
+    elif packed_bed:
+        proposal.residence_time_min = round(tau_liquid, 6)
         proposal.residence_time_basis = (
             "nominal empty-bed liquid space time (geometric reactor volume / liquid flow)"
         )
-    elif gas_sccm > 0:
-        proposal.residence_time_basis = (
-            "nominal liquid-only reactor-volume time (geometric reactor volume / liquid flow)"
-        )
     else:
+        proposal.residence_time_min = round(tau_liquid, 6)
         proposal.residence_time_basis = "liquid-only reactor volume / liquid flow"
-    proposal.residence_time_inlet_min = None if packed_bed else round(tau_inlet, 6)
-    proposal.residence_time_in_channel_min = None if packed_bed else round(tau_channel, 6)
+    proposal.residence_time_inlet_min = (
+        round(tau_inlet, 6) if gas_sccm > 0 or not packed_bed else None
+    )
+    proposal.residence_time_in_channel_min = (
+        round(tau_channel, 6) if gas_sccm > 0 or not packed_bed else None
+    )
     metrics = dict(proposal.multiphase_metrics or {})
     if gas_sccm > 0:
         for key in (
@@ -1669,6 +1698,9 @@ def _close_single_stage_time(
             "tau_inlet_min": None if packed_bed else round(tau_inlet, 6),
             "tau_in_channel_min": None if packed_bed else round(tau_channel, 6),
             "authoritative_basis": proposal.residence_time_basis,
+            "gas_calculation_authority": (
+                "inlet_stp" if gas_sccm > 0 else "not_applicable"
+            ),
         }
     )
 
@@ -1902,6 +1934,7 @@ def _validation_report(
         "geometry_closure": _geometry_closed(proposal),
         "calculation_matches_serialized_design": _geometry_closed(proposal),
         "gas_bookkeeping_complete": _gas_bookkeeping_complete(proposal),
+        "gas_primary_basis_inlet_stp": _gas_primary_basis_is_inlet_stp(proposal),
         "safety_contract_complete": bool(realization["safety_contract"].get("complete")),
     }
     if multistage.get("applied"):
@@ -2007,7 +2040,14 @@ def _geometry_closed(proposal: FlowProposal) -> bool:
             return False
         for stage in stages:
             volume = float(stage.get("reactor_volume_mL") or stage.get("V_R_mL") or 0.0)
-            flow = float(stage.get("Q_liquid_mL_min") or stage.get("flow_rate_mL_min") or 0.0)
+            liquid_flow = float(stage.get("Q_liquid_mL_min") or stage.get("flow_rate_mL_min") or 0.0)
+            basis = normalize_residence_time_basis(stage.get("residence_time_basis"))
+            if basis == INLET_STP_BASIS:
+                flow = liquid_flow + float(stage.get("Q_gas_sccm") or stage.get("gas_flow_sccm") or 0.0)
+            elif basis == IN_CHANNEL_BASIS:
+                flow = liquid_flow + float(stage.get("Q_gas_actual_mL_min") or stage.get("gas_flow_actual_mL_min") or 0.0)
+            else:
+                flow = liquid_flow
             tau = float(stage.get("residence_time_min") or 0.0)
             if min(volume, flow, tau) <= 0 or abs(volume - flow * tau) > max(0.02, 0.02 * volume):
                 return False
@@ -2033,6 +2073,19 @@ def _gas_bookkeeping_complete(proposal: FlowProposal) -> bool:
         and float(stream.molar_equiv or 0.0) > 0
         for stream in gases
     ) and float(metrics.get("gas_equiv_supplied") or 0.0) > 0
+
+
+def _gas_primary_basis_is_inlet_stp(proposal: FlowProposal) -> bool:
+    if not any(stream.phase == "gas" for stream in proposal.streams):
+        return True
+    return (
+        normalize_residence_time_basis(proposal.residence_time_basis)
+        == INLET_STP_BASIS
+        and abs(
+            float(proposal.residence_time_min or 0.0)
+            - float(proposal.residence_time_inlet_min or 0.0)
+        ) <= 1e-6
+    )
 
 
 def _supported_temperature(value: float, reactor: ReactorSpec) -> float:

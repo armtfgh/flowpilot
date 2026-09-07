@@ -19,6 +19,7 @@ from flora_translate.batch_normalization import (
     normalize_batch_scalar_fields,
 )
 from flora_translate.chemistry_agent import _parse_json_from_tagged
+from flora_translate.component_identity import component_name, component_key, declared_solvent_member, protocol_component_quantity
 from flora_translate.engine.llm_agents import call_model_text, infer_provider_for_model
 from flora_translate.intake_agent import intake_context_block
 from flora_translate.intensification import ensure_intensification_mandate
@@ -128,6 +129,8 @@ Rules:
 - If something is uncertain, use conservative defaults instead of inventing.
 - incompatible_pairs must be a list of 2-item lists when possible.
 - stream_blueprint should describe chemistry-driven stream grouping, not hardware.
+- Preserve each reagent's own equivalents/loading and role in reagents. Never
+  replace multiple component quantities with one stream-level equivalent.
 - stage_blueprint is only needed when the protocol clearly has more than one
   synthetic stage or explicit inter-stage action.
 """
@@ -154,6 +157,8 @@ Rules:
   inventing details.
 - incompatible_pairs must be a list of 2-item lists when possible.
 - stream_blueprint should describe chemistry-driven stream grouping, not hardware.
+- Preserve each reagent's own equivalents/loading and role in reagents. Never
+  replace multiple component quantities with one stream-level equivalent.
 - stage_blueprint is only needed for true multi-stage chemistry.
 """
 
@@ -176,6 +181,7 @@ Return JSON with this schema:
   "moisture_sensitive": false,
   "temperature_sensitive": false,
   "light_sensitive_reagents": [],
+  "reagents": [{{"name": "", "role": "", "equiv_or_loading": ""}}],
   "deoxygenation_required": false,
   "deoxygenation_reasoning": "",
   "quench_required": false,
@@ -535,9 +541,16 @@ def _build_reagent_roles(
         names.append(quench_reagent)
 
     reagent_roles: list[ReagentRole] = []
+    supplied = {
+        component_key(item["name"]): item for item in data.get("reagents") or []
+        if isinstance(item, dict) and item.get("name")
+    }
     additives = {item.lower(): item for item in (batch_record.additives or []) if item}
     for name in _dedupe_preserve_order(names):
+        name = component_name(name)
         lowered = name.lower()
+        item = supplied.get(component_key(name), {})
+        quantity = protocol_component_quantity(name, batch_record.raw_text or "") or str(item.get("equiv_or_loading") or "")
         if batch_record.photocatalyst and lowered == batch_record.photocatalyst.lower():
             role = "photocatalyst"
         elif batch_record.base and lowered == batch_record.base.lower():
@@ -548,9 +561,14 @@ def _build_reagent_roles(
             role = "quencher"
         elif lowered in additives:
             role = "additive"
+        elif not quantity and declared_solvent_member(name, batch_record.solvent or ""):
+            role = "solvent"
         else:
-            role = "substrate"
-        reagent_roles.append(ReagentRole(name=name, role=role, equiv_or_loading="", smiles=None, notes=""))
+            role = str(item.get("role") or "unknown")
+        if role == "photocatalyst" and not quantity and batch_record.catalyst_loading_mol_pct:
+            quantity = f"{batch_record.catalyst_loading_mol_pct:g} mol%"
+        if component_key(name) not in {component_key(item.name) for item in reagent_roles}:
+            reagent_roles.append(ReagentRole(name=name, role=role, equiv_or_loading=quantity, smiles=None, notes=""))
     return reagent_roles
 
 

@@ -225,6 +225,33 @@ def test_unstated_air_equivalents_ignore_model_inference():
     assert _extract_gas_equiv(plan, batch_record=batch) == 1.0
 
 
+def test_confirmed_air_equivalents_are_not_shadowed_by_formula_substrings():
+    protocol = (
+        "PMPSCH2TMS (1a), 0.20 mmol, 1.0 equiv, and acrylonitrile, "
+        "2.0 equiv, are irradiated oxygen-free. Stage 2 is open to air."
+    )
+    batch = BatchRecord(
+        reaction_description=protocol,
+        raw_text=protocol,
+        atmosphere="air",
+    )
+    plan = ChemistryPlan(
+        reaction_class="aerobic photooxidation",
+        stream_logic=[
+            StreamLogic(
+                stream_label="G",
+                reagents=["air"],
+                phase="gas",
+                molar_equiv=2.0,
+                molar_equiv_basis="chemist_confirmed_intake_inlet_stp",
+                gas_reagent_mole_fraction=0.21,
+            )
+        ],
+    )
+
+    assert _extract_gas_equiv(plan, batch_record=batch) == 2.0
+
+
 def test_exposed_to_air_protocol_triggers_stp_gas_bookkeeping():
     batch = BatchRecord(
         reaction_description="Methionine oxidation to methionine sulfoxide.",

@@ -25,6 +25,13 @@ def render_inventory_selector(
     profile_by_label = {
         _profile_label(item): item for item in profiles
     }
+    pending = st.session_state.pop(f"{key_prefix}_pending_profile", None)
+    if pending:
+        label = next((label for label, item in profile_by_label.items()
+                      if item["profile_id"] == pending), None)
+        if label:
+            st.session_state[f"{key_prefix}_source"] = "Saved profile"
+            st.session_state[f"{key_prefix}_saved_profile"] = label
 
     st.markdown("#### Laboratory inventory")
     source = st.segmented_control(

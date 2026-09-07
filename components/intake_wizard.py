@@ -9,6 +9,7 @@ import streamlit as st
 from components.inventory_selector import render_inventory_selector
 from flora_translate.intake_agent import IntakeAgent
 from flora_translate.inventory_profiles import InventoryProfile
+from flora_translate.inventory_resolution import bind_inventory
 from flora_translate.schemas import DesignInputPackage, IntakeAnswer
 
 
@@ -89,9 +90,16 @@ def render_intake_wizard(key_prefix: str = "flowpilot_intake") -> DesignInputPac
         )
         st.session_state[package_key] = package.model_dump()
 
+    # Refresh sessions created before equipment review was introduced.
+    package = agent.analyze(existing_package=package, use_llm=False)
+    st.session_state[package_key] = package.model_dump()
+    if protocol.strip() != package.raw_protocol.strip():
+        st.warning("The protocol has changed. Analyze Intake again before design.")
+        return None
+
     pending = agent.pending_questions(package)
     if pending:
-        st.markdown("#### Missing standardized inputs")
+        st.markdown("#### Missing fixed and conditional inputs")
         new_answers: list[IntakeAnswer] = []
         for question in pending:
             with st.expander(
@@ -103,10 +111,11 @@ def render_intake_wizard(key_prefix: str = "flowpilot_intake") -> DesignInputPac
                     st.caption(question.why_needed)
                 if question.expected_format:
                     st.caption(f"Expected format: {question.expected_format}")
+                if question.decision_impact:
+                    st.caption(f"Design impact: {question.decision_impact}")
+                st.caption(f"Question origin: {question.origin}")
 
-                allow_unavailable = question.question_id not in {
-                    "Q-BATCH-001", "Q-OBJ-001", "Q-CHEM-001"
-                }
+                allow_unavailable = question.allow_unavailable
                 unavailable = False
                 if allow_unavailable:
                     unavailable = st.checkbox(
@@ -150,15 +159,22 @@ def render_intake_wizard(key_prefix: str = "flowpilot_intake") -> DesignInputPac
     if package is None:
         return None
 
+    _render_equipment_review(package, key_prefix)
     if package.ready_for_design:
         st.success("Intake package is ready for design.")
     else:
         st.warning(
-            "Design is blocked until these question IDs are answered or marked unavailable: "
+            "Complete the protocol answers and equipment review before numerical design. "
             + ", ".join(package.missing_question_ids)
         )
 
     with st.expander("Frozen DesignInputPackage", expanded=False):
+        st.caption(
+            f"Question bank: {package.question_bank_version} · "
+            f"set hash: {package.question_set_hash or 'not generated'}"
+        )
+        if package.active_domains:
+            st.caption("Detected domains: " + ", ".join(package.active_domains))
         st.json(package.model_dump())
 
     return package
@@ -178,28 +194,60 @@ def _apply_inventory_profile(
     package: DesignInputPackage,
     profile: InventoryProfile,
 ) -> DesignInputPackage:
-    answers = [
-        IntakeAnswer(
-            question_id="Q-INV-001",
-            answer=profile.lab_inventory.model_dump(),
-            status="answered",
-            source="inventory_profile",
-        ),
-        IntakeAnswer(
-            question_id="Q-CONSTR-001",
-            answer=profile.design_operating_limits(),
-            status="answered",
-            source="inventory_profile",
-        ),
-    ]
-    updated = agent.analyze(
-        protocol,
-        existing_package=package,
-        answers=answers,
-        use_llm=False,
-    )
-    updated.inventory_profile_snapshot = profile.model_dump()
-    return updated
+    return bind_inventory(package, profile)
+
+
+def _render_equipment_review(package: DesignInputPackage, key_prefix: str) -> None:
+    from flora_translate.inventory_profiles import inventory_profile_from_payload, save_inventory_profile
+    from flora_translate.inventory_resolution import alternative_profiles, confirm_inventory
+
+    review = package.inventory_review
+    if not review.get("requirements"):
+        return
+    st.markdown("#### Equipment requirements")
+    st.caption(f"{review.get('profile_name') or 'Intake inventory'} | version {review.get('profile_version') or 'unsaved'}")
+    st.dataframe([
+        {"Capability": item["category"], "Needed": item["required_count"],
+         "Available": item["available_count"], "Status": item["status"]}
+        for item in review["requirements"]
+    ], hide_index=True, use_container_width=True)
+    if not review["ready"]:
+        for alternative in alternative_profiles(package):
+            if st.button(f"Select {alternative['name']} v{alternative['version']}", key=f"{key_prefix}_alt_{alternative['profile_id']}"):
+                st.session_state[f"{key_prefix}_inventory_pending_profile"] = alternative["profile_id"]
+                st.rerun()
+    for question in [*review.get("questions", []), *review.get("confirmations", [])]:
+        prefix = f"{key_prefix}_{question['question_id']}_{review['input_sha256'][:12]}"
+        with st.expander(f"{question['question_id']} - {question['title']}", expanded=question in review.get("questions", [])):
+            st.write(question["reason"])
+            status = st.radio("Equipment availability", ["available", "unavailable"], key=f"{prefix}_status")
+            with st.form(f"{prefix}_form"):
+                equipment = {}
+                if status == "available":
+                    fields = [
+                        {"key": "equipment_id", "label": "Equipment ID"},
+                        {"key": "name", "label": "Equipment name"},
+                        {"key": "quantity", "label": "Quantity available"},
+                        *question["fields"],
+                    ]
+                    for field in fields:
+                        equipment[field["key"]] = st.text_input(field["label"], value="1" if field["key"] == "quantity" else "", key=f"{prefix}_{field['key']}")
+                note = st.text_input("Confirmation note or specification source", key=f"{prefix}_note")
+                submitted = st.form_submit_button("Save inventory confirmation")
+            if submitted:
+                try:
+                    if not package.inventory_profile_snapshot:
+                        raise ValueError("Select or import an inventory profile first")
+                    profile = inventory_profile_from_payload(package.inventory_profile_snapshot)
+                    updated, changed = confirm_inventory(profile, category=question["category"], status=status, equipment=equipment, note=note)
+                    bind_inventory(package, updated)
+                    if changed:
+                        updated, _ = save_inventory_profile(updated)
+                    st.session_state[f"{key_prefix}_package"] = bind_inventory(package, updated).model_dump()
+                    st.session_state[f"{key_prefix}_inventory_pending_profile"] = updated.profile_id
+                    st.rerun()
+                except Exception as exc:
+                    st.error(str(exc))
 
 
 def _profile_changed(

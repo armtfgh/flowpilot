@@ -14,16 +14,16 @@ test("populated design uses one canonical result across tabs", async ({ page }, 
   await page.goto("/?demo=1");
   await expect(page.getByRole("heading", { name: "Design studio" })).toBeVisible();
   await expect(page.getByText("Executable screening design")).toBeVisible();
-  await expect(page.getByText("8.05 min", { exact: true })).toBeVisible();
+  await expect(page.getByText("0.504796 min", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Process" }).click();
+  await page.getByRole("button", { name: "Process", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Executable process topology" })).toBeVisible();
   await expect(page.locator(".processNode")).toHaveCount(7);
   await expect(page.getByText("rx_1", { exact: true }).first()).toBeVisible();
 
   await page.getByRole("button", { name: "Engineering" }).click();
-  await expect(page.getByText("ST-01", { exact: true })).toBeVisible();
-  await expect(page.getByText("8.05 / 8.05 min", { exact: true })).toBeVisible();
+  await expect(page.locator(".finalEngineering").getByText("0.504796", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Process summary", exact: true }).click();
   await expect(page.getByText("substrate; photocatalyst in MeCN", { exact: true })).toBeVisible();
   await expectNoPageOverflow(page);
 
@@ -76,7 +76,6 @@ test("mandatory chemistry intake closes and model routes are selectable", async 
   }
   await page.getByRole("button", { name: "Save answers" }).click();
   await expect(page.getByRole("heading", { name: "Design input is frozen" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Run FlowPilot design/ })).toBeEnabled();
 
   const upstream = page.getByLabel("Upstream chemistry model");
   const downstream = page.getByLabel("Downstream and council model");
@@ -93,4 +92,50 @@ test("mandatory chemistry intake closes and model routes are selectable", async 
   await downstream.selectOption("qwen3.6-27b");
   await expect(upstream).toHaveValue("claude-opus-4-6");
   await expect(downstream).toHaveValue("qwen3.6-27b");
+  await expect(page.getByRole("button", { name: /Run FlowPilot design/ })).toBeEnabled();
+});
+
+
+test("conditional intake questions are stable and block until resolved", async ({ page }, testInfo) => {
+  await page.goto("/");
+  await page.getByLabel("Initial batch protocol").fill(
+    "A two-stage photochemical oxidation is performed with oxygen gas under 3 bar using a blue LED. A is converted to B."
+  );
+  await page.locator(".intakePanel .toggle input").uncheck({ force: true });
+  await page.getByRole("button", { name: "Analyze intake" }).click();
+
+  const codes = page.locator(".question code");
+  await expect(page.locator(".question").filter({ hasText: "Q-GAS-002" })).toBeVisible();
+  const firstIds = await codes.allTextContents();
+  for (const required of ["Q-GAS-002", "Q-GAS-003", "Q-PHOTO-001", "Q-MULTI-001"]) {
+    expect(firstIds).toContain(required);
+  }
+  await page.getByRole("button", { name: "Re-analyze" }).click();
+  await expect(codes).toHaveCount(firstIds.length);
+  await expect(page.getByRole("button", { name: "Re-analyze" })).toBeEnabled();
+  expect(await codes.allTextContents()).toEqual(firstIds);
+
+  const answers: Record<string, string> = {
+    "Q-OBJ-001": "First executable screen.",
+    "Q-CHEM-001": "Two-stage oxidation of A to B.",
+    "Q-GAS-002": "2.0 equiv",
+    "Q-GAS-003": "Stage 2",
+    "Q-PHOTO-001": "450 nm",
+    "Q-MULTI-001": "Stage 1: photochemical formation. Stage 2: oxygen oxidation.",
+  };
+  for (const [questionId, answer] of Object.entries(answers)) {
+    await page.locator(".question").filter({ hasText: questionId }).locator("textarea").fill(answer);
+  }
+  for (const questionId of ["Q-HIST-001", "Q-INV-001", "Q-CONSTR-001", "Q-HYP-001"]) {
+    await page.locator(".question").filter({ hasText: questionId }).getByText("Explicitly unavailable").click();
+  }
+  await expect(
+    page.locator(".question").filter({ hasText: "Q-GAS-003" }).getByText("Explicitly unavailable")
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Save answers" }).click();
+  await expect(page.getByRole("heading", { name: "Design input is frozen" })).toBeVisible();
+  await page.getByLabel("Upstream chemistry model").selectOption("qwen3.6-27b");
+  await page.getByLabel("Downstream and council model").selectOption("qwen3.6-27b");
+  await expect(page.getByRole("button", { name: /Run FlowPilot design/ })).toBeEnabled();
+  await page.screenshot({ path: testInfo.outputPath("conditional-intake.png"), fullPage: true });
 });

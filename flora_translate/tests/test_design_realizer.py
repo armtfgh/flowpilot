@@ -5,7 +5,10 @@ import pytest
 
 from flora_translate.design_realizer import realize_executable_design
 from flora_translate.main import _build_singlestep_topology
-from flora_translate.residence_time_basis import actual_gas_flow_from_stp
+from flora_translate.residence_time_basis import (
+    actual_gas_flow_from_stp,
+    stp_gas_flow_for_equiv,
+)
 from flora_translate.inventory_profiles import inventory_profile_from_payload
 from flora_translate.topology_compiler import compile_inventory_topology
 from flora_translate.schemas import (
@@ -148,9 +151,12 @@ def test_hydrogen_realization_reports_stp_actual_and_equivalents():
     assert gas_decision["target_equiv"] == 1.0
     assert gas_decision["supplied_equiv"] == pytest.approx(1.0, rel=1e-3)
     assert realized.residence_time_min == pytest.approx(
-        realized.reactor_volume_mL / realized.flow_rate_mL_min, rel=1e-5
+        realized.reactor_volume_mL
+        / (realized.flow_rate_mL_min + gas.gas_flow_sccm),
+        rel=1e-5,
     )
-    assert "empty-bed liquid space time" in realized.residence_time_basis
+    assert realized.residence_time_min == realized.residence_time_inlet_min
+    assert realized.residence_time_basis == "inlet/STP apparent residence time"
     assert "273.15 K" in gas.reasoning
     assert report["safety_contract"]["hardware_checks"]["nitrogen_purge_declared"]
 
@@ -386,10 +392,81 @@ def test_air_identity_binds_air_mfc_and_uses_liquid_contact_time():
     assert report["status"] == "complete"
     assert realized.pressure_absolute_bar == pytest.approx(4.01325)
     assert realized.residence_time_min == pytest.approx(
-        realized.reactor_volume_mL / realized.flow_rate_mL_min
+        realized.reactor_volume_mL
+        / (realized.flow_rate_mL_min + gas.gas_flow_sccm)
     )
-    assert "liquid" in realized.residence_time_basis
+    assert realized.residence_time_min == realized.residence_time_inlet_min
+    assert realized.residence_time_basis == "inlet/STP apparent residence time"
     assert "sccm" not in " ".join(gas.contents).lower()
+
+
+def test_air_to_inventory_o2_substitution_recomputes_on_pure_gas_basis():
+    case_path = ROOT / "ablation_test/benchmarks/manuscript_five_case_v1/fmoc_case.json"
+    case = json.loads(case_path.read_text())["cases"][0]
+    inventory = LabInventory.model_validate(case["inventory"])
+    for index, item in enumerate(inventory.gas_hardware):
+        item.equipment_id = f"o2_device_{index}"
+        item.gas = "O2"
+    proposal = FlowProposal(
+        flow_rate_mL_min=0.2,
+        concentration_M=0.1,
+        temperature_C=21,
+        BPR_bar=3,
+        reactor_type="photochemical coil",
+        reactor_volume_mL=1,
+        streams=[
+            StreamAssignment(
+                stream_label="A",
+                contents=["Fmoc-L-methionine", "photocatalyst"],
+                solvent="acetonitrile",
+                concentration_M=0.1,
+            ),
+            StreamAssignment(
+                stream_label="G",
+                contents=["air"],
+                pump_role="aerobic oxidant feed",
+                phase="gas",
+                gas_reagent_mole_fraction=0.21,
+                molar_equiv=2.0,
+                feed_group="ST1-GAS-AIR",
+            ),
+        ],
+    )
+    plan = ChemistryPlan(
+        stream_logic=[
+            StreamLogic(stream_label="A", reagents=["Fmoc-L-methionine"], concentration_M=0.1),
+            StreamLogic(
+                stream_label="G",
+                reagents=["air"],
+                phase="gas",
+                gas_reagent_mole_fraction=0.21,
+                molar_equiv=2.0,
+            ),
+        ]
+    )
+
+    realized, report, validation = realize_executable_design(
+        proposal,
+        batch_record=BatchRecord(raw_text=case["protocol"]),
+        chemistry_plan=plan,
+        inventory=inventory,
+        hard_constraints=case["hard_constraints"],
+    )
+
+    gas = next(item for item in realized.streams if item.phase == "gas")
+    expected_sccm = stp_gas_flow_for_equiv(
+        realized.flow_rate_mL_min,
+        realized.concentration_M,
+        2.0,
+        1.0,
+    )
+    assert report["status"] == "complete"
+    assert validation["status"] == "ready"
+    assert gas.contents == ["O2"]
+    assert gas.gas_reagent_mole_fraction == 1.0
+    assert gas.feed_group == "ST1-GAS-O2"
+    assert gas.gas_flow_sccm == pytest.approx(expected_sccm, rel=1e-5)
+    assert gas.molar_equiv == pytest.approx(2.0, rel=1e-3)
 
 
 def test_protocol_air_collapses_duplicate_air_and_pure_oxygen_feeds():
@@ -861,9 +938,11 @@ def test_khu_baseline_jointly_resolves_pressure_pump_gas_lights_and_stages():
     ]
     assert len({stage["reactor_equipment_id"] for stage in realized.stage_parameters}) == 2
     assert realized.residence_time_min == pytest.approx(
-        sum(stage["reactor_volume_mL"] / stage["Q_liquid_mL_min"] for stage in realized.stage_parameters),
+        sum(stage["residence_time_inlet_min"] for stage in realized.stage_parameters),
         rel=1e-4,
     )
+    assert realized.residence_time_min == realized.residence_time_inlet_min
+    assert "inlet/STP" in realized.residence_time_basis
     assert not report["safety_contract"]["hazards"]
     assert not any(
         item["decision"] == "component_quantity_screening_assumption"

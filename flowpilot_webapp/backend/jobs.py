@@ -13,6 +13,8 @@ import threading
 import uuid
 from typing import Any
 
+from filelock import FileLock, Timeout
+
 
 JOB_ROOT = Path("outputs/webapp_jobs")
 
@@ -39,6 +41,7 @@ class DesignJob:
     result: dict[str, Any] | None = None
     error: str | None = None
     autosave_dir: str | None = None
+    owner_instance_id: str | None = None
 
     def public(self, *, include_result: bool = True) -> dict[str, Any]:
         payload = {
@@ -52,10 +55,32 @@ class DesignJob:
             "messages": self.messages[-80:],
             "error": self.error,
             "autosave_dir": self.autosave_dir,
+            "owner_instance_id": self.owner_instance_id,
         }
+        if self.status == "completed" and self.result:
+            payload["phase"] = _result_phase(self.result)
         if include_result:
             payload["result"] = self.result
         return payload
+
+
+def _result_phase(result: dict[str, Any]) -> str:
+    if result.get("design_status") == "inventory_confirmation_required":
+        return "Inventory confirmation required"
+    if result.get("design_status") == "inventory_infeasible":
+        return "Required equipment unavailable"
+    if result.get("final_design", {}).get("status") == "executable":
+        return "Design complete"
+    return "Design requires review"
+
+
+def _write_snapshot(path: Path, value: Any) -> None:
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_text(json.dumps(_json_safe(value), indent=2), encoding="utf-8")
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 class _JobLogHandler(logging.Handler):
@@ -90,19 +115,34 @@ class JobManager:
     """Serialize expensive designs while keeping the API responsive."""
 
     def __init__(self, max_workers: int = 1):
+        self.instance_id = uuid.uuid4().hex[:12]
         self._executor = ThreadPoolExecutor(
             max_workers=max_workers,
             thread_name_prefix="flowpilot-design",
         )
         self._jobs: dict[str, DesignJob] = {}
         self._lock = threading.RLock()
+        self._leases: dict[str, FileLock] = {}
 
     def submit(self, request: dict[str, Any]) -> DesignJob:
-        job = DesignJob(job_id=uuid.uuid4().hex[:12], request=deepcopy(request))
+        job = DesignJob(job_id=uuid.uuid4().hex[:12], request=deepcopy(request), owner_instance_id=self.instance_id)
+        target = JOB_ROOT / job.job_id
+        target.mkdir(parents=True, exist_ok=False)
+        lease = FileLock(target / "owner.lock", thread_local=False)
+        lease.acquire(timeout=0)
         with self._lock:
             self._jobs[job.job_id] = job
-        self._persist(job)
-        self._executor.submit(self._run, job.job_id)
+            self._leases[job.job_id] = lease
+        try:
+            _write_snapshot(target / "request.json", job.request)
+            self._persist(job)
+            self._executor.submit(self._run, job.job_id)
+        except Exception:
+            lease.release()
+            with self._lock:
+                self._leases.pop(job.job_id, None)
+                self._jobs.pop(job.job_id, None)
+            raise
         return job
 
     def get(self, job_id: str) -> DesignJob | None:
@@ -110,20 +150,19 @@ class JobManager:
             job = self._jobs.get(job_id)
             if job is not None:
                 return job
-            job = self._load(job_id)
-            if job is not None:
-                self._jobs[job_id] = job
-            return job
+            # Other instances own their jobs. Never cache their transient state.
+            return self._load(job_id)
 
     def list(self) -> list[dict[str, Any]]:
         with self._lock:
+            observed = dict(self._jobs)
             if JOB_ROOT.is_dir():
                 for directory in JOB_ROOT.iterdir():
                     if directory.is_dir() and directory.name not in self._jobs:
                         job = self._load(directory.name)
                         if job is not None:
-                            self._jobs[job.job_id] = job
-            jobs = sorted(self._jobs.values(), key=lambda item: item.created_at, reverse=True)
+                            observed[job.job_id] = job
+            jobs = sorted(observed.values(), key=lambda item: item.created_at, reverse=True)
             return [job.public(include_result=False) for job in jobs]
 
     def update(self, job_id: str, **values: Any) -> None:
@@ -193,7 +232,7 @@ class JobManager:
                 job_id,
                 status="completed",
                 progress=1.0,
-                phase="Design complete",
+                phase=_result_phase(result),
                 result=_json_safe(result),
                 autosave_dir=str(autosave_dir),
                 finished_at=_now(),
@@ -213,8 +252,14 @@ class JobManager:
             if handler in root_logger.handlers:
                 root_logger.removeHandler(handler)
             root_logger.setLevel(previous_root_level)
+            with self._lock:
+                lease = self._leases.pop(job_id, None)
+                if lease is not None:
+                    lease.release()
 
     def _load(self, job_id: str) -> DesignJob | None:
+        if not job_id or Path(job_id).name != job_id:
+            return None
         target = JOB_ROOT / job_id
         state_path = target / "job.json"
         if not state_path.is_file():
@@ -232,10 +277,26 @@ class JobManager:
             phase = str(state.get("phase") or "Recovered job")
             finished_at = state.get("finished_at")
             if status in {"queued", "running"}:
-                status = "failed"
-                phase = "Interrupted by backend restart"
-                error = "The backend restarted before this job completed. Submit the design again."
-                finished_at = _now()
+                if state.get("owner_instance_id"):
+                    probe = FileLock(target / "owner.lock")
+                    try:
+                        with probe.acquire(timeout=0):
+                            # Re-read after acquiring: the owner may have just completed.
+                            latest = json.loads(state_path.read_text(encoding="utf-8"))
+                            if latest.get("status") not in {"queued", "running"}:
+                                return self._load(job_id)
+                        status = "failed"
+                        phase = "Interrupted: job owner stopped"
+                        error = "The job owner stopped before completion. The saved request is retained."
+                        finished_at = _now()
+                    except Timeout:
+                        pass
+                else:
+                    # Older servers do not hold a lease. Absence of ownership is
+                    # insufficient evidence of a restart or failed design.
+                    status = "unknown"
+                    phase = "Legacy job: monitor the originating server"
+                    error = None
             return DesignJob(
                 job_id=job_id,
                 request={},
@@ -249,6 +310,7 @@ class JobManager:
                 result=result,
                 error=error,
                 autosave_dir=state.get("autosave_dir"),
+                owner_instance_id=state.get("owner_instance_id"),
             )
         except Exception:
             logging.getLogger("flowpilot.webapp").exception("Could not recover job %s", job_id)
@@ -258,15 +320,9 @@ class JobManager:
         try:
             target = JOB_ROOT / job.job_id
             target.mkdir(parents=True, exist_ok=True)
-            (target / "job.json").write_text(
-                json.dumps(_json_safe(job.public(include_result=False)), indent=2),
-                encoding="utf-8",
-            )
             if job.result is not None:
-                (target / "result.json").write_text(
-                    json.dumps(_json_safe(job.result), indent=2),
-                    encoding="utf-8",
-                )
+                _write_snapshot(target / "result.json", job.result)
+            _write_snapshot(target / "job.json", job.public(include_result=False))
         except Exception:
             logging.getLogger("flowpilot.webapp").exception("Could not persist job %s", job.job_id)
 

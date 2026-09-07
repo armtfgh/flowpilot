@@ -164,13 +164,13 @@ def _extract_gas_equiv(
         if not text:
             return None
         gas_names = (
-            r"O2|O₂|oxygen|air|H2|H₂|hydrogen|CO2|CO₂|carbon dioxide|"
+            r"(?:O2|O₂|oxygen|air|H2|H₂|hydrogen|CO2|CO₂|carbon dioxide|"
             r"carbon monoxide|CO|ozone|O3|O₃|chlorine|Cl2|Cl₂|"
-            r"ammonia|NH3|NH₃|hydrogen chloride|HCl|sulfur dioxide|SO2|SO₂"
+            r"ammonia|NH3|NH₃|hydrogen chloride|HCl|sulfur dioxide|SO2|SO₂)"
         )
         patterns = [
-            rf"(?:{gas_names})[^\n]{{0,100}}?(\d+(?:\.\d+)?)\s*(?:mol\s*)?equiv",
-            rf"(\d+(?:\.\d+)?)\s*(?:mol\s*)?equiv[^\n]{{0,100}}?(?:{gas_names})",
+            rf"\b{gas_names}\b[^\n]{{0,100}}?(\d+(?:\.\d+)?)\s*(?:mol\s*)?equiv",
+            rf"(\d+(?:\.\d+)?)\s*(?:mol\s*)?equiv[^\n]{{0,100}}?\b{gas_names}\b",
         ]
         for pattern in patterns:
             match = re.search(pattern, text, flags=re.IGNORECASE)
@@ -209,10 +209,12 @@ def _extract_gas_equiv(
             getattr(batch_record, "atmosphere", None),
         )
     )
-    parsed_batch_equiv = _regex_equiv(batch_text)
-    if parsed_batch_equiv is not None:
-        return parsed_batch_equiv
+    if not gas_streams:
+        return default
 
+    g = gas_streams[0]
+    me = getattr(g, "molar_equiv", None)
+    basis = str(getattr(g, "molar_equiv_basis", "") or "").lower()
     ambient_air_exposure = bool(
         re.search(
             r"(?:expos(?:ed|ure)\s+to\s+(?:the\s+)?air|open\s+to\s+(?:the\s+)?air|"
@@ -221,17 +223,37 @@ def _extract_gas_equiv(
             flags=re.IGNORECASE,
         )
     )
+    trusted_basis = any(
+        marker in basis
+        for marker in (
+            "protocol",
+            "chemist_confirmed",
+            "hard_constraint",
+            "evidence",
+            "chemistry_rule",
+            "deterministic_screening",
+        )
+    )
+    if me is not None and me > 0 and trusted_basis:
+        return float(me)
+
+    parsed_batch_equiv = _regex_equiv(batch_text)
+    if parsed_batch_equiv is not None:
+        return parsed_batch_equiv
+
+    if (
+        me is not None
+        and me > 0
+        and not ambient_air_exposure
+        and "model" not in basis
+    ):
+        return float(me)
+
+    # Ambient-air wording only implies an uncontrolled screening basis when no
+    # higher-authority structured requirement exists. In particular, never let
+    # it override a chemist-confirmed inlet/STP equivalent set during intake.
     if ambient_air_exposure:
         return default
-
-    if not gas_streams:
-        return default
-
-    g = gas_streams[0]
-    me = getattr(g, "molar_equiv", None)
-    basis = str(getattr(g, "molar_equiv_basis", "") or "").lower()
-    if me is not None and me > 0 and "model" not in basis:
-        return float(me)
     return default
 
 GAS_LIQUID_MIN_BPR_BAR = 3.0
@@ -613,6 +635,7 @@ class DesignCalculator:
         target_flow_rate_mL_min: float | None = None,
         target_tubing_ID_mm: float | None = None,
         target_residence_time_min: float | None = None,
+        frozen_geometry: bool = False,
     ) -> DesignCalculations:
         """Execute all 9 steps and return a consistent DesignCalculations.
 
@@ -638,11 +661,15 @@ class DesignCalculator:
         # Preserve standard nominal 0.04-inch inventory tubing (1.016 mm).
         # Snapping it to a synthetic 1.000 mm ID makes an otherwise valid
         # physical coil fail the final inventory/calculation closure check.
-        if is_photochem and d_init > 1.05:
+        if is_photochem and d_init > 1.05 and not frozen_geometry:
             d_init = 1.0  # Beer–Lambert constraint
 
         solvent = getattr(batch_record, "solvent", None)
         is_gas_liquid = self._is_gas_liquid(batch_record, chemistry_plan, proposal)
+        if frozen_geometry:
+            if proposal is None or not proposal.reactor_volume_mL:
+                raise ValueError("Frozen engineering requires a realized reactor and streams")
+            is_gas_liquid = any(s.phase == "gas" for s in proposal.streams)
         calc.is_gas_liquid = is_gas_liquid
 
         # Flow temperature may differ from batch temperature
@@ -685,12 +712,16 @@ class DesignCalculator:
         )
         if tau_override and tau_override > 0:
             self._step2_override(calc, tau_override, batch_record, chemistry_plan, analogies)
+            if frozen_geometry:
+                calc.residence_time_min = float(tau_override)
+                calc.residence_time_s = float(tau_override) * 60.0
         else:
             self._step2(calc, batch_record, chemistry_plan, analogies, T_flow_C)
         self._steps345(
             calc, Q_init, d_init, solvent, inventory, is_photochem,
             is_gas_liquid=is_gas_liquid, proposal=proposal,
             batch_record=batch_record, chemistry_plan=chemistry_plan,
+            frozen_geometry=frozen_geometry,
         )
         self._step6(calc)
         self._step7(calc, batch_record, chemistry_plan, solvent)
@@ -780,6 +811,7 @@ class DesignCalculator:
                     stream.phase = "gas"
                     stream.gas_flow_sccm = round(calc.gas_flow_sccm, 3)
                     stream.gas_flow_actual_mL_min = round(calc.gas_flow_actual_mL_min, 4)
+                    stream.gas_reagent_mole_fraction = calc.gas_reagent_fraction
                     stream.flow_rate_mL_min = round(calc.gas_flow_actual_mL_min, 4)
                     if calc.target_gas_equiv_inlet > 0:
                         stream.molar_equiv = round(calc.target_gas_equiv_inlet, 4)
@@ -793,6 +825,7 @@ class DesignCalculator:
                     phase="gas",
                     gas_flow_sccm=round(calc.gas_flow_sccm, 3),
                     gas_flow_actual_mL_min=round(calc.gas_flow_actual_mL_min, 4),
+                    gas_reagent_mole_fraction=calc.gas_reagent_fraction,
                     flow_rate_mL_min=round(calc.gas_flow_actual_mL_min, 4),
                     molar_equiv=round(calc.target_gas_equiv_inlet, 4) if calc.target_gas_equiv_inlet > 0 else 1.0,
                     reasoning="Deterministic gas-liquid calculator added MFC feed for gas-phase reagent.",
@@ -1034,7 +1067,7 @@ class DesignCalculator:
         return has_gas_identity
 
     @staticmethod
-    def _detect_gas_species(batch_record, chemistry_plan, proposal) -> tuple[str, float]:
+    def _detect_gas_species(batch_record, chemistry_plan, proposal, *, trust_stream_phase=False) -> tuple[str, float]:
         def identify(text: str) -> tuple[str, float] | None:
             text = text.lower()
 
@@ -1076,15 +1109,29 @@ class DesignCalculator:
         # batch/chemistry text. This prevents an explicit O2 MFC stream from
         # being reclassified as air because an earlier stage says "air".
         proposal_texts: list[str] = []
+        explicit_fraction = None
         if proposal:
             for stream in proposal.streams or []:
-                if not DesignCalculator._stream_assignment_is_gas(stream):
+                if not (stream.phase == "gas" if trust_stream_phase else DesignCalculator._stream_assignment_is_gas(stream)):
                     continue
+                if getattr(stream, "gas_reagent_mole_fraction", None) is not None:
+                    explicit_fraction = float(stream.gas_reagent_mole_fraction)
                 proposal_texts.append(str(stream.pump_role or ""))
                 proposal_texts.extend(str(c) for c in stream.contents or [])
         proposal_species = identify(" ".join(proposal_texts))
         if proposal_species is not None:
+            if explicit_fraction is not None:
+                return proposal_species[0], explicit_fraction
             return proposal_species
+
+        if chemistry_plan:
+            for feed in chemistry_plan.stream_logic or []:
+                if str(feed.phase or "").lower() != "gas":
+                    continue
+                species = identify(" ".join(str(item) for item in feed.reagents or []))
+                fraction = getattr(feed, "gas_reagent_mole_fraction", None)
+                if species is not None and fraction is not None:
+                    return species[0], float(fraction)
 
         texts: list[str] = []
         if batch_record:
@@ -1108,12 +1155,12 @@ class DesignCalculator:
 
     def _estimate_gas_context(
         self, calc, Q_liquid_mL_min: float, proposal, is_gas_liquid: bool,
-        batch_record=None, chemistry_plan=None,
+        batch_record=None, chemistry_plan=None, frozen_geometry=False,
     ) -> dict:
         if not is_gas_liquid or Q_liquid_mL_min <= 0:
             return {}
         species, reagent_fraction = self._detect_gas_species(
-            batch_record, chemistry_plan, proposal
+            batch_record, chemistry_plan, proposal, trust_stream_phase=frozen_geometry,
         )
         is_oxygen_reagent = species in {"O2", "air"}
         oxygen_fraction = reagent_fraction if is_oxygen_reagent else 0.0
@@ -1128,7 +1175,7 @@ class DesignCalculator:
         explicit_sccm = None
         if proposal:
             for stream in proposal.streams or []:
-                if not self._stream_assignment_is_gas(stream):
+                if not (stream.phase == "gas" if frozen_geometry else self._stream_assignment_is_gas(stream)):
                     continue
                 for attr in ("gas_flow_sccm", "flow_rate_sccm"):
                     value = getattr(stream, attr, None)
@@ -1150,6 +1197,12 @@ class DesignCalculator:
             proposal=proposal,
             default=1.0,
         )
+        if frozen_geometry:
+            if explicit_sccm is None:
+                raise ValueError("Frozen gas-stage engineering requires an inlet/STP flow")
+            protocol_gas_equiv = gas_equiv_from_stp_flow(
+                explicit_sccm, Q_liquid_mL_min, calc.concentration_M, reagent_fraction,
+            )
         gas_equiv_required = protocol_gas_equiv
         gas_required = n_substrate_mmol_min * gas_equiv_required
         o2_required = gas_required if is_oxygen_reagent else 0.0
@@ -1180,6 +1233,8 @@ class DesignCalculator:
             gas_equiv_required * supply_factor,
             reagent_fraction,
         )
+        if frozen_geometry:
+            gas_sccm = explicit_sccm
         if (
             explicit_sccm is not None
             and abs(explicit_sccm - gas_sccm) / max(gas_sccm, 1e-9) > 0.05
@@ -1206,24 +1261,17 @@ class DesignCalculator:
         # excess; it does not silently alter the MFC setpoint.
         eps = max(0.02, min(0.85, gas_actual / max(gas_actual + Q_liquid_mL_min, 1e-9)))
         multiplier = min(12.0, 1.0 + 12.0 * eps + 25.0 * eps * eps)
-        basis = normalize_residence_time_basis(getattr(proposal, "residence_time_basis", ""))
-        if basis == INLET_STP_BASIS and gas_sccm > 0:
-            residence_time_inlet_min = calc.residence_time_min
-            residence_time_in_channel_min = (
-                residence_time_inlet_min
-                * (Q_liquid_mL_min + gas_sccm)
-                / max(Q_liquid_mL_min + gas_actual, 1e-9)
-            )
-        else:
-            basis = IN_CHANNEL_BASIS if basis == UNKNOWN_BASIS else normalize_residence_time_basis(basis)
-            residence_time_in_channel_min = calc.residence_time_min
-            residence_time_inlet_min = (
-                residence_time_in_channel_min
-                * (Q_liquid_mL_min + gas_actual)
-                / max(Q_liquid_mL_min + gas_sccm, 1e-9)
-                if gas_sccm > 0
-                else residence_time_in_channel_min
-            )
+        # One authoritative convention is used throughout FlowPilot: reagent-
+        # gas equivalents, MFC setpoints, reactor sizing, and the primary
+        # apparent residence time are all defined at inlet/STP. In-channel gas
+        # flow and time are pressure-corrected derived diagnostics only.
+        basis = INLET_STP_BASIS
+        residence_time_inlet_min = calc.residence_time_min
+        residence_time_in_channel_min = (
+            residence_time_inlet_min
+            * (Q_liquid_mL_min + gas_sccm)
+            / max(Q_liquid_mL_min + gas_actual, 1e-9)
+        )
 
         n_gas_mol_min = (
             gas_sccm / 1000.0 * P_STP_BAR / (R_GAS_L_BAR * T_STP_K)
@@ -1836,6 +1884,7 @@ class DesignCalculator:
     def _steps345(
         self, calc, Q_mL_min, d_mm, solvent, inventory, is_photochem,
         is_gas_liquid=False, proposal=None, batch_record=None, chemistry_plan=None,
+        frozen_geometry=False,
     ):
         tau_s = calc.residence_time_s or 600.0
         tau_min = tau_s / 60.0
@@ -1862,6 +1911,7 @@ class DesignCalculator:
         gas_ctx = self._estimate_gas_context(
             calc, Q_mL_min, proposal, is_gas_liquid,
             batch_record=batch_record, chemistry_plan=chemistry_plan,
+            frozen_geometry=frozen_geometry,
         )
         basis = normalize_residence_time_basis(gas_ctx.get("residence_time_basis"))
         if basis not in {INLET_STP_BASIS, "in_channel", "liquid_only"}:
@@ -1883,6 +1933,13 @@ class DesignCalculator:
                 V_m3 = V_liquid_m3 / max(1.0 - gas_holdup, 1e-9)
                 tau_in_channel_s = V_m3 / max(Q_m3s + Q_gas_actual_m3s, 1e-12)
             V_mL = V_m3 * 1e6
+            if frozen_geometry:
+                expected = float(proposal.reactor_volume_mL)
+                if not math.isclose(V_mL, expected, rel_tol=0.002, abs_tol=0.001):
+                    raise ValueError(f"Frozen stage V/Q closure failed: {V_mL:g} vs {expected:g} mL")
+                V_mL = expected
+                V_m3 = V_mL * 1e-6
+                V_liquid_m3 = V_m3 * (1.0 - gas_holdup)
             L = (4.0 * V_m3 / (PI * d_m ** 2)) if d_m > 0 else 0.0
             v = (Q_m3s + Q_gas_actual_m3s) / A if A > 0 else 0.0
             v_liquid = Q_m3s / A if A > 0 else 0.0
@@ -1892,6 +1949,10 @@ class DesignCalculator:
             dP_bar = dP_Pa * 1e-5
 
             need_redo = False
+            if frozen_geometry:
+                if Re > 2100 or dP_bar > pump_max * 0.9:
+                    adj_5.append("Frozen geometry exceeds an engineering screening limit; geometry was not silently changed.")
+                break
 
             # Re check: must be < 2100 (laminar)
             if Re > 2100:
