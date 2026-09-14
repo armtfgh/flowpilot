@@ -83,7 +83,7 @@ def realize_executable_design(
         current.streams,
         chemistry_plan,
         protocol_text,
-        authoritative_gas=_protocol_reagent_gas(batch_record),
+        authoritative_gas=_protocol_reagent_gas(batch_record, chemistry_plan),
         decisions=decisions,
     )
     _enforce_stationary_component_placement(
@@ -92,7 +92,8 @@ def realize_executable_design(
         inventory,
         decisions,
     )
-    _resolve_pressure(current, inventory, constraint_text, decisions, issues)
+    from flora_translate.scientific_evidence import enabled
+    _resolve_pressure(current, inventory, constraint_text, decisions, issues, scientific=enabled(chemistry_plan))
 
     assignments = _assign_feed_devices(
         current,
@@ -450,13 +451,19 @@ def _reconcile_candidate_operations(
         proposal.wavelength_nm = None
 
 
-def _protocol_reagent_gas(batch_record: BatchRecord) -> str | None:
+def _protocol_reagent_gas(batch_record: BatchRecord, chemistry_plan=None) -> str | None:
     """Return the protocol-authorized reagent gas, not its reactive component.
 
     For example, oxygen is the reacting species in an aerobic oxidation, but
     the physical feed remains air when the protocol says ``exposed to air``.
     """
 
+    delivery = (chemistry_plan.scientific_context.get("gas_delivery", {}) if chemistry_plan else {})
+    if delivery.get("identity_source") == "chemist_answer" and delivery.get("species"):
+        return str(delivery["species"])
+    if (delivery.get("identity_source") == "inventory_screening_proposal"
+            and delivery.get("requires_chemist_confirmation") is True and delivery.get("species")):
+        return str(delivery["species"])
     atmosphere = str(batch_record.atmosphere or "").lower().replace("₂", "2")
     raw = " ".join(
         value
@@ -825,11 +832,18 @@ def _assign_feed_devices(
         for _ in range(int(pump.quantity))
     ]
     if liquid_streams and pump_slots:
+        from flora_translate.equipment_resources import resources_fit, pump_accepts_feed
         best: tuple[float, tuple[PumpSpec, ...]] | None = None
         for candidate in itertools.permutations(pump_slots, min(len(liquid_streams), len(pump_slots))):
             if len(candidate) != len(liquid_streams):
                 continue
+            if not resources_fit(candidate, inventory.resource_capacities):
+                continue
+            if not all(pump_accepts_feed(pump, stream) for stream, pump in zip(liquid_streams, candidate)):
+                continue
             score = sum(_pump_match_score(stream, pump) for stream, pump in zip(liquid_streams, candidate))
+            platforms = {p.platform_id for p in candidate if p.platform_id}
+            score -= 500 * max(0, len(platforms) - 1)
             if best is None or score > best[0]:
                 best = (score, candidate)
         if best is not None:
@@ -1079,7 +1093,8 @@ def _solve_gas_stream_rates(
     proposal.multiphase_metrics = base_metrics
     for stream in gas_streams:
         mfc = assignments.get(stream.stream_label)
-        target_equiv = max(float(stream.molar_equiv or 1.0), 1.0)
+        from flora_translate.scientific_evidence import enabled
+        target_equiv = float(stream.molar_equiv or 1.0) if enabled(chemistry_plan) else max(float(stream.molar_equiv or 1.0), 1.0)
         gas_identity = _gas_identity(stream)
         if inventory is not None and mfc is None:
             stream.gas_flow_sccm = None
@@ -1419,6 +1434,7 @@ def _resolve_pressure(
     constraints: str,
     decisions: list[dict[str, Any]],
     issues: list[dict[str, Any]],
+    *, scientific: bool = False,
 ) -> None:
     settings = available_pressure_settings(inventory)
     requested = float(proposal.BPR_bar or 0.0)
@@ -1446,7 +1462,7 @@ def _resolve_pressure(
     has_reagent_gas = any(stream.phase == "gas" for stream in proposal.streams)
     if target <= 0 and has_reagent_gas:
         target = settings[0]
-    if has_reagent_gas:
+    if has_reagent_gas and not scientific:
         # A gas-liquid screen needs a controlled pressure floor. Never snap a
         # 2.5 bar model suggestion to an unavailable 3 bar value or retain it
         # below the floor; choose the lowest declared setpoint at or above it.
@@ -1455,7 +1471,7 @@ def _resolve_pressure(
         target = settings[0]
     eligible_settings = (
         [value for value in settings if value >= 3.0]
-        if has_reagent_gas
+        if has_reagent_gas and not scientific
         else settings
     )
     proposal.BPR_bar = (
@@ -1516,6 +1532,13 @@ def _seed_stage_inventory(
     issues: list[dict[str, Any]],
 ) -> None:
     if inventory is None:
+        return
+    if proposal.scientific_design.get("lock_stage_inventory"):
+        # These exact assignments were jointly solved before council review.
+        # Quantity/capability checks still run in multistage reconciliation.
+        expected = {s.stage_number for s in plan.stages}
+        if {s.get("stage_number") for s in proposal.stage_parameters} != expected:
+            raise ValueError("Scientific candidate has incomplete stage assignments")
         return
     remaining = Counter(
         {
@@ -2018,6 +2041,26 @@ def _pressure_inventory_match(proposal: FlowProposal, inventory: LabInventory | 
 def _tubing_or_integrated_path_feasible(proposal: FlowProposal, inventory: LabInventory | None) -> bool:
     if inventory is None or not inventory.reactors:
         return True
+    if proposal.stage_parameters:
+        # A multistage material summary is not a physical piece of tubing.
+        # Check every assigned reactor path at its own diameter and temperature.
+        for stage in proposal.stage_parameters:
+            selected = next((r for r in inventory.reactors if r.equipment_id == stage.get("reactor_equipment_id")), None)
+            material = str(stage.get("material") or stage.get("tubing_material") or "")
+            diameter = stage.get("d_mm", stage.get("tubing_ID_mm"))
+            temperature = stage.get("temperature_C")
+            if selected is None or not material or diameter is None or temperature is None:
+                return False
+            if material.lower() != selected.material.lower() or abs(diameter - selected.ID_mm) > 1e-3:
+                return False
+            if _reactor_has_integrated_flow_path(selected):
+                continue
+            if not any(item.service_status in AVAILABLE and item.material.lower() == material.lower()
+                       and abs(item.ID_mm - diameter) <= 1e-3
+                       and item.max_pressure_bar >= proposal.BPR_bar
+                       and item.max_temperature_C >= temperature for item in inventory.tubing):
+                return False
+        return True
     selected_id = str((proposal.inventory_selection or {}).get("equipment_id") or "")
     selected = next((item for item in inventory.reactors if item.equipment_id == selected_id), None)
     if selected and _reactor_has_integrated_flow_path(selected):
@@ -2125,6 +2168,8 @@ def _gas_identity(stream: StreamAssignment) -> str:
 
 
 def _same_gas(left: str, right: str) -> bool:
+    if any(separator in str(right) for separator in (",", ";", "/")):
+        return any(_same_gas(left, item) for item in re.split(r"[,;/]", right))
     aliases = {
         "h2": "hydrogen", "hydrogen": "hydrogen",
         "o2": "oxygen", "oxygen": "oxygen",

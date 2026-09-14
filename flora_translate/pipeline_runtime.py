@@ -19,6 +19,7 @@ from flora_translate.engine.council_v4.execution_config import CouncilExecutionC
 
 @dataclass(frozen=True)
 class PipelineRuntimeOptions:
+    design_policy: str = "legacy"
     exclude_record_ids: frozenset[str] = field(default_factory=frozenset)
     retrieval_mode: str = "semantic"
     candidate_budget: int = 12
@@ -39,8 +40,12 @@ class PipelineRuntimeOptions:
     model_endpoints: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        if self.design_policy not in {"legacy", "scientific_v2"}:
+            raise ValueError("design_policy must be legacy or scientific_v2")
         if self.candidate_budget < 1:
             raise ValueError("candidate_budget must be at least 1")
+        if self.design_policy == "scientific_v2" and self.candidate_budget != 12:
+            raise ValueError("Scientific preview requires the full 12-candidate council")
         if self.retrieval_mode not in {"semantic", "lexical"}:
             raise ValueError("retrieval_mode must be 'semantic' or 'lexical'")
         if self.benchmark_max_descendants_per_candidate < 1:
@@ -84,6 +89,7 @@ class PipelineRuntimeOptions:
         """Serializable execution metadata stored with every result."""
 
         return {
+            "design_policy": self.design_policy,
             "pipeline_entry_point": "flora_translate.main.translate",
             "exclude_record_ids": sorted(self.exclude_record_ids),
             "retrieval_mode": self.retrieval_mode,

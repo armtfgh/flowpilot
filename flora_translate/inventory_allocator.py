@@ -42,10 +42,12 @@ class InventoryAllocator:
         self.used_reactor_ids: list[str] = []
         self.selected_systems = selected_process_systems(proposal, inventory)
         self.compiled_operations: list[Any] = []
+        self.resource_remaining = dict(inventory.resource_capacities)
 
     def compile(self, topology: ProcessTopology) -> tuple[ProcessTopology, dict[str, Any]]:
         compiled = deepcopy(topology)
         self._remove_redundant_mixers(compiled)
+        self._insert_required_gas_accessories(compiled)
         self.compiled_operations = compiled.unit_operations
         incoming = _incoming_counts(compiled)
 
@@ -187,6 +189,12 @@ class InventoryAllocator:
             self._allocate_reactor(operation)
             return
         if op_type == "led_module":
+            from flora_translate.equipment_resources import light_fits_stage
+            prefix = operation.op_id.rsplit("_", 1)[0]
+            reactor_op = next((op for op in self.compiled_operations
+                               if op.op_type.lower() in REACTOR_TYPES and op.op_id.startswith(prefix)), None)
+            reactor_id = (reactor_op.parameters.get("inventory_equipment_id") if reactor_op else None)
+            reactor = next((r for r in self.inventory.reactors if r.equipment_id == reactor_id), None)
             wavelength = _num(operation.parameters.get("wavelength_nm"), self.proposal.wavelength_nm)
             temperature = _num(
                 operation.parameters.get("temperature_C"),
@@ -201,6 +209,7 @@ class InventoryAllocator:
                 and (not requested_id or item.equipment_id == requested_id)
                 and abs(item.wavelength_nm - wavelength) <= max(5.0, wavelength * 0.02)
                 and _light_temperature_supported(item, temperature)
+                and (not item.module_id or (reactor is not None and light_fits_stage(item, reactor, self.proposal, self.inventory)))
                 and equipment_system_compatible(item, self.selected_systems)
             ]
             self._claim(
@@ -213,6 +222,17 @@ class InventoryAllocator:
                     "temperature_C": temperature,
                 },
             )
+            return
+        if op_type == "check_valve":
+            candidates = [item for item in self.inventory.safety_accessories
+                          if _available(item) and item.type == "check_valve"
+                          and (item.max_pressure_bar is None or self.proposal.BPR_bar <= item.max_pressure_bar)]
+            self._claim(operation, "safety_accessories", candidates, {"direction": "toward reactor"})
+            selected = next((x for x in candidates if x.equipment_id == operation.inventory_item_id), None)
+            if selected:
+                operation.parameters["cracking_pressure_bar"] = selected.cracking_pressure_bar
+                if selected.max_pressure_bar is None:
+                    self.warnings.append(f"{selected.name}: maximum pressure rating not supplied; verify before laboratory execution. Cracking pressure is not a pressure rating.")
             return
         if op_type == "bpr":
             pressure = _num(operation.parameters.get("pressure_bar"), self.proposal.BPR_bar)
@@ -359,7 +379,28 @@ class InventoryAllocator:
         return True
 
     def _allocate_tubing(self) -> None:
-        selected_id = str((self.proposal.inventory_selection or {}).get("equipment_id") or "")
+        if self.proposal.stage_parameters:
+            for index, stage in enumerate(self.proposal.stage_parameters, 1):
+                self._allocate_tubing_path(
+                    str(stage.get("reactor_equipment_id") or ""),
+                    str(stage.get("material") or ""),
+                    _num(stage.get("d_mm"), 0),
+                    self.proposal.BPR_bar,
+                    _num(stage.get("temperature_C"), self.proposal.temperature_C),
+                    f"st{index}_reactor", f"assignment_tubing_stage_{index}",
+                )
+            return
+        self._allocate_tubing_path(
+            str((self.proposal.inventory_selection or {}).get("equipment_id") or ""),
+            self.proposal.tubing_material, self.proposal.tubing_ID_mm,
+            self.proposal.BPR_bar, self.proposal.temperature_C,
+            "reactor_system", "assignment_tubing",
+        )
+
+    def _allocate_tubing_path(
+        self, selected_id, material, diameter, pressure, temperature,
+        operation_id, assignment_id,
+    ) -> None:
         selected_reactor = next(
             (item for item in self.inventory.reactors if item.equipment_id == selected_id),
             None,
@@ -390,10 +431,10 @@ class InventoryAllocator:
         candidates = [
             item for item in self.inventory.tubing
             if _available(item)
-            and item.material.lower() == self.proposal.tubing_material.lower()
-            and abs(item.ID_mm - self.proposal.tubing_ID_mm) <= 1e-3
-            and item.max_pressure_bar + 1e-12 >= self.proposal.BPR_bar
-            and item.max_temperature_C + 1e-12 >= self.proposal.temperature_C
+            and item.material.lower() == material.lower()
+            and abs(item.ID_mm - diameter) <= 1e-3
+            and item.max_pressure_bar + 1e-12 >= pressure
+            and item.max_temperature_C + 1e-12 >= temperature
         ]
         item = self._first_available(candidates)
         if item is None:
@@ -401,23 +442,25 @@ class InventoryAllocator:
                 self.unresolved.append(
                     {
                         "requirement_id": "INV-TUBING",
-                        "operation_id": "reactor_system",
+                        "operation_id": operation_id,
                         "category": "tubing",
                         "reason": "No available tubing matches material, ID, pressure, and temperature.",
                         "criteria": {
-                            "material": self.proposal.tubing_material,
-                            "ID_mm": self.proposal.tubing_ID_mm,
-                            "pressure_bar": self.proposal.BPR_bar,
-                            "temperature_C": self.proposal.temperature_C,
+                            "material": material,
+                            "ID_mm": diameter,
+                            "pressure_bar": pressure,
+                            "temperature_C": temperature,
                         },
                     }
                 )
             return
         self.remaining[item.equipment_id] -= 1
+        for key, amount in item.resource_requirements.items():
+            self.resource_remaining[key] -= amount
         self.assignments.append(
             {
-                "assignment_id": "assignment_tubing",
-                "operation_id": "reactor_system",
+                "assignment_id": assignment_id,
+                "operation_id": operation_id,
                 "role": "reactor tubing",
                 "category": "tubing",
                 "equipment_item_ids": [item.equipment_id],
@@ -467,10 +510,9 @@ class InventoryAllocator:
         """Validate only direct reactor-to-reactor physical connections.
 
         Two reaction stages separated by an assigned mixer are independent
-        reactor operations.  They do not require a separately declared serial
-        reactor train: the mixer is the interstage connection.  A declared
-        train remains mandatory when reactor coils are connected directly or
-        when one logical reactor is assembled from several inventory coils.
+        reactor operations. Standard stocked connectors also permit direct
+        interstage links without enumerating every reactor pair. This does not
+        synthesize a larger logical reactor from undeclared component coils.
         """
 
         if len(self.used_reactor_ids) <= 1:
@@ -487,6 +529,17 @@ class InventoryAllocator:
             and stream.to_op in reactor_operation_ids
         ]
         if not direct_reactor_edges:
+            return
+        if any(self.inventory.capability_status.get(key) == "unavailable"
+               for key in ("connectors", "connectors_or_reactor_trains")):
+            if self.strict:
+                self.unresolved.append({
+                    "requirement_id": "INV-REACTOR-TRAIN",
+                    "operation_id": "process_topology",
+                    "category": "connectors",
+                    "reason": "Required reactor connectors are explicitly unavailable.",
+                    "criteria": {"component_reactor_ids": self.used_reactor_ids},
+                })
             return
         connector_by_id = {item.equipment_id: item for item in self.inventory.connectors}
         declared = next(
@@ -535,6 +588,42 @@ class InventoryAllocator:
                     },
                 }
             )
+        elif self.inventory.allows_standard_reactor_connections:
+            for edge in direct_reactor_edges:
+                assumption_id = f"ASSUMED-CONNECTORS-{edge.stream_id}"
+                name = "Standard interstage reactor connector"
+                settings = {
+                    "from_operation": edge.from_op,
+                    "to_operation": edge.to_op,
+                    "pressure_bar": self.proposal.BPR_bar,
+                    "availability_basis": "standard_reactor_connectors_available",
+                }
+                self.assumed_accessories.append({
+                    "assumption_id": assumption_id,
+                    "operation_id": edge.stream_id,
+                    "category": "connectors",
+                    "name": name,
+                    "settings": settings,
+                    "requires_pre_run_verification": True,
+                })
+                self.assignments.append({
+                    "assignment_id": f"assignment_connector_{edge.stream_id}",
+                    "operation_id": edge.stream_id,
+                    "role": "interstage reactor connection",
+                    "category": "connectors",
+                    "equipment_item_ids": [],
+                    "instrument_names": [name],
+                    "settings": settings,
+                    "capability_checks": {
+                        "passive_accessory_policy": True,
+                        "requires_pre_run_verification": True,
+                    },
+                    "assumption_id": assumption_id,
+                })
+            self.warnings.append(
+                "Standard interstage connectors are available by inventory policy; "
+                "verify fittings, wetted materials, and pressure/temperature ratings before execution."
+            )
         elif self.strict:
             reactor_operations = [
                 operation
@@ -576,6 +665,8 @@ class InventoryAllocator:
             return False
         self.remaining[item.equipment_id] -= 1
         self._apply_assignment(operation, category, [item], settings)
+        for key, amount in item.resource_requirements.items():
+            self.resource_remaining[key] -= amount
         return True
 
     def _apply_assignment(self, operation, category: str, items: list[Any], settings: dict[str, Any]) -> None:
@@ -691,9 +782,36 @@ class InventoryAllocator:
 
     def _first_available(self, candidates: Iterable[Any]):
         return next(
-            (item for item in candidates if self.remaining.get(item.equipment_id, 0) > 0),
+            (item for item in candidates if self.remaining.get(item.equipment_id, 0) > 0
+             and all(self.resource_remaining.get(key, 0) >= amount for key, amount in item.resource_requirements.items())),
             None,
         )
+
+    def _insert_required_gas_accessories(self, topology):
+        from flora_translate.schemas import UnitOperation
+        devices = {x.equipment_id: x for x in self.inventory.gas_hardware}
+        for op in list(topology.unit_operations):
+            if op.op_type.lower() != "mfc":
+                continue
+            device = devices.get(op.parameters.get("inventory_equipment_id"))
+            if not device or device.required_outlet_accessory_type != "check_valve":
+                continue
+            downstream = [edge for edge in topology.streams if edge.from_op == op.op_id and edge.connection_type == "process"]
+            if not downstream:
+                continue
+            if all(any(x.op_id == edge.to_op and x.op_type == "check_valve" for x in topology.unit_operations) for edge in downstream):
+                continue
+            valve_id = op.op_id + "_check_valve"
+            topology.unit_operations.insert(topology.unit_operations.index(op) + 1, UnitOperation(
+                op_id=valve_id, op_type="check_valve", label="Check valve", required=True,
+                rationale="Required by gas-delivery inventory to prevent pressurized-liquid backflow.",
+                parameters={"direction": "toward reactor"}))
+            first = downstream[0].model_copy(deep=True)
+            first.stream_id += "_to_check_valve"
+            first.to_op = valve_id
+            for edge in downstream:
+                edge.from_op = valve_id
+            topology.streams.append(first)
 
     def _remove_redundant_mixers(self, topology: ProcessTopology) -> None:
         incoming = defaultdict(list)

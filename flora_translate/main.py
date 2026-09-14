@@ -519,6 +519,36 @@ def _build_translate_topology(
         topology = _build_singlestep_topology(
             proposal, chemistry_plan, batch_record, inventory=inventory
         )
+    from flora_translate.executable_artifacts import _stream_components
+    feed_map = {s.stream_label: s for s in proposal.streams}
+    components = _stream_components(
+        {"chemistry_plan": chemistry_plan.model_dump() if chemistry_plan else {}},
+        [s.model_dump() for s in proposal.streams],
+    )
+    for operation in topology.unit_operations:
+        if operation.op_type not in {"pump", "mfc"}:
+            continue
+        feed = feed_map.get(operation.parameters.get("stream"))
+        if feed is None:
+            continue
+        operation.parameters["concentration_M"] = feed.concentration_M
+        operation.parameters["solvent"] = feed.solvent
+        operation.parameters["gas_reagent_mole_fraction"] = feed.gas_reagent_mole_fraction
+        if feed.phase == "gas":
+            continue
+        labels = []
+        for component in components:
+            if component.stream_label != feed.stream_label or component.role == "solvent":
+                continue
+            details = []
+            if component.concentration_M is not None:
+                details.append(f"{component.concentration_M:.6g} M")
+            if component.molar_equiv is not None:
+                details.append(f"{component.molar_equiv:.6g} equiv")
+            elif component.loading_mol_pct is not None:
+                details.append(f"{component.loading_mol_pct:.6g} mol%")
+            labels.append(component.name + (" (" + ", ".join(details) + ")" if details else ""))
+        operation.parameters["contents"] = labels or list(feed.contents)
     return normalize_topology_semantics(topology)
 
 
@@ -1300,7 +1330,7 @@ def _build_multistep_topology(
             q for feed, q in zip(active_feeds, new_feed_qs)
             if q > 0 and not _stream_is_gas(feed)
         )
-        Q_inlet = round(Q_prev_outlet + Q_new_feeds, 4)
+        Q_inlet = float(sp["Q_liquid_mL_min"]) if sp.get("Q_liquid_mL_min") is not None else round(Q_prev_outlet + Q_new_feeds, 6)
 
         # ── Reactor volume V_R = τ_i × Q_inlet_i ───────────────────────────
         gas_feeds_active = [f for f in active_feeds if _stream_is_gas(f)]
@@ -1327,6 +1357,12 @@ def _build_multistep_topology(
             )
             for feed in gas_feeds_active
         )
+        # Finalized stage balances include feeds carried from earlier reactors;
+        # counting only this stage's new gas pumps would drop that gas at export.
+        if sp.get("Q_gas_actual_mL_min") is not None:
+            stage_gas_actual = float(sp["Q_gas_actual_mL_min"])
+        if sp.get("Q_gas_sccm") is not None:
+            stage_gas_sccm = float(sp["Q_gas_sccm"])
         stage_residence_basis = "liquid-only"
         stage_inventory_volume = _safe_float(
             sp.get("reactor_volume_mL") or sp.get("V_R_mL")
@@ -1973,6 +2009,17 @@ def translate(
         council messages, svg_path, png_path.
     """
     runtime = PipelineRuntimeOptions.coerce(runtime_options)
+    scientific = runtime.design_policy == "scientific_v2"
+    scientific_archive = None
+    if scientific:
+        from pathlib import Path
+        from datetime import datetime
+        from uuid import uuid4
+        scientific_archive = Path("outputs/scientific_pipeline") / (datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid4().hex[:8])
+        scientific_archive.mkdir(parents=True, exist_ok=False)
+    def scientific_snapshot(name, data):
+        if scientific_archive:
+            (scientific_archive / (name + ".json")).write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
     intake = _coerce_intake_package(intake_package)
     intake_block = intake_context_block(intake)
     effective_batch_input = batch_input_from_package(intake) if intake else batch_input
@@ -1988,24 +2035,31 @@ def translate(
 
     # 2. Chemistry Reasoning — Layer 1
     logger.info("Step 2: Chemistry analysis (Layer 1)")
-    chemistry_plan = analyze_batch_chemistry(batch_record, intake_package=intake)
+    chemistry_plan = analyze_batch_chemistry(batch_record, intake_package=intake, **({"scientific": True} if scientific else {}))
+    scientific_snapshot("upstream", {"batch_record": batch_record.model_dump(), "chemistry_plan": chemistry_plan.model_dump()})
     chemistry_plan, chemistry_reconciliation = reconcile_chemistry_plan(
         batch_record,
         chemistry_plan,
+        scientific=scientific,
         hard_constraints={
             "inventory_constraints": intake.inventory_constraints if intake else None,
             "operating_limits": intake.operating_limits if intake else None,
             "runtime_hard_constraints": list(runtime.hard_constraints),
+            "gas_introduction_requirement": (intake.engineering_requirements.get("gas", {}) if intake else {}),
         },
     )
     chemistry_plan, intake_requirement_decisions = (
         apply_intake_requirements_to_chemistry_plan(chemistry_plan, intake)
     )
+    if scientific:
+        chemistry_plan.scientific_context["operating_limits"] = intake.operating_limits if intake else None
+        chemistry_plan.scientific_context["hard_constraints"] = list(runtime.hard_constraints)
     if intake_requirement_decisions:
         chemistry_reconciliation["intake_requirement_decisions"] = (
             intake_requirement_decisions
         )
     logger.info(f"  Mechanism: {chemistry_plan.mechanism_type}")
+    scientific_snapshot("chemistry_contract", chemistry_plan.model_dump())
     logger.info(f"  Streams: {len(chemistry_plan.stream_logic)}  O2: {chemistry_plan.oxygen_sensitive}")
     logger.info(f"  Upstream mode: {getattr(chemistry_plan, '_upstream_mode', 'full')}")
 
@@ -2059,7 +2113,7 @@ def translate(
         f"(range {calculations.residence_time_range_min}), "
         f"method = {calculations.kinetics_method}, "
         f"Re = {calculations.reynolds_number:.0f}, "
-        f"Da = {calculations.damkohler_mass:.2f}, "
+        f"Da = {calculations.damkohler_mass}, "
         f"ΔP = {calculations.pressure_drop_bar:.4f} bar, "
         f"BPR = {'yes' if calculations.bpr_required else 'no'}"
     )
@@ -2072,7 +2126,7 @@ def translate(
         get_council_starting_point,
         feasible_candidates_as_council_seeds,
     )
-    design_candidates = DesignSpaceSearch().run(
+    design_candidates = [] if scientific else DesignSpaceSearch().run(
         batch_record=batch_record,
         chemistry_plan=chemistry_plan,
         calculations=calculations,
@@ -2096,7 +2150,11 @@ def translate(
         calculations=calculations, inventory=inventory,
         intake_package=intake,
     )
+    if scientific:
+        user_prompt += "\n\nSCIENTIFIC POLICY (overrides generic time heuristics):\n" + json.dumps(chemistry_plan.scientific_context)
+        user_prompt += "\nPreserve each stage's reagent addition order. Propose feed concentrations and stoichiometry from the source; do not claim conversion or intensification. Hardware-bound joint candidates are calculated and reviewed next."
     proposal = TranslationLLM().generate(system_prompt, user_prompt)
+    scientific_snapshot("translation", {"system_prompt": system_prompt, "user_prompt": user_prompt, "proposal": proposal.model_dump()})
     logger.info(f"  Proposal: {proposal.residence_time_min}min, {proposal.reactor_type}, "
                 f"{len(proposal.streams)} streams")
 
@@ -2104,7 +2162,7 @@ def translate(
     # member spends its effort scoring an unavailable or sub-floor BPR value,
     # and the skeptic can disqualify the entire matrix before the deterministic
     # inventory pass gets a chance to select the real cartridge.
-    if any(_stream_is_gas(stream) for stream in proposal.streams or []):
+    if not scientific and any(_stream_is_gas(stream) for stream in proposal.streams or []):
         pressure_settings = available_pressure_settings(inventory)
         eligible_pressure = [value for value in pressure_settings if value >= 3.0]
         if eligible_pressure and float(proposal.BPR_bar or 0.0) < 3.0:
@@ -2200,8 +2258,11 @@ def translate(
     # Attach 9-step design calculations for Streamlit rendering
     from dataclasses import asdict
     result["design_calculations"] = asdict(calculations)
-    _reconcile_final_bpr(result, design_candidate, inventory)
-    _sync_final_stream_flowrates(result, design_candidate)
+    # Scientific candidates are already jointly realized before council review.
+    # Legacy lumped recalculations cannot rewrite that frozen selection.
+    if not scientific:
+        _reconcile_final_bpr(result, design_candidate, inventory)
+        _sync_final_stream_flowrates(result, design_candidate)
 
     # If the user included measured flow experiments in the prompt, apply the
     # deterministic closed-loop calibration before building the final topology.
@@ -2224,7 +2285,7 @@ def translate(
             refine_from_experimental_campaign,
         )
         experiments = extract_experiments_from_text(raw_input_text)
-        if len(experiments) >= 2:
+        if len(experiments) >= 2 and not scientific:
             logger.info(
                 "Step 6b: Applying evidence-calibrated closed-loop refinement from %d experiments",
                 len(experiments),
@@ -2246,13 +2307,19 @@ def translate(
     # campaign refinements.
     final_validation = None
     try:
-        inventory_proposal, calculations, final_validation = finalize_design(
-            design_candidate.proposal,
-            batch_record=batch_record,
-            chemistry_plan=chemistry_plan,
-            analogies=analogies,
-            inventory=inventory,
-        )
+        if scientific:
+            inventory_proposal = design_candidate.proposal
+            selected = next(c for c in inventory_proposal.scientific_design["candidates"]
+                            if c["candidate_id"] == inventory_proposal.scientific_design["selected_candidate_id"])
+            final_validation = deepcopy(selected["validation"])
+        else:
+            inventory_proposal, calculations, final_validation = finalize_design(
+                design_candidate.proposal,
+                batch_record=batch_record,
+                chemistry_plan=chemistry_plan,
+                analogies=analogies,
+                inventory=inventory,
+            )
         design_candidate.proposal = inventory_proposal
         result["proposal"] = design_candidate.proposal.model_dump()
         result["design_calculations"] = asdict(calculations)
@@ -2270,8 +2337,9 @@ def translate(
             "Step 6c: Final engineering validation %s",
             final_validation["status"],
         )
-        _reconcile_final_bpr(result, design_candidate, inventory)
-        _sync_final_stream_flowrates(result, design_candidate)
+        if not scientific:
+            _reconcile_final_bpr(result, design_candidate, inventory)
+            _sync_final_stream_flowrates(result, design_candidate)
     except Exception as exc:
         logger.warning("Final engineering validation skipped: %s", exc)
 
@@ -2398,6 +2466,16 @@ def translate(
         result["design_calculations"]["annotation_scope"] = (
             "lumped diagnostic; final engineering is in final_stage_engineering"
         )
+        if scientific:
+            from flora_translate.engine.council_v4.scientific import signature
+            evidence = realized_proposal.scientific_design
+            unchanged = signature(realized_proposal) == evidence["selected_signature"]
+            final_validation["checks"]["scientific_selected_design_preserved"] = unchanged
+            result["scientific_assessment"] = evidence
+            result["scientific_assessment"]["selected_design_preserved"] = unchanged
+            if not unchanged:
+                final_validation["status"] = "blocked"
+                final_validation.setdefault("unresolved_reasons", []).append("scientific_selected_design_preserved")
         logger.info(
             "Step 6d: Deterministic design realization %s",
             realization_report["status"],
@@ -2628,6 +2706,22 @@ def translate(
     # post-validation contract. Intermediate council/calculator values remain
     # available for audit but can no longer be presented as run instructions.
     result["pipeline_runtime"] = runtime.provenance()
+    if scientific and result.get("scientific_assessment"):
+        from flora_translate.engine.council_v4.scientific import signature, pressure_headroom
+        evidence = result["scientific_assessment"]
+        unchanged = signature(FlowProposal.model_validate(result["proposal"])) == evidence["selected_signature"]
+        evidence["selected_design_preserved"] = unchanged
+        result["final_validation"]["checks"]["scientific_selected_design_preserved"] = unchanged
+        engineering = result.get("final_stage_engineering", {})
+        pressure_ok = bool(engineering.get("complete")) and pressure_headroom(
+            FlowProposal.model_validate(result["proposal"]), engineering, inventory)["passed"]
+        result["final_validation"]["checks"]["scientific_final_pressure_headroom"] = pressure_ok
+        if not pressure_ok:
+            result["final_validation"]["status"] = "blocked"
+            result["final_validation"].setdefault("unresolved_reasons", []).append("scientific_final_pressure_headroom")
+        if not unchanged:
+            result["final_validation"]["status"] = "blocked"
+            result["final_validation"].setdefault("unresolved_reasons", []).append("scientific_selected_design_preserved")
     result["final_design"] = build_final_design_contract(result)
     publish_final_design_artifacts(result, result["final_design"])
     if (
@@ -2676,6 +2770,7 @@ def translate(
         result["final_design"]["status"],
     )
     logger.info(f"Done — Confidence: {result['confidence']}")
+    scientific_snapshot("result", result)
     return result
 
 

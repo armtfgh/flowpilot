@@ -102,6 +102,7 @@ export function EngineeringHistory({result}: {result: Json}) {
   const after = history.after_council || {};
   const finalRecords = result.final_stage_engineering?.stages || [];
   return <div className="reportStack engineeringHistory">
+    <ScientificAssessment result={result}/>
     <div className="sectionTitle"><h2>Engineering provenance</h2><span>proposal → council → final realization</span></div>
     <details className="auditSection" open><summary>1. Before council</summary><div className="auditBody">
       <ProposalSnapshot value={before.proposal || result.pre_council_proposal || {}}/>
@@ -123,14 +124,41 @@ export function EngineeringHistory({result}: {result: Json}) {
   </div>;
 }
 
+export function ScientificAssessment({result}: {result: Json}) {
+  const a = result.scientific_assessment || result.proposal?.scientific_design;
+  if (!a?.candidate_count) return null;
+  const selected = (a.candidates || []).find((c: Json) => c.candidate_id === a.selected_candidate_id);
+  return <section className="reportStack scientificAssessment" aria-label="Scientific assessment">
+    <div className="sectionTitle"><h2>Scientific assessment</h2><span>Private 2.0 preview</span></div>
+    {result.verification_provenance?.synthetic_objective_probe && <div className="warningRow"><AlertTriangle size={18}/><span>Synthetic objective-sensitivity test, not a user-requested experimental recommendation.</span></div>}
+    <div className="warningRow"><AlertTriangle size={18}/><span>Experimental screen, not a validated high-yield process. Flow kinetics and achieved yield are unknown.</span></div>
+    <dl className="metricRecord"><dt>Complete candidates</dt><dd>{a.candidate_count}</dd><dt>Selected experiment</dt><dd>{a.selected_candidate_id}</dd><dt>Selection preserved</dt><dd>{a.selected_design_preserved === true ? "Yes" : "Not verified"}</dd></dl>
+    <h3>Council assessment · unvalidated</h3><p>{a.chief?.justification}</p>
+    {a.objective_policy && <div className="objectiveAssessment"><h3>Objective and selection</h3><dl className="metricRecord"><dt>Screening priority</dt><dd>{a.objective_policy.priority.replaceAll("_", " ")}</dd><dt>Interpretation source</dt><dd>{a.objective_policy.basis.replaceAll("_", " ")}</dd></dl><p>{a.objective_policy.selection_instruction}</p><p>{a.chief?.objective_alignment}</p>
+      <details className="auditSection"><summary>Why alternatives were not selected</summary><div className="auditBody">{(a.chief?.alternatives || []).map((v: Json) => <p key={v.candidate_id}><b>Candidate {v.candidate_id}:</b> {v.reason_not_selected}</p>)}</div></details>
+      <p className="reportNote">{a.objective_policy.interpretation_note}</p></div>}
+    {(selected?.temperature_deviations || []).map((d: Json) => <div className="warningRow temperatureDeviation" key={d.stage_number}><AlertTriangle size={18}/><span>Stage {d.stage_number}: batch {num(d.batch_temperature_C)} °C; screen {num(d.screen_temperature_C)} °C. {d.consequence}</span></div>)}
+    <details className="auditSection"><summary>12-candidate screen and reviewer coverage</summary><div className="auditBody">
+      <div className="tableScroll"><table className="dataTable"><thead><tr><th>Candidate</th><th>Stage times (min)</th><th>Stage volumes (mL)</th><th>Domain reviews</th></tr></thead><tbody>{(a.candidates || []).map((c: Json) => <tr key={c.candidate_id}><td>{c.candidate_id}{c.candidate_id === a.selected_candidate_id ? " · selected" : ""}</td><td>{c.proposal.stage_parameters.map((s: Json) => num(s.residence_time_min)).join(" + ")}</td><td>{c.proposal.stage_parameters.map((s: Json) => num(s.reactor_volume_mL)).join(" + ")}</td><td>{Object.values(a.reviews || {}).filter((rows: any) => rows.some((r: Json) => r.candidate_id === c.candidate_id)).length} / 4</td></tr>)}</tbody></table></div>
+    </div></details>
+    <details className="auditSection"><summary>Source evidence and analogy exclusions</summary><RecordText value={{source: a.source_context, analogies: a.analogy_audit}}/></details>
+    <details className="auditSection"><summary>Limitations and next measurements</summary><RecordText value={{limitations: a.chief?.limitations, measurements: a.chief?.next_measurements}}/></details>
+  </section>;
+}
+
 export function Responses({result}: {result: Json}) {
   const rows = result.result_report?.responses || [];
+  const effects = result.scientific_assessment?.answer_effects;
   return <div className="reportStack"><div className="sectionTitle"><h2>Intake responses and design evidence</h2><span>{rows.length} questions</span></div>
+    {effects && <p className="reportNote">Policy bindings record how inputs were routed. Council assessments are unvalidated model statements; selecting a design cannot confirm a chemical hypothesis.</p>}
     {!rows.length && <p>No standardized intake question log is stored in this run.</p>}
     {rows.map((row: Json) => <details className="auditSection responseRecord" key={row.question_id}>
       <summary><code>{row.question_id}</code><span>{row.question}</span><small>{row.assessment}</small></summary>
       <div className="auditBody"><h3>Answer · {row.status}</h3><RecordText value={row.answer ?? (row.status === "unavailable" ? "Explicitly unavailable" : null)}/>
         <h3>How it is addressed</h3><ul>{row.evidence.map((e: string, i: number) => <li key={i}>{e}</li>)}</ul>
+        {effects?.questions?.filter((q: Json) => q.question_id === row.question_id).slice(-1).map((q: Json) => <p key={q.question_id}><b>Policy binding:</b> {q.effect}</p>)}
+        {row.question_id === "Q-OBJ-001" && effects?.selection?.objective_alignment && <p><b>Council objective assessment, unvalidated:</b> {effects.selection.objective_alignment}</p>}
+        {effects?.selection?.council_answer_assessments?.filter((q: Json) => q.question_id === row.question_id).map((q: Json, i: number) => <p key={i}><b>Council assessment, unvalidated:</b> {q.effect}</p>)}
         {row.decisions?.length > 0 && <details><summary>Related realization decisions</summary><RecordText value={row.decisions}/></details>}
         <details><summary>Normalized binding: {row.target_path}</summary><RecordText value={row.bound_value}/></details>
         <details><summary>Answer history ({row.answer_history?.length || 0} saved entries)</summary><RecordText value={row.answer_history}/></details>

@@ -341,15 +341,15 @@ def should_use_lightweight_v2(model: str | None = None) -> bool:
     return False
 
 
-def analyze_batch_chemistry(batch_record: BatchRecord, intake_package=None) -> ChemistryPlan:
+def analyze_batch_chemistry(batch_record: BatchRecord, intake_package=None, scientific=False) -> ChemistryPlan:
     """Route chemistry analysis through the appropriate upstream path."""
     if should_use_lightweight_upstream(cfg.MODEL_CHEMISTRY_AGENT):
         return LightweightChemistryReasoningAgent().analyze(
-            batch_record, intake_package=intake_package
+            batch_record, intake_package=intake_package, **({"scientific": True} if scientific else {})
         )
     from flora_translate.chemistry_agent import ChemistryReasoningAgent
 
-    plan = ChemistryReasoningAgent().analyze(batch_record, intake_package=intake_package)
+    plan = ChemistryReasoningAgent().analyze(batch_record, intake_package=intake_package, **({"scientific": True} if scientific else {}))
     setattr(plan, "_upstream_mode", "full")
     return plan
 
@@ -746,7 +746,8 @@ class EvidenceBackedInputParser:
 class LightweightChemistryReasoningAgent:
     """Compact chemistry-planning path for weak/local models."""
 
-    def analyze(self, batch_record: BatchRecord, intake_package=None) -> ChemistryPlan:
+    def analyze(self, batch_record: BatchRecord, intake_package=None, scientific=False) -> ChemistryPlan:
+        from flora_translate.scientific_evidence import UPSTREAM_POLICY
         v2 = should_use_lightweight_v2(cfg.MODEL_CHEMISTRY_AGENT)
         logger.info(
             "  %s Chemistry Agent: Analyzing with %s",
@@ -768,7 +769,8 @@ class LightweightChemistryReasoningAgent:
             model=cfg.MODEL_CHEMISTRY_AGENT,
             api_name="lightweight_v2_chemistry_agent" if v2 else "lightweight_chemistry_agent",
             max_tokens=cfg.LIGHTWEIGHT_CHEMISTRY_MAX_TOKENS,
-            system=LIGHTWEIGHT_CHEMISTRY_V2_SYSTEM if v2 else LIGHTWEIGHT_CHEMISTRY_SYSTEM,
+            system=(LIGHTWEIGHT_CHEMISTRY_V2_SYSTEM if v2 else LIGHTWEIGHT_CHEMISTRY_SYSTEM) + (
+                "\n\n" + UPSTREAM_POLICY if scientific else ""),
             user_content=user_prompt,
         )
         logger.debug(

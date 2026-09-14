@@ -477,6 +477,8 @@ def refine_design(payload: RefinementPayload) -> dict[str, Any]:
         current = job.result if job else None
     if not current:
         raise HTTPException(status_code=400, detail="A completed design result is required")
+    if (current.get("pipeline_runtime") or {}).get("design_policy") == "scientific_v2":
+        raise HTTPException(status_code=409, detail="Scientific preview requires a new intake with measured results and a new 12-candidate council review; legacy scalar refinement cannot modify this frozen design.")
     if not payload.experiments:
         raise HTTPException(status_code=400, detail="At least one experimental result is required")
     try:

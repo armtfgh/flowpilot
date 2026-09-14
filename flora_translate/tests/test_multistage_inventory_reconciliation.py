@@ -45,7 +45,15 @@ def _inventory():
                 ID_mm=1.0,
                 max_pressure_bar=10,
                 max_temperature_C=80,
-            )
+            ),
+            TubingSpec(
+                equipment_id="fep_tubing",
+                name="FEP tubing",
+                material="FEP",
+                ID_mm=1.0,
+                max_pressure_bar=10,
+                max_temperature_C=50,
+            ),
         ],
         reactors=[
             ReactorSpec(

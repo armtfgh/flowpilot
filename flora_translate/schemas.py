@@ -80,6 +80,7 @@ class InventoryItemSpec(BaseModel):
     service_status: str = "available"
     compatible_systems: list[str] = Field(default_factory=list)
     notes: str = ""
+    resource_requirements: dict[str, int] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _assign_stable_id(self):
@@ -105,6 +106,8 @@ class PumpSpec(InventoryItemSpec):
     max_flow_rate_mL_min: float
     min_flow_rate_mL_min: float
     compatible_materials: list[str] = Field(default_factory=list)
+    platform_id: str = ""
+    excluded_chemicals: list[str] = Field(default_factory=list)
 
 
 class TubingSpec(InventoryItemSpec):
@@ -125,6 +128,10 @@ class LightSourceSpec(InventoryItemSpec):
     min_temperature_C: Optional[float] = None
     max_temperature_C: Optional[float] = None
     allowed_temperatures_C: list[float] = Field(default_factory=list)
+    module_id: str = ""
+    module_name: str = ""
+    max_reactor_volume_mL: Optional[float] = None
+    compatible_pump_platforms: list[str] = Field(default_factory=list)
 
 
 class GasHardwareSpec(InventoryItemSpec):
@@ -135,6 +142,7 @@ class GasHardwareSpec(InventoryItemSpec):
     min_flow_sccm: Optional[float] = None
     max_flow_sccm: Optional[float] = None
     max_pressure_bar: Optional[float] = None
+    required_outlet_accessory_type: str = ""
 
 
 class ReactorSpec(InventoryItemSpec):
@@ -234,11 +242,17 @@ class SafetyAccessorySpec(InventoryItemSpec):
     capabilities: list[str] = Field(default_factory=list)
     max_pressure_bar: Optional[float] = None
     compatible_hazards: list[str] = Field(default_factory=list)
+    cracking_pressure_bar: Optional[float] = None
 
 
 class LabInventory(BaseModel):
     schema_version: str = LEGACY_LAB_INVENTORY_SCHEMA_VERSION
     strict_assignment: bool = False
+    resource_capacities: dict[str, int] = Field(default_factory=dict)
+    standard_reactor_connectors_available: bool = Field(
+        default=True,
+        description="Standard interstage connectors are stocked; individual serial reactor pairs need not be predeclared. Ratings remain subject to pre-run verification.",
+    )
     capability_status: dict[str, Literal["available", "unavailable", "undocumented"]] = Field(default_factory=dict)
     pumps: list[PumpSpec] = Field(default_factory=list)
     tubing: list[TubingSpec] = Field(default_factory=list)
@@ -256,6 +270,13 @@ class LabInventory(BaseModel):
     collectors: list[CollectorSpec] = Field(default_factory=list)
     reactor_trains: list[ReactorTrainSpec] = Field(default_factory=list)
     safety_accessories: list[SafetyAccessorySpec] = Field(default_factory=list)
+
+    @property
+    def allows_standard_reactor_connections(self) -> bool:
+        return self.standard_reactor_connectors_available and not any(
+            self.capability_status.get(key) == "unavailable"
+            for key in ("connectors", "connectors_or_reactor_trains")
+        )
 
     @model_validator(mode="after")
     def _ensure_unique_equipment_ids(self):
@@ -347,6 +368,7 @@ class DesignInputPackage(BaseModel):
     raw_protocol: str = ""
     extracted_batch_fields: dict[str, Any] = Field(default_factory=dict)
     objective: str = ""
+    screening_priority: Literal["auto", "balanced", "yield_priority", "throughput_priority"] = "auto"
     historical_data: Any = None
     inventory_constraints: Any = None
     hypotheses: list[str] = Field(default_factory=list)
@@ -560,7 +582,7 @@ class StreamLogic(BaseModel):
 
 class IntensificationMandate(BaseModel):
     """Why this batch reaction should be translated to flow."""
-    tau_reduction_target: float = 2.0
+    tau_reduction_target: Optional[float] = 2.0
     minimum_flow_advantage: str = "productivity"
     required_mixing_regime: str = "laminar_acceptable"
     flow_justification_basis: str = ""
@@ -611,6 +633,7 @@ class ChemistryPlan(BaseModel):
     (stream_logic, deoxygenation_required, etc.) describe the OVERALL
     process or the first stage for backward compatibility.
     """
+    scientific_context: dict = Field(default_factory=dict)
     # Reaction identity
     reaction_name: str = ""
     reaction_class: str = ""
@@ -795,6 +818,7 @@ class StreamAssignment(BaseModel):
 
 
 class FlowProposal(BaseModel):
+    scientific_design: dict = Field(default_factory=dict)
     # Proposed flow conditions
     residence_time_min: float = 0
     flow_rate_mL_min: float = 0

@@ -2768,6 +2768,11 @@ class CouncilV4:
         Use this for ablation studies comparing 1-candidate vs N-candidate modes.
         """
 
+        from flora_translate.scientific_evidence import enabled
+        if enabled(chemistry_plan):
+            from flora_translate.engine.council_v4.scientific import run_scientific_council
+            return run_scientific_council(proposal, batch_record, chemistry_plan,
+                inventory, analogies, objectives, candidate_budget, intake_package)
         execution = CouncilExecutionConfig.coerce(execution_config)
         current = proposal.model_copy(deep=True)
         log = DeliberationLog()

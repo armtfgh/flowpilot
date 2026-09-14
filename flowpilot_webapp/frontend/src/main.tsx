@@ -11,7 +11,7 @@ import {
   X, Zap, ZoomIn, ZoomOut, Maximize2
 } from "lucide-react";
 import "./styles.css";
-import { ProcessSummary, StageOverview, EngineeringHistory, Responses, CouncilTranscript, displayUnits } from "./result_views";
+import { ProcessSummary, StageOverview, EngineeringHistory, Responses, CouncilTranscript, ScientificAssessment, displayUnits } from "./result_views";
 
 declare const __FLOWPILOT_UI_BUILD__: string;
 const WORKSPACE_STORAGE_KEY = "flowpilot_workspace_v1";
@@ -217,6 +217,7 @@ function App() {
   const [modelCatalog, setModelCatalog] = useState<ModelCatalog | null>(null);
   const [upstreamModelId, setUpstreamModelId] = useState<string>(saved.upstreamModelId || "");
   const [downstreamModelId, setDownstreamModelId] = useState<string>(saved.downstreamModelId || "");
+  const [designPolicy, setDesignPolicy] = useState<string>(saved.designPolicy || "legacy");
   const [selectedProfileId, setSelectedProfileId] = useState<string>(saved.selectedProfile?.profile_id || "");
   const [selectedProfile, setSelectedProfile] = useState<InventoryProfile | null>(saved.selectedProfile || null);
   const [inventoryAlternatives, setInventoryAlternatives] = useState<Json[]>([]);
@@ -258,11 +259,11 @@ function App() {
     if (demo || restoring) return;
     try {
       sessionStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify({
-        protocol, intakePackage, questions, answers, unavailable, selectedProfile, upstreamModelId, downstreamModelId, useLlm
+        protocol, intakePackage, questions, answers, unavailable, selectedProfile, upstreamModelId, downstreamModelId, useLlm, designPolicy
       }));
       setStorageError(false);
     } catch { setStorageError(true); }
-  }, [protocol, intakePackage, questions, answers, unavailable, selectedProfile, upstreamModelId, downstreamModelId, useLlm, restoring]);
+  }, [protocol, intakePackage, questions, answers, unavailable, selectedProfile, upstreamModelId, downstreamModelId, useLlm, restoring, designPolicy]);
 
   const refreshSystem = async () => {
     try {
@@ -309,6 +310,7 @@ function App() {
     setJob(next);
     if (next.status === "completed" && next.result) {
       setResult(next.result); setResultTab("overview");
+      setDesignPolicy(next.result.pipeline_runtime?.design_policy || "legacy");
       const pkg = next.result.intake_package;
       if (pkg) {
         setIntakePackage(pkg); setProtocol(pkg.raw_protocol || "");
@@ -395,7 +397,8 @@ function App() {
           intake_package: intakePackage,
           inventory_profile: selectedProfile,
           upstream_model_id: upstreamModelId || undefined,
-          downstream_model_id: downstreamModelId || undefined
+          downstream_model_id: downstreamModelId || undefined,
+          runtime_options: {design_policy: designPolicy, candidate_budget: 12}
         })
       });
       setJob(next); setResult(null);
@@ -425,6 +428,7 @@ function App() {
     try {
       const archived = await api<Json>(`/api/runs/${runId}`);
       setResult(archived);
+      setDesignPolicy(archived.pipeline_runtime?.design_policy || "legacy");
       const archivedIntake = archived.intake_package || archived.intake_context || null;
       setIntakePackage(archivedIntake);
       if (archivedIntake?.raw_protocol) setProtocol(archivedIntake.raw_protocol);
@@ -504,6 +508,8 @@ function App() {
         modelCatalog={modelCatalog} upstreamModelId={upstreamModelId}
         setUpstreamModelId={setUpstreamModelId} downstreamModelId={downstreamModelId}
         setDownstreamModelId={setDownstreamModelId}
+        designPolicy={designPolicy} setDesignPolicy={setDesignPolicy}
+        setIntakePackage={setIntakePackage}
         analyze={() => analyze()} submitAnswers={submitAnswers} runDesign={runDesign}
         busy={busy || restoring || deploymentBlocked} job={job} result={result} resultTab={resultTab} setResultTab={setResultTab}
       />}
@@ -521,9 +527,9 @@ function App() {
 }
 
 function DesignStudio(props: any) {
-  const { protocol, setProtocol, intakePackage, questions, answers, setAnswers, unavailable, setUnavailable,
+  const { protocol, setProtocol, intakePackage, setIntakePackage, questions, answers, setAnswers, unavailable, setUnavailable,
     useLlm, setUseLlm, profiles, selectedProfileId, setSelectedProfileId, selectedProfile,
-    modelCatalog, upstreamModelId, setUpstreamModelId, downstreamModelId, setDownstreamModelId,
+    modelCatalog, upstreamModelId, setUpstreamModelId, downstreamModelId, setDownstreamModelId, designPolicy, setDesignPolicy,
     analyze, submitAnswers, runDesign, busy, job, result, resultTab, setResultTab,
     inventoryAlternatives, resolveInventory, editIntake } = props;
   const upstreamRoute = modelCatalog?.models.find((model: ModelRoute) => model.route_id === upstreamModelId);
@@ -577,6 +583,8 @@ function DesignStudio(props: any) {
         <div className="modelSelectors">
           <div className="modelSelectorsHead"><Bot size={14}/><span>Model routing</span></div>
           <label className="field"><span>Upstream chemistry</span><select aria-label="Upstream chemistry model" value={upstreamModelId} onChange={(e) => setUpstreamModelId(e.target.value)} disabled={!modelCatalog?.models.length}>{modelCatalog?.models.map((model: ModelRoute) => <option disabled={!model.available} value={model.route_id} key={`up-${model.route_id}`}>{model.label}{model.available ? "" : " · unavailable"}</option>)}</select><small>{upstreamRoute?.available ? "Protocol interpretation and chemistry plan" : upstreamRoute?.reason || "Select an available model"}</small></label>
+          <label className="field"><span>Design policy</span><select aria-label="Design policy" value={designPolicy} onChange={(e) => setDesignPolicy(e.target.value)} disabled={running}><option value="legacy">Legacy</option><option value="scientific_v2">FlowPilot 2.0 · private scientific preview</option></select></label>
+          {designPolicy === "scientific_v2" && intakePackage && <label className="field"><span>Screening priority</span><select aria-label="Screening priority" value={intakePackage.screening_priority || "auto"} disabled={running || busy} onChange={(e) => setIntakePackage((p: Json) => ({...p, screening_priority: e.target.value}))}><option value="auto">Interpret stated objective</option><option value="balanced">Balanced baseline screen</option><option value="yield_priority">Yield-focused screen</option><option value="throughput_priority">Throughput-focused screen</option></select></label>}
           <label className="field"><span>Downstream and council</span><select aria-label="Downstream and council model" value={downstreamModelId} onChange={(e) => setDownstreamModelId(e.target.value)} disabled={!modelCatalog?.models.length}>{modelCatalog?.models.map((model: ModelRoute) => <option disabled={!model.available} value={model.route_id} key={`down-${model.route_id}`}>{model.label}{model.available ? "" : " · unavailable"}</option>)}</select><small>{downstreamRoute?.available ? "Flow proposal, council agents, revision, and selection" : downstreamRoute?.reason || "Select an available model"}</small></label>
         </div>
         <label className="field"><span>Inventory profile</span><select aria-label="Inventory profile" disabled={busy || running} value={selectedProfileId} onChange={(e) => setSelectedProfileId(e.target.value)}><option value="">No saved profile selected</option>{profileChoices.map((p: Json) => <option value={p.profile_id} key={p.profile_id}>{p.name} · v{p.version}</option>)}</select></label>
@@ -657,6 +665,7 @@ function ResultWorkspace({ result, job, tab, setTab }: { result: Json; job: Job 
   const executable = final.status === "executable";
   const assumedEquipment = (result.instrument_manifest || []).filter((item: Json) => item.requires_pre_run_verification);
   const pendingAssumptions = (result.design_realization?.decisions || []).filter((item: Json) => item.confirmation_required);
+  const gasDelivery = result.scientific_assessment?.source_context?.gas_delivery || result.proposal?.scientific_design?.gas_delivery_policy;
   const tabs: [ResultTab, string, React.ReactNode][] = [
     ["overview", "Overview", <Gauge size={14}/>], ["topology", "Process", <GitBranch size={14}/>],
     ["summary", "Process summary", <ListChecks size={14}/>],
@@ -672,6 +681,7 @@ function ResultWorkspace({ result, job, tab, setTab }: { result: Json; job: Job 
   return <section className="resultWorkspace">
     <div className={`resultBanner ${executable ? "executable" : "blocked"}`}><div>{executable ? <CheckCircle2 size={22}/> : <AlertTriangle size={22}/>}<span><b>{executable ? "Executable screening design" : "Design withheld"}</b><small>{result.disposition_rationale || (executable ? "Canonical contract closed against inventory and engineering gates." : "Inspect blocking reasons before execution.")}</small></span></div><div className="bannerActions"><span className="confidence">{result.confidence || "--"} confidence</span><button onClick={download} disabled={job?.job_id === "demo"}><Download size={15}/>JSON</button></div></div>
     {!!assumedEquipment.length && <div className="warningRow"><AlertTriangle size={17}/><span><b>Equipment verification required before laboratory use</b>{assumedEquipment.map((item: Json) => item.name || item.equipment_id).join("; ")}</span></div>}
+    {gasDelivery?.requires_chemist_confirmation && <div className="warningRow gasChangeWarning"><AlertTriangle size={18}/><span><b>Unapproved gas-feed change: {gasDelivery.batch_species || "batch gas"} to {gasDelivery.species}</b>Laboratory confirmation and safety review are required before use. {gasDelivery.rationale}</span></div>}
     {!!pendingAssumptions.length && <div className="warningRow"><AlertTriangle size={17}/><div><b>Chemist review required before laboratory use</b><ul>{pendingAssumptions.map((item: Json, i: number) => <li key={i}>{item.decision === "oxidant_gas_inventory_substitution"
       ? `Gas substitution: ${item.from_gas} to ${item.to_gas}. ${item.basis}`
       : item.decision === "component_quantity_screening_assumption"
@@ -687,7 +697,7 @@ function ResultWorkspace({ result, job, tab, setTab }: { result: Json; job: Job 
       {tab === "recipe" && <Chemistry result={result} final={final}/>} 
       {tab === "inventory" && <Equipment result={result}/>} 
       {tab === "council" && <CouncilTranscript result={result}/>}
-      {tab === "cycles" && (executable ? <ExperimentLoop job={job} result={result}/> : <Empty icon={<TestTube2 size={22}/>} title="No executable design to refine" text="Resolve the design requirements before recording an experiment against this proposal."/>)}
+      {tab === "cycles" && (result.pipeline_runtime?.design_policy === "scientific_v2" ? <Empty icon={<TestTube2 size={22}/>} title="New evidence requires council review" text="Attach measured results to a new standardized intake. The private preview does not apply legacy scalar refinement to a two-stage design."/> : executable ? <ExperimentLoop job={job} result={result}/> : <Empty icon={<TestTube2 size={22}/>} title="No executable design to refine" text="Resolve the design requirements before recording an experiment against this proposal."/>)}
       {tab === "json" && <JsonViewer value={result}/>} 
     </div>
   </section>;
@@ -704,7 +714,7 @@ function Overview({ result, params, executable }: { result: Json; params: Json; 
   const gases = (report.streams || []).filter((s: Json) => s.phase === "gas");
   const hasGas = gases.length > 0;
   const stages = report.stages || [];
-  if (stages.length > 1) return <StageOverview result={result} closure={<Closure result={result}/>}/>;
+  if (stages.length > 1) return <><ScientificAssessment result={result}/><StageOverview result={result} closure={<Closure result={result}/>}/></>;
   const stage = stages[0] || {};
   const exact = (v: any) => v == null ? "--" : String(Number(Number(v).toPrecision(6)));
   const conditions = {...params, reactor_volume_mL: stage.volume_mL, flow_rate_mL_min: stage.liquid_flow_mL_min,

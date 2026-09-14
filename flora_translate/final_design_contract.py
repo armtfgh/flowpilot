@@ -898,14 +898,10 @@ def _gas_composition_and_equivalent_issues(
     for stream in proposal.get("streams") or []:
         if str(stream.get("phase") or "").lower() != "gas":
             continue
-        text = " ".join(
-            [
-                *[str(item) for item in stream.get("contents") or []],
-                str(stream.get("pump_role") or ""),
-            ]
-        ).lower().replace("₂", "2")
         fraction = _number(stream.get("gas_reagent_mole_fraction"))
-        if re.search(r"\b(?:pure\s+)?(?:o2|oxygen)\b", text) and not _close(
+        identities = [str(item).strip().lower().replace("₂", "2") for item in stream.get("contents") or []]
+        pure_oxygen = len(identities) == 1 and bool(re.fullmatch(r"(?:pure\s+)?(?:o2|oxygen)(?:\s*\((?:gas|o2|oxygen)\))?", identities[0]))
+        if pure_oxygen and not _close(
             fraction, 1.0, tolerance=0.001
         ):
             issues.append(
@@ -1297,6 +1293,10 @@ def _intensification_summary(
     final_residence_time_min: float | None,
 ) -> dict[str, Any]:
     mandate = dict(chemistry_plan.get("intensification_mandate") or {})
+    if (chemistry_plan.get("scientific_context") or {}).get("mode") == "scientific_v2":
+        return {"policy": "scientific_screening", "target_factor": None, "hypothesis_factor": None,
+                "target_role": "no mandated intensification", "realized_factor": None,
+                "applied_as_hard_constraint": False, "basis": "Stage-specific batch anchors; flow kinetics uncharacterized."}
     batch_time_s = _number(calculations.get("batch_time_s"))
     realized = None
     if final_residence_time_min and batch_time_s > 0:

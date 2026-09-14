@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def source_fingerprint() -> str:
     digest = hashlib.sha256()
     paths = [*ROOT.joinpath("flowpilot_webapp/backend").glob("*.py"),
-             *ROOT.joinpath("flora_translate").glob("*.py"),
+             *(p for p in ROOT.joinpath("flora_translate").rglob("*.py") if "tests" not in p.relative_to(ROOT).parts),
              *ROOT.joinpath("flora_design/visualizer").glob("*.py")]
     for path in sorted(paths):
         digest.update(str(path.relative_to(ROOT)).encode())

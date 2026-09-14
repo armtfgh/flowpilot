@@ -289,7 +289,7 @@ def intake_context_block(package: DesignInputPackage | dict | None) -> str:
                 else answer.answer
             ),
         }
-        for answer in pkg.answers
+        for answer in pkg.answer_map().values()
     ]
     return (
         "## FlowPilot Intake Context - authority labeled\n"
@@ -299,6 +299,7 @@ def intake_context_block(package: DesignInputPackage | dict | None) -> str:
         f"Ready for design: {pkg.ready_for_design}\n\n"
         "### Design objective\n"
         f"{pkg.objective or '(not provided)'}\n\n"
+        f"Screening priority selection: {pkg.screening_priority}\n\n"
         "### Protocol facts\n"
         f"{json.dumps(pkg.extracted_batch_fields or {}, indent=2, default=str)}\n\n"
         "### Frozen chemistry identity\n"
@@ -314,6 +315,7 @@ def intake_context_block(package: DesignInputPackage | dict | None) -> str:
         "### Chemist hypotheses\n"
         f"{json.dumps(pkg.hypotheses, indent=2, default=str)}\n\n"
         "### Intake questions and answers\n"
+        "Current effective answers only (latest answer per question ID). Superseded answers remain in the saved package history and are not active design instructions.\n"
         f"{json.dumps(answer_log, indent=2, default=str)}"
     )
 
@@ -325,6 +327,9 @@ _PROMPT_EQUIPMENT_FIELDS = (
     "max_temperature_C", "allowed_temperatures_C", "min_flow_rate_mL_min",
     "max_flow_rate_mL_min", "min_flow_sccm", "max_flow_sccm", "wavelength_nm",
     "power_W", "intensity_mW_cm2", "compatible_reactor",
+    "platform_id", "resource_requirements", "excluded_chemicals", "module_id",
+    "module_name", "max_reactor_volume_mL", "compatible_pump_platforms",
+    "required_outlet_accessory_type", "cracking_pressure_bar",
 )
 
 
@@ -388,9 +393,11 @@ def apply_intake_requirements_to_chemistry_plan(
 
     gas = requirements.get("gas") if isinstance(requirements, dict) else None
     if isinstance(gas, dict) and gas.get("species"):
+        plan.scientific_context["gas_delivery"] = dict(gas)
         species = str(gas["species"])
         reagent_fraction = _positive_number(gas.get("reagent_mole_fraction")) or 1.0
-        target_equiv = _positive_number(gas.get("target_equiv_inlet_stp")) or 1.0
+        delegated = gas.get("feed_selection_mode") == "agent_to_propose"
+        target_equiv = None if delegated else _positive_number(gas.get("target_equiv_inlet_stp")) or 1.0
         target_stage = _positive_integer(gas.get("introduction_stage"))
         if target_stage is None:
             target_stage = max(
@@ -398,6 +405,8 @@ def apply_intake_requirements_to_chemistry_plan(
                 default=1,
             )
         gas_feeds = [feed for feed in plan.stream_logic or [] if feed.phase == "gas"]
+        if gas.get("minimum_equiv_inlet_stp") and not delegated:
+            target_equiv = max([target_equiv, *[feed.molar_equiv or 0 for feed in gas_feeds]])
         if not gas_feeds:
             gas_feeds = [
                 StreamLogic(
@@ -414,16 +423,20 @@ def apply_intake_requirements_to_chemistry_plan(
             feed.reagents = [species]
             feed.phase = "gas"
             feed.gas_reagent_mole_fraction = reagent_fraction
-            feed.molar_equiv = target_equiv
-            feed.molar_equiv_basis = "chemist_confirmed_intake_inlet_stp"
+            if not delegated:
+                feed.molar_equiv = target_equiv
+            feed.molar_equiv_basis = "model_proposed_inlet_stp_requires_justification" if delegated else "chemist_confirmed_intake_inlet_stp"
             feed.introduction_stage = target_stage
-            feed.requirement_authority = "hard_constraint"
+            feed.requirement_authority = "model_inference" if delegated else "hard_constraint"
             feed.source_evidence = [
                 "Structured standardized-intake gas requirement."
             ]
             feed.accepted_requirement = True
             feed.separate_feed_required = True
             feed.reasoning = (
+                "Chemist delegated the inlet/STP equivalent selection. The proposed equivalent is not measured or chemist-confirmed and requires scientific justification. "
+                + (feed.reasoning or "")
+            ) if delegated else (
                 f"Chemist-confirmed {species} feed at {target_equiv:g} equiv; "
                 "equivalents and MFC flow are defined at inlet/STP."
             )
@@ -444,6 +457,7 @@ def apply_intake_requirements_to_chemistry_plan(
                 "species": species,
                 "reagent_mole_fraction": reagent_fraction,
                 "target_equiv_inlet_stp": target_equiv,
+                "feed_selection_mode": gas.get("feed_selection_mode", "fixed"),
                 "introduction_stage": target_stage,
                 "authority": "chemist_answer_or_protocol_fact",
             }
@@ -664,6 +678,31 @@ def _positive_integer(value: Any) -> int | None:
     return int(number) if number is not None and float(number).is_integer() else None
 
 
+def _gas_introduction_stage(value: Any) -> int | None:
+    text = str(value or "")
+    exclusions = set(re.findall(r"stage\s*(\d+)\s+(?:must\s+)?(?:remain|be|is|stays?)\s+oxygen[- ]free", text, re.I))
+    if exclusions:
+        positive = set()
+        for sentence in re.split(r"[.;\n]", text):
+            if re.search(r"oxygen[- ]free|\bnot\b|\bnever\b", sentence, re.I):
+                continue
+            positive.update(re.findall(r"stage\s*(\d+)", sentence, re.I))
+        if len(positive) == 1 and positive.isdisjoint(exclusions):
+            return int(next(iter(positive)))
+        return None
+    if re.search(r"\b(?:not|never)\b", text, re.I):
+        return None
+    # A numbered effluent is the source, not the destination of an addition.
+    transfer = re.search(r"stage\s*(\d+)\s+effluent\s+enters\b", text, re.I)
+    if transfer:
+        destination = re.search(r"enters\s+(?:the\s+)?stage\s*(\d+)", text, re.I)
+        return int(destination[1]) if destination else int(transfer[1]) + 1
+    stages = set(re.findall(r"stage\s*(\d+)", text, re.I))
+    if len(stages) > 1 or re.search(r"\b(?:not|never)\b", text, re.I):
+        return None
+    return _positive_integer(value)
+
+
 def _merge_nested(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     merged = dict(base or {})
     for key, value in (override or {}).items():
@@ -696,7 +735,7 @@ def _conditional_answer_resolved(
             _positive_number(gas.get("reagent_mole_fraction"))
         )
     if question_id == "Q-GAS-002":
-        return bool(_positive_number(gas.get("target_equiv_inlet_stp")))
+        return bool(_positive_number(gas.get("target_equiv_inlet_stp"))) or gas.get("feed_selection_mode") == "agent_to_propose"
     if question_id == "Q-GAS-003":
         return bool(_positive_integer(gas.get("introduction_stage")))
     if question_id == "Q-PHOTO-001":
@@ -717,7 +756,9 @@ class IntakeAgent:
         answers: list[IntakeAnswer | dict] | None = None,
         use_llm: bool = True,
     ) -> DesignInputPackage:
-        pkg = _coerce_package(existing_package) if existing_package else DesignInputPackage()
+        # An answer revision must not mutate the prior frozen package through
+        # shared nested requirements, inventory or answer objects.
+        pkg = _coerce_package(existing_package).model_copy(deep=True) if existing_package else DesignInputPackage()
         raw_protocol = raw_protocol or pkg.raw_protocol or ""
         protocol_changed = bool(pkg.raw_protocol and raw_protocol != pkg.raw_protocol)
         # Answers are valid only for the exact protocol/question set. Reusing
@@ -750,6 +791,7 @@ class IntakeAgent:
             raw_protocol=raw_protocol,
             extracted_batch_fields=extracted,
             objective=pkg.objective,
+            screening_priority=pkg.screening_priority,
             historical_data=pkg.historical_data,
             inventory_constraints=pkg.inventory_constraints,
             hypotheses=list(pkg.hypotheses or []),
@@ -889,22 +931,35 @@ class IntakeAgent:
         if gas_equiv:
             gas = package.engineering_requirements.setdefault("gas", {})
             if gas_equiv.status == "unavailable":
+                gas.pop("feed_selection_mode", None)
                 gas["target_equiv_inlet_stp"] = 1.0
                 gas["equiv_source"] = "deterministic_screening_assumption"
             else:
+                delegated = re.search(r"\bno fixed value\b", str(gas_equiv.answer), re.I)
                 value = _positive_number(gas_equiv.answer)
-                if value is not None:
+                if delegated:
+                    gas.pop("target_equiv_inlet_stp", None)
+                    gas["feed_selection_mode"] = "agent_to_propose"
+                    gas["equiv_source"] = "chemist_delegated_with_justification_required"
+                elif value is not None:
+                    gas.pop("feed_selection_mode", None)
                     gas["target_equiv_inlet_stp"] = value
                     gas["equiv_source"] = "chemist_answer"
+                    if re.search(r"at least|minimum|no less than", str(gas_equiv.answer), re.I):
+                        gas["minimum_equiv_inlet_stp"] = value
             gas.setdefault("calculation_basis", "inlet_stp")
 
         gas_stage = answer_map.get("Q-GAS-003")
         if gas_stage and gas_stage.status == "answered":
-            stage = _positive_integer(gas_stage.answer)
+            stage = _gas_introduction_stage(gas_stage.answer)
             if stage is not None:
                 gas = package.engineering_requirements.setdefault("gas", {})
                 gas["introduction_stage"] = stage
                 gas["introduction_stage_source"] = "chemist_answer"
+            else:
+                gas = package.engineering_requirements.setdefault("gas", {})
+                gas.pop("introduction_stage", None)
+                gas.pop("introduction_stage_source", None)
 
         photo = answer_map.get("Q-PHOTO-001")
         if photo and photo.status == "answered":

@@ -150,6 +150,14 @@ def inventory_prompt_block(inventory: LabInventory | None) -> str:
                 f"quantity={item.quantity}; service={item.service_status}"
                 + (f"; {', '.join(details)}" if details else "")
             )
+    if inventory.allows_standard_reactor_connections:
+        lines.append(
+            "Standard interstage reactor connectors are available. Directly connecting "
+            "separate declared reactors does not require a predeclared reactor train. "
+            "List the standard connectors in the equipment manifest and verify their "
+            "fittings and operating ratings before execution. This does not authorize "
+            "new reactor volumes or bypass reactor quantity and operating limits."
+        )
     return "\n".join(lines)
 
 

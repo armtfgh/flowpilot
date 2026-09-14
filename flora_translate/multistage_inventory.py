@@ -78,6 +78,8 @@ def reconcile_multistage_inventory(
     total_tau_inlet = 0.0
     total_tau_channel = 0.0
     liquid_flow_from_previous = 0.0
+    introduced_gases: dict[str, Any] = {}
+    gas_introduction_temperatures: dict[str, float] = {}
 
     for index, stage in enumerate(chemistry_plan.stages):
         stage_number = int(stage.stage_number or index + 1)
@@ -128,13 +130,21 @@ def reconcile_multistage_inventory(
 
         light = None
         if stage.requires_light:
+            from flora_translate.equipment_resources import light_fits_stage, resources_fit
+            stage_remaining = light_remaining.copy()
+            selected_lights = [light_by_id[key] for key in used_lights]
+            for item in inventory.light_sources:
+                if not light_fits_stage(item, reactor, current, inventory) or not resources_fit(
+                    selected_lights + [item], inventory.resource_capacities
+                ):
+                    stage_remaining[item.equipment_id] = 0
             requested_light_id = str(parameters.get("light_equipment_id") or "")
             light_id = _select_available_id(
                 requested_light_id,
                 light_refs,
                 index,
                 light_by_id,
-                light_remaining,
+                stage_remaining,
             )
             if not light_id:
                 light_id = _select_compatible_light_id(
@@ -142,7 +152,7 @@ def reconcile_multistage_inventory(
                     reactor,
                     current,
                     inventory,
-                    light_remaining,
+                    stage_remaining,
                     operating_limits,
                 )
             light = light_by_id.get(light_id)
@@ -162,6 +172,8 @@ def reconcile_multistage_inventory(
             else:
                 light_remaining[light_id] -= 1
                 used_lights.append(light_id)
+                parameters["photoreactor_module_id"] = light.module_id
+                parameters["photoreactor_module_name"] = light.module_name
 
         desired_temperature = _number(
             parameters.get("temperature_C"),
@@ -232,8 +244,20 @@ def reconcile_multistage_inventory(
             if gas_stream is None and not _stage_feed_is_gas(feed):
                 continue
             if gas_stream is not None:
-                gas_sccm += float(gas_stream.gas_flow_sccm or 0.0)
-                gas_actual += float(gas_stream.gas_flow_actual_mL_min or 0.0)
+                gas_label = str(gas_stream.stream_label).upper()
+                introduced_gases[gas_label] = gas_stream
+                gas_introduction_temperatures.setdefault(gas_label, temperature)
+
+        # Cumulative inlet bookkeeping, not a prediction of residual gas after
+        # reaction or dissolution. A direct connection does not erase a feed.
+        gas_sccm = sum(float(stream.gas_flow_sccm or 0.0) for stream in introduced_gases.values())
+        gas_actual = sum(
+            float(stream.gas_flow_actual_mL_min or 0.0)
+            * (temperature + 273.15) / (gas_introduction_temperatures[label] + 273.15)
+            for label, stream in introduced_gases.items()
+        )
+        if gas_sccm:
+            parameters["gas_accounting_basis"] = "cumulative inlet/STP feed; uptake and removal not modeled"
 
         volume = float(reactor.volume_mL)
         if liquid_flow <= 0:
@@ -290,16 +314,7 @@ def reconcile_multistage_inventory(
                 if _stage_feed_is_gas(feed)
                 for reagent in feed.reagents
             ]
-            matched_stage_gases = [
-                gas_stream
-                for feed in active_feeds
-                if _stage_feed_is_gas(feed)
-                for gas_stream in [
-                    proposal_gas.get(str(feed.stream_label or "").upper())
-                    or (proposal_gases[0] if len(proposal_gases) == 1 else None)
-                ]
-                if gas_stream is not None
-            ]
+            matched_stage_gases = list(introduced_gases.values())
             if matched_stage_gases:
                 gas_names = [
                     str(content)

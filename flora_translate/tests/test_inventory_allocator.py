@@ -288,8 +288,10 @@ def test_declared_serial_train_assigns_connectors_and_passes():
 
 def test_undeclared_serial_train_blocks():
     proposal = _proposal(reactor_volume_mL=30, inventory_selection={"system": "Manual"})
+    inventory = _two_reactor_inventory(with_train=False)
+    inventory.standard_reactor_connectors_available = False
     _, report = InventoryAllocator(
-        _two_reactor_inventory(with_train=False), proposal
+        inventory, proposal
     ).compile(_two_reactor_topology())
 
     assert report["status"] == "incomplete"
@@ -297,6 +299,27 @@ def test_undeclared_serial_train_blocks():
         item["requirement_id"] == "INV-REACTOR-TRAIN"
         for item in report["unresolved_requirements"]
     )
+
+
+def test_stocked_connectors_allow_direct_stages_without_declared_train():
+    inventory = _two_reactor_inventory(with_train=False)
+    inventory.connectors = []
+    proposal = _proposal(reactor_volume_mL=30, inventory_selection={"system": "Manual"})
+    _, report = InventoryAllocator(inventory, proposal).compile(_two_reactor_topology())
+    assert report["status"] == "complete_with_assumptions"
+    assert report["checks"]["serial_reactor_train_valid"]
+    assert report["checks"]["no_unknown_equipment_ids"]
+    connector = next(row for row in report["instrument_manifest"] if row["category"] == "connectors")
+    assert connector["requires_pre_run_verification"]
+    assert not inventory.reactor_trains
+
+
+def test_explicitly_unavailable_connectors_override_stocked_policy():
+    inventory = _two_reactor_inventory(with_train=False)
+    inventory.capability_status["connectors"] = "unavailable"
+    proposal = _proposal(reactor_volume_mL=30, inventory_selection={"system": "Manual"})
+    _, report = InventoryAllocator(inventory, proposal).compile(_two_reactor_topology())
+    assert any(row["requirement_id"] == "INV-REACTOR-TRAIN" for row in report["unresolved_requirements"])
 
 
 def test_mixer_separated_reactors_do_not_require_declared_serial_train():

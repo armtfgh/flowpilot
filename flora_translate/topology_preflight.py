@@ -95,7 +95,15 @@ def analyze_topology_requirements(
             category="connectors_or_reactor_trains",
             required_count=required["reactor_connections"],
             items=combined,
+            allow_undeclared_standard_accessory=inventory.allows_standard_reactor_connections,
         )
+        if inventory.allows_standard_reactor_connections and requirements[-1]["status"] != "available":
+            requirements[-1].update(
+                status="assumed_standard_accessory",
+                reason="Standard interstage connectors are available under the inventory policy; verify fitting and operating ratings before execution.",
+            )
+        elif inventory.capability_status.get("connectors") == "unavailable":
+            requirements[-1].update(status="unavailable", reason="Connectors are explicitly unavailable.")
 
     for item in requirements:
         if inventory.capability_status.get(item["category"]) == "unavailable":

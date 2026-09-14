@@ -16,6 +16,14 @@ _REACTIVE_ROLE = re.compile(
     r"reductant|donor|acceptor|nucleophile|electrophile)\b", re.I,
 )
 
+# Exact conventional synonyms only; no substring/fuzzy chemical identity matching.
+SOLVENT_IDENTITY_ALIASES = (
+    ("EtOH", "ethanol"), ("MeOH", "methanol"),
+    ("MeCN", "acetonitrile"), ("THF", "tetrahydrofuran"),
+    ("2-MeTHF", "2-methyltetrahydrofuran"),
+    ("DMSO", "dimethyl sulfoxide"), ("DCM", "dichloromethane"),
+)
+
 
 def component_name(value: str) -> str:
     text = str(value).strip()
@@ -56,6 +64,9 @@ def is_solvent_component(source: str, declared_solvent: str, planned_role: str) 
     A dual role (for example solvent/base) remains reactive. An explicit inline
     medium-only annotation overrides a mistaken upstream role, as before.
     """
+    generic_buffer = re.fullmatch(r"pH\s*\d+(?:\.\d+)?\s+(?:aqueous\s+)?buffer", component_name(source), re.I)
+    if generic_buffer and declared_solvent_member(component_name(source), declared_solvent):
+        return True
     tail = re.search(r"\s+\(([^()]*)\)\s*$", source)
     if tail and _MEDIUM_ROLE.search(tail[1]):
         return not bool(_REACTIVE_ROLE.search(tail[1]))
@@ -63,14 +74,27 @@ def is_solvent_component(source: str, declared_solvent: str, planned_role: str) 
         return not bool(_REACTIVE_ROLE.search(planned_role))
     if _REACTIVE_ROLE.search(planned_role):
         return False
-    return bool(declared_solvent) and component_key(source) == component_key(declared_solvent)
+    return bool(declared_solvent) and declared_solvent_member(component_name(source), declared_solvent)
 
 
 def declared_solvent_member(name: str, solvent: str) -> bool:
     """Match only explicitly named solvent-mixture members, without chemical guessing."""
-    mixture = re.sub(r"\s*\([^()]*\d[^()]*\)\s*$", "", solvent).strip()
+    mixture = re.sub(r",\s*(?:degassed|deoxygenated|sparged|purged)\b.*$", "", solvent, flags=re.I)
+    mixture = re.sub(r"\(\s*\d+(?:\.\d+)?\s*:\s*\d+(?:\.\d+)?\s*,?\s*(?:v/v)?\s*\)", "", mixture, flags=re.I)
+    mixture = re.sub(r"\s*\([^()]*\d[^()]*\)\s*$", "", mixture).strip()
+    mixture = re.sub(r"\s+\d+(?:\.\d+)?\s*:\s*\d+(?:\.\d+)?\s*(?:v/v)?\s*$", "", mixture, flags=re.I)
     members = re.split(r"\s*[:/]\s*", mixture)
-    return component_key(name) in {component_key(item) for item in [solvent, mixture, *members] if item}
+    def keys(value):
+        variants = [value]
+        # pH describes the aqueous medium, not a molar amount of an unnamed salt.
+        buffer = re.fullmatch(r"pH\s*(\d+(?:\.\d+)?)\s+(?:aqueous\s+)?buffer", value.strip(), re.I)
+        if buffer:
+            variants += [f'pH {buffer[1]} buffer', f'pH {buffer[1]} aqueous buffer']
+        for group in SOLVENT_IDENTITY_ALIASES:
+            if component_key(value) in {component_key(x) for x in group}:
+                variants.extend(group)
+        return {component_key(x) for x in variants}
+    return bool(keys(name).intersection(set().union(*(keys(item) for item in [solvent, mixture, *members] if item))))
 
 
 def protocol_component_quantity(name: str, protocol: str) -> str:

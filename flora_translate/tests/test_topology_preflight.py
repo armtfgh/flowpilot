@@ -107,6 +107,22 @@ def test_undeclared_passive_mixer_allows_design_with_verification_assumption():
     )
 
 
+def test_direct_reactor_connections_use_stocked_accessories():
+    plan = _plan()
+    gas = plan.stages[1].feed_streams.pop()
+    gas.phase = "gas"
+    gas.introduction_stage = 1
+    plan.stages[0].feed_streams.append(gas)
+    inventory = _inventory(mixer=True)
+    _, report = analyze_topology_requirements(plan, inventory)
+    connection = next(row for row in report["requirements"] if row["requirement_id"] == "REQ-DIRECT-REACTOR-CONNECTIONS")
+    assert connection["status"] == "assumed_standard_accessory"
+    assert not report["unresolved_requirements"]
+    inventory.capability_status["connectors"] = "unavailable"
+    _, blocked = analyze_topology_requirements(plan, inventory)
+    assert any(row["requirement_id"] == "REQ-DIRECT-REACTOR-CONNECTIONS" for row in blocked["unresolved_requirements"])
+
+
 def test_explicitly_unavailable_mixer_blocks_before_design():
     inventory = _inventory(mixer=False)
     inventory.mixers = [

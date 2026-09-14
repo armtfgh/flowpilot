@@ -38,6 +38,7 @@ def reconcile_chemistry_plan(
     chemistry_plan: ChemistryPlan,
     *,
     hard_constraints: Any = None,
+    scientific: bool = False,
 ) -> tuple[ChemistryPlan, dict[str, Any]]:
     """Return a protocol-anchored plan and an auditable reconciliation report."""
 
@@ -52,6 +53,13 @@ def reconcile_chemistry_plan(
     explicit_separation = _explicit_separate_liquid_feeds(evidence_text)
 
     stages = _materialize_stages(plan)
+    if scientific:
+        from flora_translate.scientific_evidence import source_context
+        plan.stages = stages
+        plan.scientific_context = source_context(batch_record, plan)
+        plan.intensification_mandate.tau_reduction_target = None
+        plan.intensification_mandate.minimum_flow_advantage = "connected process evaluation"
+        plan.intensification_mandate.flow_justification_basis = "No mandated residence-time reduction; compare measured connected-process performance."
     _reconcile_named_photocatalyst(batch_record, plan, decisions)
     reconcile_reagent_facts(batch_record, plan, stages=stages, decisions=decisions)
     if light_required:
@@ -175,6 +183,9 @@ def reconcile_chemistry_plan(
                     feed.molar_equiv = explicit_equiv
                     feed.molar_equiv_basis = "protocol_fact"
                     quantity_basis = f"{explicit_equiv:g} equiv is explicit in the frozen input."
+                elif scientific and feed.molar_equiv and feed.molar_equiv > 0:
+                    feed.molar_equiv_basis = "model_proposed_screening_ratio_not_stoichiometric_demand"
+                    quantity_basis = "Positive upstream gas delivery proposal retained as an unvalidated screen, not measured uptake or protocol stoichiometry."
                 else:
                     feed.molar_equiv = 1.0
                     feed.molar_equiv_basis = "deterministic_screening_assumption"
@@ -236,6 +247,17 @@ def reconcile_chemistry_plan(
         if not stage.requires_light:
             stage.wavelength_nm = None
 
+    if scientific:
+        # A default introduction_stage=1 must not override the source-verified
+        # container of a later addition.
+        from flora_translate.scientific_evidence import identify
+        for stage in stages:
+            for feed in stage.feed_streams:
+                numbers = {n for name in feed.reagents
+                           if (c := identify(name, plan.scientific_context["components"]))
+                           for n in c["addition_stages"] if c["role"].lower() != "solvent"}
+                if numbers == {stage.stage_number}:
+                    feed.introduction_stage = stage.stage_number
     _normalize_feed_stage_ownership(stages, decisions)
 
     first_stage = min(stages, key=lambda item: int(item.stage_number or 1))
@@ -352,6 +374,26 @@ def reconcile_chemistry_plan(
             )
         )
 
+    if scientific:
+        from flora_translate.scientific_evidence import preserve_stage_additions
+        gas_instruction = (hard_constraints or {}).get("gas_introduction_requirement", {}) if isinstance(hard_constraints, dict) else {}
+        if gas_instruction.get("introduction_stage_source") == "chemist_answer":
+            destination = gas_instruction.get("introduction_stage")
+            target = next((s for s in stages if s.stage_number == destination), None)
+            if target is None:
+                raise ValueError("Requested gas introduction stage does not exist in the process")
+            gas_feeds = [f for s in stages for f in s.feed_streams if f.phase == "gas" and f.accepted_requirement]
+            for stage in stages:
+                stage.feed_streams = [f for f in stage.feed_streams if f not in gas_feeds]
+            for feed in gas_feeds:
+                feed.introduction_stage = destination
+            target.feed_streams.extend(gas_feeds)
+            plan.scientific_context["gas_stage_deviation"] = {
+                "requested_stage": destination, "authority": "chemist_answer",
+                "source_protocol_unchanged": True, "chemical_compatibility_established": False,
+                "note": "A requested flow-feed location does not establish compatibility; compare it with the original batch atmosphere during council review."}
+            decisions.append({"decision": "apply_requested_gas_stage", **plan.scientific_context["gas_stage_deviation"]})
+        preserve_stage_additions(plan, stages, plan.scientific_context, decisions)
     plan.stages = stages
     plan.n_stages = len(stages)
     plan.stream_logic = _global_streams_from_stages(stages)
@@ -473,6 +515,11 @@ def _initial_liquid_species(
             for name in feed.reagents
         )
     for name, role in candidates:
+        if plan.scientific_context:
+            from flora_translate.scientific_evidence import identify
+            evidence = identify(name, plan.scientific_context.get("components", []))
+            if evidence and evidence["addition_stages"] and 1 not in evidence["addition_stages"]:
+                continue
         gas_identity = _gas_identity([name])
         if (
             not name
@@ -791,7 +838,10 @@ def _protocol_reagent_gases(batch_record: BatchRecord) -> list[str]:
     text = _protocol_text(batch_record).lower().replace("₂", "2")
     combined = f"{atmosphere}\n{text}"
     gases: list[str] = []
-    if re.search(r"^\s*air(?:\b|,)", atmosphere) or re.search(r"\b(?:air atmosphere|under air|exposed? to (?:the )?air|aerobic)\b", combined):
+    exposure = re.search(r"\bexpos(?:e|ed|ing|ure)\b[^.;\n]{0,80}\bto\s+(?:(?:the|ambient)\s+)?air\b", combined)
+    if exposure and re.search(r"\b(?:not|never|without)\b[^.;\n]{0,25}$", combined[max(0, exposure.start()-35):exposure.start()]):
+        exposure = None
+    if exposure or re.search(r"^\s*air(?:\b|,)", atmosphere) or re.search(r"\b(?:air atmosphere|under air|exposed? to (?:the )?air|aerobic)\b", combined):
         gases.append("air")
     elif re.search(r"^\s*(?:oxygen|o2)(?:\b|,)", atmosphere) or re.search(r"\b(?:oxygen gas|o2 gas|under oxygen|oxygen atmosphere|o2 atmosphere|oxygen-filled|o2-filled|contacted with oxygen)\b", combined):
         gases.append("O2")

@@ -293,7 +293,7 @@ def _pump_label(op) -> str:
     p      = op.parameters or {}
     stream = p.get("stream", "?")
     instrument = p.get("instrument_name") or getattr(op, "instrument_name", "")
-    title = f"Stream {stream}\n{instrument}" if instrument else f"Pump {stream}"
+    title = f"Pump {stream}\n{instrument}" if instrument else f"Pump {stream}"
 
     # Materials line
     contents = p.get("contents") or []
@@ -350,7 +350,8 @@ def _mfc_label(op) -> str:
     else:
         rows.append(_font_lines("Inlet/STP flow not recorded", 10, "#B91C1C"))
     if p.get("molar_equiv") is not None:
-        rows.append(_font_lines(f"{float(p['molar_equiv']):.4g} equiv (inlet/STP)", 10))
+        species = " O2" if gas_name.strip().lower() == "air" else ""
+        rows.append(_font_lines(f"{float(p['molar_equiv']):.4g} equiv{species} (inlet/STP)", 10))
     unresolved = _unresolved_inventory_label(op)
     if unresolved:
         rows.append(f'<FONT POINT-SIZE="8" COLOR="#B91C1C"><B>{_esc(unresolved)}</B></FONT>')
@@ -530,7 +531,7 @@ def _separator_label(op, adjacent_stream_types=()) -> str:
 NODE_ICON_SIZE = 110   # uniform icon size for all components
 
 def _add_pump(dot, node_id: str, op, pump_img: Path):
-    """Syringe pump node with needle port at right-center and clean label."""
+    """Pump symbol with assigned instrument identity and complete feed label."""
     image_w   = NODE_ICON_SIZE
     image_h   = NODE_ICON_SIZE
     half_h    = image_h // 2
@@ -697,7 +698,17 @@ def _add_mfc_node(dot, node_id: str, op):
 # ── Pump image prep ───────────────────────────────────────────────────────────
 
 def _prepare_pump_img() -> Path:
-    """Return a tight-cropped syringe pump image for cleaner rendering."""
+    """Render the neutral pump symbol; model identity belongs in the label."""
+    import cairosvg
+    generic = ICONS_DIR / "pump_generic.svg"
+    rendered = ICONS_DIR / "_pump_generic.png"
+    if not rendered.exists() or rendered.stat().st_mtime < generic.stat().st_mtime:
+        cairosvg.svg2png(url=str(generic), write_to=str(rendered), output_width=480, output_height=480)
+    return rendered
+
+
+def _prepare_legacy_pump_img() -> Path:
+    """Legacy image conversion retained for archived callers only."""
     src = ASSETS["pump"]
     out = ICONS_DIR / "_pump_trimmed.png"
     if out.exists():

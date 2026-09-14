@@ -391,7 +391,7 @@ class ChemistryReasoningAgent:
     knowledge alongside its own training data.
     """
 
-    def analyze(self, batch_record: BatchRecord, intake_package=None) -> ChemistryPlan:
+    def analyze(self, batch_record: BatchRecord, intake_package=None, scientific=False) -> ChemistryPlan:
         """Analyze a batch protocol and return a ChemistryPlan."""
         self._last_model_used = cfg.MODEL_CHEMISTRY_AGENT
         self._fallback_note = ""
@@ -403,6 +403,9 @@ class ChemistryReasoningAgent:
         if fundamentals_block:
             system = system + "\n\n## FLOW CHEMISTRY HANDBOOK RULES\n" + fundamentals_block
             logger.info("    Injected fundamentals knowledge into prompt")
+        if scientific:
+            from flora_translate.scientific_evidence import UPSTREAM_POLICY
+            system += "\n\n" + UPSTREAM_POLICY
 
         batch_json = json.dumps(
             batch_record.model_dump(exclude_none=True), indent=2
@@ -416,7 +419,7 @@ class ChemistryReasoningAgent:
                 "Treat chemist hypotheses as hypotheses to test, not as facts."
             )
 
-        raw_text = self._call_with_retry(system, user_prompt)
+        raw_text = self._call_with_retry(system, user_prompt, scientific=scientific)
 
         # Extract reasoning block for logging
         reasoning = self._extract_reasoning(raw_text)
@@ -424,6 +427,9 @@ class ChemistryReasoningAgent:
             logger.info(f"    Reasoning summary: {reasoning[:300]}...")
 
         data = _parse_json_from_tagged(raw_text)
+        if scientific:
+            from flora_translate.scientific_evidence import explicit_gas_ratios
+            data = explicit_gas_ratios(data)
         data = _normalize_plan_data(data)
         plan = ChemistryPlan(**data)
         # IMPORTANT: attach _reasoning BEFORE the mandate is built, so
@@ -452,7 +458,7 @@ class ChemistryReasoningAgent:
 
         return plan
 
-    def _call_with_retry(self, system: str, user_prompt: str) -> str:
+    def _call_with_retry(self, system: str, user_prompt: str, *, scientific=False) -> str:
         """Call the model, retrying with compact context when output is incomplete."""
         candidates: list[tuple[str, str, str]] = [
             (cfg.MODEL_CHEMISTRY_AGENT, "chemistry_agent", system),
@@ -489,7 +495,10 @@ class ChemistryReasoningAgent:
                     logger.warning("    Chemistry Agent %s; retrying with fallback context", message)
                     continue
                 try:
-                    _parse_json_from_tagged(result.text)
+                    parsed = _parse_json_from_tagged(result.text)
+                    if scientific:
+                        from flora_translate.scientific_evidence import explicit_gas_ratios
+                        explicit_gas_ratios(parsed)
                 except Exception as exc:
                     errors.append(f"{api_name}({model}): invalid JSON: {exc}")
                     logger.warning(
@@ -498,6 +507,7 @@ class ChemistryReasoningAgent:
                         model,
                         exc,
                     )
+                    user_prompt += f"\nPrevious output failed validation: {exc}. Correct the structured output without inventing measured evidence."
                     continue
                 if idx > 0:
                     self._fallback_note = (

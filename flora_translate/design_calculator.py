@@ -313,6 +313,7 @@ class DesignCalculations:
     rate_constant: float | None = None
     reaction_order: int = 1
     kinetics_method: str = ""               # "analogy" | "class" | "default"
+    kinetics_status: str = "legacy_estimate"
     residence_time_s: float = 0.0
     residence_time_min: float = 0.0
     residence_time_inlet_min: float = 0.0
@@ -367,18 +368,18 @@ class DesignCalculations:
     two_phase_multiplier: float = 1.0
     two_phase_pressure_drop_bar: float = 0.0
     o2_supply_mmol_min: float = 0.0
-    o2_required_mmol_min: float = 0.0
+    o2_required_mmol_min: float | None = 0.0
     gas_supply_mmol_min: float = 0.0
-    gas_required_mmol_min: float = 0.0
+    gas_required_mmol_min: float | None = 0.0
     target_gas_equiv_inlet: float = 0.0
     explicit_gas_equiv_inlet: float = 0.0
     o2_equiv_supplied: float = 0.0
     gas_equiv_supplied: float = 0.0
     gas_flow_recomputed_from_equiv: bool = False
-    dissolved_o2_mM: float = 0.0
-    kLa_s: float = 0.0
-    o2_transfer_capacity_mmol_min: float = 0.0
-    o2_transfer_sufficiency: float = 0.0
+    dissolved_o2_mM: float | None = 0.0
+    kLa_s: float | None = 0.0
+    o2_transfer_capacity_mmol_min: float | None = 0.0
+    o2_transfer_sufficiency: float | None = 0.0
 
     # Step 6 — mass transfer
     mixing_time_s: float = 0.0
@@ -445,6 +446,8 @@ class DesignCalculations:
     @property
     def damkohler_interpretation(self):
         da = self.damkohler_mass
+        if da is None:
+            return "Uncharacterized reaction kinetics; no Damkohler interpretation is available."
         if da < 1:
             return f"Da = {da:.2f} < 1: mixing may limit conversion — consider active mixer."
         if da < 10:
@@ -490,7 +493,9 @@ class DesignCalculations:
         if self.startup_waste_mL is not None:
             lines.append(f"**Startup waste:** {self.startup_waste_mL} mL (3×τ×Q)")
         # Kinetics provenance
-        if self.kinetics_method == "analogy":
+        if self.kinetics_status == "uncharacterized":
+            lines.append("**Kinetics source:** unknown; batch-anchored screening coordinates only. No class IF or conversion prediction.")
+        elif self.kinetics_method == "analogy":
             lines.append(
                 f"**Kinetics source:** {self.n_analogy_datapoints} literature analogies "
                 f"(IF = {self.if_analogy}×, class IF = {self.if_class}×)"
@@ -523,14 +528,16 @@ class DesignCalculations:
             )
             if self.gas_oxygen_fraction > 0:
                 lines[-1] += (
-                    f", O₂ transfer sufficiency = "
-                    f"{self.o2_transfer_sufficiency:.2f}×"
+                    f", O₂ transfer sufficiency = {self.o2_transfer_sufficiency:.2f}×"
+                    if self.o2_transfer_sufficiency is not None
+                    else ", oxygen transfer sufficiency unknown; inlet delivery does not establish uptake"
                 )
         if self.UA_W_K:
             lines.append(
                 f"**Heat transfer:** UA = {self.UA_W_K:.4f} W/K, "
                 f"A_wall = {self.heat_transfer_area_m2:.5f} m², "
-                f"heat-transfer score = {self.heat_transfer_score:.2f}"
+                + (f"heat-transfer score = {self.heat_transfer_score:.2f}" if self.heat_transfer_score is not None
+                   else "reaction heat and thermal safety uncharacterized")
             )
         if not self.consistent:
             lines.append("\n⚠ CONSISTENCY ISSUES:")
@@ -560,6 +567,9 @@ def _lookup(solvent: str | None, table: dict):
 
 def _detect_chemistry(batch_record, chemistry_plan=None) -> str:
     """Infer chemistry type from available data."""
+    from flora_translate.scientific_evidence import enabled, scientific_class
+    if enabled(chemistry_plan):
+        return scientific_class(batch_record, chemistry_plan)
     if chemistry_plan and chemistry_plan.reaction_class:
         rc = chemistry_plan.reaction_class.lower()
         for key in INTENSIFICATION:
@@ -679,7 +689,9 @@ class DesignCalculator:
             if T_batch_C and abs(proposal.temperature_C - T_batch_C) > 2:
                 T_flow_C = proposal.temperature_C
 
-        self._step1(calc, batch_record)
+        from flora_translate.scientific_evidence import enabled
+        scientific = enabled(chemistry_plan)
+        self._step1(calc, batch_record, scientific=scientific)
         if proposal and proposal.temperature_C is not None:
             flow_temperature_C = float(proposal.temperature_C)
             if abs(flow_temperature_C - calc.temperature_C) > 1e-12:
@@ -710,7 +722,22 @@ class DesignCalculator:
             if proposal and proposal.residence_time_min and proposal.residence_time_min > 0
             else None
         )
-        if tau_override and tau_override > 0:
+        if scientific:
+            holds = chemistry_plan.scientific_context.get("timed_holds", [])
+            tau = tau_override or sum(h["batch_time_min"] for h in holds)
+            if not tau or tau <= 0:
+                raise ValueError("Scientific screening needs explicit positive stage-time evidence")
+            calc.residence_time_min = float(tau)
+            calc.residence_time_s = float(tau) * 60
+            calc.residence_time_range_min = (float(tau), float(tau))
+            calc.rate_constant = None
+            calc.kinetics_method = "batch_anchored_screening_hypothesis"
+            calc.kinetics_status = "uncharacterized"
+            self._emit(calc, StepResult(2, "Screening residence time", "ESTIMATED",
+                "Experimental screening coordinate, not a conversion prediction.",
+                values={"residence_time_min": tau, "predicted_conversion": None},
+                assumptions=["Batch holds anchor the screen; no automatic intensification or kinetic transfer."]))
+        elif tau_override and tau_override > 0:
             self._step2_override(calc, tau_override, batch_record, chemistry_plan, analogies)
             if frozen_geometry:
                 calc.residence_time_min = float(tau_override)
@@ -723,10 +750,29 @@ class DesignCalculator:
             batch_record=batch_record, chemistry_plan=chemistry_plan,
             frozen_geometry=frozen_geometry,
         )
-        self._step6(calc)
-        self._step7(calc, batch_record, chemistry_plan, solvent)
-        self._step8(calc, solvent, is_gas_liquid)
-        self._step9(calc, batch_record)
+        if scientific:
+            self._scientific_transport(calc)
+        else:
+            self._step6(calc)
+            self._step7(calc, batch_record, chemistry_plan, solvent)
+        if scientific and is_gas_liquid:
+            selected_pressure = float(proposal.BPR_bar or 0) if proposal else None
+            vapor = _vapor_pressure_bar(solvent, calc.temperature_C)
+            if selected_pressure is not None and vapor is not None and selected_pressure + P_STP_BAR <= vapor:
+                raise ValueError("Selected absolute pressure is below the estimated solvent vapor pressure")
+            calc.bpr_required = True
+            calc.bpr_pressure_bar = selected_pressure or 0.0
+            calc.vapor_pressure_bar = vapor
+            self._emit(calc, StepResult(8, "Selected pressure", "ESTIMATED",
+                "Inventory pressure is a screening setpoint, not a solubility or reaction-performance guarantee.",
+                values={"selected_BPR_bar_gauge": selected_pressure, "vapor_pressure_bar_absolute": vapor},
+                warnings=["Confirm mixture phase stability, regulator calibration and dynamic pressure losses experimentally."]))
+        else:
+            self._step8(calc, solvent, is_gas_liquid)
+        if scientific:
+            self._scientific_metrics(calc, proposal)
+        else:
+            self._step9(calc, batch_record)
         self._verify(calc)
 
         # Material compatibility
@@ -736,6 +782,55 @@ class DesignCalculator:
                     calc.material_warnings.append(f"{mat} + {sol_key}: {concern}")
 
         return calc
+
+    def _scientific_transport(self, calc):
+        """Calculate geometry-dependent transport, without invented reaction rates."""
+        if calc.is_gas_liquid:
+            for field in ("kLa_s", "dissolved_o2_mM", "o2_transfer_capacity_mmol_min",
+                          "o2_transfer_sufficiency", "o2_required_mmol_min", "gas_required_mmol_min"):
+                setattr(calc, field, None)
+            self._emit(calc, StepResult(6, "Gas delivery scope", "ESTIMATED",
+                "Inlet/STP delivery calculated; uptake, gas-liquid mass transfer and photon-dose adequacy are uncharacterized.",
+                values={"gas_inlet_mL_min": calc.gas_flow_sccm, "equivalents_inlet": calc.gas_equiv_supplied},
+                warnings=["Inlet/STP apparent time is an operating index, not a measured liquid exposure time.",
+                          "No-slip gas holdup and an empirical pressure-drop multiplier are hydraulic screening estimates, not measured two-phase behavior."]))
+        calc.mixing_time_s = calc.tubing_ID_m ** 2 / (D_MOLECULAR * PI ** 2)
+        calc.damkohler_mass = None
+        calc.mass_transfer_limited = None
+        self._emit(calc, StepResult(6, "Mass Transfer", "ESTIMATED",
+            "Diffusion timescale estimated; reaction-versus-mixing limitation is uncharacterized.",
+            values={"t_mix_s": calc.mixing_time_s, "D_m2_s": D_MOLECULAR, "Da_mass": None},
+            equations=["t_diffusion = d^2 / (D*pi^2)"],
+            assumptions=["Generic molecular diffusivity estimate; not a measured mixing time."],
+            warnings=["No rate constant: cannot classify a kinetic or mass-transfer bottleneck."]))
+        calc.surface_to_volume = 4 / calc.tubing_ID_m
+        calc.heat_transfer_area_m2 = PI * calc.tubing_ID_m * calc.tubing_length_m
+        calc.UA_W_K = U_VALUES["coil"] * calc.heat_transfer_area_m2
+        calc.heat_generation_W = None
+        calc.heat_removal_W = None
+        calc.thermal_damkohler = None
+        calc.thermal_safe = None
+        calc.heat_transfer_score = None
+        self._emit(calc, StepResult(7, "Heat Transfer", "ESTIMATED",
+            "Geometry-based UA estimate only; reaction heat and thermal safety uncharacterized.",
+            values={"UA_W_K": calc.UA_W_K, "A_wall_m2": calc.heat_transfer_area_m2,
+                    "U_W_m2K": U_VALUES["coil"], "Q_gen_W": None, "Da_th": None},
+            equations=["A_wall = pi*d*L", "UA = U*A_wall"],
+            assumptions=["Generic coil-in-bath U estimate; verify heat-transfer coefficient and temperature control."],
+            warnings=["Calorimetry/kinetics are needed before assessing heat release and thermal safety."]))
+
+    def _scientific_metrics(self, calc, proposal):
+        calc.intensification_factor = None
+        limiting = next((s for s in proposal.streams if s.phase == "liquid" and s.molar_equiv == 1 and s.concentration_M), None) if proposal else None
+        calc.n_molar_flow_mmol_min = (limiting.concentration_M * limiting.flow_rate_mL_min if limiting
+                                     else calc.concentration_M * calc.flow_rate_mL_min)
+        calc.C_reactor_M = calc.concentration_M
+        self._emit(calc, StepResult(9, "Process Metrics", "ESTIMATED",
+            "Feed throughput calculated; achieved productivity, STY and yield are unknown.",
+            values={"n_molar_flow_mmol_min": calc.n_molar_flow_mmol_min, "C_reactor_M": calc.C_reactor_M,
+                    "productivity_mmol_h": None, "STY_mol_L_h": None, "IF": None},
+            equations=["Feed molar flow (mmol/min) = feed concentration (mol/L) * liquid feed (mL/min)"],
+            warnings=["Feed throughput is not product throughput; measure yield to calculate productivity."]))
 
     @staticmethod
     def annotate_proposal_with_calculations(proposal, calc: DesignCalculations):
@@ -1159,6 +1254,10 @@ class DesignCalculator:
     ) -> dict:
         if not is_gas_liquid or Q_liquid_mL_min <= 0:
             return {}
+        from flora_translate.scientific_evidence import enabled
+        if enabled(chemistry_plan):
+            from flora_translate.scientific_gas import gas_context
+            return gas_context(calc, Q_liquid_mL_min, proposal, chemistry_plan, frozen_geometry)
         species, reagent_fraction = self._detect_gas_species(
             batch_record, chemistry_plan, proposal, trust_stream_phase=frozen_geometry,
         )
@@ -1324,7 +1423,7 @@ class DesignCalculator:
     #  Step 1 — Parse batch conditions
     # ═══════════════════════════════════════════════════════════════════
 
-    def _step1(self, calc: DesignCalculations, br):
+    def _step1(self, calc: DesignCalculations, br, scientific=False):
         T_C = getattr(br, "temperature_C", None) or 25.0
         T_K = T_C + 273.15
         raw_text = getattr(br, "raw_text", None) or getattr(br, "reaction_description", "")
@@ -1342,7 +1441,7 @@ class DesignCalculator:
         t_h = explicit_t_h or inferred_t_h or 0
         t_s = t_h * 3600.0
         y = getattr(br, "yield_pct", None)
-        X = min((y or 95) / 100.0, 0.99)
+        X = None if scientific else min((y or 95) / 100.0, 0.99)
 
         calc.temperature_C = T_C
         calc.temperature_K = T_K
@@ -1364,10 +1463,12 @@ class DesignCalculator:
             assumptions.append(
                 f"Batch reaction time recovered deterministically from protocol text → {inferred_t_h:.3g} h"
             )
-        if not y:
+        if scientific:
+            assumptions.append("Yield is not conversion; flow kinetics remain uncharacterized.")
+        elif not y:
             assumptions.append("Yield not specified → targeting 95 % conversion")
 
-        if FLOW_TRANSLATION_POLICY == "intensify" and t_h > 0:
+        if not scientific and FLOW_TRANSLATION_POLICY == "intensify" and t_h > 0:
             assumptions.append(
                 f"Intensification policy active downstream → tau_flow must remain ≤ "
                 f"{t_h * 60.0 * FLOW_MAX_TAU_TO_BATCH_RATIO:.1f} min"
@@ -1378,7 +1479,8 @@ class DesignCalculator:
             status="PASS",
             summary=(
                 f"T = {T_C:.0f} °C, C₀ = {C_M} M, "
-                f"t_batch = {t_h:.1f} h ({t_s:.0f} s), X = {X:.2f}"
+                f"t_batch = {t_h:.1f} h ({t_s:.0f} s), "
+                + (f"X = {X:.2f}" if X is not None else "conversion unknown")
             ),
             values={"T_C": T_C, "T_K": T_K, "C_M": C_M,
                     "t_batch_h": t_h, "t_batch_s": t_s, "X": X},
@@ -2020,7 +2122,7 @@ class DesignCalculator:
         calc.reactor_volume_m3 = V_m3
         calc.tubing_length_m = round(L, 4)
         calc.velocity_m_s = v
-        calc.reynolds_number = round(Re, 2)
+        calc.reynolds_number = Re
         calc.flow_regime = (
             "laminar" if Re < 2100
             else "transitional" if Re < 4000

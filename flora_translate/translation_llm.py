@@ -207,7 +207,8 @@ class TranslationLLM:
             system_prompt
             + "\n\nCRITICAL OUTPUT FORMAT: Return only one compact valid JSON object. "
             "No markdown. No prose outside JSON. Keep text fields concise; do not "
-            "use multiline paragraphs."
+            "use multiline paragraphs. Optional numeric fields must be numbers or null; "
+            "put uncertainty explanations in reasoning_per_field, never numeric fields."
         )
         compact_user = (
             user_prompt
@@ -216,7 +217,7 @@ class TranslationLLM:
             "explanation."
         )
         retry_system = (
-            "You are the FLORA translation agent. Output only compact valid JSON "
+            compact_system + "\nOutput only compact valid JSON "
             "for the FlowProposal schema. No markdown, no commentary, no trailing text."
         )
         retry_user = (
@@ -260,11 +261,15 @@ class TranslationLLM:
                 last_error = exc
                 logger.warning("%s returned non-parseable JSON: %s", api_name, exc)
 
-        repair_system = "You repair malformed JSON. Output only one valid compact JSON object and nothing else."
+        repair_system = compact_system + "\nRepair schema formatting only. Output one valid compact JSON object. Do not invent or change scientific quantities."
         repair_user = (
             "Repair the following invalid FlowProposal JSON into valid JSON. Preserve "
-            "numeric values where present. If a field is missing, use a conservative "
-            f"empty/default value.\n\nINVALID OUTPUT:\n{last_text[:20000]}"
+            "numeric values where present. For an explicitly unknown optional numeric field, "
+            "use null and retain its explanation in reasoning_per_field. Do not replace "
+            "unknown quantities with guessed numbers.\n"
+            f"VALIDATION ERROR:\n{last_error}\n"
+            f"SCHEMA:\n{json.dumps(FlowProposal.model_json_schema())}\n"
+            f"INVALID OUTPUT:\n{last_text}"
         )
         result = call_model_text(
             model=cfg.MODEL_TRANSLATION,
