@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import itertools
 import re
+from fractions import Fraction
 from collections import Counter
 from typing import Any, Iterable
+from flora_translate.pump_settings import select_scale, setting_supported, stream_weight
 
 from flora_translate.component_identity import (
     component_key, component_name, is_solvent_component, unique_components,
@@ -841,6 +843,12 @@ def _assign_feed_devices(
                 continue
             if not all(pump_accepts_feed(pump, stream) for stream, pump in zip(liquid_streams, candidate)):
                 continue
+            reactive_pairs = [(s, p) for s, p in zip(liquid_streams, candidate) if not _is_quench(s)]
+            if reactive_pairs and all(s.concentration_M and s.concentration_M > 0 for s, _ in reactive_pairs):
+                try:
+                    select_scale([stream_weight(s) for s, _ in reactive_pairs], [p for _, p in reactive_pairs], 0)
+                except ValueError:
+                    continue
             score = sum(_pump_match_score(stream, pump) for stream, pump in zip(liquid_streams, candidate))
             platforms = {p.platform_id for p in candidate if p.platform_id}
             score -= 500 * max(0, len(platforms) - 1)
@@ -850,6 +858,13 @@ def _assign_feed_devices(
             for stream, pump in zip(liquid_streams, best[1]):
                 stream.pump_equipment_id = pump.equipment_id
                 assignments[stream.stream_label] = pump
+            platforms = sorted({p.platform_id for p in best[1] if p.platform_id})
+            decisions.append({
+                "decision": "pump_platform_selection", "platforms": platforms,
+                "mixed_platforms": len(platforms) > 1,
+                "basis": "Prefer a single compatible platform after pressure, resource, chemical exclusion and setting-grid checks; existing assignments break ties.",
+                "laboratory_confirmation_required": len(platforms) > 1,
+            })
 
     for stream in liquid_streams:
         if stream.stream_label not in assignments:
@@ -939,6 +954,7 @@ def _solve_liquid_stream_rates(
     assignments: dict[str, Any],
     decisions: list[dict[str, Any]],
     issues: list[dict[str, Any]],
+    maximum_total_flow: float = float("inf"),
 ) -> None:
     reactive = [
         stream
@@ -1003,7 +1019,7 @@ def _solve_liquid_stream_rates(
         )
 
     weights = {
-        stream.stream_label: float(stream.molar_equiv or 1.0) / float(stream.concentration_M)
+        stream.stream_label: stream_weight(stream)
         for stream in reactive
     }
     lower = 0.0
@@ -1015,21 +1031,24 @@ def _solve_liquid_stream_rates(
         weight = weights[stream.stream_label]
         lower = max(lower, float(pump.min_flow_rate_mL_min) / weight)
         upper = min(upper, float(pump.max_flow_rate_mL_min) / weight)
-    if upper < lower - 1e-12:
+    target = max(float(proposal.flow_rate_mL_min or 0.0), 0.0) / float(sum(weights.values()))
+    try:
+        scale, lower, upper, increment = select_scale(
+            list(weights.values()), [assignments.get(s.stream_label) for s in reactive], target,
+            maximum_total_flow / float(sum(weights.values())),
+        )
+    except ValueError as exc:
         issues.append(
             {
                 "category": "pump_ratio_feasibility",
-                "reason": "No common stoichiometric scale satisfies every assigned pump range.",
+                "reason": str(exc),
                 "scale_interval": [lower, upper],
             }
         )
-        scale = lower
-    else:
-        target = max(float(proposal.flow_rate_mL_min or 0.0), 0.0) / sum(weights.values())
-        scale = min(max(target, lower), upper)
+        return
 
     for stream in reactive:
-        stream.flow_rate_mL_min = round(scale * weights[stream.stream_label], 6)
+        stream.flow_rate_mL_min = round(scale * float(weights[stream.stream_label]), 6 if increment is None else 12)
         stream.reasoning = (
             "Deterministic stoichiometric flow solution: "
             f"Q_{stream.stream_label}=k*(equiv/C)={stream.flow_rate_mL_min:.6g} mL/min; "
@@ -1045,10 +1064,10 @@ def _solve_liquid_stream_rates(
         pump = assignments.get(stream.stream_label)
         if pump is not None:
             requested = float(stream.flow_rate_mL_min or pump.min_flow_rate_mL_min)
-            stream.flow_rate_mL_min = round(
-                min(max(requested, pump.min_flow_rate_mL_min), pump.max_flow_rate_mL_min),
-                6,
-            )
+            try:
+                stream.flow_rate_mL_min = select_scale([Fraction(1)], [pump], requested)[0]
+            except ValueError as exc:
+                issues.append({"category": "pump_ratio_feasibility", "reason": str(exc)})
 
     proposal.flow_rate_mL_min = round(
         sum(float(stream.flow_rate_mL_min or 0.0) for stream in reactive),
@@ -1060,6 +1079,7 @@ def _solve_liquid_stream_rates(
             "equation": "Q_i = k * (equiv_i / C_i)",
             "feasible_scale_interval": [round(lower, 8), None if upper == float("inf") else round(upper, 8)],
             "selected_scale": round(scale, 8),
+            "scale_increment": increment,
             "total_reactive_liquid_flow_mL_min": proposal.flow_rate_mL_min,
         }
     )
@@ -1141,17 +1161,9 @@ def _solve_gas_stream_rates(
                     for item in liquid_streams
                 )
                 if coupled_feasible:
-                    for item in liquid_streams:
-                        item.flow_rate_mL_min = round(
-                            float(item.flow_rate_mL_min or 0.0) * factor, 6
-                        )
-                        item.reasoning += (
-                            f" Coupled gas-limit scale={factor:.6g} applied to "
-                            f"fit MFC {mfc.equipment_id}."
-                        )
-                    proposal.flow_rate_mL_min = round(
-                        sum(float(item.flow_rate_mL_min or 0.0) for item in liquid_streams),
-                        6,
+                    ceiling = sum(float(item.flow_rate_mL_min or 0) for item in liquid_streams) * factor
+                    _solve_liquid_stream_rates(
+                        proposal, assignments, decisions, issues, maximum_total_flow=ceiling,
                     )
                     limiting_flow, concentration = _limiting_liquid_basis(proposal)
                     sccm = stp_gas_flow_for_equiv(
@@ -1396,6 +1408,11 @@ def _resolve_component_quantity_assumptions(
             entry = roles.get(component_key(text))
             role = entry.role if entry else ""
             is_solvent = is_solvent_component(text, stream.solvent or "", role)
+            if is_solvent and "screening assumption; confirm stock assay before run" in text:
+                text = name
+                decisions.append({"decision": "remove_medium_quantity_assumption",
+                    "stream_label": stream.stream_label, "component": name,
+                    "basis": "Declared solvent/medium does not inherit substrate molarity."})
             known_quantity = str(entry.equiv_or_loading or "") if entry else ""
             quantified = bool(
                 re.search(
@@ -2004,6 +2021,8 @@ def _all_feed_devices_feasible(proposal: FlowProposal, inventory: LabInventory |
             device = pumps.get(str(stream.pump_equipment_id or ""))
             flow = float(stream.flow_rate_mL_min or 0.0)
             if device is None or not (device.min_flow_rate_mL_min - 1e-9 <= flow <= device.max_flow_rate_mL_min + 1e-9):
+                return False
+            if not setting_supported(device, flow):
                 return False
     return True
 

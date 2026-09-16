@@ -14,6 +14,7 @@ from flora_translate.inventory_constraints import (
     selected_process_systems,
 )
 from flora_translate.schemas import FlowProposal, LabInventory, ProcessTopology
+from flora_translate.pump_settings import setting_supported
 
 
 AVAILABLE_STATUSES = {"available", "ready", "in_service", "in service"}
@@ -126,6 +127,7 @@ class InventoryAllocator:
                 if _available(item)
                 and (not requested_id or item.equipment_id == requested_id)
                 and item.min_flow_rate_mL_min - 1e-12 <= flow <= item.max_flow_rate_mL_min + 1e-12
+                and setting_supported(item, flow)
                 and self.proposal.BPR_bar <= item.max_pressure_bar + 1e-12
                 and _pump_material_compatible(item, stream_identity)
                 and equipment_system_compatible(item, self.selected_systems)
@@ -209,7 +211,8 @@ class InventoryAllocator:
                 and (not requested_id or item.equipment_id == requested_id)
                 and abs(item.wavelength_nm - wavelength) <= max(5.0, wavelength * 0.02)
                 and _light_temperature_supported(item, temperature)
-                and (not item.module_id or (reactor is not None and light_fits_stage(item, reactor, self.proposal, self.inventory)))
+                and (light_fits_stage(item, reactor, self.proposal, self.inventory)
+                     if reactor is not None else not item.module_id)
                 and equipment_system_compatible(item, self.selected_systems)
             ]
             self._claim(

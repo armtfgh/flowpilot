@@ -19,7 +19,8 @@ def num(x):
 
 
 class Deck:
-    def __init__(self):
+    def __init__(self, date='14 September 2026'):
+        self.date=date
         self.p=Presentation();self.p.slide_width=Inches(16);self.p.slide_height=Inches(9)
     def text(self,s,x,y,w,h,value,size=19,color='263238',bold=False):
         box=s.shapes.add_textbox(Inches(x),Inches(y),Inches(w),Inches(h))
@@ -33,7 +34,7 @@ class Deck:
         s=self.p.slides.add_slide(self.p.slide_layouts[6])
         self.text(s,.55,.3,14.9,.65,title,27,bold=True)
         self.text(s,.55,.98,14.9,.5,subtitle,14,'51636C')
-        self.text(s,.55,8.55,14.9,.28,'FlowPilot | KHU revised inventory and response sets | 14 September 2026 | Screening proposals, not measured yields',11,'51636C')
+        self.text(s,.55,8.55,14.9,.28,f'FlowPilot | KHU revised inventory and response sets | {self.date} | Screening proposals, not measured yields',11,'51636C')
         return s
     def table(self,s,headers,rows,y=1.7,widths=None,font=17):
         n=len(rows)
@@ -56,9 +57,13 @@ class Deck:
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('root',type=Path);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('root',type=Path)
+    parser.add_argument('--date',default='14 September 2026')
+    parser.add_argument('--inventory',type=Path,default=ROOT/'inventory_khu/KHU_inventory_20260914_v5.json')
+    parser.add_argument('--refresh-titles',action='store_true')
+    args=parser.parse_args()
     out=args.root/'presentation';out.mkdir(exist_ok=True)
-    d=Deck();summary=[]
+    d=Deck(args.date);summary=[]
     title=d.slide('KHU revised flow designs','Two chemistries | Three response sets each | Original files retained')
     d.text(title,.7,2,14.5,5.8,
         'Inputs: exact batch text and revised response slides 5, 8, 11, 16, 19 and 22.\n'
@@ -99,11 +104,24 @@ def main():
         for name in ['provided_input.json','intake_package.json','request.json','inventory_profile.json','result.json','independent_checks.json','stage_summary.csv','component_feeds.csv','summary.json','display_revision_provenance.json','reused_generation_provenance.json','reused_council_provenance.json']:
             if (folder/name).exists():shutil.copy2(folder/name,target/name)
         image=folder/'gui_export/process.png'
+        svg=folder/'gui_export/process.svg'
+        if args.refresh_titles and image.exists() and review['all_passed']:
+            from flora_translate.diagram_artifacts import render_topology_artifacts
+            from flora_translate.schemas import ProcessTopology
+            import hashlib
+            shutil.copy2(image,target/'topology_original.png')
+            shutil.copy2(svg,target/'topology_original.svg')
+            artifacts=render_topology_artifacts(ProcessTopology.model_validate(r['process_topology']),
+                title=r['chemistry_plan'].get('reaction_name','FlowPilot'))
+            (target/'topology_export_provenance.json').write_text(json.dumps(dict(
+                source_result=str(path),source_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                change='Full wrapped title; same final topology and numerical design. No model calls.',
+                render_manifest=artifacts['manifest']),indent=2))
+            image=Path(artifacts['png_path']);svg=Path(artifacts['svg_path'])
         label='Checked screening proposal' if review['all_passed'] else 'DIAGNOSTIC ONLY: checks failed'
         top=d.slide(title+' | Process topology',f'{label} | {folder.name} | Generic pump symbols; exact equipment labels below')
         if image.exists():
             shutil.copy2(image,target/'topology.png');d.picture(top,image)
-            svg=folder/'gui_export/process.svg'
             if svg.exists():shutil.copy2(svg,target/'topology.svg')
         else:d.text(top,.7,2,14.5,5,'No executable topology. Blocking reasons: '+str(review['failed']),22,'A93232')
         stage=d.slide(title+' | Stage conditions',label)
@@ -158,7 +176,7 @@ def main():
         d.table(overview,['Case','Checks','V1 / V2 (mL)','Time1 / Time2 (min)','T1 / T2 (C)','BPR (bar)'],overview_rows,
                 widths=[3,1.4,2.4,3.8,2.5,1.8],font=17)
     d.text(overview,.7,6.8,14.5,1.2,'PASS denotes the listed software checks, not experimental validation. No buffer molarity is inferred from pH. Unconfirmed laboratory ratings and mixture compatibility remain explicit pre-run requirements.',18,'51636C')
-    shutil.copy2(ROOT/'inventory_khu/KHU_inventory_20260914_v5.json',out/'KHU_inventory_20260914_v5.json')
+    shutil.copy2(args.inventory,out/args.inventory.name)
     d.p.save(out/'KHU_revised_six_designs.pptx')
     print(out/'KHU_revised_six_designs.pptx');print('Slides',len(d.p.slides))
 

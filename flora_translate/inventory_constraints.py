@@ -90,6 +90,8 @@ def inventory_prompt_block(inventory: LabInventory | None) -> str:
                 f"{pump.max_flow_rate_mL_min:g} mL/min, max "
                 f"{pump.max_pressure_bar:g} bar; quantity={pump.quantity}; "
                 f"service={pump.service_status}{systems}"
+                + (f"; setting increment={pump.flow_rate_increment_mL_min:g} mL/min (not a lower flow limit)"
+                   if pump.flow_rate_increment_mL_min is not None else "")
             )
     if inventory.light_sources:
         lines.append("Available light sources:")

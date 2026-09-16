@@ -2679,7 +2679,7 @@ def translate(
                     title=(
                         getattr(chemistry_plan, "reaction_name", "")
                         or batch_record.reaction_description
-                    )[:90],
+                    ),
                     builder=FlowsheetBuilder(),
                 )
                 result["svg_path"] = artifacts["svg_path"]

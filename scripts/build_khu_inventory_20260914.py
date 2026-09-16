@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT / "inventory_khu"
 
 
-def build():
-    source = json.loads((FOLDER / "source_review_20260914/source_extraction.json").read_text())
+def build(source_path=None, destination=None):
+    source = json.loads((source_path or FOLDER / "source_review_20260914/source_extraction.json").read_text())
     sheets = {s['sheet']: {r['row']: {c['cell'].rstrip('0123456789'): c['value'] for c in r['cells']}
                            for r in s['rows']} for s in source['sheets']}
     inventory = dict(strict_assignment=True, resource_capacities={}, pumps=[], reactors=[], tubing=[],
@@ -104,9 +104,10 @@ def build():
         extraction_metadata={'source_review':'inventory_khu/source_review_20260914','no_llm_extraction':True,'source_catalog':sheets})
     profile.validation.warnings=profile.operating_constraints['catalog_projection_limits']
     profile.validation.valid=True
-    destination=FOLDER/'KHU_inventory_20260914_v5.json'
-    destination.write_text(profile.model_dump_json(indent=2),encoding='utf-8')
-    print(destination)
+    if destination is not False:
+        destination=destination or FOLDER/'KHU_inventory_20260914_v5.json'
+        destination.write_text(profile.model_dump_json(indent=2),encoding='utf-8')
+        print(destination)
     print('Schema-valid draft; unresolved laboratory confirmations retained.')
     return profile
 

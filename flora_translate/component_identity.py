@@ -64,8 +64,10 @@ def is_solvent_component(source: str, declared_solvent: str, planned_role: str) 
     A dual role (for example solvent/base) remains reactive. An explicit inline
     medium-only annotation overrides a mistaken upstream role, as before.
     """
-    generic_buffer = re.fullmatch(r"pH\s*\d+(?:\.\d+)?\s+(?:aqueous\s+)?buffer", component_name(source), re.I)
-    if generic_buffer and declared_solvent_member(component_name(source), declared_solvent):
+    generic_buffer = _generic_buffer(component_name(source))
+    # A pH-only buffer is an unidentified medium, even if a model also calls
+    # it a base. Its salt identity/strength cannot be inferred from substrate C.
+    if generic_buffer:
         return True
     tail = re.search(r"\s+\(([^()]*)\)\s*$", source)
     if tail and _MEDIUM_ROLE.search(tail[1]):
@@ -75,6 +77,11 @@ def is_solvent_component(source: str, declared_solvent: str, planned_role: str) 
     if _REACTIVE_ROLE.search(planned_role):
         return False
     return bool(declared_solvent) and declared_solvent_member(component_name(source), declared_solvent)
+
+
+def _generic_buffer(value):
+    # A phase descriptor is not a chemical species or a buffer stock strength.
+    return re.fullmatch(r"pH\s*(\d+(?:\.\d+)?)\s+(?:aqueous\s+)?buffer(?:\s*\((?:aqueous|aq\.?)\))?", value.strip(), re.I)
 
 
 def declared_solvent_member(name: str, solvent: str) -> bool:
@@ -87,7 +94,7 @@ def declared_solvent_member(name: str, solvent: str) -> bool:
     def keys(value):
         variants = [value]
         # pH describes the aqueous medium, not a molar amount of an unnamed salt.
-        buffer = re.fullmatch(r"pH\s*(\d+(?:\.\d+)?)\s+(?:aqueous\s+)?buffer", value.strip(), re.I)
+        buffer = _generic_buffer(value)
         if buffer:
             variants += [f'pH {buffer[1]} buffer', f'pH {buffer[1]} aqueous buffer']
         for group in SOLVENT_IDENTITY_ALIASES:

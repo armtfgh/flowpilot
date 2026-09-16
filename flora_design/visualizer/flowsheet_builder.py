@@ -2,17 +2,19 @@
 FLORA — Graphviz-based Flowsheet Builder.
 
 Replaces the old hand-drawn SVG approach with a professional Graphviz diagram
-using real equipment icons (syringe pump, coil reactor, BPR, vial, etc.).
+using equipment icons (pump, coil reactor, BPR, vial, etc.).
 
 Icon files live in:  flora_design/visualizer/icons/
 
 Features:
-  - Pump nodes: syringe icon + reagent list + solvent + flow rate (fully readable)
+  - Pump nodes: generic icon + reagent list + solvent + flow rate (fully readable)
   - Reactor nodes: coil image + temp / residence time / wavelength / ID / volume
   - Mixer nodes: clean grey box with correct in/out ports
   - BPR / collector: icon + label
   - LED module: SKIPPED — wavelength shown under reactor
-  - 3+ streams into one mixer: auto-chained into two mixers in series
+  - Main process: horizontal icon-center connections; side feeds branch in
+  - Mixer connections: preserved exactly; no invented upstream mixers
+  - Optional check-valve icon: icons/check_valve.png, otherwise a labeled box
   - Unknown op types: plain text box
 
 Falls back silently to the legacy SVG builder if graphviz executable
@@ -530,6 +532,37 @@ def _separator_label(op, adjacent_stream_types=()) -> str:
 
 NODE_ICON_SIZE = 110   # uniform icon size for all components
 
+
+def _main_process_path(ops, streams):
+    """Choose an existing feed-to-product path; never add or remove connections."""
+    from graphlib import TopologicalSorter, CycleError
+    nodes = {op.op_id: op for op in ops if op.op_type != "led_module"}
+    predecessors = {key: [] for key in nodes}
+    successors = {key: [] for key in nodes}
+    for stream in streams:
+        if stream.from_op in nodes and stream.to_op in nodes:
+            predecessors[stream.to_op].append(stream.from_op)
+            successors[stream.from_op].append(stream.to_op)
+    try:
+        order = list(TopologicalSorter(predecessors).static_order())
+    except CycleError:
+        return []  # Recycle graphs retain their graph layout, not a fictitious linear path.
+    reactor_types = {"reactor", "coil_reactor", "photoreactor", "heated_coil", "packed_bed",
+                     "packed_bed_reactor", "microchannel", "microreactor", "chip", "chip_reactor", "microfluidic"}
+    paths = {}
+    def score(path):
+        return (sum(nodes[key].op_type in reactor_types for key in path), len(path))
+    for key in order:
+        previous = [paths[p] for p in sorted(predecessors[key]) if p in paths]
+        if previous:
+            paths[key] = max(previous, key=score) + [key]
+        elif not predecessors[key] and nodes[key].op_type != "mfc":
+            paths[key] = [key]
+    destinations = [key for key in paths if nodes[key].op_type == "collector"]
+    destinations = destinations or [key for key in paths if not successors[key]]
+    return max((paths[key] for key in sorted(destinations)), key=score, default=[])
+
+
 def _add_pump(dot, node_id: str, op, pump_img: Path):
     """Pump symbol with assigned instrument identity and complete feed label."""
     image_w   = NODE_ICON_SIZE
@@ -798,28 +831,24 @@ class FlowsheetBuilder:
         op_map   = {o.op_id: o for o in ops}
         pump_ids = {o.op_id for o in ops if o.op_type in ("pump", "mfc")}
         led_ids  = {o.op_id for o in ops if o.op_type == "led_module"}
-        skip_ids = pump_ids | led_ids
 
         # ── Graph init ────────────────────────────────────────────────────────
         stem = str(Path(output_png).with_suffix(""))
-        dot  = graphviz.Digraph(comment=title or "FLORA Process", format="png")
+        dot  = graphviz.Digraph(comment=title or "FlowPilot Process", format="png")
         dot.attr(**GRAPH_ATTR)
         dot.attr(imagepath=str(ICONS_DIR))
         dot.attr("node",  fontname="Arial")
         dot.attr("edge", **EDGE_ATTR)
 
         if title:
-            dot.attr(label=f'<<FONT POINT-SIZE="13" COLOR="#111827"><B>{_esc(title)}</B></FONT>>',
+            title_html = '<BR/>'.join(_esc(line) for line in _wrap(title, 80).splitlines())
+            dot.attr(label=f'<<FONT POINT-SIZE="13" COLOR="#111827"><B>{title_html}</B></FONT>>',
                      labelloc="t", labeljust="c")
 
         # ── Build graphviz nodes ──────────────────────────────────────────────
         # node_id → graphviz node name (same as op_id, sanitised)
         gv_id = {op.op_id: op.op_id.replace("-", "_").replace(" ", "_")
                  for op in ops}
-
-        # Track synthetic mixer IDs created for 3+ input chaining
-        # synth_pre[original_mixer_gv_id] → list of (synth_id, inputs)
-        synth_pre: dict[str, list[tuple[str, list[str]]]] = {}
 
         # Pre-compute input counts for all mixers (needed to pick mixer2 vs mixer3)
         MIXER_TYPES_SET = {"mixer", "t_mixer", "y_mixer", "quench_mixer"}
@@ -885,6 +914,10 @@ class FlowsheetBuilder:
                 _add_image_node(dot, vid, _bpr_label(op), ASSETS["bpr"],
                                 NODE_ICON_SIZE, NODE_ICON_SIZE)
 
+            elif op.op_type == "check_valve" and (ICONS_DIR / "check_valve.png").is_file():
+                _add_image_node(dot, vid, _textbox_label(op), ICONS_DIR / "check_valve.png",
+                                NODE_ICON_SIZE, NODE_ICON_SIZE)
+
             elif op.op_type == "collector":
                 _add_image_node(dot, vid, op.label or "Product",
                                 ASSETS["vial"], NODE_ICON_SIZE, NODE_ICON_SIZE)
@@ -903,6 +936,14 @@ class FlowsheetBuilder:
             # Mixers are now image-based too
             "mixer", "t_mixer", "y_mixer", "quench_mixer",
         }
+        if (ICONS_DIR / "check_valve.png").is_file():
+            IMAGE_TYPES.add("check_valve")
+
+        main_path = _main_process_path(ops, topology.streams)
+        main_edges = set(zip(main_path, main_path[1:]))
+        for key in main_path:
+            dot.node(gv_id[key], group="main_process")
+        self.last_render_info["main_process_path"] = main_path
 
         def output_port(op_id: str) -> str:
             """Graphviz port string for the OUTPUT (right side) of a node."""
@@ -932,84 +973,21 @@ class FlowsheetBuilder:
             # textbox: use named left port
             return f"{vid}:inp:w"
 
-        for op in ops:
-            if op.op_id in skip_ids:
+        # Draw exactly the recorded material connections. The main process uses
+        # center ports; additional feeds enter separately without synthetic mixers.
+        branch_counts = defaultdict(int)
+        for stream in topology.streams:
+            source, target = stream.from_op, stream.to_op
+            if source not in active_ids or target not in active_ids or source in led_ids or target in led_ids:
                 continue
-
-            vid    = gv_id[op.op_id]
-            ot     = op.op_type
-            inputs = in_edges[op.op_id]
-
-            pump_inp = [i for i in inputs if i in pump_ids]
-            main_inp = [i for i in inputs if i not in skip_ids]
-
-            is_mixer = ot in MIXER_TYPES_SET
-
-            if is_mixer:
-                # all_inp: main-flow inputs first, then pump inputs
-                all_inp  = main_inp + pump_inp
-                n_total  = len(all_inp)
-                tgt_base = input_target(op.op_id)  # e.g. "Mixer1:img"
-
-                if n_total <= 2:
-                    # ── T-mixer: two inputs from pumps/flow ──────────────────
-                    # nw = top-left corner, sw = bottom-left corner.
-                    # With ortho routing this creates clean right-angle bends.
-                    headports = ["nw", "sw"]
-                    for i, src_id in enumerate(all_inp):
-                        dot.edge(output_port(src_id),
-                                 tgt_base, headport=headports[i])
-
-                elif n_total == 3:
-                    # ── Cross-mixer: main flow → w, pumps → nw / sw ──────────
-                    if main_inp:
-                        # Main flow enters from the left (west) — direct horizontal
-                        dot.edge(output_port(main_inp[0]),
-                                 tgt_base, headport="w")
-                        for i, src_id in enumerate(pump_inp[:2]):
-                            dot.edge(output_port(src_id),
-                                     tgt_base, headport=["nw", "sw"][i])
-                    else:
-                        # Three pumps, no main flow → pre-mix first two
-                        synth_id = f"_pre_{vid}"
-                        _add_mixer_image(dot, synth_id, 2)
-                        op_map[synth_id] = type("SynthOp", (), {
-                            "op_id": synth_id, "op_type": "mixer", "parameters": {}
-                        })()
-                        gv_id[synth_id] = synth_id
-                        dot.edge(output_port(all_inp[0]),
-                                 f"{synth_id}:img", headport="nw")
-                        dot.edge(output_port(all_inp[1]),
-                                 f"{synth_id}:img", headport="sw")
-                        dot.edge(f"{synth_id}:img:e", tgt_base, headport="w")
-                        dot.edge(output_port(all_inp[2]),
-                                 tgt_base, headport="nw")
-
-                else:
-                    # ── 4+ inputs: chain two mixers ───────────────────────────
-                    synth_id = f"_pre_{vid}"
-                    _add_mixer_image(dot, synth_id, 2)
-                    op_map[synth_id] = type("SynthOp", (), {
-                        "op_id": synth_id, "op_type": "mixer", "parameters": {}
-                    })()
-                    gv_id[synth_id] = synth_id
-                    dot.edge(output_port(all_inp[0]),
-                             f"{synth_id}:img", headport="nw")
-                    dot.edge(output_port(all_inp[1]),
-                             f"{synth_id}:img", headport="sw")
-                    dot.edge(f"{synth_id}:img:e", tgt_base, headport="w")
-                    for i, src_id in enumerate(all_inp[2:4]):
-                        dot.edge(output_port(src_id),
-                                 tgt_base, headport=["nw", "sw"][i])
-
-            else:
-                # Non-mixer: connect all non-led inputs to west side of node
-                for src_id in inputs:
-                    if src_id in led_ids:
-                        continue
-                    tgt = input_target(op.op_id)
-                    # Use w (west/left) for clean horizontal connections
-                    dot.edge(output_port(src_id), tgt, headport="w")
+            is_main = (source, target) in main_edges
+            port = "w"
+            if not is_main and target in main_path and op_map[target].op_type in IMAGE_TYPES:
+                port = "n" if branch_counts[target] % 2 == 0 else "s"
+                branch_counts[target] += 1
+            destination = (f"{gv_id[target]}:img:{port}"
+                           if op_map[target].op_type in IMAGE_TYPES else input_target(target))
+            dot.edge(output_port(source), destination, weight="1000" if is_main else "1")
 
         # ── Render ────────────────────────────────────────────────────────────
         Path(output_png).parent.mkdir(parents=True, exist_ok=True)

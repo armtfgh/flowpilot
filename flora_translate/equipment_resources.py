@@ -13,10 +13,16 @@ def resources_fit(items, capacities):
 def light_fits_stage(light, reactor, proposal, inventory):
     if light.max_reactor_volume_mL is not None and reactor.volume_mL > light.max_reactor_volume_mL + 1e-9:
         return False
-    # Bare tubing is platform-independent; a named assembly is not.
-    system = str(reactor.system or "").lower()
-    if light.module_id and system and system not in {"independent", "platform-independent", "tubing"}:
-        if system not in {light.module_id.lower(), light.module_name.lower()}:
+    # Module membership must be explicit. A pump platform or free volume does
+    # not establish that a loose/manual coil belongs to an integrated reactor.
+    modules = {str(key).strip().lower() for key in reactor.photoreactor_module_ids}
+    module = str(light.module_id or "").strip().lower()
+    system = str(reactor.system or "").strip().lower()
+    if modules:
+        if not module or module not in modules:
+            return False
+    elif module:
+        if not system or system not in {module, str(light.module_name or "").strip().lower()}:
             return False
     if light.compatible_pump_platforms:
         pumps = {p.equipment_id: p for p in inventory.pumps}

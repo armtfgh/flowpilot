@@ -105,6 +105,23 @@ def test_local_adapter_preserves_per_component_facts_and_medium_roles():
     assert by_name["EtOH"].quantification_required is False
 
 
+def test_generic_buffer_phase_annotation_is_not_a_reagent_strength():
+    from flora_translate.design_realizer import _resolve_component_quantity_assumptions
+    from flora_translate.schemas import FlowProposal, StreamAssignment
+    for name in ['pH 9 buffer (aqueous)', 'pH 9 buffer (aq.)', 'pH 9 aqueous buffer']:
+        assert is_solvent_component(name, 'EtOH:pH 9 buffer (5:1, v/v)', '')
+        assert is_solvent_component(name, 'EtOH:pH 9 buffer (5:1 v/v), Ar-degassed', 'co-solvent / base')
+        assert is_solvent_component(name, '', 'base')
+        p=FlowProposal(streams=[StreamAssignment(stream_label='A',concentration_M=.1,
+            solvent='EtOH:pH 9 buffer (5:1, v/v)',contents=[name])])
+        _resolve_component_quantity_assumptions(p,[])
+        assert p.streams[0].contents == [name]
+        p.streams[0].contents=[name+' (0.1 M screening assumption; confirm stock assay before run)']
+        _resolve_component_quantity_assumptions(p,[])
+        assert p.streams[0].contents == [name]
+    assert not is_solvent_component('sodium bicarbonate (1 equiv)', 'EtOH:pH 9 buffer (5:1)', 'base')
+
+
 def test_local_adapter_accepts_explicit_structured_roles_instead_of_discarding_them():
     roles = _build_reagent_roles(BatchRecord(), {"reagents": [{"name": "Z", "role": "base", "equiv_or_loading": "3 equiv"}]}, [StreamLogic(stream_label="A", reagents=["Z"])], "")
     assert roles[0].role == "base"

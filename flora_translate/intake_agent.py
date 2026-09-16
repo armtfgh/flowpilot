@@ -324,11 +324,12 @@ _PROMPT_EQUIPMENT_FIELDS = (
     "equipment_id", "name", "quantity", "service_status", "type", "material",
     "volume_mL", "ID_mm", "configuration", "component_volumes_mL", "gas",
     "setpoints_bar", "min_pressure_bar", "max_pressure_bar", "min_temperature_C",
-    "max_temperature_C", "allowed_temperatures_C", "min_flow_rate_mL_min",
+    "max_temperature_C", "allowed_temperatures_C", "min_flow_rate_mL_min", "flow_rate_increment_mL_min",
     "max_flow_rate_mL_min", "min_flow_sccm", "max_flow_sccm", "wavelength_nm",
     "power_W", "intensity_mW_cm2", "compatible_reactor",
     "platform_id", "resource_requirements", "excluded_chemicals", "module_id",
     "module_name", "max_reactor_volume_mL", "compatible_pump_platforms",
+    "photoreactor_module_ids",
     "required_outlet_accessory_type", "cracking_pressure_bar",
 )
 

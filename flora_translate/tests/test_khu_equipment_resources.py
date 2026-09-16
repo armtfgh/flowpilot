@@ -20,10 +20,36 @@ def test_assembly_limits_not_just_wavelength():
                   max_flow_rate_mL_min=10,max_pressure_bar=10)
     inventory=LabInventory(pumps=[pump])
     proposal=FlowProposal(streams=[StreamAssignment(stream_label='A',pump_equipment_id='p')])
+    assert not light_fits_stage(light,r,proposal,inventory)
+    r=r.model_copy(update={'system':'uv150','photoreactor_module_ids':['uv150']})
     assert light_fits_stage(light,r,proposal,inventory)
-    assert not light_fits_stage(light,r.model_copy(update={'system':'manual1'}),proposal,inventory)
+    assert not light_fits_stage(light,r.model_copy(update={'system':'manual1','photoreactor_module_ids':['manual1']}),proposal,inventory)
     assert not light_fits_stage(light,r.model_copy(update={'volume_mL':20}),proposal,inventory)
     assert not light_fits_stage(light,r,FlowProposal(),inventory)
+
+
+def test_manual_coil_cannot_borrow_integrated_light_even_with_matching_pump():
+    light=LightSourceSpec(wavelength_nm=450,compatible_reactor='coil',module_id='uv150',
+                         module_name='Vapourtec UV-150',max_reactor_volume_mL=10)
+    manual=ReactorSpec(type='coil',material='PFA',volume_mL=2,ID_mm=1,system='manual',
+                       photoreactor_module_ids=['manual1','manual2'])
+    assert not light_fits_stage(light,manual,FlowProposal(),LabInventory())
+    for module in ['manual1','manual2']:
+        assert light_fits_stage(light.model_copy(update={'module_id':module}),manual,FlowProposal(),LabInventory())
+    assert not light_fits_stage(light.model_copy(update={'module_id':''}),manual,FlowProposal(),LabInventory())
+
+
+def test_integrated_reactor_cannot_borrow_manual_light():
+    reactor=ReactorSpec(type='coil',material='PFA',volume_mL=10,ID_mm=1,system='uv150',
+                        photoreactor_module_ids=['uv150'])
+    manual=LightSourceSpec(wavelength_nm=448,compatible_reactor='coil',module_id='manual2')
+    assert not light_fits_stage(manual,reactor,FlowProposal(),LabInventory())
+
+
+def test_module_membership_round_trip():
+    reactor=ReactorSpec(type='coil',material='PFA',volume_mL=2,ID_mm=1,
+                        photoreactor_module_ids=['manual1','manual2'])
+    assert ReactorSpec.model_validate_json(reactor.model_dump_json()).photoreactor_module_ids==['manual1','manual2']
 
 
 def test_positive_gas_destination_with_exclusion():

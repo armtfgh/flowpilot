@@ -19,8 +19,8 @@ def save(path, data):
     path.write_text(json.dumps(data,indent=2,ensure_ascii=False,default=str),encoding='utf-8')
 
 
-def cases():
-    src=json.loads((ROOT/'inventory_khu/source_review_20260914/source_extraction.json').read_text())
+def cases(source_path=None):
+    src=json.loads((source_path or ROOT/'inventory_khu/source_review_20260914/source_extraction.json').read_text())
     slides={s['slide']:s for s in src['slides']}
     out=[]
     for fig,protocol_slide,sets in [(5,1,[5,8,11]),(6,12,[16,19,22])]:
@@ -53,6 +53,8 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--output',type=Path,default=ROOT/'outputs/khu_revised_six_20260914')
     parser.add_argument('--case')
+    parser.add_argument('--source-review', type=Path)
+    parser.add_argument('--inventory',type=Path,default=ROOT/'inventory_khu/KHU_inventory_20260914_v5.json')
     parser.add_argument('--attempt',default='attempt_01')
     parser.add_argument('--prepare-only',action='store_true')
     parser.add_argument('--reuse-generation-from',type=Path)
@@ -64,7 +66,7 @@ def main():
     from flora_translate.engine.llm_agents import set_llm_observer,set_llm_runtime_overrides
     from flora_translate.main import translate
     from flora_translate.gui_autosave import autosave_gui_result
-    profile_path=ROOT/'inventory_khu/KHU_inventory_20260914_v5.json'
+    profile_path=args.inventory
     profile=load_inventory_profile(profile_path)
     runtime=dict(design_policy='scientific_v2',candidate_budget=12,
                  upstream_model='claude-opus-4-6',downstream_model='claude-sonnet-4-6')
@@ -75,7 +77,7 @@ def main():
     if not manifest_path.exists(): save(manifest_path,manifest)
     logging.basicConfig(level=logging.INFO)
     set_llm_runtime_overrides(capture_content=True)
-    for case in cases():
+    for case in cases(args.source_review):
         if args.case and args.case!=case['id']: continue
         p=package_for(case,profile)
         print(case['id'],'READY',p.ready_for_design,'MISSING',p.missing_question_ids,flush=True)

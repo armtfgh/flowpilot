@@ -105,6 +105,7 @@ class PumpSpec(InventoryItemSpec):
     max_pressure_bar: float
     max_flow_rate_mL_min: float
     min_flow_rate_mL_min: float
+    flow_rate_increment_mL_min: Optional[float] = Field(default=None, gt=0)
     compatible_materials: list[str] = Field(default_factory=list)
     platform_id: str = ""
     excluded_chemicals: list[str] = Field(default_factory=list)
@@ -151,6 +152,7 @@ class ReactorSpec(InventoryItemSpec):
     volume_mL: float
     ID_mm: float
     system: str = ""
+    photoreactor_module_ids: list[str] = Field(default_factory=list)
     light_source: str = ""
     wavelength_nm: Optional[float] = None
     intensity_mW_cm2: Optional[float] = None

@@ -43,6 +43,9 @@ def check(path):
         checks[f'stage{n}_tubing_temperature']=bool(reactor and stage['temperature_C']<=reactor.max_temperature_C)
         light=lights.get(stage.get('light_equipment_id'))
         if source['figure']==5:
+            if inventory.reactors and any(r.photoreactor_module_ids for r in inventory.reactors):
+                checks[f'stage{n}_assembly_membership_explicit']=bool(
+                    light and reactor and light.module_id in reactor.photoreactor_module_ids)
             checks[f'stage{n}_module_compatible']=bool(light and reactor and light_fits_stage(light,reactor,p,inventory))
             checks[f'stage{n}_light_temperature']=bool(light and (not light.allowed_temperatures_C or stage['temperature_C'] in light.allowed_temperatures_C)
                 and light.min_temperature_C<=stage['temperature_C']<=light.max_temperature_C)
@@ -52,6 +55,14 @@ def check(path):
             reactor=reactor.name if reactor else 'UNRESOLVED',module=light.module_name if light else 'Thermal, no light',
             light=light.name if light else 'None',wavelength_nm=light.wavelength_nm if light else None))
     used=[pumps[s.pump_equipment_id] for s in p.streams if s.phase!='gas' and s.pump_equipment_id in pumps]
+    for stream in p.streams:
+        if stream.phase == 'gas':
+            continue
+        pump = pumps.get(stream.pump_equipment_id)
+        step = pump.flow_rate_increment_mL_min if pump else None
+        flow = stream.flow_rate_mL_min or 0
+        checks[f'pump_{stream.stream_label}_range'] = bool(pump and pump.min_flow_rate_mL_min <= flow <= pump.max_flow_rate_mL_min)
+        checks[f'pump_{stream.stream_label}_setting_increment'] = bool(pump and (step is None or math.isclose(flow/step, round(flow/step), abs_tol=1e-7, rel_tol=0)))
     used += [lights[s['light_equipment_id']] for s in stages if s.get('light_equipment_id') in lights]
     checks['shared_resources']=resources_fit(used,inventory.resource_capacities)
     components=[c.model_dump() for c in _stream_components(result,streams)]
@@ -78,6 +89,11 @@ def check(path):
         checks['oxygen_at_least2equiv']=bool(gases) and all(s['molar_equiv']>=2-1e-8 for s in gases)
         precursor=[x for x in component_rows if 'trimethylsilane' in x['component'].lower()]
         oxygen=[x for x in component_rows if x['phase']=='gas']
+        acceptor=[x for x in component_rows if 'acrylonitrile' in x['component'].lower()]
+        catalyst=[x for x in component_rows if 'ir(' in x['component'].lower()]
+        reference=sum(x['molar_flow_mmol_min'] or 0 for x in precursor)
+        checks['acrylonitrile_2equiv']=bool(precursor and acceptor) and close(sum(x['molar_flow_mmol_min'] or 0 for x in acceptor),2*reference)
+        checks['photocatalyst_0_5molpct']=bool(precursor and catalyst) and close(sum(x['molar_flow_mmol_min'] or 0 for x in catalyst),.005*reference)
         checks['oxygen_equiv_from_actual_stp_setting']=bool(precursor and oxygen) and sum(x['molar_flow_mmol_min'] or 0 for x in oxygen)>=1.9999*sum(x['molar_flow_mmol_min'] or 0 for x in precursor)
         ops=result.get('process_topology',{}).get('unit_operations',[])
         checks['check_valve_assigned']=any(o['op_type']=='check_valve' and o.get('inventory_item_id')=='cv-3301' for o in ops)

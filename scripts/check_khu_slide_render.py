@@ -1,18 +1,20 @@
 """Render the final slide PDF and record page-bound checks for manual inspection."""
 import json
+import sys
 from pathlib import Path
 import fitz
 from PIL import Image,ImageDraw
 
 ROOT=Path(__file__).resolve().parents[1]
-OUT=ROOT/'outputs/khu_revised_six_20260914/presentation'
+OUT=Path(sys.argv[1]) if len(sys.argv)>1 else ROOT/'outputs/khu_revised_six_20260914/presentation'
 
 
 def main():
     review=OUT/'visual_review';review.mkdir(exist_ok=True)
     fitz.TOOLS.mupdf_display_errors(False)
     fitz.TOOLS.mupdf_display_warnings(False)
-    doc=fitz.open(OUT/'KHU_revised_six_designs.pdf')
+    filename=sys.argv[2] if len(sys.argv)>2 else 'KHU_revised_six_designs.pdf'
+    doc=fitz.open(OUT/filename)
     pages=[];outside=[]
     for i,page in enumerate(doc):
         spans=[s for b in page.get_text('dict')['blocks'] if 'lines' in b for line in b['lines'] for s in line['spans'] if s['text'].strip()]
