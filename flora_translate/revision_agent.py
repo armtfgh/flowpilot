@@ -14,15 +14,15 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict
-from pathlib import Path
-
 import flora_translate.config as cfg
 from flora_translate.config import LAB_INVENTORY_PATH
 from flora_translate.design_calculator import DesignCalculator
+from flora_translate.diagram_artifacts import render_topology_artifacts
 from flora_translate.engine.council_v4 import CouncilV4 as CouncilV3
 from flora_translate.engine.llm_agents import call_model_text
 from flora_translate.input_parser import InputParser
 from flora_translate.output_formatter import OutputFormatter
+from flora_translate.topology_compiler import compile_inventory_topology
 from flora_translate.schemas import (
     BatchRecord,
     ChemistryPlan,
@@ -31,8 +31,6 @@ from flora_translate.schemas import (
 )
 
 logger = logging.getLogger("flora.revision")
-
-OUTPUT_DIR = Path("outputs")
 
 # ── System prompt for the revision LLM ────────────────────────────────────────
 
@@ -124,7 +122,7 @@ class RevisionAgent:
         chem_plan_data = current_result.get("chemistry_plan", {})
         chemistry_plan = ChemistryPlan(**chem_plan_data) if chem_plan_data else ChemistryPlan()
         batch_record = InputParser().parse(original_query)
-        inventory = LabInventory.from_json(str(LAB_INVENTORY_PATH))
+        inventory = _inventory_from_result(current_result)
 
         # ── 2. LLM revision call — single shot ────────────────────────────
         logger.info("  Step 1/5: LLM revision call")
@@ -178,7 +176,9 @@ class RevisionAgent:
 
         # ── 6. Rebuild topology + diagram ──────────────────────────────────
         logger.info("  Step 5/5: Topology & diagram")
-        self._rebuild_diagram(result, design_candidate, revised_chem, batch_record)
+        self._rebuild_diagram(
+            result, design_candidate, revised_chem, batch_record, inventory
+        )
 
         logger.info("  Revision complete — Confidence: %s", result["confidence"])
         return result
@@ -257,29 +257,53 @@ class RevisionAgent:
         design_candidate,
         chemistry_plan: ChemistryPlan,
         batch_record: BatchRecord,
+        inventory: LabInventory,
     ) -> None:
         """Rebuild the process topology and SVG/PNG diagram in-place."""
         try:
             from flora_translate.main import _build_translate_topology
             from flora_design.visualizer.flowsheet_builder import FlowsheetBuilder
 
-            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            svg_path = str(OUTPUT_DIR / "translate_process.svg")
-            png_path = str(OUTPUT_DIR / "translate_process.png")
-
             topology = _build_translate_topology(
                 design_candidate.proposal, chemistry_plan, batch_record,
             )
-            svg, png = FlowsheetBuilder().build(
+            result["process_requirements_topology"] = topology.model_dump()
+            topology, allocation = compile_inventory_topology(
+                topology,
+                proposal=design_candidate.proposal,
+                inventory=inventory,
+            )
+            result["inventory_allocation"] = allocation
+            result["instrument_manifest"] = allocation.get("instrument_manifest", [])
+            if not allocation.get("checks", {}).get("all_required_operations_assigned"):
+                result["svg_path"] = ""
+                result["png_path"] = ""
+                result["recommended_disposition"] = "BLOCK"
+                result["reported_disposition"] = "BLOCK"
+                result["disposition_rationale"] = (
+                    "Revision blocked because required physical equipment could not be assigned."
+                )
+                result["process_topology"] = {
+                    "topology_id": "blocked",
+                    "generation_status": "blocked",
+                    "unit_operations": [],
+                    "streams": [],
+                    "blocking_reasons": allocation.get("unresolved_requirements", []),
+                }
+                return
+            artifacts = render_topology_artifacts(
                 topology,
                 title=batch_record.reaction_description[:70],
-                output_svg=svg_path,
-                output_png=png_path,
+                builder=FlowsheetBuilder(),
             )
-            result["svg_path"] = svg
-            result["png_path"] = png
+            result["svg_path"] = artifacts["svg_path"]
+            result["png_path"] = artifacts["png_path"]
+            result["diagram_artifacts"] = {
+                key: value for key, value in artifacts.items() if key != "manifest"
+            }
+            result["diagram_render_manifest"] = artifacts["manifest"]
             result["process_topology"] = topology.model_dump()
-            logger.info("    Diagram saved: %s", svg)
+            logger.info("    Diagram saved: %s", artifacts["svg_path"])
         except Exception as e:
             logger.warning("    Diagram rebuild failed: %s", e)
             # Keep previous diagram paths if rebuild fails
@@ -287,3 +311,17 @@ class RevisionAgent:
                 result["svg_path"] = ""
             if "png_path" not in result:
                 result["png_path"] = ""
+
+
+def _inventory_from_result(result: dict) -> LabInventory:
+    intake = result.get("intake_package") or {}
+    snapshot = intake.get("inventory_profile_snapshot") or {}
+    payload = snapshot.get("lab_inventory") if isinstance(snapshot, dict) else None
+    if not payload:
+        payload = intake.get("inventory_constraints") if isinstance(intake, dict) else None
+    if isinstance(payload, dict):
+        try:
+            return LabInventory.model_validate(payload)
+        except Exception:
+            pass
+    return LabInventory.from_json(str(LAB_INVENTORY_PATH))

@@ -17,14 +17,14 @@ LAB_INVENTORY_PATH = DATA_DIR / "lab_inventory.json"
 # Base model aliases  (change these to remap multiple components at once)
 # ---------------------------------------------------------------------------
 
-_SONNET  = "claude-sonnet-4-20250514"
+_SONNET  = "claude-sonnet-4-6"
 _OPUS    = "claude-opus-4-6"
 
 # kept for backward compatibility — other modules still import these
 TRANSLATION_MODEL    = _SONNET
 SUMMARY_MODEL        = _SONNET
 CHEMISTRY_MODEL      = _OPUS
-CHEMISTRY_MAX_TOKENS = 8192          # max output tokens for chemistry agent
+CHEMISTRY_MAX_TOKENS = 16384         # complete frontier-model chemistry schema without a duplicate retry
 EMBEDDING_MODEL      = "text-embedding-3-small"
 EMBEDDING_DIM        = 1536
 
@@ -36,7 +36,7 @@ EMBEDDING_DIM        = 1536
 #
 # Available Anthropic models:
 #   claude-opus-4-6            (most capable, slowest, most expensive)
-#   claude-sonnet-4-20250514   (balanced — default for most components)
+#   claude-sonnet-4-6          (balanced - default for most components)
 #   claude-haiku-4-5-20251001  (fast + cheap — good for parsing / classification)
 # ---------------------------------------------------------------------------
 
@@ -66,7 +66,7 @@ MODEL_TOPOLOGY_POLISHER  = "claude-haiku-4-5-20251001"  # lightweight topology r
 
 LIGHTWEIGHT_UPSTREAM_MODE = "auto"
 LIGHTWEIGHT_CHEMISTRY_MAX_TOKENS = 3072
-LIGHTWEIGHT_LOCAL_INPUT_PARSER_MAX_TOKENS = 768
+LIGHTWEIGHT_LOCAL_INPUT_PARSER_MAX_TOKENS = 1536
 LIGHTWEIGHT_UPSTREAM_WEAK_MODEL_MARKERS = (
     "mini",
     "haiku",
@@ -80,13 +80,14 @@ LIGHTWEIGHT_UPSTREAM_WEAK_MODEL_MARKERS = (
 # ---------------------------------------------------------------------------
 # Flow translation policy
 # ---------------------------------------------------------------------------
-# This controls whether FLORA treats de-intensified flow designs as acceptable.
-# For the current benchmark philosophy, the default is intensification-first:
-# proposed flow residence time should not exceed the batch reaction time unless
-# the policy is explicitly relaxed.
+# `evidence_first` treats predicted intensification as a screening hypothesis,
+# not a hard feasibility requirement. It preserves conservative candidates and
+# lets measured campaign evidence set residence-time floors. `intensify` keeps
+# the former hard residence-time and process-value gates for explicitly
+# requested intensification studies. `neutral` applies neither preference.
 # ---------------------------------------------------------------------------
 
-FLOW_TRANSLATION_POLICY = "intensify"   # "intensify" | "neutral"
+FLOW_TRANSLATION_POLICY = "evidence_first"  # "evidence_first" | "intensify" | "neutral"
 FLOW_MAX_TAU_TO_BATCH_RATIO = 1.0
 
 # ---------------------------------------------------------------------------
@@ -128,7 +129,7 @@ CHIEF_SCORE_WEIGHT_GEOMETRY = 0.15
 
 ENGINE_PROVIDER        = "openai"                # ← flip this to switch
 
-ENGINE_MODEL_ANTHROPIC = TRANSLATION_MODEL       # claude-sonnet-4-20250514
+ENGINE_MODEL_ANTHROPIC = TRANSLATION_MODEL       # claude-sonnet-4-6
 ENGINE_MODEL_OPENAI    = "gpt-4o"                # gpt-4o | gpt-4o-mini | o1-mini
 ENGINE_MODEL_OLLAMA    = "gemma4-flora"           # gemma4:31b + num_ctx 8192 (see Modelfile)
 

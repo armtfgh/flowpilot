@@ -90,6 +90,17 @@ class OutputFormatter:
     def _generate_explanation(self, candidate: DesignCandidate) -> str:
         """Use Claude to generate a human-readable explanation."""
         p = candidate.proposal
+        if p.scientific_design.get("mode") == "scientific_v2":
+            # The chief already supplied a reviewed rationale. A second model
+            # paraphrase must not turn an experimental screen into validation.
+            a = p.scientific_design
+            rows = next(c for c in a["candidates"] if c["candidate_id"] == a["selected_candidate_id"])
+            return ("Experimental screening hypothesis; achieved yield and flow kinetics are unknown.\n\n"
+                    + a["chief"]["justification"] + "\n\n"
+                    + "\n".join(f"Stage {s['stage_number']}: {s['reactor_volume_mL']:g} mL, {s['temperature_C']:g} C, {s['residence_time_min']:g} min."
+                                 for s in p.stage_parameters)
+                    + "\n\n" + "\n".join(d["consequence"] for d in rows["temperature_deviations"])
+                    + "\n\nRequired measurements: " + "; ".join(a["chief"].get("next_measurements", [])))
         # Build a concise "key numbers" block so the LLM cannot hallucinate
         # residence time, flow rate, or volume from inconsistent context.
         key_numbers = (
@@ -124,7 +135,7 @@ class OutputFormatter:
             result = call_model_text(
                 model=cfg.MODEL_OUTPUT_FORMATTER,
                 api_name="output_formatter",
-                max_tokens=1500,
+                max_tokens=3000,
                 system=system_with_numbers,
                 user_content=json.dumps(
                     candidate.model_dump(), indent=2, default=str

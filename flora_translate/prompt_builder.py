@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 
 from flora_translate.config import PROMPTS_DIR
-from flora_translate.schemas import BatchRecord, ChemistryPlan
+from flora_translate.intake_agent import intake_context_block
+from flora_translate.inventory_constraints import inventory_prompt_block
+from flora_translate.schemas import BatchRecord, ChemistryPlan, DesignInputPackage, LabInventory
 
 
 def _load_prompt(name: str) -> str:
@@ -59,6 +61,8 @@ class TranslationPromptBuilder:
         analogies: list[dict],
         chemistry_plan: ChemistryPlan | None = None,
         calculations=None,
+        inventory: LabInventory | None = None,
+        intake_package: DesignInputPackage | dict | None = None,
     ) -> tuple[str, str]:
         """Returns (system_prompt, user_prompt).
 
@@ -105,6 +109,8 @@ class TranslationPromptBuilder:
             "## Pre-computed Engineering Calculations\n"
             "No calculations available — use analogy data and first principles."
         )
+        inventory_block = inventory_prompt_block(inventory)
+        intake_block = intake_context_block(intake_package)
 
         user_template = _load_prompt("translate_user.txt")
 
@@ -117,5 +123,17 @@ class TranslationPromptBuilder:
                 .replace("{chemistry_reasoning}", reasoning or "(not available)")
                 .replace("{analogies_text}", analogies_text)
                 .replace("{calculations_block}", calc_block))
+        user = user + "\n\n" + intake_block + "\n\n" + inventory_block + (
+            "\n\nIMPORTANT: Use one of the listed inventory reactors exactly for "
+            "the final reactor volume, ID, material, pressure/temperature range, "
+            "and light setup. Do not invent a reactor volume outside this list. "
+            "Measured evidence in the intake context overrides unsupported model "
+            "inference; chemist hypotheses are hypotheses to test, not facts. "
+            "For every multistage design, stage_parameters MUST contain one entry "
+            "for every chemistry stage with stage_number, reactor_equipment_id, "
+            "reactor_volume_mL, material, d_mm, temperature_C, residence_time_min, "
+            "and light_equipment_id when light is required. Equipment IDs must be "
+            "copied exactly from inventory. Never describe stage hardware only in prose."
+        )
 
         return system, user

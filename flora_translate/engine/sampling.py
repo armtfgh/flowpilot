@@ -45,12 +45,13 @@ from flora_translate.engine.tools import (
 PI = math.pi
 
 # Bench constraints — hard physical limits, not weights
-L_MAX_BENCH_M = 20.0
+L_MAX_BENCH_M = 30.0               # Hard cap; soft penalty above 15 m in scoring
 V_MAX_SINGLE_REACTOR_ML = 25.0
 Q_MIN_ML_MIN = 0.05                # syringe pump floor (practical)
 RE_TURBULENT = 2300.0
 D_MOLECULAR = 1.0e-9               # m²/s, small organics in liquid
 DELTA_P_SAFETY_FACTOR = 0.8        # ΔP < 0.8 × pump_max
+DELTA_P_MAX_BAR = 5.0              # Hard cap on single-phase ΔP; soft penalty above 2 bar in scoring
 
 # Commercially available FEP/PFA tubing IDs for lab-scale flow chem
 STANDARD_D_PHOTOCHEM = [0.50, 0.75, 1.00]          # mm — Beer-Lambert limited
@@ -63,7 +64,7 @@ GAS_LIQUID_ROUTINE_MAX_BPR_BAR = 10.0
 GAS_LIQUID_BPR_MARGIN_BAR = 1.5
 GAS_LIQUID_MIN_ID_MM = 0.50
 GAS_LIQUID_MAX_DELTA_P_BAR = 50.0
-GAS_LIQUID_MAX_BPR_BAR = GAS_LIQUID_ROUTINE_MAX_BPR_BAR
+GAS_LIQUID_MAX_BPR_BAR = 50.0
 GAS_LIQUID_DESIGN_LIQUID_HOLDUP_FRACTION = 0.18
 
 
@@ -164,6 +165,7 @@ def sample_design_space(
     d_exclude_above_mm: Optional[float] = None,
     L_fractions: Optional[list[float]] = None,
     max_tau_min: Optional[float] = None,
+    min_flow_rate_mL_min: float = Q_MIN_ML_MIN,
 ) -> list[tuple[float, float, float, str]]:
     """Full (τ, d, Q, τ_source) enumeration.
 
@@ -196,7 +198,7 @@ def sample_design_space(
                     # contributes to liquid residence time.
                     V_R_target_mL *= GAS_LIQUID_DESIGN_LIQUID_HOLDUP_FRACTION
                 Q_mL_min = V_R_target_mL / tau_min
-                if Q_mL_min < Q_MIN_ML_MIN:
+                if Q_mL_min < min_flow_rate_mL_min:
                     continue
                 triplets.append((tau_min, d_mm, round(Q_mL_min, 5), tau_source))
     return triplets
@@ -222,6 +224,8 @@ def compute_metrics(
     tau_source: str = "",
     is_gas_liquid: bool = False,
     BPR_bar: float = 0.0,
+    target_gas_equiv_inlet: float = 3.0,
+    gas_reagent_fraction: float = 0.21,
 ) -> dict:
     """Compute the full metric set for a single (τ, d, Q) candidate."""
     d_m = d_mm * 1e-3
@@ -238,10 +242,10 @@ def compute_metrics(
     if is_gas_liquid and Q_mL_min > 0:
         P_abs_bar = max(float(BPR_bar or 0.0) + 1.01325, 6.0)
         n_substrate_mmol_min = Q_mL_min * max(concentration_M, 1e-9)
-        # Conservative air/O2 basis: 3 equiv O2 from air. This intentionally
-        # prevents gas-liquid candidates from passing on liquid-only geometry.
-        n_air_mmol_min = (n_substrate_mmol_min * 3.0) / 0.21
-        gas_sccm = n_air_mmol_min * 22.414
+        gas_equiv = max(float(target_gas_equiv_inlet or 0.0), 1e-9)
+        reagent_fraction = min(max(float(gas_reagent_fraction or 0.0), 1e-9), 1.0)
+        n_total_gas_mmol_min = (n_substrate_mmol_min * gas_equiv) / reagent_fraction
+        gas_sccm = n_total_gas_mmol_min * 22.414
         gas_flow_actual_mL_min = gas_sccm * (298.15 / 273.15) * (1.01325 / P_abs_bar)
         gas_liquid_ratio = gas_flow_actual_mL_min / max(Q_mL_min, 1e-9)
         gas_holdup = max(
@@ -319,6 +323,8 @@ def compute_metrics(
         "gas_liquid_ratio": round(gas_liquid_ratio, 4),
         "two_phase_multiplier": round(two_phase_multiplier, 4),
         "required_bpr_bar": round(required_bpr_bar, 2),
+        "target_gas_equiv_inlet": round(float(target_gas_equiv_inlet or 0.0), 4),
+        "gas_reagent_fraction": round(float(gas_reagent_fraction or 0.0), 4),
         # mixing
         "t_mix_s": round(t_mix_s, 3),
         "r_mix": round(r_mix, 5),
@@ -347,6 +353,9 @@ def hard_filter(
     pump_max_bar: float,
     BPR_bar: float = 0.0,
     max_tau_min: Optional[float] = None,
+    min_flow_rate_mL_min: float = Q_MIN_ML_MIN,
+    max_flow_rate_mL_min: Optional[float] = None,
+    gas_liquid_max_bpr_bar: float = GAS_LIQUID_MAX_BPR_BAR,
 ) -> tuple[bool, list[str], list[str]]:
     """Apply hard bench/safety constraints.
 
@@ -376,6 +385,13 @@ def hard_filter(
             f"ΔP={m['delta_P_bar']:.3f} bar ≥ {DELTA_P_SAFETY_FACTOR:.0%} of pump_max "
             f"({pump_max_bar} bar)"
         )
+    if m["delta_P_bar"] > DELTA_P_MAX_BAR:
+        violations.append(
+            f"ΔP={m['delta_P_bar']:.2f} bar > {DELTA_P_MAX_BAR:.1f} bar "
+            "(bench-practical ceiling; BPR can't regulate two-phase pressure above this)"
+        )
+    elif m["delta_P_bar"] > 2.0:
+        warnings.append(f"ΔP={m['delta_P_bar']:.2f} bar > 2 bar — upper practical range")
     if is_gas_liquid and m["delta_P_bar"] > GAS_LIQUID_MAX_DELTA_P_BAR:
         violations.append(
             f"gas-liquid ΔP={m['delta_P_bar']:.2f} bar > {GAS_LIQUID_MAX_DELTA_P_BAR:.0f} bar "
@@ -383,8 +399,20 @@ def hard_filter(
         )
 
     # Flow floor
-    if m["Q_mL_min"] < Q_MIN_ML_MIN:
-        violations.append(f"Q={m['Q_mL_min']:.4f} mL/min < {Q_MIN_ML_MIN} (syringe pump floor)")
+    if m["Q_mL_min"] < min_flow_rate_mL_min:
+        violations.append(
+            f"Q={m['Q_mL_min']:.4f} mL/min < {min_flow_rate_mL_min} "
+            "(selected pump floor)"
+        )
+    if (
+        max_flow_rate_mL_min is not None
+        and max_flow_rate_mL_min > 0
+        and m["Q_mL_min"] > max_flow_rate_mL_min
+    ):
+        violations.append(
+            f"Q={m['Q_mL_min']:.4f} mL/min > {max_flow_rate_mL_min} "
+            "(selected pump maximum)"
+        )
 
     if max_tau_min is not None and m["tau_min"] > max_tau_min:
         violations.append(
@@ -392,9 +420,18 @@ def hard_filter(
             "(translation policy: intensify)"
         )
 
-    # Photochem: Beer-Lambert constraint (bench-physics rule — hard)
-    if is_photochem and m["d_mm"] > 1.0:
-        violations.append(f"d={m['d_mm']} mm > 1.0 mm — Beer-Lambert inner-filter risk")
+    # Photochem: Beer-Lambert constraint (bench-physics rule — hard).
+    # Gas-liquid photochemistry needs more bore than dry photoredox because
+    # gas holdup forces the liquid into a smaller cross-section; sub-mm IDs
+    # become infeasible at typical gas flow rates. Allow up to 1.6 mm in
+    # that case — penetration depth at typical photoredox ε is still
+    # adequate for slug-flow geometry.
+    photochem_d_max_mm = 1.6 if is_gas_liquid else 1.0
+    if is_photochem and m["d_mm"] > photochem_d_max_mm:
+        violations.append(
+            f"d={m['d_mm']} mm > {photochem_d_max_mm} mm "
+            f"— Beer-Lambert inner-filter risk (gas_liquid={is_gas_liquid})"
+        )
     # Inner-filter HIGH is a chemistry-level concern (can be mitigated by dilution
     # or ε at LED wavelength). The Photonics advocate + Skeptic evaluate it.
     # Keep as a warning, not a hard filter.
@@ -411,16 +448,23 @@ def hard_filter(
             f"BPR={BPR_bar} bar < {BPR_MIN_GAS_LIQUID_BAR} bar (gas-liquid hard rule — "
             f"Safety will enforce)"
         )
-    if is_gas_liquid and BPR_bar > GAS_LIQUID_MAX_BPR_BAR:
+    if is_gas_liquid and BPR_bar > gas_liquid_max_bpr_bar:
         violations.append(
-            f"BPR={BPR_bar:.1f} bar > {GAS_LIQUID_MAX_BPR_BAR:.0f} bar "
-            "(gas-service practical ceiling)"
+            f"BPR={BPR_bar:.1f} bar > {gas_liquid_max_bpr_bar:.0f} bar "
+            "(available gas-service pressure ceiling)"
         )
-    if is_gas_liquid and (m.get("required_bpr_bar") or 0.0) > GAS_LIQUID_ROUTINE_MAX_BPR_BAR:
+    required_bpr = float(m.get("required_bpr_bar") or 0.0)
+    if is_gas_liquid and required_bpr > gas_liquid_max_bpr_bar:
         violations.append(
-            f"required BPR={m['required_bpr_bar']:.1f} bar > "
-            f"{GAS_LIQUID_ROUTINE_MAX_BPR_BAR:.0f} bar routine gas-liquid ceiling; "
+            f"required BPR={required_bpr:.1f} bar > "
+            f"{gas_liquid_max_bpr_bar:.0f} bar available gas-service ceiling; "
             "increase ID/reduce gas load/reduce liquid throughput"
+        )
+    elif is_gas_liquid and required_bpr > GAS_LIQUID_ROUTINE_MAX_BPR_BAR:
+        warnings.append(
+            f"required BPR={required_bpr:.1f} bar > "
+            f"{GAS_LIQUID_ROUTINE_MAX_BPR_BAR:.0f} bar routine operating range; "
+            "use only certified high-pressure gas hardware"
         )
     if is_gas_liquid and m["d_mm"] < GAS_LIQUID_MIN_ID_MM:
         violations.append(
@@ -468,6 +512,12 @@ def generate_candidates(
     L_fractions: Optional[list[float]] = None,
     N_target: int = 12,
     max_tau_min: Optional[float] = None,
+    min_tau_min: Optional[float] = None,
+    min_flow_rate_mL_min: float = Q_MIN_ML_MIN,
+    max_flow_rate_mL_min: Optional[float] = None,
+    target_gas_equiv_inlet: float = 3.0,
+    gas_reagent_fraction: float = 0.21,
+    gas_liquid_max_bpr_bar: float = GAS_LIQUID_MAX_BPR_BAR,
 ) -> tuple[list[dict], list[dict]]:
     """Generate → metrics → hard filter. Returns (feasible, infeasible).
 
@@ -487,12 +537,15 @@ def generate_candidates(
         n_tau=n_tau, tau_log_spaced=tau_log_spaced,
         d_exclude_above_mm=d_exclude_above_mm, L_fractions=L_fractions,
         max_tau_min=max_tau_min,
+        min_flow_rate_mL_min=min_flow_rate_mL_min,
     )
 
     feasible: list[dict] = []
     infeasible: list[dict] = []
 
     for tau_min, d_mm, Q_mL_min, tau_source in triplets:
+        if min_tau_min is not None and tau_min < min_tau_min - 1e-9:
+            continue
         m = compute_metrics(
             tau_min=tau_min, d_mm=d_mm, Q_mL_min=Q_mL_min,
             solvent=solvent, temperature_C=temperature_C,
@@ -503,14 +556,49 @@ def generate_candidates(
             tau_source=tau_source,
             is_gas_liquid=is_gas_liquid,
             BPR_bar=BPR_bar,
+            target_gas_equiv_inlet=target_gas_equiv_inlet,
+            gas_reagent_fraction=gas_reagent_fraction,
         )
         ok, viol, warns = hard_filter(
             m, is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,
             pump_max_bar=pump_max_bar, BPR_bar=BPR_bar, max_tau_min=max_tau_min,
+            min_flow_rate_mL_min=min_flow_rate_mL_min,
+            max_flow_rate_mL_min=max_flow_rate_mL_min,
+            gas_liquid_max_bpr_bar=gas_liquid_max_bpr_bar,
         )
         m["feasible"] = ok
         m["violations"] = viol
         m["warnings"] = warns
+        # Categorize the primary kill reason for diagnostics. Helps the
+        # "Council v4: 0 total feasible → 4 sampling-infeasible" log line
+        # surface what actually killed each candidate (ΔP, BPR, L, Re, X).
+        if not ok and viol:
+            tags: list[str] = []
+            for v in viol:
+                vl = v.lower()
+                if "δp" in v or "deltap" in vl or vl.startswith("dp=") or "δp=" in vl or "delta_p" in vl:
+                    tags.append("ΔP")
+                elif "bpr" in vl:
+                    tags.append("BPR")
+                elif "l=" in vl and " m " in vl:
+                    tags.append("L")
+                elif "re=" in vl or "turbulent" in vl:
+                    tags.append("Re")
+                elif "x=" in vl or "x_minimum" in vl:
+                    tags.append("X")
+                elif "beer-lambert" in vl or "inner-filter" in vl:
+                    tags.append("d_photochem")
+                elif "tau=" in vl or "batch ceiling" in vl:
+                    tags.append("τ_ceiling")
+                elif "q=" in vl and ("maximum" in vl or " > " in vl):
+                    tags.append("Q_ceiling")
+                elif "q=" in vl:
+                    tags.append("Q_floor")
+                elif "v_r" in vl:
+                    tags.append("V_R")
+                else:
+                    tags.append("other")
+            m["primary_kill_categories"] = sorted(set(tags))
         (feasible if ok else infeasible).append(m)
 
     # Non-dominated ordering on (productivity↑, L↓, r_mix↓)

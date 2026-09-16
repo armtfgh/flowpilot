@@ -1,13 +1,13 @@
-"""FLORA Design — unified batch-to-flow translation and process design page."""
+"""FlowPilot unified batch-to-flow translation and process design page."""
 
 from pathlib import Path
 import streamlit as st
 
 
 def render():
-    st.title("FLORA Design")
+    st.title("FlowPilot Design")
     st.markdown(
-        "Describe your chemistry — FLORA will design a validated flow process "
+        "Describe your chemistry. FlowPilot will design a validated flow process "
         "grounded in literature. Works from a batch protocol or a free-text goal."
     )
 
@@ -55,9 +55,70 @@ def _render_translate():
             st.session_state.chat_messages = []
             st.session_state.active_result = None
             st.session_state.chat_agent.reset()
+            for key in list(st.session_state.keys()):
+                if str(key).startswith("flowpilot_intake"):
+                    del st.session_state[key]
             st.rerun()
 
+    from components.intake_wizard import render_intake_wizard
+
+    intake_package = render_intake_wizard("flowpilot_intake")
+    if st.session_state.get("active_result") is None:
+        if not intake_package or not intake_package.ready_for_design:
+            st.info("Complete the standardized intake package before running FlowPilot design.")
+            return
+
+        from components.model_route_selector import render_model_route_selector
+
+        runtime_options, route_blockers = render_model_route_selector(
+            "flowpilot_design_models"
+        )
+
+        if st.button(
+            "Run FlowPilot Design",
+            type="primary",
+            use_container_width=True,
+            disabled=bool(route_blockers),
+        ):
+            with st.spinner("Running FlowPilot pipeline from standardized intake..."):
+                try:
+                    from flora_translate.main import translate
+
+                    result = translate(
+                        intake_package.raw_protocol,
+                        intake_package=intake_package,
+                        runtime_options=runtime_options,
+                    )
+                    from flora_translate.gui_autosave import autosave_gui_result
+
+                    autosave_dir = autosave_gui_result(
+                        result,
+                        intake_package=intake_package,
+                        source="standardized_intake",
+                        user_input=intake_package.raw_protocol,
+                    )
+                    result["autosave_dir"] = str(autosave_dir)
+                    st.session_state["active_result"] = result
+                    st.session_state.chat_agent.current_result = result
+                    st.session_state.chat_agent.original_query = intake_package.raw_protocol
+                    st.session_state.chat_messages.append({
+                        "role": "assistant",
+                        "content": "FlowPilot design generated from standardized intake.",
+                        "result": result,
+                        "questions": [],
+                    })
+                    st.rerun()
+                except Exception as e:
+                    from components.error_card import render_error
+
+                    render_error(e, "FlowPilot standardized intake design")
+                    return
+        st.info("Intake is ready. Run FlowPilot Design to generate the first flow proposal.")
+        return
+
     # ── Render chat history ────────────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("Design Chat")
     for i, msg in enumerate(st.session_state.chat_messages):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
@@ -69,7 +130,7 @@ def _render_translate():
                         "\n".join(f"{j+1}. {q}" for j, q in enumerate(msg["questions"])))
 
     # ── Example prompts (only when chat is empty) ──────────────────────────
-    if not st.session_state.chat_messages:
+    if not st.session_state.chat_messages and st.session_state.get("active_result") is None:
         st.markdown(
             """
             <div style="color:#888; font-size:0.88em; margin-bottom:8px;">
@@ -114,7 +175,7 @@ def _render_translate():
             )
 
             spinner_msg = (
-                "Running FLORA pipeline — this takes ~30-60 seconds…"
+                "Running FlowPilot pipeline. This takes about 30-60 seconds..."
                 if is_likely_translation or any(
                     kw in prompt.lower()
                     for kw in ["add", "remove", "change", "revise", "modify",
@@ -138,6 +199,14 @@ def _render_translate():
             st.markdown(response.message)
 
             if response.result:
+                from flora_translate.gui_autosave import autosave_gui_result
+
+                autosave_dir = autosave_gui_result(
+                    response.result,
+                    source="chat",
+                    user_input=prompt,
+                )
+                response.result["autosave_dir"] = str(autosave_dir)
                 st.session_state["active_result"] = response.result
                 _render_result_compact(response.result, "new")
 
@@ -147,7 +216,7 @@ def _render_translate():
 
             if response.error:
                 from components.error_card import render_error
-                render_error(Exception(response.error), "FLORA-Translate")
+                render_error(Exception(response.error), "FlowPilot translation")
 
         # Persist to history
         st.session_state.chat_messages.append({
@@ -194,7 +263,7 @@ def _render_design():
                 st.session_state["flora_result_type"] = "design"
             except Exception as e:
                 from components.error_card import render_error
-                render_error(e, "FLORA-Design")
+                render_error(e, "FlowPilot design")
                 return
 
     if st.session_state.get("flora_result_type") == "design":
@@ -205,9 +274,77 @@ def _render_design():
 # Compact result badge (shown INSIDE chat bubble — no tabs, no nested widgets)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _result_with_contract_disposition(result: dict, final_design: dict) -> dict:
+    """Return a display view whose status cannot disagree with final closure."""
+
+    if final_design.get("status") == "executable":
+        return result
+    issues = (final_design.get("consistency") or {}).get("issues") or []
+    view = dict(result)
+    view["recommended_disposition"] = "BLOCK"
+    view["reported_disposition"] = "BLOCK"
+    view["disposition_rationale"] = (
+        "The post-validation final-design contract did not close; run parameters "
+        "and the executable diagram are withheld."
+    )
+    view["design_disposition"] = {
+        **dict(result.get("design_disposition") or {}),
+        "recommended_disposition": "BLOCK",
+        "rationale": view["disposition_rationale"],
+        "hard_failures": [
+            {
+                "finding_id": issue.get("code", "FINAL-CHECK"),
+                "message": issue.get("message", "Final consistency check failed."),
+            }
+            for issue in issues
+        ],
+    }
+    return view
+
+
+def _stored_or_current_final_design(result: dict) -> dict:
+    """Preserve a frozen v2 contract; rebuild only legacy/uncontracted results."""
+
+    stored = result.get("final_design") or {}
+    if stored.get("schema_version") == "flowpilot_final_design_v2.0":
+        return stored
+    from flora_translate.final_design_contract import build_final_design_contract
+
+    return build_final_design_contract(result)
+
+
 def _render_result_compact(result: dict, key_suffix):
     """Show a small summary card inside a chat message — no tabs, no downloads."""
-    proposal = result.get("proposal", {})
+    from components.design_disposition import render_design_disposition
+    final_design = _stored_or_current_final_design(result)
+    render_design_disposition(
+        _result_with_contract_disposition(result, final_design), compact=True
+    )
+    if final_design.get("status") != "executable":
+        confirmation_required = (
+            result.get("design_status") == "inventory_confirmation_required"
+        )
+        st.caption(
+            "Inventory confirmation is required before numerical design. A "
+            "requirements topology is available below."
+            if confirmation_required
+            else "No executable parameters were produced. A diagnostic "
+            "requirements topology is available below."
+        )
+        unresolved = (
+            (result.get("inventory_allocation") or {}).get("unresolved_requirements")
+            or []
+        )
+        if unresolved:
+            st.markdown("**Unresolved inventory requirements**")
+            for item in unresolved:
+                st.warning(
+                    f"{item.get('operation_id', 'process')}: {item.get('reason', 'Missing equipment')}"
+                )
+        if result.get("autosave_dir"):
+            st.caption(f"Autosaved: {result['autosave_dir']}")
+        return
+    proposal = final_design.get("parameters") or {}
     conf     = result.get("confidence", "?")
     conf_color = {"HIGH": "green", "MEDIUM": "orange", "LOW": "red"}.get(conf, "gray")
     rt  = proposal.get("residence_time_min", "?")
@@ -220,6 +357,8 @@ def _render_result_compact(result: dict, key_suffix):
         f"**Q =** {fr} mL/min"
     )
     st.caption("↓ Full design with process diagram, chemistry plan, and conditions shown below")
+    if result.get("autosave_dir"):
+        st.caption(f"Autosaved: {result['autosave_dir']}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -227,10 +366,34 @@ def _render_result_compact(result: dict, key_suffix):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _render_result(result: dict, key_prefix: str = ""):
-    proposal = result.get("proposal", {})
+    from components.design_disposition import render_design_disposition
+    from flora_translate.final_design_contract import (
+        canonical_proposal,
+    )
+
+    final_design = _stored_or_current_final_design(result)
+    result["final_design"] = final_design
+    proposal = canonical_proposal(result)
+    is_blocked = final_design["status"] != "executable"
+    confirmation_required = (
+        result.get("design_status") == "inventory_confirmation_required"
+    )
     conf = result.get("confidence", "LOW")
     conf_color = {"HIGH": "green", "MEDIUM": "orange", "LOW": "red"}.get(conf, "gray")
-    st.markdown(f"### Confidence: :{conf_color}[{conf}]")
+    render_design_disposition(_result_with_contract_disposition(result, final_design))
+    if is_blocked:
+        if confirmation_required:
+            st.markdown("### Design status: :orange[INVENTORY CONFIRMATION REQUIRED]")
+        else:
+            st.markdown("### Candidate status: :red[REJECTED]")
+        st.caption(
+            f"Model confidence was {conf}, but deterministic feasibility gates "
+            "override model confidence."
+        )
+    else:
+        st.markdown(f"### Confidence: :{conf_color}[{conf}]")
+    if result.get("autosave_dir"):
+        st.caption(f"Autosaved run folder: {result['autosave_dir']}")
 
     tabs = st.tabs([
         "Summary",
@@ -240,74 +403,91 @@ def _render_result(result: dict, key_prefix: str = ""):
         "Stream Assignments",
         "Council Deliberation",
         "Council Report",
+        "Experiment Loop",
         "Raw JSON",
+        "Equipment & Inventory",
+        "Process summary",
+        "Responses",
     ])
 
     # ── Tab 0: Summary ────────────────────────────────────────────────────────
     with tabs[0]:
-        _render_summary(result, proposal)
+        _render_summary(result, final_design)
 
     # ── Tab 1: Engineering Design ─────────────────────────────────────────────
     with tabs[1]:
-        design_calc = result.get("design_calculations")
-        if design_calc:
-            from components.design_steps import render_design_steps
-            render_design_steps(design_calc, key_prefix=f"{key_prefix}_ds")
+        if is_blocked:
+            _render_reconciliation(final_design)
         else:
-            st.info("No design calculations available for this result.")
-
-        # Per-reactor breakdown from topology
-        topo_for_eng = result.get("process_topology", {})
-        reactor_ops = [
-            op for op in topo_for_eng.get("unit_operations", [])
-            if op.get("op_type") in ("coil_reactor", "reactor", "heated_coil",
-                                      "photoreactor", "chip_reactor",
-                                      "packed_bed", "packed_bed_reactor")
-        ]
-        if len(reactor_ops) > 1:
-            st.divider()
-            st.markdown("### Per-Reactor Breakdown")
-            for idx, rop in enumerate(reactor_ops, 1):
-                p = rop.get("parameters", {})
-                with st.expander(f"Reactor {idx}: {rop.get('label', '?')}", expanded=True):
-                    cols = st.columns(4)
-                    cols[0].metric("τ", f"{p.get('residence_time_min', '?')} min")
-                    cols[1].metric("Volume", f"{p.get('volume_mL', '?')} mL")
-                    cols[2].metric("ID", f"{p.get('ID_mm', '?')} mm")
-                    cols[3].metric("Temperature", f"{p.get('temperature_C', '?')} °C")
-                    c2 = st.columns(4)
-                    c2[0].metric("Material", p.get("material", "?"))
-                    length = p.get("length_m")
-                    c2[1].metric("Length", f"{length} m" if length else "?")
-                    wl = p.get("wavelength_nm")
-                    c2[2].metric("Wavelength", f"{wl} nm" if wl else "N/A")
-                    q_inlet = p.get("Q_inlet_mL_min")
-                    c2[3].metric("Q_inlet", f"{q_inlet} mL/min" if q_inlet else "?")
-                    if p.get("gas_holdup") or p.get("Q_gas_actual_mL_min"):
-                        c3 = st.columns(4)
-                        c3[0].metric("Q_liquid", f"{p.get('Q_liquid_mL_min', q_inlet)} mL/min")
-                        c3[1].metric("Q_gas actual", f"{p.get('Q_gas_actual_mL_min', '?')} mL/min")
-                        c3[2].metric("Gas holdup", f"{p.get('gas_holdup', '?')}")
-                        c3[3].metric("Liquid holdup", f"{p.get('liquid_holdup_volume_mL', '?')} mL")
-                        st.caption(
-                            "For gas-liquid stages, reactor volume is not τ×(Q_liquid+Q_gas). "
-                            "The product liquid residence time is τ_liq = V_liquid/Q_liquid, "
-                            "and total tube volume is V_total = V_liquid/(1 - gas holdup)."
-                        )
+            from components.result_reporting import render_engineering_history
+            render_engineering_history(result)
+            design_calc = result.get("design_calculations")
+            if design_calc and st.checkbox(
+                "Show pre-final calculation audit trail",
+                value=False,
+                key=f"{key_prefix}_show_calc_audit",
+            ):
+                st.caption(
+                    "Supporting calculator trace. The final values above are authoritative."
+                )
+                from components.design_steps import render_design_steps
+                render_design_steps(design_calc, key_prefix=f"{key_prefix}_ds")
 
         # Before vs After council comparison table
         pre = result.get("pre_council_proposal")
-        if pre and proposal:
+        if not is_blocked and pre and proposal:
             _render_before_after_table(pre, proposal, result.get("deliberation_log"))
 
     # ── Tab 2: Process Diagram ────────────────────────────────────────────────
     with tabs[2]:
-        from components.process_diagram import render_process_diagram
-        render_process_diagram(result.get("svg_path", ""), result.get("png_path", ""), key_prefix=key_prefix)
-        topo = result.get("process_topology", {})
-        if topo:
+        if is_blocked:
+            st.warning(
+                "REQUIREMENTS TOPOLOGY - NOT EXECUTABLE. This diagram shows the "
+                "required process structure and unresolved inventory assignments; "
+                "it contains no approved run instructions."
+            )
+            diagnostic_topology = (
+                result.get("diagnostic_topology")
+                or result.get("process_requirements_topology")
+                or {}
+            )
+            from components.process_diagram import render_process_diagram
+            render_process_diagram(
+                result.get("diagnostic_svg_path", ""),
+                result.get("diagnostic_png_path", ""),
+                key_prefix=f"{key_prefix}_diagnostic",
+                topology=diagnostic_topology,
+                render_manifest=(
+                    result.get("diagnostic_diagram_render_manifest") or {}
+                ),
+            )
+            _render_reconciliation(final_design)
+        else:
+            from components.process_diagram import render_process_diagram
+            from flora_translate.diagram_views import current_diagram
+            current_svg = current_diagram(result, "process-svg")
+            current_png = current_diagram(result, "process-png")
+            render_process_diagram(
+                str(current_svg) if current_svg else result.get("svg_path", ""),
+                str(current_png) if current_png else result.get("png_path", ""),
+                key_prefix=key_prefix,
+                topology=result.get("process_topology") or {},
+                render_manifest=result.get("diagram_render_manifest") or {},
+            )
+        topo = (
+            result.get("diagnostic_topology")
+            or result.get("process_requirements_topology")
+            or {}
+            if is_blocked
+            else result.get("process_topology", {})
+        )
+        if topo and topo.get("unit_operations"):
             st.divider()
-            st.markdown("#### Unit Operations")
+            st.markdown(
+                "#### Required Unit Operations"
+                if is_blocked
+                else "#### Unit Operations"
+            )
             for i, op in enumerate(topo.get("unit_operations", []), 1):
                 if op.get("op_type") == "led_module":
                     continue
@@ -335,8 +515,10 @@ def _render_result(result: dict, key_prefix: str = ""):
                         )
                     # Parameters
                     p = op.get("parameters", {})
-                    param_items = [(k, v) for k, v in p.items()
-                                   if v is not None and k not in ("light_required",)]
+                    param_items = [(k.replace("sccm", "inlet_STP_mL_min"), v) for k, v in p.items()
+                                   if v is not None and k not in ("light_required", "gas_holdup", "liquid_holdup_volume_mL")
+                                   and "in_channel" not in k and "actual" not in k
+                                   and not (op.get("op_type") == "mfc" and k == "flow_rate_mL_min")]
                     if param_items:
                         for k, v in param_items:
                             st.markdown(f"**{k.replace('_', ' ')}:** {v}")
@@ -346,19 +528,34 @@ def _render_result(result: dict, key_prefix: str = ""):
     # ── Tab 3: Chemistry Plan & Recipe ────────────────────────────────────────
     with tabs[3]:
         from pages.translate import _render_chemistry_plan
+        st.info(
+            "Upstream chemistry analysis is retained for audit and hypothesis "
+            "review. It is not an executable authority; the canonical procedure "
+            "below is compiled from the final validated design."
+        )
         _render_chemistry_plan(result.get("chemistry_plan", {}))
-        st.divider()
-        _render_recipe(result)
+        if is_blocked:
+            st.warning(
+                "Experimental recipe withheld because the current candidate is blocked."
+            )
+        else:
+            st.divider()
+            _render_canonical_procedure(final_design)
 
     # ── Tab 4: Stream Assignments ─────────────────────────────────────────────
     with tabs[4]:
-        st.caption(
-            "Pump flowrates are derived by the Chief Engineer from ṅ_limiting and feed "
-            "concentrations (Q_i = ṅ_lim × eq_i / C_feed_i). Stream contents are from "
-            "the chemistry agent."
-        )
-        from pages.translate import _render_streams
-        _render_streams(proposal, design_calc=result.get("design_calculations"))
+        if is_blocked:
+            st.warning(
+                "No final stream assignments are available because the design is blocked."
+            )
+            st.caption("Resolve consistency and inventory failures before using pump setpoints.")
+        else:
+            st.caption(
+                "These assignments belong to the validated final design shown in "
+                "Summary and Engineering Design."
+            )
+            from components.result_reporting import render_process_summary
+            render_process_summary(result, streams_only=True)
 
     # ── Tab 5: Council Deliberation ───────────────────────────────────────────
     with tabs[5]:
@@ -374,133 +571,532 @@ def _render_result(result: dict, key_prefix: str = ""):
                 self.council_messages = r.get("council_messages", [])
         render_council_report(_C(result))
 
-    # ── Tab 7: Raw JSON ───────────────────────────────────────────────────────
+    # ── Tab 7: Experiment Loop ────────────────────────────────────────────────
     with tabs[7]:
-        st.json(result)
+        if is_blocked:
+            st.warning(
+                "Resolve the inventory and engineering blockers before starting "
+                "an experimental feedback cycle."
+            )
+        else:
+            _render_experiment_loop(result, proposal=proposal, key_prefix=key_prefix)
+
+    # ── Tab 8: Raw JSON ───────────────────────────────────────────────────────
+    with tabs[8]:
+        st.markdown("### Authoritative Final Design")
+        st.json(final_design)
+        with st.expander("Complete pipeline audit JSON", expanded=False):
+            st.json(result)
+
+    # ── Tab 9: Equipment & Inventory ─────────────────────────────────────────
+    with tabs[9]:
+        from components.inventory_result import render_inventory_result
+
+        render_inventory_result(result)
+
+    with tabs[10]:
+        from components.result_reporting import render_process_summary
+        render_process_summary(result)
+    with tabs[11]:
+        from components.result_reporting import render_responses
+        render_responses(result)
 
     from components.feedback import render_feedback_widget
     render_feedback_widget(result, context="flora_design_translate")
 
 
-def _render_summary(result: dict, proposal: dict):
-    """Summary tab: direct council results, no LLM hallucinations."""
-    delib_log = result.get("deliberation_log", {})
-    council_summary = delib_log.get("summary", "")
-    dc = result.get("design_calculations", {})
+def _render_experiment_loop(
+    result: dict,
+    proposal: dict | None = None,
+    key_prefix: str = "",
+):
+    """Closed-loop experiment entry and deterministic next-design refinement."""
+    from flora_translate.experiment_loop import (
+        ActualConditions,
+        ExperimentalOutcomes,
+        ExperimentResult,
+        refine_from_experiment,
+    )
 
-    # ── Key parameters grid ───────────────────────────────────────────────────
-    st.markdown("### Final Design Parameters")
+    proposal = proposal or result.get("proposal", {})
+    loop_key = f"{key_prefix or 'result'}_experiment_loop"
+    campaign = st.session_state.setdefault(
+        loop_key,
+        {"cycles": [], "design_versions": [result]},
+    )
+
+    design_version = int(result.get("design_version", proposal.get("design_version", 1)) or 1)
+    st.markdown("### Experimental Feedback Loop")
+    st.caption(
+        "Enter what actually happened in the lab. FlowPilot will diagnose the gap "
+        "and create the next design version while keeping previous cycles in history."
+    )
+
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Residence Time", f"{proposal.get('residence_time_min', '?')} min")
-    c2.metric("Flow Rate", f"{proposal.get('flow_rate_mL_min', '?')} mL/min")
-    c3.metric("Tubing ID", f"{proposal.get('tubing_ID_mm', '?')} mm")
-    c4.metric("Reactor Volume", f"{proposal.get('reactor_volume_mL', '?')} mL")
+    c1.metric("Current version", f"v{design_version}")
+    tau_label = "Target tau (inlet/STP)" if _proposal_has_gas(proposal) else "Target tau"
+    c2.metric(tau_label, f"{proposal.get('residence_time_min', '?')} min")
+    c3.metric("Target Q", f"{proposal.get('flow_rate_mL_min', '?')} mL/min")
+    c4.metric("Target C", f"{proposal.get('concentration_M', '?')} M")
+
+    form_key = f"{loop_key}_form_v{design_version}_{len(campaign.get('cycles', []))}"
+    with st.form(form_key):
+        st.markdown("#### Actual Run Conditions")
+        a1, a2, a3, a4 = st.columns(4)
+        residence_time = a1.number_input(
+            "Residence time at inlet/STP (min)" if _proposal_has_gas(proposal) else "Residence time (min)",
+            min_value=0.0,
+            value=_float_default(proposal.get("residence_time_min"), 10.0),
+            step=0.5,
+            key=f"{form_key}_tau",
+        )
+        flow_rate = a2.number_input(
+            "Flow rate (mL/min)",
+            min_value=0.0,
+            value=_float_default(proposal.get("flow_rate_mL_min"), 0.1),
+            step=0.01,
+            format="%.5f",
+            key=f"{form_key}_q",
+        )
+        temperature = a3.number_input(
+            "Temperature (C)",
+            value=_float_default(proposal.get("temperature_C"), 25.0),
+            step=1.0,
+            key=f"{form_key}_temp",
+        )
+        concentration = a4.number_input(
+            "Concentration (M)",
+            min_value=0.0,
+            value=_float_default(proposal.get("concentration_M"), 0.1),
+            step=0.01,
+            format="%.4f",
+            key=f"{form_key}_conc",
+        )
+
+        b1, b2, b3, b4 = st.columns(4)
+        reactor_volume = b1.number_input(
+            "Reactor volume (mL)",
+            min_value=0.0,
+            value=_float_default(proposal.get("reactor_volume_mL"), residence_time * flow_rate),
+            step=0.1,
+            key=f"{form_key}_vol",
+        )
+        tubing_id = b2.number_input(
+            "Tubing ID (mm)",
+            min_value=0.0,
+            value=_float_default(proposal.get("tubing_ID_mm"), 1.0),
+            step=0.1,
+            key=f"{form_key}_id",
+        )
+        bpr = b3.number_input(
+            "BPR (bar)",
+            min_value=0.0,
+            value=_float_default(proposal.get("BPR_bar"), 0.0),
+            step=1.0,
+            key=f"{form_key}_bpr",
+        )
+        wavelength = b4.number_input(
+            "Wavelength (nm)",
+            min_value=0.0,
+            value=_float_default(proposal.get("wavelength_nm"), 0.0),
+            step=10.0,
+            key=f"{form_key}_wl",
+        )
+
+        st.markdown("#### Gas-Liquid Timing")
+        gas_stream = _first_gas_stream(proposal)
+        g1, g3, g4 = st.columns(3)
+        substrate_flow = g1.number_input(
+            "Substrate flow (mL/min)",
+            min_value=0.0,
+            value=_float_default(proposal.get("flow_rate_mL_min"), flow_rate),
+            step=0.001,
+            format="%.5f",
+            key=f"{form_key}_substrate_q",
+        )
+        gas_stp = g3.number_input(
+            "Gas inlet/STP (mL/min)",
+            min_value=0.0,
+            value=_float_default(gas_stream.get("gas_flow_sccm"), 0.0),
+            step=0.001,
+            format="%.5f",
+            key=f"{form_key}_gas_stp",
+        )
+        gas_equiv = g4.number_input(
+            "Active gas equiv at inlet/STP",
+            min_value=0.0,
+            value=_float_default(gas_stream.get("molar_equiv"), 0.0),
+            step=0.1,
+            format="%.3f",
+            key=f"{form_key}_gas_equiv",
+        )
+
+        t_inlet = st.number_input(
+            "t inlet (min)",
+            min_value=0.0,
+            value=_time_default(reactor_volume, substrate_flow, gas_stp),
+            step=1.0,
+            format="%.3f",
+            key=f"{form_key}_t_inlet",
+        )
+        default_basis_index = 0 if gas_stp > 0 else 1
+        basis_choice = st.selectbox(
+            "Primary calibration basis",
+            [
+                "inlet/STP apparent residence time",
+                "liquid-only reactor volume / liquid flow",
+            ],
+            index=default_basis_index,
+            key=f"{form_key}_basis",
+        )
+
+        st.markdown("#### Experimental Outcome")
+        o1, o2, o3, o4, o5 = st.columns(5)
+        yield_pct = o1.number_input("Yield (%)", min_value=0.0, max_value=100.0, value=0.0, step=1.0, key=f"{form_key}_yield")
+        product_pct = o2.number_input("Product (%)", min_value=0.0, max_value=100.0, value=0.0, step=1.0, key=f"{form_key}_product")
+        starting_material_pct = o3.number_input("Starting material (%)", min_value=0.0, max_value=100.0, value=0.0, step=1.0, key=f"{form_key}_sm")
+        conversion_pct = o4.number_input("Conversion (%)", min_value=0.0, max_value=100.0, value=0.0, step=1.0, key=f"{form_key}_conv")
+        selectivity_pct = o5.number_input("Selectivity (%)", min_value=0.0, max_value=100.0, value=0.0, step=1.0, key=f"{form_key}_sel")
+
+        pressure_bar = st.number_input("Observed pressure (bar)", min_value=0.0, value=0.0, step=0.5, key=f"{form_key}_pressure")
+
+        p1, p2, p3, p4 = st.columns(4)
+        pressure_drift = p1.number_input("Pressure drift (bar)", min_value=0.0, value=0.0, step=0.5, key=f"{form_key}_drift")
+        clogging = p2.checkbox("Clogging observed", key=f"{form_key}_clog")
+        precipitation = p3.checkbox("Precipitation observed", key=f"{form_key}_ppt")
+        gas_state = p4.selectbox(
+            "Gas-liquid stability",
+            ["stable", "unknown", "slugging", "flooding"],
+            key=f"{form_key}_gas",
+        )
+
+        impurity_notes = st.text_input("Impurity / analytical notes", key=f"{form_key}_impurity")
+        free_text = st.text_area("Additional observations", height=90, key=f"{form_key}_notes")
+
+        submitted = st.form_submit_button("Analyze Result and Create Next Design", type="primary")
+
+    if submitted:
+        run_index = len(campaign.get("cycles", [])) + 1
+        if basis_choice.startswith("inlet"):
+            submitted_residence_time = t_inlet or residence_time
+        else:
+            submitted_residence_time = residence_time
+        experiment = ExperimentResult(
+            run_id=f"run_{run_index:02d}",
+            design_version=design_version,
+            actual_conditions=ActualConditions(
+                residence_time_min=submitted_residence_time,
+                residence_time_inlet_min=t_inlet or None,
+                residence_time_basis=basis_choice,
+                flow_rate_mL_min=flow_rate,
+                substrate_flow_mL_min=substrate_flow or None,
+                gas_flow_stp_mL_min=gas_stp or None,
+                gas_equiv_inlet=gas_equiv or None,
+                temperature_C=temperature,
+                concentration_M=concentration,
+                reactor_volume_mL=reactor_volume,
+                tubing_ID_mm=tubing_id,
+                BPR_bar=bpr,
+                wavelength_nm=wavelength or None,
+            ),
+            outcomes=ExperimentalOutcomes(
+                yield_pct=yield_pct or None,
+                product_pct=product_pct or None,
+                starting_material_pct=starting_material_pct or None,
+                conversion_pct=conversion_pct or None,
+                selectivity_pct=selectivity_pct or None,
+                pressure_bar=pressure_bar or None,
+                pressure_drift_bar=pressure_drift or None,
+                clogging_observed=clogging,
+                precipitation_observed=precipitation,
+                gas_liquid_stability=gas_state,
+                impurity_notes=impurity_notes,
+                notes=free_text,
+            ),
+            free_text_observations=free_text,
+        )
+        closed_loop = refine_from_experiment(
+            result,
+            experiment,
+            campaign_history=campaign.get("cycles", []),
+        )
+        campaign.setdefault("cycles", []).append(closed_loop.model_dump())
+        campaign.setdefault("design_versions", []).append(closed_loop.refined_result)
+        st.session_state[loop_key] = campaign
+        st.session_state["active_result"] = closed_loop.refined_result
+        st.success(f"Created design v{closed_loop.decision.design_version_out}.")
+        st.rerun()
+
+    cycles = campaign.get("cycles", [])
+    if not cycles:
+        st.info("No experimental cycles entered yet.")
+        return
+
+    st.divider()
+    st.markdown("### Closed-Loop History")
+    rows = []
+    for item in cycles:
+        exp = item.get("experiment", {})
+        decision = item.get("decision", {})
+        outcomes = exp.get("outcomes", {})
+        rows.append({
+            "Run": exp.get("run_id"),
+            "Design In": decision.get("design_version_in"),
+            "Design Out": decision.get("design_version_out"),
+            "Yield": outcomes.get("yield_pct"),
+            "Conversion": outcomes.get("conversion_pct"),
+            "Selectivity": outcomes.get("selectivity_pct"),
+            "Score": decision.get("score"),
+            "Status": decision.get("status"),
+            "Failure Modes": ", ".join(decision.get("failure_modes", [])),
+        })
+    if rows:
+        import pandas as pd
+        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+    last = cycles[-1]
+    decision = last.get("decision", {})
+    st.markdown("### Latest Diagnosis")
+    st.info(decision.get("diagnosis", "No diagnosis available."))
+    for action in decision.get("recommended_actions", []):
+        st.markdown(f"- {action}")
+
+    changes = decision.get("parameter_changes", {})
+    changed_rows = [
+        {"Parameter": key, "Before": value.get("old"), "Next": value.get("new")}
+        for key, value in changes.items()
+        if value.get("changed")
+    ]
+    if changed_rows:
+        import pandas as pd
+        st.markdown("#### Parameter Changes")
+        st.dataframe(pd.DataFrame(changed_rows), hide_index=True, use_container_width=True)
+
+    st.markdown("#### Next Experiment Package")
+    st.json(decision.get("next_experiment", {}))
+    calibration = (decision.get("next_experiment", {}) or {}).get("evidence_calibration")
+    if calibration:
+        st.markdown("#### Evidence-Calibrated Design Ladder")
+        st.caption(
+            "When multiple experimental cycles are available, measured response "
+            "at the recorded calibration basis can revise the original residence-time estimate."
+        )
+        c1, c2, c3, c4 = st.columns(4)
+        st.caption(f"Recorded basis: {calibration.get('residence_time_basis', 'not recorded')}")
+        c1.metric("Best observed tau", f"{calibration.get('best_tau_inlet_min')} min at inlet/STP")
+        c2.metric("Best response", f"{calibration.get('best_response_pct')}%")
+        c3.metric("Next tau", f"{calibration.get('recommended_tau_inlet_min')} min at inlet/STP")
+        c4.metric("Target estimate", f"{calibration.get('target_tau_inlet_min')} min at inlet/STP")
+        ladder = calibration.get("design_ladder") or []
+        if ladder:
+            import pandas as pd
+            st.dataframe(pd.DataFrame(ladder), hide_index=True, use_container_width=True)
+
+    import json
+    st.download_button(
+        "Download closed-loop campaign JSON",
+        json.dumps(campaign, indent=2, default=str),
+        "flora_closed_loop_campaign.json",
+        "application/json",
+        key=f"{loop_key}_download",
+    )
+
+
+def _float_default(value, default: float) -> float:
+    try:
+        if value is None:
+            return float(default)
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _first_gas_stream(proposal: dict) -> dict:
+    for stream in proposal.get("streams") or []:
+        if str(stream.get("phase", "")).lower() == "gas":
+            return stream
+    return {}
+
+
+def _time_default(volume_mL: float, liquid_q: float, gas_q: float) -> float:
+    total_q = _float_default(liquid_q, 0.0) + _float_default(gas_q, 0.0)
+    if total_q <= 0:
+        return 0.0
+    return float(volume_mL) / total_q
+
+
+def _render_parameter_metrics(parameters: dict):
+    """Render the shared final parameter set used by every result tab."""
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(
+        "Residence Time (inlet/STP)",
+        _metric_value(parameters.get("residence_time_inlet_min"), "min"),
+    )
+    c2.metric("Concentration", _metric_value(parameters.get("concentration_M"), "M"))
+    c3.metric("Liquid Flow Rate", _metric_value(parameters.get("flow_rate_mL_min"), "mL/min"))
+    c4.metric("Total Reactor Volume", _metric_value(parameters.get("reactor_volume_mL"), "mL"))
 
     c5, c6, c7, c8 = st.columns(4)
-    c5.metric("Material", proposal.get("tubing_material", "?"))
-    c6.metric("Temperature", f"{proposal.get('temperature_C', '?')} °C")
-    bpr = proposal.get("BPR_bar")
-    c7.metric("BPR", f"{bpr} bar" if bpr else "N/A")
-    wl = proposal.get("wavelength_nm")
-    c8.metric("Wavelength", f"{wl} nm" if wl else "N/A")
+    c5.metric("Tubing ID", _metric_value(parameters.get("tubing_ID_mm"), "mm"))
+    c6.metric("Temperature", _metric_value(parameters.get("temperature_C"), "C"))
+    c7.metric("BPR", _metric_value(parameters.get("BPR_bar"), "bar"))
+    c8.metric("Wavelength", _metric_value(parameters.get("wavelength_nm"), "nm"))
+    st.caption(f"Residence-time basis: {parameters.get('residence_time_basis') or 'not specified'}")
 
-    # ── Engineering metrics row (from design calculator) ──────────────────────
-    if dc:
-        st.markdown("---")
-        st.markdown("### Engineering Metrics")
-        e1, e2, e3, e4 = st.columns(4)
-        n_lim = dc.get("n_molar_flow_mmol_min")
-        e1.metric("ṅ_limiting", f"{n_lim:.4f} mmol/min" if n_lim else "N/A")
-        P_flow = dc.get("P_flow_mmol_h")
-        P_batch = dc.get("P_batch_mmol_h")
-        e2.metric("Productivity", f"{P_flow:.1f} mmol/h" if P_flow else
-                  f"{dc.get('productivity_mmol_h', '?')} mmol/h")
-        C_rxr = dc.get("C_reactor_M")
-        e3.metric("C_reactor", f"{C_rxr:.3f} M" if C_rxr else "N/A",
-                  help="Concentration inside reactor after stream mixing")
-        startup = dc.get("startup_waste_mL")
-        e4.metric("Startup Waste", f"{startup} mL" if startup else "N/A",
-                  help="Volume wasted during start-up (3×τ×Q)")
 
-        e5, e6, e7, e8 = st.columns(4)
-        Pe_val = dc.get("Pe")
-        Pe_ok = dc.get("Pe_adequate", True)
-        e5.metric("Péclet (Pe)", f"{Pe_val:.0f}" if Pe_val else "N/A",
-                  delta="✓ plug flow" if Pe_ok else "⚠ axial dispersion",
-                  delta_color="normal" if Pe_ok else "inverse")
-        e6.metric("Re", f"{dc.get('reynolds_number', '?'):.0f}"
-                  if isinstance(dc.get("reynolds_number"), (int, float)) else "?")
-        e7.metric("ΔP", f"{dc.get('pressure_drop_bar', '?'):.4f} bar"
-                  if isinstance(dc.get("pressure_drop_bar"), (int, float)) else "?")
-        STY = dc.get("space_time_yield_mol_L_h")
-        e8.metric("STY", f"{STY:.4f} mol/(L·h)" if STY else "N/A")
+def _render_stage_table(stages: list[dict]):
+    if not stages:
+        return
+    import pandas as pd
 
-        if dc.get("is_gas_liquid") or dc.get("UA_W_K"):
-            g1, g2, g3, g4 = st.columns(4)
-            if dc.get("is_gas_liquid"):
-                g1.metric("Gas feed", dc.get("gas_species") or "gas")
-                g2.metric("MFC", f"{dc.get('gas_flow_sccm', 0):.2f} sccm")
-                g3.metric("Gas holdup", f"{dc.get('gas_holdup', 0):.2f}")
-            else:
-                g1.metric("Gas feed", "N/A")
-                g2.metric("MFC", "N/A")
-                g3.metric("Gas holdup", "N/A")
-            g4.metric("UA", f"{dc.get('UA_W_K', 0):.3f} W/K" if dc.get("UA_W_K") else "N/A")
+    rows = []
+    for stage in stages:
+        rows.append(
+            {
+                "Stage": stage.get("stage_number"),
+                "Name": stage.get("stage_name"),
+                "Reactor ID": stage.get("reactor_equipment_id"),
+                "Light ID": stage.get("light_equipment_id"),
+                "Volume (mL)": stage.get("reactor_volume_mL"),
+                "Material": stage.get("material"),
+                "Tubing ID (mm)": stage.get("d_mm") or stage.get("tubing_ID_mm"),
+                "Temperature (C)": stage.get("temperature_C"),
+                "Wavelength (nm)": stage.get("wavelength_nm"),
+                "Q liquid (mL/min)": stage.get("Q_liquid_mL_min"),
+                "Q gas inlet/STP (mL/min)": stage.get("Q_gas_sccm"),
+                "t inlet/STP (min)": stage.get("residence_time_inlet_min"),
+            }
+        )
+    st.markdown("### Validated Stage Design")
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
 
-        # Productivity closure check
-        closure_ok = dc.get("productivity_closure_ok")
-        if closure_ok is not None:
-            if closure_ok:
-                st.success(
-                    f"✓ Productivity closure: P_flow = {P_flow:.1f} mmol/h ≥ "
-                    f"P_batch = {P_batch:.1f} mmol/h"
+
+def _render_final_engineering(final_design: dict):
+    st.markdown("### Final Engineering Design")
+    if len(final_design.get("stages") or []) <= 1:
+        _render_parameter_metrics(final_design.get("parameters") or {})
+    _render_stage_table(final_design.get("stages") or [])
+    manifest = final_design.get("instrument_manifest") or []
+    if manifest:
+        st.markdown("### Instrument Manifest")
+        st.dataframe(manifest, hide_index=True, use_container_width=True)
+
+
+def _render_reconciliation(final_design: dict):
+    """Explain why no executable design exists without promoting stale values."""
+
+    st.error(
+        "FlowPilot withheld run parameters because the final proposal, engineering "
+        "calculation, topology, and inventory assignment did not close to one design."
+    )
+    issues = (final_design.get("consistency") or {}).get("issues") or []
+    for issue in issues:
+        st.markdown(f"- **{issue.get('code', 'FINAL-CHECK')}**: {issue.get('message', '')}")
+
+    diagnostic = final_design.get("diagnostic") or {}
+    with st.expander("Intermediate values for diagnosis only", expanded=False):
+        st.warning(diagnostic.get("message") or "These values are not run instructions.")
+        preliminary = diagnostic.get("preliminary_candidate") or {}
+        if preliminary:
+            st.json(preliminary)
+        stages = diagnostic.get("stage_requirements") or []
+        if stages:
+            import pandas as pd
+            st.dataframe(pd.DataFrame(stages), hide_index=True, use_container_width=True)
+
+
+def _metric_value(value, unit: str) -> str:
+    if value is None or value == "":
+        return "N/A"
+    if isinstance(value, (int, float)):
+        return f"{value:g} {unit}".strip()
+    return f"{value} {unit}".strip()
+
+
+def _render_summary(result: dict, final_design: dict):
+    """Render only the canonical post-validation design contract."""
+    proposal = final_design.get("parameters") or {}
+
+    if final_design.get("status") != "executable":
+        st.markdown("### No Executable Final Design")
+        _render_reconciliation(final_design)
+    else:
+        st.markdown("### Final Design Parameters")
+        if len(final_design.get("stages") or []) <= 1:
+            _render_parameter_metrics(proposal)
+        _render_stage_table(final_design.get("stages") or [])
+
+    intensification = final_design.get("intensification") or {}
+    if intensification:
+        st.divider()
+        st.markdown("### Intensification Status")
+        i1, i2, i3 = st.columns(3)
+        target = intensification.get("target_factor")
+        realized = intensification.get("realized_factor")
+        i1.metric("Policy", intensification.get("policy") or "evidence_first")
+        i2.metric("Enforced target", f"{target:g}x" if target else "None")
+        i3.metric("Realized final IF", f"{realized:g}x" if realized else "Not available")
+        if intensification.get("applied_as_hard_constraint"):
+            st.info("The target factor is active because explicit intensification mode is enabled.")
+        else:
+            st.caption(
+                "No intensification factor is enforced under the evidence-first "
+                "policy. Realized IF is reported only after an executable design closes."
+            )
+
+    realization = result.get("design_realization") or {}
+    if realization:
+        st.divider()
+        st.markdown("### Final Design Basis")
+        st.caption(
+            "Post-council deterministic realization. These decisions produced "
+            "the final values shown above."
+        )
+        for decision in realization.get("decisions") or []:
+            kind = str(decision.get("decision") or "engineering decision").replace("_", " ").title()
+            if kind == "Liquid Flow Solution":
+                st.markdown(
+                    f"- **{kind}:** total liquid flow "
+                    f"{decision.get('total_reactive_liquid_flow_mL_min', 'N/A')} mL/min "
+                    "from stoichiometric ratios and per-pump limits."
                 )
-            else:
-                st.error(
-                    f"✗ Productivity closure FAIL: P_flow = {P_flow:.1f} mmol/h < "
-                    f"P_batch = {P_batch:.1f} mmol/h — increase C_feed or check yield"
+            elif kind == "Reactor Selection":
+                st.markdown(
+                    f"- **{kind}:** `{decision.get('equipment_id', 'unresolved')}`, "
+                    f"{decision.get('volume_mL', 'N/A')} mL."
                 )
+            elif kind == "Pressure Selection":
+                st.markdown(
+                    f"- **{kind}:** {decision.get('selected_BPR_bar', 'N/A')} bar "
+                    "from declared pressure hardware."
+                )
+            elif kind in {
+                "Single Stage Residence Time Closure",
+                "Stage Reactor Selection",
+            }:
+                st.markdown(f"- **{kind}:** numerical and inventory closure verified.")
 
-    # ── Council winner reasoning ──────────────────────────────────────────────
-    if council_summary:
-        # Extract the "Winner" section from the council summary markdown
-        winner_section = ""
-        if "### Winner" in council_summary:
-            winner_section = council_summary.split("### Winner")[1].split("###")[0].strip()
-        elif "**Chief**:" in council_summary:
-            for line in council_summary.split("\n"):
-                if "**Chief**:" in line:
-                    winner_section = line.replace("- **Chief**:", "").strip()
-                    break
-
-        if winner_section:
-            st.divider()
-            st.markdown("### Why This Design Was Chosen")
-            st.markdown(winner_section)
-
-        # Open risks
-        risk_lines = []
-        in_risks = False
-        for line in council_summary.split("\n"):
-            if "**Open risks" in line or "open risks" in line.lower():
-                in_risks = True
-                continue
-            if in_risks:
-                if line.startswith("  - ") or line.startswith("- "):
-                    risk_lines.append(line.lstrip("- ").strip())
-                elif line.startswith("###") or line.startswith("**"):
-                    break
-        if risk_lines:
-            st.divider()
-            st.markdown("### Open Risks for the Lab")
-            for r in risk_lines:
-                st.warning(r)
+        safety = final_design.get("safety") or {}
+        controls = [
+            item.get("description")
+            for item in safety.get("controls") or []
+            if item.get("required")
+        ]
+        if controls:
+            st.markdown("### Required Safety Controls")
+            for control in controls:
+                st.warning(control)
 
     # ── AI narrative in expander ──────────────────────────────────────────────
     explanation = result.get("explanation", "")
     if explanation:
         st.divider()
-        with st.expander("Detailed narrative (AI-generated)", expanded=False):
+        with st.expander("Pre-realization model narrative (audit only)", expanded=False):
+            st.caption(
+                "This narrative records upstream/council reasoning and may contain "
+                "superseded candidate values. It is not a run instruction."
+            )
             st.markdown(explanation)
             notes = proposal.get("chemistry_notes", "")
             if notes:
@@ -510,8 +1106,8 @@ def _render_summary(result: dict, proposal: dict):
 def _render_before_after_table(pre: dict, post: dict, delib_log: dict | None):
     """Show a before/after council comparison for key design parameters."""
     st.divider()
-    st.markdown("### Before vs After Council")
-    st.caption("Initial conditions (from calculator + design-space top candidate) vs final validated design.")
+    st.markdown("### Candidate vs Final Realized Design")
+    st.caption("Initial model candidate versus the deterministic, inventory-validated design.")
 
     fields = [
         ("residence_time_min",  "τ (Residence Time)",   "min"),
@@ -546,8 +1142,8 @@ def _render_before_after_table(pre: dict, post: dict, delib_log: dict | None):
         changed = field in changed_fields or _fmt(v_pre, unit) != _fmt(v_post, unit)
         rows.append({
             "Parameter": label,
-            "Before Council": _fmt(v_pre, unit),
-            "After Council":  _fmt(v_post, unit),
+            "Initial Candidate": _fmt(v_pre, unit),
+            "Final Realized":  _fmt(v_post, unit),
             "Changed": "★" if changed else "",
         })
 
@@ -578,7 +1174,7 @@ def _render_design_result(result):
         f"λ = {feats.wavelength_nm or '?'} nm"
     )
 
-    tabs = st.tabs(["Summary", "Process Diagram", "Engineering", "Raw JSON"])
+    tabs = st.tabs(["Summary", "Process Diagram", "Engineering", "Equipment", "Raw JSON"])
 
     with tabs[0]:
         st.markdown(result.explanation)
@@ -595,7 +1191,12 @@ def _render_design_result(result):
 
     with tabs[1]:
         from components.process_diagram import render_process_diagram
-        render_process_diagram(result.svg_path, result.png_path)
+        render_process_diagram(
+            result.svg_path,
+            result.png_path,
+            topology=topo.model_dump(),
+            render_manifest=result.diagram_render_manifest,
+        )
 
     with tabs[2]:
         dc = result.design_candidate
@@ -604,6 +1205,11 @@ def _render_design_result(result):
             render_council_report(dc)
 
     with tabs[3]:
+        from components.inventory_result import render_inventory_result
+
+        render_inventory_result(result.model_dump())
+
+    with tabs[4]:
         st.json(result.model_dump(exclude_none=True))
 
     fb_result = {"proposal": {
@@ -618,7 +1224,8 @@ def _render_design_result(result):
 def _render_conditions(proposal: dict):
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.metric("Residence time", f"{proposal.get('residence_time_min', 0):.1f} min")
+        residence_label = "Residence time (inlet/STP)" if _proposal_has_gas(proposal) else "Residence time"
+        st.metric(residence_label, f"{proposal.get('residence_time_min', 0):.1f} min")
         st.metric("Flow rate", f"{proposal.get('flow_rate_mL_min', 0):.2f} mL/min")
         st.metric("Temperature", f"{proposal.get('temperature_C', 25):.0f} °C")
         st.metric("Concentration", f"{proposal.get('concentration_M', 0):.3f} M")
@@ -661,7 +1268,7 @@ def _render_council_deliberation(result: dict):
     council_summary = delib_log.get("summary", "")
 
     # ── Input Design ──────────────────────────────────────────────────────────
-    design_calc = result.get("design_calculations", {})
+    design_calc = ((result.get("engineering_history") or {}).get("before_council") or {}).get("calculations", {})
     pre = result.get("pre_council_proposal", {})
     if design_calc or pre:
         with st.expander("Input Design (fed to the Designer agent)", expanded=True):
@@ -801,19 +1408,19 @@ def _render_council_deliberation(result: dict):
                 # Tool calls made by this agent
                 tool_calls = d.get("tool_calls", [])
                 if tool_calls:
-                    with st.expander(f"🔧 Tool calls ({len(tool_calls)})", expanded=False):
-                        for tc in tool_calls:
-                            tool_name = tc.get("tool", "unknown")
-                            tool_input = tc.get("input", {})
-                            tool_result = tc.get("result", {})
-                            st.markdown(f"**`{tool_name}`**")
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.caption("Input")
-                                st.json(tool_input)
-                            with col2:
-                                st.caption("Result")
-                                st.json(tool_result)
+                    st.markdown(f"**Tool calls ({len(tool_calls)})**")
+                    for tc in tool_calls:
+                        tool_name = tc.get("tool", "unknown")
+                        tool_input = tc.get("input", {})
+                        tool_result = tc.get("result", {})
+                        st.markdown(f"**`{tool_name}`**")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.caption("Input")
+                            st.json(tool_input)
+                        with col2:
+                            st.caption("Result")
+                            st.json(tool_result)
 
         # Show Skeptic's comparative trade-off summary for this round
         sk_delib = next((d for d in round_delibs if "Skeptic" in d.get("agent_display_name", "")), None)
@@ -964,6 +1571,63 @@ def _render_legacy_deliberation(result: dict):
 # Recipe — step-by-step experimental instructions for the bench chemist
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _render_canonical_procedure(final_design: dict):
+    """Render the frozen procedure compiled from the executable design graph."""
+    import re
+
+    procedure = list(final_design.get("operating_procedure") or [])
+    safety = dict(final_design.get("safety") or {})
+    st.markdown("### Canonical Operating Procedure")
+    st.caption(
+        "Compiled after final engineering realization from the same canonical "
+        "streams, equipment, topology, and safety contract used by every tab."
+    )
+    if not procedure:
+        st.error("No canonical operating procedure is available.")
+        return
+
+    hazards = safety.get("hazards") or []
+    if hazards:
+        st.warning("Declared hazards: " + ", ".join(str(item) for item in hazards))
+
+    labels = {
+        "preparation": "Preparation",
+        "setup": "System Setup",
+        "startup": "Startup",
+        "steady_state": "Steady State",
+        "collection": "Collection",
+        "shutdown": "Shutdown",
+        "emergency": "Emergency Response",
+        "waste": "Waste Handling",
+    }
+    for section, label in labels.items():
+        steps = [item for item in procedure if item.get("section") == section]
+        if not steps:
+            continue
+        st.markdown(f"#### {label}")
+        for item in steps:
+            instruction = re.sub(r"\bsccm\b", "mL/min at STP", item.get("instruction", ""), flags=re.IGNORECASE)
+            st.markdown(
+                f"**{item.get('step_id', 'STEP')}**  \n{instruction}"
+            )
+            bindings = {
+                key.replace("sccm", "inlet_STP_mL_min"): value
+                for key, value in (item.get("parameter_bindings") or {}).items()
+                if value is not None and "actual" not in key and "in_channel" not in key and "holdup" not in key
+            }
+            equipment = item.get("equipment_ids") or []
+            if equipment:
+                st.caption("Equipment: " + ", ".join(f"`{value}`" for value in equipment))
+            if bindings:
+                st.caption(
+                    "Bindings: "
+                    + ", ".join(f"{key}={value}" for key, value in bindings.items())
+                )
+
+    digest = final_design.get("canonical_sha256")
+    if digest:
+        st.caption(f"Canonical design SHA-256: `{digest}`")
+
 _GAS_NAMES = {
     "o2": "oxygen (O₂)", "o₂": "oxygen (O₂)", "oxygen": "oxygen (O₂)",
     "h2": "hydrogen (H₂)", "h₂": "hydrogen (H₂)", "hydrogen": "hydrogen (H₂)",
@@ -975,6 +1639,8 @@ _GAS_NAMES = {
 
 def _is_gas_stream(stream: dict) -> bool:
     """Return True if this stream carries a gas (not a liquid solution)."""
+    if str(stream.get("phase") or "").lower() == "gas":
+        return True
     _GAS_KW = {"o2", "o₂", "oxygen", "h2", "h₂", "hydrogen", "co2", "co₂",
                "syngas", "ethylene", "acetylene", "carbon monoxide", "carbonylation",
                "mfc", "gas", "n2 gas", "argon gas"}
@@ -983,6 +1649,11 @@ def _is_gas_stream(stream: dict) -> bool:
     label = (stream.get("stream_label") or "").lower()
     all_text = " ".join(str(c) for c in contents).lower() + " " + pump_role + " " + label
     return any(kw in all_text for kw in _GAS_KW)
+
+
+def _proposal_has_gas(proposal: dict) -> bool:
+    return any(_is_gas_stream(stream) for stream in proposal.get("streams", []) or [])
+
 
 def _identify_gas(stream: dict) -> str:
     """Return the human-readable gas name from a stream."""
@@ -994,9 +1665,9 @@ def _identify_gas(stream: dict) -> str:
             return name
     return "gas"
 
-def _render_recipe(result: dict):
+def _render_recipe(result: dict, proposal: dict | None = None):
     """Generate and display a step-by-step experimental recipe."""
-    proposal = result.get("proposal", {})
+    proposal = proposal or result.get("proposal", {})
     chem_plan = result.get("chemistry_plan", {})
     streams_raw = proposal.get("streams", [])
 
@@ -1067,8 +1738,17 @@ def _render_recipe(result: dict):
         for s in gas_streams:
             label    = s.get("stream_label", "?")
             gas_name = _identify_gas(s)
-            fr       = s.get("flow_rate_mL_min")
-            fr_str   = f" at **{fr:.1f} mL/min (≈ {fr * 16.67:.0f} sccm)**" if fr else ""
+            inlet_sccm = s.get("gas_flow_sccm")
+            channel_flow = s.get("gas_flow_actual_mL_min")
+            equiv = s.get("molar_equiv")
+            fr_str = (
+                f" at **{inlet_sccm:.4g} sccm at inlet/STP**"
+                if inlet_sccm is not None else ""
+            )
+            if equiv is not None:
+                fr_str += f" (**{equiv:.3g} equiv** relative to limiting substrate)"
+            if channel_flow is not None:
+                fr_str += f"; derived in-channel flow **{channel_flow:.4g} mL/min**"
 
             step(
                 f"**Stream {label} — Gas feed ({gas_name}):** Connect the "
@@ -1165,19 +1845,24 @@ def _render_recipe(result: dict):
 
     if gas_streams:
         for s in gas_streams:
-            fr = s.get("flow_rate_mL_min")
+            inlet_sccm = s.get("gas_flow_sccm")
+            channel_flow = s.get("gas_flow_actual_mL_min")
             label = s.get("stream_label", "?")
             gas_name = _identify_gas(s)
-            if fr:
-                sccm = fr * 16.67
+            if inlet_sccm is not None:
                 step(
                     f"Set **MFC {label}** ({gas_name}) to "
-                    f"**{fr:.2f} mL/min ({sccm:.0f} sccm)**."
+                    f"**{inlet_sccm:.4g} sccm at inlet/STP**. "
+                    + (
+                        f"The pressure-corrected in-channel flow is "
+                        f"**{channel_flow:.4g} mL/min** (derived; do not enter this on the MFC)."
+                        if channel_flow is not None else ""
+                    )
                 )
             else:
                 step(
                     f"Set **MFC {label}** ({gas_name}) to the target flow rate "
-                    "per your stoichiometry calculation."
+                    "from the inlet/STP stoichiometry calculation."
                 )
 
     step(

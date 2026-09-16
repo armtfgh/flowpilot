@@ -72,7 +72,14 @@ def render():
         with st.spinner("Running FLORA-Translate pipeline..."):
             try:
                 from flora_translate.main import translate
+                from flora_translate.gui_autosave import autosave_gui_result
                 result = translate(batch_input)
+                autosave_dir = autosave_gui_result(
+                    result,
+                    source="legacy_translate",
+                    user_input=batch_input if isinstance(batch_input, str) else json.dumps(batch_input, default=str),
+                )
+                result["autosave_dir"] = str(autosave_dir)
                 st.session_state["translate_result"] = result
             except Exception as e:
                 from components.error_card import render_error
@@ -85,7 +92,17 @@ def render():
         return
 
     result = st.session_state["translate_result"]
-    proposal = result.get("proposal", {})
+    from flora_translate.final_design_contract import canonical_proposal
+
+    final_design = result.get("final_design") or {}
+    proposal = canonical_proposal(result)
+    is_blocked = final_design.get("status") != "executable"
+    if result.get("autosave_dir"):
+        st.caption(f"Autosaved run folder: {result['autosave_dir']}")
+
+    from components.design_disposition import render_design_disposition
+
+    render_design_disposition(result)
 
     # Confidence badge
     conf = result.get("confidence", "LOW")
@@ -101,11 +118,19 @@ def render():
         "Flow Conditions",
         "Engineering Report",
         "Raw JSON",
+        "Equipment & Inventory",
     ])
 
     # ── TAB 0: Summary ────────────────────────────────────────────────────────
     with tabs[0]:
-        st.markdown(result.get("explanation", ""))
+        if is_blocked:
+            st.error("No executable final design was produced. Intermediate values are withheld.")
+            st.json((final_design.get("consistency") or {}).get("issues") or [])
+        else:
+            st.markdown(result.get("canonical_explanation", ""))
+            if result.get("explanation"):
+                with st.expander("Pre-realization model narrative (audit only)"):
+                    st.markdown(result["explanation"])
         chem_notes = proposal.get("chemistry_notes", "")
         if chem_notes:
             st.divider()
@@ -115,10 +140,17 @@ def render():
     with tabs[1]:
         from components.process_diagram import render_process_diagram
         render_process_diagram(
-            result.get("svg_path", ""), result.get("png_path", "")
+            result.get("diagnostic_svg_path", "") if is_blocked else result.get("svg_path", ""),
+            result.get("diagnostic_png_path", "") if is_blocked else result.get("png_path", ""),
+            topology=(result.get("diagnostic_topology") or {}) if is_blocked else (result.get("process_topology") or {}),
+            render_manifest=(result.get("diagnostic_diagram_render_manifest") or {}) if is_blocked else (result.get("diagram_render_manifest") or {}),
         )
         # Topology details
-        topo = result.get("process_topology", {})
+        topo = (
+            result.get("diagnostic_topology") or result.get("process_requirements_topology") or {}
+            if is_blocked
+            else result.get("process_topology", {})
+        )
         if topo:
             st.divider()
             st.subheader("Unit Operations")
@@ -150,11 +182,17 @@ def render():
 
     # ── TAB 3: Stream Assignments ──────────────────────────────────────────────
     with tabs[3]:
-        _render_streams(proposal)
+        if is_blocked:
+            st.warning("Final stream assignments are unavailable for a blocked design.")
+        else:
+            _render_streams(proposal)
 
     # ── TAB 4: Flow Conditions ─────────────────────────────────────────────────
     with tabs[4]:
-        _render_conditions(proposal)
+        if is_blocked:
+            st.warning("Final operating conditions are unavailable for a blocked design.")
+        else:
+            _render_conditions(proposal)
 
     # ── TAB 5: Engineering Report ──────────────────────────────────────────────
     with tabs[5]:
@@ -171,6 +209,11 @@ def render():
     # ── TAB 6: Raw JSON ───────────────────────────────────────────────────────
     with tabs[6]:
         st.json(result)
+
+    with tabs[7]:
+        from components.inventory_result import render_inventory_result
+
+        render_inventory_result(result)
 
     # ── Feedback widget ────────────────────────────────────────────────────────
     from components.feedback import render_feedback_widget
@@ -215,13 +258,83 @@ def _render_chemistry_plan(plan: dict):
 
     # Sensitivities
     st.markdown("#### Sensitivities")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("O2 sensitive", "Yes" if plan.get("oxygen_sensitive") else "No")
-    c2.metric("Moisture sensitive", "Yes" if plan.get("moisture_sensitive") else "No")
-    c3.metric("Temp sensitive", "Yes" if plan.get("temperature_sensitive") else "No")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("O2 sensitive", "Yes" if plan.get("oxygen_sensitive") else "No",
+              help="Reaction is INHIBITED by ambient O2 — requires degassing")
+    c2.metric("O2 is reagent", "Yes" if plan.get("o2_is_reagent") else "No",
+              help="O2 is consumed stoichiometrically — needs MFC + BPR + gas-liquid")
+    c3.metric("Moisture sensitive", "Yes" if plan.get("moisture_sensitive") else "No")
+    c4.metric("Temp sensitive", "Yes" if plan.get("temperature_sensitive") else "No")
 
     if plan.get("deoxygenation_required"):
         st.warning(f"Deoxygenation required: {plan.get('deoxygenation_reasoning', '')}")
+
+    # Batch limitations + intensification strategy ──────────────────────
+    limitations = plan.get("batch_limitations") or []
+    mandate = plan.get("intensification_mandate") or {}
+    if limitations or mandate:
+        st.markdown("#### Intensification Strategy")
+        from flora_translate.config import FLOW_TRANSLATION_POLICY
+
+        target_is_hard = FLOW_TRANSLATION_POLICY == "intensify"
+        # Top-line metrics
+        m_target = (mandate.get("tau_reduction_target") if isinstance(mandate, dict) else 0) or 0
+        m_advantage = (mandate.get("minimum_flow_advantage") if isinstance(mandate, dict) else "") or "—"
+        m_regime = (mandate.get("required_mixing_regime") if isinstance(mandate, dict) else "") or "—"
+        i1, i2, i3 = st.columns(3)
+        i1.metric(
+            "Target IF" if target_is_hard else "Enforced IF target",
+            f"{float(m_target):.1f}×" if target_is_hard and m_target else "None",
+            help=(
+                "Active residence-time objective in explicit intensify mode."
+                if target_is_hard
+                else "Not enforced under evidence-first policy; measured evidence and final geometry control residence time."
+            ),
+        )
+        i2.metric("Primary flow advantage", str(m_advantage).replace("_", " "))
+        i3.metric("Mixing regime", str(m_regime).replace("_", " "))
+
+        if limitations:
+            st.markdown(
+                "**Batch limitations identified** "
+                + ("(used by explicit intensification policy):" if target_is_hard else "(screening hypotheses):")
+            )
+            # Render as chips with the empirical IF ceiling next to each
+            _LIM_LABELS = {
+                "mass_transfer_gas_liquid": ("Gas–liquid mass transfer", 20),
+                "photon_penetration":       ("Photon penetration",       15),
+                "heat_removal":             ("Heat removal",             10),
+                "stirring_diffusion":       ("Stirring / diffusion",     12),
+                "thermodynamic_equilibrium": ("Equilibrium (NOT removable)", 1.5),
+                "kinetic":                  ("Intrinsic kinetics",       3),
+            }
+            chip_cols = st.columns(min(len(limitations), 4))
+            for idx, lim in enumerate(limitations):
+                label, if_ceiling = _LIM_LABELS.get(lim, (lim, None))
+                chip_cols[idx % len(chip_cols)].markdown(
+                    f"- **{label}**"
+                    + (
+                        f" — up to **{if_ceiling}×** in flow"
+                        if target_is_hard and if_ceiling
+                        else ""
+                    )
+                )
+        reasoning = plan.get("batch_limitations_reasoning") or ""
+        if reasoning:
+            st.caption(f"How limitations were detected: {reasoning}")
+        if not target_is_hard:
+            st.caption(
+                "Evidence-first policy is active. The limitation factor is explanatory and does not force the final residence time."
+            )
+
+        basis = mandate.get("flow_justification_basis") if isinstance(mandate, dict) else None
+        if basis:
+            with st.expander(
+                "Why this target IF was chosen"
+                if target_is_hard
+                else "Flow-translation rationale"
+            ):
+                st.write(basis)
 
     # Stream logic
     slogic = plan.get("stream_logic", [])

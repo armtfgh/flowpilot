@@ -18,7 +18,7 @@ from flora_translate.config import (
     SOLVENT_BOILING_POINT_C,
     INCOMPATIBLE_COMBOS,
 )
-from flora_translate.design_calculator import ANTOINE, INTENSIFICATION
+from flora_translate.design_calculator import ANTOINE, GAS_LIQUID_MIN_BPR_BAR, INTENSIFICATION
 
 PI = math.pi
 D_MOLECULAR = 1.0e-9   # m²/s — diffusion coefficient for small organics in liquid
@@ -155,8 +155,8 @@ def calculate_bpr_required(
 ) -> dict:
     """Calculate required BPR setting using Antoine equation.
 
-    Adds 0.5 bar margin for liquid-only, 1.5 bar for gas-liquid.
-    Gas-liquid systems always require BPR ≥ 5 bar.
+    Adds 0.5 bar margin for liquid-only and 2.0 bar for gas-liquid.
+    Gas-liquid systems use a 3 bar hard floor before the recommended margin.
     """
     sol_key = next((k for k in ANTOINE if k.lower() in solvent.lower()), None)
     if sol_key:
@@ -174,13 +174,12 @@ def calculate_bpr_required(
     margin = 2.0 if is_gas_liquid else 0.5
     P_min = P_vap_bar + delta_P_system_bar + margin
     if is_gas_liquid:
-        # Hard floor: 5 bar minimum + 2 bar margin = 7 bar for any gas-liquid system
-        P_min = max(P_min, 5.0 + margin)   # = 7.0 bar minimum for gas-liquid
+        P_min = max(P_min, GAS_LIQUID_MIN_BPR_BAR + margin)
 
     return {
         "required": requires_for_T or is_gas_liquid,
         "reason": (
-            "gas-liquid system — BPR mandatory (7.0 bar minimum)" if is_gas_liquid else
+            f"gas-liquid system — BPR mandatory ({GAS_LIQUID_MIN_BPR_BAR + margin:.1f} bar recommended)" if is_gas_liquid else
             f"T = {temperature_C}°C > bp − 20°C = {bp - 20:.0f}°C" if requires_for_T else
             "not required (liquid-only, below boiling threshold)"
         ),

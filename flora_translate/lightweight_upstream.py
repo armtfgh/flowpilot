@@ -13,9 +13,15 @@ import re
 import time
 
 import flora_translate.config as cfg
-from flora_translate.batch_normalization import apply_authoritative_batch_evidence, enrich_batch_record_dict
+from flora_translate.batch_normalization import (
+    apply_authoritative_batch_evidence,
+    enrich_batch_record_dict,
+    normalize_batch_scalar_fields,
+)
 from flora_translate.chemistry_agent import _parse_json_from_tagged
+from flora_translate.component_identity import component_name, component_key, declared_solvent_member, protocol_component_quantity
 from flora_translate.engine.llm_agents import call_model_text, infer_provider_for_model
+from flora_translate.intake_agent import intake_context_block
 from flora_translate.intensification import ensure_intensification_mandate
 from flora_translate.schemas import (
     BatchRecord,
@@ -123,6 +129,8 @@ Rules:
 - If something is uncertain, use conservative defaults instead of inventing.
 - incompatible_pairs must be a list of 2-item lists when possible.
 - stream_blueprint should describe chemistry-driven stream grouping, not hardware.
+- Preserve each reagent's own equivalents/loading and role in reagents. Never
+  replace multiple component quantities with one stream-level equivalent.
 - stage_blueprint is only needed when the protocol clearly has more than one
   synthetic stage or explicit inter-stage action.
 """
@@ -149,6 +157,8 @@ Rules:
   inventing details.
 - incompatible_pairs must be a list of 2-item lists when possible.
 - stream_blueprint should describe chemistry-driven stream grouping, not hardware.
+- Preserve each reagent's own equivalents/loading and role in reagents. Never
+  replace multiple component quantities with one stream-level equivalent.
 - stage_blueprint is only needed for true multi-stage chemistry.
 """
 
@@ -171,6 +181,7 @@ Return JSON with this schema:
   "moisture_sensitive": false,
   "temperature_sensitive": false,
   "light_sensitive_reagents": [],
+  "reagents": [{{"name": "", "role": "", "equiv_or_loading": ""}}],
   "deoxygenation_required": false,
   "deoxygenation_reasoning": "",
   "quench_required": false,
@@ -276,17 +287,7 @@ def _normalize_batch_record_data(data: dict, raw_text: str) -> dict:
         elif not isinstance(value, list):
             normalized[field] = []
 
-    numeric_fields = (
-        "catalyst_loading_mol_pct",
-        "temperature_C",
-        "reaction_time_h",
-        "concentration_M",
-        "scale_mmol",
-        "yield_pct",
-        "wavelength_nm",
-    )
-    for field in numeric_fields:
-        normalized[field] = _coerce_float(normalized.get(field))
+    normalized = normalize_batch_scalar_fields(normalized)
 
     scalar_fields = (
         "reaction_description",
@@ -340,13 +341,15 @@ def should_use_lightweight_v2(model: str | None = None) -> bool:
     return False
 
 
-def analyze_batch_chemistry(batch_record: BatchRecord) -> ChemistryPlan:
+def analyze_batch_chemistry(batch_record: BatchRecord, intake_package=None, scientific=False) -> ChemistryPlan:
     """Route chemistry analysis through the appropriate upstream path."""
     if should_use_lightweight_upstream(cfg.MODEL_CHEMISTRY_AGENT):
-        return LightweightChemistryReasoningAgent().analyze(batch_record)
+        return LightweightChemistryReasoningAgent().analyze(
+            batch_record, intake_package=intake_package, **({"scientific": True} if scientific else {})
+        )
     from flora_translate.chemistry_agent import ChemistryReasoningAgent
 
-    plan = ChemistryReasoningAgent().analyze(batch_record)
+    plan = ChemistryReasoningAgent().analyze(batch_record, intake_package=intake_package, **({"scientific": True} if scientific else {}))
     setattr(plan, "_upstream_mode", "full")
     return plan
 
@@ -538,9 +541,16 @@ def _build_reagent_roles(
         names.append(quench_reagent)
 
     reagent_roles: list[ReagentRole] = []
+    supplied = {
+        component_key(item["name"]): item for item in data.get("reagents") or []
+        if isinstance(item, dict) and item.get("name")
+    }
     additives = {item.lower(): item for item in (batch_record.additives or []) if item}
     for name in _dedupe_preserve_order(names):
+        name = component_name(name)
         lowered = name.lower()
+        item = supplied.get(component_key(name), {})
+        quantity = protocol_component_quantity(name, batch_record.raw_text or "") or str(item.get("equiv_or_loading") or "")
         if batch_record.photocatalyst and lowered == batch_record.photocatalyst.lower():
             role = "photocatalyst"
         elif batch_record.base and lowered == batch_record.base.lower():
@@ -551,9 +561,14 @@ def _build_reagent_roles(
             role = "quencher"
         elif lowered in additives:
             role = "additive"
+        elif not quantity and declared_solvent_member(name, batch_record.solvent or ""):
+            role = "solvent"
         else:
-            role = "substrate"
-        reagent_roles.append(ReagentRole(name=name, role=role, equiv_or_loading="", smiles=None, notes=""))
+            role = str(item.get("role") or "unknown")
+        if role == "photocatalyst" and not quantity and batch_record.catalyst_loading_mol_pct:
+            quantity = f"{batch_record.catalyst_loading_mol_pct:g} mol%"
+        if component_key(name) not in {component_key(item.name) for item in reagent_roles}:
+            reagent_roles.append(ReagentRole(name=name, role=role, equiv_or_loading=quantity, smiles=None, notes=""))
     return reagent_roles
 
 
@@ -647,7 +662,12 @@ class LocalInputParser:
 
     def parse(self, batch_input: str | dict) -> BatchRecord:
         if isinstance(batch_input, dict):
-            normalized = _normalize_batch_record_data(batch_input, batch_input.get("raw_text") or "")
+            raw_text = batch_input.get("raw_text") or json.dumps(
+                batch_input,
+                sort_keys=True,
+                default=str,
+            )
+            normalized = _normalize_batch_record_data(batch_input, raw_text)
             return BatchRecord(**normalized)
 
         try:
@@ -681,7 +701,12 @@ class EvidenceBackedInputParser:
     """Fair lightweight parser with deterministic protocol-text arithmetic."""
 
     def parse(self, batch_input: str | dict) -> BatchRecord:
-        raw_text = batch_input.get("raw_text") or "" if isinstance(batch_input, dict) else str(batch_input)
+        raw_text = (
+            batch_input.get("raw_text")
+            or json.dumps(batch_input, sort_keys=True, default=str)
+            if isinstance(batch_input, dict)
+            else str(batch_input)
+        )
         if isinstance(batch_input, dict):
             data = dict(batch_input)
         else:
@@ -721,7 +746,8 @@ class EvidenceBackedInputParser:
 class LightweightChemistryReasoningAgent:
     """Compact chemistry-planning path for weak/local models."""
 
-    def analyze(self, batch_record: BatchRecord) -> ChemistryPlan:
+    def analyze(self, batch_record: BatchRecord, intake_package=None, scientific=False) -> ChemistryPlan:
+        from flora_translate.scientific_evidence import UPSTREAM_POLICY
         v2 = should_use_lightweight_v2(cfg.MODEL_CHEMISTRY_AGENT)
         logger.info(
             "  %s Chemistry Agent: Analyzing with %s",
@@ -730,13 +756,21 @@ class LightweightChemistryReasoningAgent:
         )
         batch_json = json.dumps(batch_record.model_dump(exclude_none=True), indent=2)
         user_prompt = LIGHTWEIGHT_CHEMISTRY_USER_TEMPLATE.format(batch_json=batch_json)
+        if intake_package is not None:
+            user_prompt += (
+                "\n\n"
+                + intake_context_block(intake_package)
+                + "\n\nUse measured evidence and hard constraints as context. "
+                "Treat chemist hypotheses as hypotheses to test, not as facts."
+            )
 
         started = time.perf_counter()
         result = call_model_text(
             model=cfg.MODEL_CHEMISTRY_AGENT,
             api_name="lightweight_v2_chemistry_agent" if v2 else "lightweight_chemistry_agent",
             max_tokens=cfg.LIGHTWEIGHT_CHEMISTRY_MAX_TOKENS,
-            system=LIGHTWEIGHT_CHEMISTRY_V2_SYSTEM if v2 else LIGHTWEIGHT_CHEMISTRY_SYSTEM,
+            system=(LIGHTWEIGHT_CHEMISTRY_V2_SYSTEM if v2 else LIGHTWEIGHT_CHEMISTRY_SYSTEM) + (
+                "\n\n" + UPSTREAM_POLICY if scientific else ""),
             user_content=user_prompt,
         )
         logger.debug(

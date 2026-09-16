@@ -12,3 +12,6 @@ Entry point:  CouncilV4().run(...)
 """
 
 from flora_translate.engine.council_v4.chief import CouncilV4  # noqa: F401
+from flora_translate.engine.council_v4.execution_config import (  # noqa: F401
+    CouncilExecutionConfig,
+)

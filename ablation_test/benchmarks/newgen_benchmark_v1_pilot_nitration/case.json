@@ -1,0 +1,75 @@
+{
+  "schema_version": "flowpilot_newgen_case_v1.0",
+  "suite_id": "newgen_benchmark_v1_pilot",
+  "cases": [
+    {
+      "case_id": "pendimethalin_nitration_c2gc36652e",
+      "scenario_id": "pendimethalin_nitration_c2gc36652e",
+      "title": "Highly exothermic dinitration of an N-alkyl aniline",
+      "category": "biphasic_exothermic_liquid_liquid_nitration",
+      "difficulty": "high",
+      "tags": ["newgen", "held_out_source", "nitration", "biphasic", "exothermic", "microreactor"],
+      "source_record_id": "c2gc36652e.pdf",
+      "source_record_aliases": [
+        "c2gc36652e",
+        "c2gc36652e.json",
+        "Safe, efficient and selective synthesis of dinitro herbicides via a multifunctional continuous-flow microreactor: one-step dinitration with nitric acid as agent"
+      ],
+      "reference_quality": "page_verified_original_pdf",
+      "protocol": "In the conventional industrial batch preparation of pendimethalin, a 30 wt% solution of N-(1-ethylpropyl)-3,4-xylidine in a chlorinated solvent is first treated with dilute nitric acid. The organic and spent-acid phases are separated, and the organic phase is then treated with more concentrated nitric acid. The two nitration stages require 4 h in total and afford an 89% combined yield of pendimethalin and N-nitroso-pendimethalin in a 7:3 ratio. The chemistry is a highly exothermic liquid-liquid nitration with possible decomposition and explosion hazards for nitro compounds. Translate this batch procedure into one conservative, executable continuous-flow screening design for pendimethalin. Report feed preparations, individual pump rates, nitric-acid equivalents, mixing and reactor assignments, temperature, reactor volume, residence time, collection, phase separation or quench, startup and shutdown, and thermal/corrosion safety controls.",
+      "objective": "Produce one executable, inventory-constrained flow screen without using the held-out source answer.",
+      "hard_constraints": [
+        "Use only the authoritative inventory supplied below.",
+        "Use exactly two liquid feeds: an organic N-(1-ethylpropyl)-3,4-xylidine feed and an aqueous nitric-acid feed.",
+        "The integrated mixer-reactor is the only available reaction device; do not invent coils, tubing dimensions, BPRs, gas hardware, or photochemical equipment.",
+        "A one-step direct dinitration may be proposed only with low reactive holdup, active temperature control, and an explicitly conservative screening disposition.",
+        "Report both stream flow rates, total liquid flow, HNO3 equivalents, reactor volume, and residence time with V = Q_total * tau numerical closure.",
+        "Use the downstream acid-compatible phase separator and cooled quench collector declared in inventory.",
+        "All selected equipment must be named by its inventory equipment_id.",
+        "Return SCREEN unless the inventory cannot support a safe design. Never label this hazardous first experiment EXECUTE."
+      ],
+      "expected_features": {
+        "gas_required": false,
+        "light_required": false,
+        "phase_regime": "biphasic_liquid_liquid",
+        "topology": ["two_liquid_pumps", "integrated_micropore_mixer", "microchannel_reactor", "phase_separator", "cooled_quench_collector"],
+        "hazards": ["highly_exothermic_dinitration", "nitric_acid", "corrosion", "nitro_compound_decomposition", "NOx"]
+      },
+      "expected_disposition": "SCREEN",
+      "inventory": {
+        "schema_version": "flowpilot_lab_inventory_v3.0",
+        "strict_assignment": true,
+        "pumps": [
+          {"equipment_id": "pump_nit_org", "name": "Organic-feed HPLC pump", "type": "HPLC", "max_pressure_bar": 20.0, "min_flow_rate_mL_min": 0.5, "max_flow_rate_mL_min": 10.0, "compatible_materials": ["1,2-dichloroethane", "N-(1-ethylpropyl)-3,4-xylidine"]},
+          {"equipment_id": "pump_nit_acid", "name": "Nitric-acid HPLC pump", "type": "HPLC", "max_pressure_bar": 20.0, "min_flow_rate_mL_min": 0.5, "max_flow_rate_mL_min": 10.0, "compatible_materials": ["aqueous nitric acid"]}
+        ],
+        "tubing": [],
+        "BPR_available": [],
+        "light_sources": [],
+        "gas_hardware": [],
+        "reactors": [
+          {"equipment_id": "reactor_nit_020", "name": "Integrated acid-compatible micropore mixer/microchannel reactor", "type": "microchannel", "material": "acid-compatible alloy", "volume_mL": 0.2, "ID_mm": 0.5, "system": "nitration microreactor skid", "min_temperature_C": 20.0, "max_temperature_C": 80.0, "allowed_temperatures_C": [40.0, 50.0, 60.0, 70.0, 80.0], "min_pressure_bar": 0.0, "max_pressure_bar": 20.0, "configuration": "integrated mixing, heat exchange, and reaction"}
+        ],
+        "mixers": [
+          {"equipment_id": "mixer_nit_mp", "name": "Integrated acid-compatible micropore mixer", "type": "micropore mixer", "material": "acid-compatible alloy", "max_inputs": 2, "min_total_flow_mL_min": 1.0, "max_total_flow_mL_min": 20.0, "max_pressure_bar": 20.0}
+        ],
+        "pressure_controllers": [],
+        "degassers": [],
+        "filters": [],
+        "separators": [
+          {"equipment_id": "separator_nit_ll", "name": "Acid-compatible liquid-liquid separator", "type": "gravity phase separator", "material": "glass/PTFE", "max_flow_rate_mL_min": 20.0, "max_pressure_bar": 1.0}
+        ],
+        "connectors": [
+          {"equipment_id": "connector_nit_set", "name": "Acid-compatible connector set", "type": "microfluidic connector set", "material": "PTFE/acid-compatible alloy", "max_pressure_bar": 20.0}
+        ],
+        "temperature_controllers": [
+          {"equipment_id": "controller_nit_thermostat", "name": "Nitration microreactor thermostat", "type": "recirculating thermostat", "min_temperature_C": 0.0, "max_temperature_C": 80.0, "allowed_temperatures_C": [40.0, 50.0, 60.0, 70.0, 80.0]}
+        ],
+        "collectors": [
+          {"equipment_id": "collector_nit_quench", "name": "Cooled stirred aqueous quench collector", "type": "quench collection vessel", "volume_mL": 1000.0, "max_pressure_bar": 1.0}
+        ],
+        "reactor_trains": []
+      }
+    }
+  ]
+}

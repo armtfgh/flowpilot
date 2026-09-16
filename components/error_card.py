@@ -9,7 +9,20 @@ def render_error(exception: Exception, context: str = "FLORA"):
     err_str = str(exception)
     tb_str = traceback.format_exc()
 
-    if "chromadb" in err_str.lower() or "collection" in err_str.lower():
+    if (
+        "llm request failed" in err_str.lower()
+        or "connection error" in err_str.lower()
+        or "apiconnectionerror" in tb_str.lower()
+        or "apitmeouterror" in tb_str.lower()
+        or "apitimeouterror" in tb_str.lower()
+    ):
+        title = "LLM provider connection failed"
+        fix = (
+            "Retry the run. If it repeats, check internet access, provider status, "
+            "and that the Streamlit process was started from the environment with "
+            "the required API keys."
+        )
+    elif "chromadb" in err_str.lower() or "collection" in err_str.lower():
         title = "Corpus not available"
         fix = "Go to Knowledge Extraction and index some papers first."
     elif "api_key" in err_str.lower() or "anthropic" in err_str.lower() or "openai" in err_str.lower():
@@ -20,7 +33,10 @@ def render_error(exception: Exception, context: str = "FLORA"):
         fix = "Install cairosvg: `pip install cairosvg`"
     elif "validation error" in err_str.lower() or "pydantic" in err_str.lower():
         title = "Data validation error"
-        fix = "The LLM returned an unexpected format. Try running again."
+        fix = (
+            "One or more fields still use an unsupported structure. Check the "
+            "field names shown above; rerunning alone may not correct malformed JSON."
+        )
     else:
         title = f"Error in {context}"
         fix = "See technical details below."

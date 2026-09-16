@@ -2,6 +2,9 @@
 
 import json
 import logging
+import math
+import re
+from collections import Counter
 from pathlib import Path
 
 import chromadb
@@ -124,6 +127,99 @@ class VectorStore:
             where=where_filter,
             include=["documents", "metadatas", "distances", "embeddings"],
         )
+
+    def query_lexical(
+        self,
+        query_text: str,
+        n_results: int = 20,
+        pairs_only: bool = True,
+        min_confidence: int = 2,
+        mechanism_type: str = "",
+        phase_regime: str = "",
+    ) -> dict:
+        """Deterministic TF-IDF fallback when remote embeddings are unavailable."""
+        collection = self.pairs_collection if pairs_only else self.collection
+        count = collection.count()
+        empty = {
+            "ids": [[]],
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]],
+        }
+        if count == 0:
+            return empty
+
+        filters = [{"confidence": {"$gte": min_confidence}}]
+        if mechanism_type:
+            filters.append({"mechanism_type": mechanism_type})
+        if phase_regime:
+            filters.append({"phase_regime": phase_regime})
+        where_filter = (
+            {"$and": filters}
+            if len(filters) > 1
+            else filters[0]
+        )
+        records = collection.get(
+            where=where_filter,
+            include=["documents", "metadatas"],
+        )
+        ids = list(records.get("ids") or [])
+        documents = list(records.get("documents") or [])
+        metadatas = list(records.get("metadatas") or [])
+        if not ids:
+            return empty
+
+        token_pattern = re.compile(r"[a-z0-9]+")
+
+        def tokens(text: str) -> list[str]:
+            return token_pattern.findall((text or "").lower())
+
+        document_terms = [Counter(tokens(document)) for document in documents]
+        query_terms = Counter(tokens(query_text))
+        document_frequency: Counter[str] = Counter()
+        for terms in document_terms:
+            document_frequency.update(terms.keys())
+        document_count = len(document_terms)
+
+        def weighted_vector(terms: Counter[str]) -> dict[str, float]:
+            return {
+                term: count_value
+                * (math.log((document_count + 1) / (document_frequency[term] + 1)) + 1.0)
+                for term, count_value in terms.items()
+            }
+
+        query_vector = weighted_vector(query_terms)
+        query_norm = math.sqrt(sum(value * value for value in query_vector.values()))
+        ranked = []
+        for record_id, document, metadata, terms in zip(
+            ids,
+            documents,
+            metadatas,
+            document_terms,
+        ):
+            document_vector = weighted_vector(terms)
+            document_norm = math.sqrt(
+                sum(value * value for value in document_vector.values())
+            )
+            dot_product = sum(
+                query_vector.get(term, 0.0) * value
+                for term, value in document_vector.items()
+            )
+            denominator = query_norm * document_norm
+            cosine = dot_product / denominator if denominator else 0.0
+            distance = math.sqrt(max(0.0, 2.0 * (1.0 - cosine)))
+            ranked.append(
+                (distance, record_id, document, metadata)
+            )
+
+        ranked.sort(key=lambda item: (item[0], item[1]))
+        selected = ranked[: min(n_results, len(ranked))]
+        return {
+            "ids": [[item[1] for item in selected]],
+            "documents": [[item[2] for item in selected]],
+            "metadatas": [[item[3] for item in selected]],
+            "distances": [[item[0] for item in selected]],
+        }
 
     def get_record_data(self, record_id: str) -> dict | None:
         """Retrieve the full metadata for a record by ID."""

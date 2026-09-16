@@ -17,6 +17,7 @@ from typing import Optional
 
 import flora_translate.config as cfg
 from flora_translate.config import FLOW_MAX_TAU_TO_BATCH_RATIO, FLOW_TRANSLATION_POLICY
+from flora_translate.design_calculator import GAS_LIQUID_MIN_BPR_BAR
 from flora_translate.engine.flow_value import attach_flow_sense_reports, mandate_dict
 from flora_translate.engine.llm_agents import call_llm
 from flora_translate.engine.sampling import (
@@ -53,11 +54,21 @@ _FRAMING_SYSTEM = """\
 You are the FLORA ENGINE problem framer. Parse and confirm the chemistry context
 into a structured problem statement for the council.
 
+CRITICAL FLAG SEMANTICS — do NOT conflate these two:
+  - "O2_inhibits" : reaction is poisoned/quenched by ambient O2; needs degassing
+                    and inert blanket. Use ONLY if the chemistry is shown to be
+                    inhibited by O2 (e.g. radical chain that termin ates with O2).
+  - "O2_reagent"  : O2 (pure or from air) is a STOICHIOMETRIC reagent. Needs MFC,
+                    BPR, and gas-liquid contacting. Aerobic oxidations belong here.
+  These are mutually exclusive. NEVER emit "O2_sensitive" or "O2_inhibits" for
+  an aerobic oxidation just because O2 appears in the reaction — that's the
+  reagent flag, not the sensitivity flag.
+
 Return JSON only:
 {
-  "reaction_class": "photoredox | thermal | hydrogenation | gas-liquid | other",
-  "special_flags": ["O2_sensitive", "moisture_sensitive", "exothermic", "gas_liquid",
-                    "photochemical", "multi_stage"],
+  "reaction_class": "photoredox | thermal | hydrogenation | gas-liquid | aerobic_oxidation | other",
+  "special_flags": ["O2_inhibits", "O2_reagent", "moisture_sensitive", "exothermic",
+                    "gas_liquid", "photochemical", "multi_stage"],
   "flow_justified": true,
   "flow_justification_note": "brief note if flow is not obviously justified",
   "ambiguities": ["list anything unclear that the council should assume or ask about"]
@@ -76,21 +87,36 @@ def run_problem_framing(
     temperature_C: float,
     concentration_M: float,
     objectives: str,
+    is_O2_reagent: bool = False,
 ) -> dict:
-    """Stage 0: Confirm problem framing. Returns structured problem statement."""
+    """Stage 0: Confirm problem framing. Returns structured problem statement.
+
+    is_O2_sensitive and is_O2_reagent are mutually exclusive — see _FRAMING_SYSTEM.
+    """
     flags = []
     if is_photochem:
         flags.append("photochemical")
     if is_gas_liquid:
         flags.append("gas_liquid")
-    if is_O2_sensitive:
-        flags.append("O2_sensitive")
+    if is_O2_reagent:
+        flags.append("O2_reagent")
+    elif is_O2_sensitive:
+        flags.append("O2_inhibits")
+
+    o2_context = ""
+    if is_O2_reagent:
+        o2_context = (
+            " | O2 USE: REAGENT (stoichiometric; aerobic oxidation) — must NOT emit "
+            "O2_inhibits or O2_sensitive"
+        )
+    elif is_O2_sensitive:
+        o2_context = " | O2 USE: INHIBITS reaction — deoxygenation required"
 
     user_msg = (
         f"reaction_class={reaction_class} | solvent={solvent} | T={temperature_C}°C\n"
         f"C={concentration_M} M | tau_batch_equiv={tau_center_min:.1f} min | "
         f"tau_lit={'%.1f' % tau_lit_min if tau_lit_min else 'unknown'} min\n"
-        f"flags={flags} | objectives={objectives}\n\n"
+        f"flags={flags}{o2_context} | objectives={objectives}\n\n"
         "Confirm and output JSON."
     )
 
@@ -102,7 +128,7 @@ def run_problem_framing(
         "ambiguities": [],
     }
     try:
-        raw = call_llm(_FRAMING_SYSTEM, user_msg, max_tokens=400)
+        raw = call_llm(_FRAMING_SYSTEM, user_msg, max_tokens=800)
         s = raw.strip()
         if "```" in s:
             for part in s.split("```")[1::2]:
@@ -118,6 +144,31 @@ def run_problem_framing(
                 pass
     except Exception as e:
         logger.warning("Stage 0 framing LLM call failed: %s — using defaults", e)
+
+    # Enforce O2 flag mutual exclusivity on the LLM response. The framing LLM
+    # has historically conflated "uses O2" with "sensitive to O2"; if the
+    # caller already determined O2 is a reagent, strip any inhibition flag
+    # the LLM may have added back. Legacy clients still expect "O2_sensitive"
+    # in some places, so also normalize the alias.
+    returned_flags = framing.get("special_flags") or []
+    normalized: list[str] = []
+    for f in returned_flags:
+        fl = str(f)
+        # Normalize legacy alias
+        if fl == "O2_sensitive":
+            fl = "O2_inhibits"
+        normalized.append(fl)
+    if is_O2_reagent:
+        normalized = [f for f in normalized if f not in ("O2_inhibits", "O2_sensitive")]
+        if "O2_reagent" not in normalized:
+            normalized.append("O2_reagent")
+    elif is_O2_sensitive:
+        normalized = [f for f in normalized if f != "O2_reagent"]
+        if "O2_inhibits" not in normalized:
+            normalized.append("O2_inhibits")
+    framing["special_flags"] = sorted(set(normalized))
+    framing["o2_is_reagent"] = bool(is_O2_reagent)
+    framing["o2_inhibits"] = bool(is_O2_sensitive)
 
     return framing
 
@@ -137,7 +188,7 @@ derived metrics are computed deterministically by tools; you only decide the
 • Mixing: t_mix ≈ d²/(4·D). Halving d gives 4× faster mixing.
 • Photochem: Beer-Lambert A = ε·C·(d[mm]·0.1). Inner-filter risk if A > 1.5.
   FEP/PFA mandatory; PTFE is opaque. Prefer d ≤ 1.0 mm for photoredox.
-• Gas-liquid: slug flow needs d ≥ 0.75 mm. BPR ≥ 5 bar mandatory.
+• Gas-liquid: slug flow needs d ≥ 0.75 mm. BPR ≥ 3 bar mandatory.
 • IF class ranges: photoredox 4–8×, thermal 8–15×, hydrogenation 20–50×,
   radical 10–60×, cross-coupling 5–20×.
 • v4 bench envelope: L ≤ 25 m, V_R ≤ 50 mL.
@@ -309,9 +360,10 @@ def _apply_v4_hard_gates(
                 f"BPR_current={BPR_bar} bar < BPR_min={BPR_min:.2f} bar"
             )
         # Gas-liquid floor
-        if is_gas_liquid and BPR_bar < 5.0:
+        if is_gas_liquid and BPR_bar < GAS_LIQUID_MIN_BPR_BAR:
             reasons.append(
-                f"gas-liquid system: BPR={BPR_bar} bar < 5.0 bar mandatory floor"
+                f"gas-liquid system: BPR={BPR_bar} bar < "
+                f"{GAS_LIQUID_MIN_BPR_BAR:.1f} bar mandatory floor"
             )
         if is_gas_liquid and BPR_bar > V4_GAS_LIQUID_MAX_BPR_BAR:
             reasons.append(
@@ -374,6 +426,8 @@ def run_designer_v4(
     assumed_MW: float,
     IF_used: float,
     pump_max_bar: float,
+    pump_min_flow_mL_min: float = 0.05,
+    pump_max_flow_mL_min: Optional[float] = None,
     BPR_bar: float = 0.0,
     batch_time_min: Optional[float] = None,
     translation_policy: str = FLOW_TRANSLATION_POLICY,
@@ -384,6 +438,9 @@ def run_designer_v4(
     problem_statement: Optional[dict] = None,
     intensification_mandate: Optional[dict] = None,
     redesign_instructions: Optional[dict] = None,
+    target_gas_equiv_inlet: float = 3.0,
+    gas_reagent_fraction: float = 0.21,
+    gas_liquid_max_bpr_bar: float = V4_GAS_LIQUID_MAX_BPR_BAR,
 ) -> dict:
     """Run Stage 1: Designer candidate matrix for v4.
 
@@ -407,13 +464,22 @@ def run_designer_v4(
         f"tau_kinetics(90% X)={tau_kinetics_min:.1f} min | IF={IF_used:.1f}\n"
         f"d_center={d_center_mm} mm | Q_center={Q_center_mL_min:.3f} mL/min\n"
         f"solvent={solvent} | T={temperature_C}°C | C={concentration_M} M | "
-        f"MW={assumed_MW:.0f} g/mol | pump_max={pump_max_bar} bar"
+        f"MW={assumed_MW:.0f} g/mol | pump_max={pump_max_bar} bar\n"
+        f"translation_policy={translation_policy}"
     )
+    if (translation_policy or "").lower() == "evidence_first":
+        chem_brief += (
+            "\nPredicted intensification is a soft screening hypothesis. "
+            "Preserve practical, evidence-anchored candidates even when they "
+            "do not meet the predicted residence-time reduction target."
+        )
     if is_photochem:
         chem_brief += (
             f"\nε(photocatalyst)={extinction_coeff_M_cm or 'not provided'} M⁻¹cm⁻¹"
         )
     mandate = mandate_dict(intensification_mandate)
+    if redesign_instructions and redesign_instructions.get("measured_evidence_override"):
+        mandate = {}
     if mandate:
         chem_brief += f"\nintensification_mandate={json.dumps(mandate, ensure_ascii=False)}"
     if redesign_instructions:
@@ -447,6 +513,7 @@ def run_designer_v4(
         else [0.40, 0.60, 0.80]
     )
     max_tau_min = None
+    min_tau_min = None
     if (
         (translation_policy or "").lower() == "intensify"
         and batch_time_min is not None
@@ -459,6 +526,11 @@ def run_designer_v4(
             max_tau_min = min(max_tau_min, ceiling) if max_tau_min else ceiling
         except (TypeError, ValueError):
             pass
+    if redesign_instructions and redesign_instructions.get("tau_floor"):
+        try:
+            min_tau_min = max(float(redesign_instructions["tau_floor"]), 0.0)
+        except (TypeError, ValueError):
+            min_tau_min = None
 
     effective_tau_center = tau_center_min
     if max_tau_min and effective_tau_center > max_tau_min:
@@ -491,6 +563,12 @@ def run_designer_v4(
         L_fractions=L_fractions,
         N_target=N_target,
         max_tau_min=max_tau_min,
+        min_tau_min=min_tau_min,
+        min_flow_rate_mL_min=pump_min_flow_mL_min,
+        max_flow_rate_mL_min=pump_max_flow_mL_min,
+        target_gas_equiv_inlet=target_gas_equiv_inlet,
+        gas_reagent_fraction=gas_reagent_fraction,
+        gas_liquid_max_bpr_bar=gas_liquid_max_bpr_bar,
     )
 
     # Re-assign sequential IDs to all_feasible
@@ -518,6 +596,8 @@ def run_designer_v4(
         intensification_mandate=mandate,
     )
 
+    intensify_mode = (translation_policy or "").lower() == "intensify"
+
     def _self_challenge(candidates: list[dict]) -> tuple[list[dict], dict]:
         kept: list[dict] = []
         dropped: list[dict] = []
@@ -525,12 +605,20 @@ def run_designer_v4(
             report = candidate.get("flow_sense_report") or {}
             reasons: list[str] = []
             tau_ratio = report.get("tau_ratio")
-            if tau_ratio is not None and float(tau_ratio) >= cfg.BATCH_PROXIMITY_THRESHOLD:
+            if (
+                intensify_mode
+                and tau_ratio is not None
+                and float(tau_ratio) >= cfg.BATCH_PROXIMITY_THRESHOLD
+            ):
                 reasons.append("tau_flow too close to batch_time; no meaningful intensification")
-            if float(report.get("process_value_score") or 0.0) < 0.15:
+            if (
+                intensify_mode
+                and float(report.get("process_value_score") or 0.0) < 0.15
+            ):
                 reasons.append("no measurable flow advantage identified")
             if (
-                report.get("boundary_hugging")
+                intensify_mode
+                and report.get("boundary_hugging")
                 and float(report.get("primary_advantage_proxy_score") or 0.0) <= 0.4
             ):
                 reasons.append("candidate is batch-equivalent; not a flow design")
@@ -555,7 +643,8 @@ def run_designer_v4(
 
     filtered_feasible, pool_metadata = _self_challenge(all_feasible)
     if (
-        not redesign_instructions
+        intensify_mode
+        and not redesign_instructions
         and all_feasible
         and pool_metadata["drop_fraction"] >= cfg.POOL_REJECTION_THRESHOLD
         and batch_time_min
@@ -582,6 +671,12 @@ def run_designer_v4(
             L_fractions=[0.40, 0.60, 0.80],
             N_target=N_target,
             max_tau_min=regen_tau_ceiling,
+            min_tau_min=min_tau_min,
+            min_flow_rate_mL_min=pump_min_flow_mL_min,
+            max_flow_rate_mL_min=pump_max_flow_mL_min,
+            target_gas_equiv_inlet=target_gas_equiv_inlet,
+            gas_reagent_fraction=gas_reagent_fraction,
+            gas_liquid_max_bpr_bar=gas_liquid_max_bpr_bar,
         )
         for i, c in enumerate(regen_feasible, 1):
             c["id"] = i
@@ -625,10 +720,39 @@ def run_designer_v4(
 
     table = format_candidate_table(survivors, max_rows=N_target)
 
+    # Aggregate sampling-infeasible kill reasons so logs surface WHY 0/N passed.
+    # Previously the log just said "N sampling-infeasible" which was opaque.
+    kill_category_counts: dict[str, int] = {}
+    for c in all_infeasible:
+        for tag in (c.get("primary_kill_categories") or []):
+            kill_category_counts[tag] = kill_category_counts.get(tag, 0) + 1
+    kill_summary = ", ".join(
+        f"{tag}:{n}" for tag, n in sorted(kill_category_counts.items(), key=lambda x: -x[1])
+    ) or "—"
+
     logger.info(
-        "    Designer v4: %d total feasible → %d to council (%d flagged, %d sampling-infeasible)",
+        "    Designer v4: %d total feasible → %d to council (%d flagged, %d sampling-infeasible; "
+        "kill_categories=%s)",
         len(all_feasible), len(survivors), len(flagged), len(all_infeasible),
+        kill_summary,
     )
+
+    # Surface a compact killed-designs view for the council log. Cap at 20
+    # entries to avoid bloating logs while still giving every kill family a
+    # representative sample.
+    killed_designs_view: list[dict] = []
+    for c in all_infeasible[:20]:
+        killed_designs_view.append({
+            "tau_min": c.get("tau_min"),
+            "d_mm": c.get("d_mm"),
+            "Q_mL_min": c.get("Q_mL_min"),
+            "L_m": c.get("L_m"),
+            "Re": c.get("Re"),
+            "delta_P_bar": c.get("delta_P_bar"),
+            "required_bpr_bar": c.get("required_bpr_bar"),
+            "kill_categories": c.get("primary_kill_categories", []),
+            "violations": c.get("violations", []),
+        })
 
     tau_range = [c["tau_min"] for c in survivors] if survivors else [tau_center_min]
     d_range = list(sorted({c["d_mm"] for c in survivors})) if survivors else [d_center_mm]
@@ -640,6 +764,8 @@ def run_designer_v4(
         "strategy_reasoning": strategy_reasoning,
         "survivors": survivors,
         "disqualified": flagged,   # kept for UI backward compat; these are flags, not removals
+        "killed_designs": killed_designs_view,
+        "kill_category_counts": kill_category_counts,
         "all_candidates": all_feasible,
         "table_markdown": table,
         "pool_metadata": pool_metadata,

@@ -1,38 +1,33 @@
-"""FLORA — Sidebar navigation."""
+"""FlowPilot sidebar navigation."""
 
 import streamlit as st
 
 
 def render_sidebar() -> str:
     with st.sidebar:
-        st.markdown("## FLORA")
-        st.caption("Flow Literature Oriented Retrieval Agent")
+        st.markdown("## FlowPilot")
+        st.caption("Inventory-constrained batch-to-flow design")
         _model_routing_status()
         st.divider()
 
         st.markdown("##### DESIGN")
-        if st.button("FLORA Design", use_container_width=True, key="nav_design"):
-            st.session_state.page = "flora_design"
+        _nav_button("FlowPilot Design", "flora_design", "nav_design")
+        _nav_button("Inventory Manager", "inventory", "nav_inventory")
 
         st.divider()
 
         st.markdown("##### EVALUATE")
-        if st.button("Protocol Diagnostics", use_container_width=True, key="nav_diagnose"):
-            st.session_state.page = "diagnose"
-        if st.button("Condition Optimization", use_container_width=True, key="nav_optimize"):
-            st.session_state.page = "optimize"
+        _nav_button("Protocol Diagnostics", "diagnose", "nav_diagnose")
+        _nav_button("Condition Optimization", "optimize", "nav_optimize")
+        _nav_button("Benchmark Figure Studio", "figure_studio", "nav_figure_studio")
 
         st.divider()
 
         with st.expander("KNOWLEDGE", expanded=False):
-            if st.button("Fundamentals", use_container_width=True, key="nav_fundamentals"):
-                st.session_state.page = "fundamentals"
-            if st.button("Literature Mining", use_container_width=True, key="nav_scout"):
-                st.session_state.page = "scout"
-            if st.button("Knowledge Extraction", use_container_width=True, key="nav_prism"):
-                st.session_state.page = "prism"
-            if st.button("Knowledge Base", use_container_width=True, key="nav_corpus"):
-                st.session_state.page = "corpus"
+            _nav_button("Fundamentals", "fundamentals", "nav_fundamentals")
+            _nav_button("Literature Mining", "scout", "nav_scout")
+            _nav_button("Knowledge Extraction", "prism", "nav_prism")
+            _nav_button("Knowledge Base", "corpus", "nav_corpus")
 
         st.divider()
         _corpus_status()
@@ -40,40 +35,32 @@ def render_sidebar() -> str:
     return st.session_state.get("page", "flora_design")
 
 
+def _nav_button(label: str, page: str, key: str) -> None:
+    current = st.session_state.get("page", "flora_design")
+    if st.button(
+        label,
+        use_container_width=True,
+        key=key,
+        type="primary" if current == page else "secondary",
+    ):
+        st.session_state.page = page
+        st.rerun()
+
+
 def _model_routing_status():
     try:
-        import flora_translate.config as cfg
+        from components.model_route_selector import _route_statuses
+        from flora_translate.model_catalog import available_default_route_ids, model_routes
 
-        upstream_models = [
-            cfg.MODEL_INPUT_PARSER,
-            cfg.MODEL_CHEMISTRY_AGENT,
-            cfg.MODEL_TRANSLATION,
-            cfg.MODEL_OUTPUT_FORMATTER,
-            cfg.MODEL_CONVERSATION_AGENT,
-        ]
-        upstream_is_claude = all(str(model).startswith("claude") for model in upstream_models)
-        council_is_4o = cfg.ENGINE_PROVIDER == "openai" and cfg.ENGINE_MODEL_OPENAI == "gpt-4o"
+        routes = model_routes()
+        defaults = available_default_route_ids(_route_statuses())
+        upstream = routes[defaults["upstream"]]
+        downstream = routes[defaults["downstream"]]
 
         with st.expander("Model routing", expanded=False):
-            if upstream_is_claude:
-                st.success("Upstream: Claude")
-            else:
-                st.warning("Upstream: mixed/non-Claude")
-            st.caption(
-                f"Parser: {cfg.MODEL_INPUT_PARSER}\n\n"
-                f"Chemistry: {cfg.MODEL_CHEMISTRY_AGENT}\n\n"
-                f"Translation: {cfg.MODEL_TRANSLATION}"
-            )
-
-            if council_is_4o:
-                st.success("Council/downstream: OpenAI GPT-4o")
-            else:
-                st.warning("Council/downstream is not GPT-4o")
-            st.caption(
-                f"Provider: {cfg.ENGINE_PROVIDER}\n\n"
-                f"OpenAI model: {cfg.ENGINE_MODEL_OPENAI}\n\n"
-                f"Lightweight upstream mode: {cfg.LIGHTWEIGHT_UPSTREAM_MODE}"
-            )
+            st.success(f"Default upstream: {upstream.label}")
+            st.success(f"Default downstream/council: {downstream.label}")
+            st.caption("Each design can override these defaults using the model selectors.")
     except Exception as exc:
         st.warning(f"Model routing unavailable: {exc}")
 

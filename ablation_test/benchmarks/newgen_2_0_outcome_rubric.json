@@ -1,0 +1,139 @@
+{
+  "schema_version": "flowpilot_newgen_2_0_outcome_rubric_v1.0",
+  "benchmark_name": "NewGen 2.0",
+  "benchmark_type": "architecture_neutral_final_outcome_scoring",
+  "primary_score_range": [0.0, 1.0],
+  "criterion_weights": "equal",
+  "architecture_process_traces_scored": false,
+  "score_anchors": {
+    "4": "Correct, complete, executable, and supported; no material defect.",
+    "3": "Correct overall with a minor defect that is unlikely to change execution or interpretation.",
+    "2": "Partially correct with one material but recoverable defect requiring revision before execution.",
+    "1": "Major deficiencies, multiple material defects, or poor reproducibility; substantial redesign is required.",
+    "0": "Fundamentally wrong, unsafe, chemically invalid, or physically impossible."
+  },
+  "not_applicable_policy": "NOT_APPLICABLE is permitted only where a criterion's applicability rule is false. Missing required output is scored 0 or 1, never NOT_APPLICABLE.",
+  "critical_error_policy": "Critical errors are reported separately and do not apply an arbitrary numerical cap to the outcome score.",
+  "judge_aggregation": {
+    "criterion_consensus": "arithmetic mean of valid independent judge scores",
+    "candidate_score": "arithmetic mean of applicable criterion consensus scores divided by 4",
+    "primary_judges": ["qwen", "openai", "claude"],
+    "report_median": true,
+    "report_standard_deviation": true,
+    "report_generator_family_excluded_sensitivity": true
+  },
+  "criteria": [
+    {
+      "criterion_id": "UO-01",
+      "domain": "chemistry",
+      "name": "Transformation fidelity",
+      "question": "Does the final design preserve the intended substrate, product, transformation, catalyst strategy, reaction modality, and phase regime without unsupported substitution?",
+      "applicability": "ALWAYS",
+      "critical_conditions": ["Wrong product or transformation", "Chemically incompatible catalyst or modality substitution"]
+    },
+    {
+      "criterion_id": "UO-02",
+      "domain": "chemistry",
+      "name": "Required materials",
+      "question": "Are all required reagents, catalysts, solvents, additives, gases, and reactive components present and correctly assigned?",
+      "applicability": "ALWAYS",
+      "critical_conditions": ["Required reactive component omitted", "Unsafe or transformation-changing material introduced"]
+    },
+    {
+      "criterion_id": "UO-03",
+      "domain": "chemistry",
+      "name": "Stoichiometry and feed chemistry",
+      "question": "Are concentrations, equivalents, feed compositions, dilution, and chemical compatibility explicit and coherent?",
+      "applicability": "ALWAYS",
+      "critical_conditions": ["Stoichiometry prevents intended reaction", "Feed combination creates an unmitigated incompatibility"]
+    },
+    {
+      "criterion_id": "UO-04",
+      "domain": "chemistry",
+      "name": "Condition and stage mapping",
+      "question": "Are temperature, pressure, atmosphere, irradiation, addition order, stage boundaries, and chemistry-critical batch operations translated faithfully?",
+      "applicability": "ALWAYS",
+      "critical_conditions": ["Chemistry-critical operation or stage omitted", "Condition change makes the intended chemistry implausible or unsafe"]
+    },
+    {
+      "criterion_id": "UO-05",
+      "domain": "process",
+      "name": "Executable topology",
+      "question": "Are feeds, pumps or MFCs, mixers, reactors, controls, separators, quench, collection, and waste connected in the correct executable order?",
+      "applicability": "ALWAYS",
+      "critical_conditions": ["Required unit operation absent", "Topology cannot physically execute the proposed chemistry"]
+    },
+    {
+      "criterion_id": "UO-06",
+      "domain": "engineering",
+      "name": "Liquid material balance",
+      "question": "Do liquid concentrations and flow rates reproduce component molar flows, equivalents, total flow, dilution, and throughput?",
+      "applicability": "ALWAYS",
+      "critical_conditions": ["Material balance is dimensionally invalid", "Reported feeds cannot produce the stated stoichiometry"]
+    },
+    {
+      "criterion_id": "UO-07",
+      "domain": "engineering",
+      "name": "Residence-time and geometry closure",
+      "question": "Do reactor volume, cumulative flow, geometry, holdup basis, per-stage residence time, and total residence time close numerically?",
+      "applicability": "ALWAYS",
+      "critical_conditions": ["Residence time is physically impossible", "Reactor geometry or volume contradicts the executable design"]
+    },
+    {
+      "criterion_id": "UO-08",
+      "domain": "engineering",
+      "name": "Gas bookkeeping",
+      "question": "For gas-using designs, do gas identity, STP definition, inlet flow, molar flow, equivalents, absolute pressure, channel flow, holdup, and gas-sensitive residence-time bases close and remain distinct?",
+      "applicability": "GAS_REAGENT_OR_GAS_LIQUID_PROCESS",
+      "critical_conditions": ["Gas identity or pressure basis is unsafe", "Gas molar flow, equivalents, or residence time is physically inconsistent"]
+    },
+    {
+      "criterion_id": "UO-09",
+      "domain": "engineering",
+      "name": "Multistage closure",
+      "question": "For multistage designs, are stream-introduction stages, cumulative flows, individual reactor volumes and times, interstage operations, and total process residence time consistent?",
+      "applicability": "MORE_THAN_ONE_REACTIVE_STAGE",
+      "critical_conditions": ["Stage sequence changes the chemistry", "Stage flow or residence-time closure is physically impossible"]
+    },
+    {
+      "criterion_id": "UO-10",
+      "domain": "inventory",
+      "name": "Inventory feasibility",
+      "question": "Does every selected equipment item exist, and are flow, volume, material, ID, temperature, pressure, wavelength, and connectivity within declared limits?",
+      "applicability": "ALWAYS",
+      "critical_conditions": ["Invented or unavailable essential equipment", "Operating point exceeds a hard equipment limit"]
+    },
+    {
+      "criterion_id": "UO-11",
+      "domain": "engineering",
+      "name": "Physical and transport plausibility",
+      "question": "Are phase behavior, mixing, pressure drop, heat transfer, mass transfer, and transport assumptions physically plausible and supported at the proposed operating point?",
+      "applicability": "ALWAYS",
+      "critical_conditions": ["Unmitigated boiling, precipitation, plugging, runaway, or pressure failure", "Transport assumption makes the design physically impossible"]
+    },
+    {
+      "criterion_id": "UO-12",
+      "domain": "safety",
+      "name": "Hazards and controls",
+      "question": "Are chemistry-specific thermal, pressure, gas, peroxide, azide, catalyst, solvent, and incompatibility hazards recognized and converted into concrete controls?",
+      "applicability": "ALWAYS",
+      "critical_conditions": ["Major hazard omitted", "Proposed execution lacks a necessary containment, purge, interlock, relief, or compatibility control"]
+    },
+    {
+      "criterion_id": "UO-13",
+      "domain": "operations",
+      "name": "Operating procedure and work-up",
+      "question": "Are feed preparation, leak testing, priming, startup, steady-state qualification, collection, normal and emergency shutdown, depressurization, quench, separation, work-up, and waste handling reproducible where required?",
+      "applicability": "ALWAYS",
+      "critical_conditions": ["Missing procedure creates an immediate execution hazard", "The experiment cannot be reconstructed from the delivered instructions"]
+    },
+    {
+      "criterion_id": "UO-14",
+      "domain": "evidence",
+      "name": "Evidence and uncertainty calibration",
+      "question": "Are source facts, calculations, assumptions, analogies, performance predictions, uncertainty, validation needs, confidence, and SCREEN/BLOCK/EXECUTE disposition represented honestly and proportionately?",
+      "applicability": "ALWAYS",
+      "critical_conditions": ["Invented evidence or unsupported performance guarantee", "Execution recommended despite an acknowledged unresolved critical defect"]
+    }
+  ]
+}

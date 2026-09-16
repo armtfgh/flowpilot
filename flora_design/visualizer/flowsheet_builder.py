@@ -2,17 +2,19 @@
 FLORA — Graphviz-based Flowsheet Builder.
 
 Replaces the old hand-drawn SVG approach with a professional Graphviz diagram
-using real equipment icons (syringe pump, coil reactor, BPR, vial, etc.).
+using equipment icons (pump, coil reactor, BPR, vial, etc.).
 
 Icon files live in:  flora_design/visualizer/icons/
 
 Features:
-  - Pump nodes: syringe icon + reagent list + solvent + flow rate (fully readable)
+  - Pump nodes: generic icon + reagent list + solvent + flow rate (fully readable)
   - Reactor nodes: coil image + temp / residence time / wavelength / ID / volume
   - Mixer nodes: clean grey box with correct in/out ports
   - BPR / collector: icon + label
   - LED module: SKIPPED — wavelength shown under reactor
-  - 3+ streams into one mixer: auto-chained into two mixers in series
+  - Main process: horizontal icon-center connections; side feeds branch in
+  - Mixer connections: preserved exactly; no invented upstream mixers
+  - Optional check-valve icon: icons/check_valve.png, otherwise a labeled box
   - Unknown op types: plain text box
 
 Falls back silently to the legacy SVG builder if graphviz executable
@@ -27,8 +29,13 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import re
 import shutil
+import sys
+import tempfile
+import textwrap
+from copy import deepcopy
 from collections import defaultdict
 from html import escape
 from pathlib import Path
@@ -50,7 +57,71 @@ ASSETS = {
     "mixer3":       ICONS_DIR / "mixer3.png",
     "degasser":     ICONS_DIR / "degasser.png",
     "mfc":          ICONS_DIR / "mfc.png",
+    "g_l_separator": ICONS_DIR / "g_l_sep.png",
+    "l_l_separator": ICONS_DIR / "l_l_sep.png",
 }
+
+SEPARATOR_TYPES = {
+    "separator",
+    "phase_separator",
+    "gas_liquid_separator",
+    "gas_liquid_separation",
+    "liquid_liquid_separator",
+    "liquid_liquid_extraction",
+    "liq_liq_extraction",
+    "lle",
+}
+
+
+def _ensure_graphviz_on_path() -> str | None:
+    """Resolve Graphviz from PATH, Python, Conda, or a portable bundle."""
+
+    # Graphviz/fontconfig may run under a service account without a writable
+    # home cache. Give it a process-local cache so rendering remains reliable.
+    cache_root = Path(
+        os.environ.setdefault(
+            "XDG_CACHE_HOME",
+            str(Path(tempfile.gettempdir()) / "flowpilot-font-cache"),
+        )
+    )
+    cache_root.mkdir(parents=True, exist_ok=True)
+
+    executable = shutil.which("dot")
+    if executable:
+        return executable
+
+    environment_bin = Path(sys.executable).resolve().parent
+    home = Path.home()
+    candidates = [
+        environment_bin / "dot",
+        environment_bin / "dot.exe",
+        environment_bin / "graphviz" / "bin" / "dot",
+        environment_bin / "graphviz" / "bin" / "dot.exe",
+        # FlowPilot may run from its own virtualenv while Graphviz is supplied
+        # by a neighbouring Conda environment.
+        home / "anaconda3" / "envs" / "flent" / "bin" / "dot",
+        home / "miniconda3" / "envs" / "flent" / "bin" / "dot",
+    ]
+    conda_exe = os.environ.get("CONDA_EXE")
+    if conda_exe:
+        conda_root = Path(conda_exe).resolve().parent.parent
+        candidates.extend(
+            [
+                conda_root / "bin" / "dot",
+                conda_root / "envs" / "flent" / "bin" / "dot",
+                conda_root / "Library" / "bin" / "dot.exe",
+            ]
+        )
+    candidate = next((path for path in candidates if path.is_file()), None)
+    if candidate is None:
+        return None
+
+    graphviz_bin = str(candidate.parent)
+    current_path = os.environ.get("PATH", "")
+    path_entries = current_path.split(os.pathsep) if current_path else []
+    if graphviz_bin not in path_entries:
+        os.environ["PATH"] = os.pathsep.join([graphviz_bin, *path_entries])
+    return str(candidate)
 
 # ── Graph-level style ─────────────────────────────────────────────────────────
 GRAPH_ATTR = {
@@ -95,9 +166,19 @@ def _html_lines(*lines: str, sizes: list[int] | None = None,
     return "<BR/>".join(parts)
 
 
-def _trunc(s: str, n: int = 35) -> str:
-    s = str(s).strip()
-    return s if len(s) <= n else s[:n - 1] + "…"
+def _wrap(s: str, n: int = 32) -> str:
+    """Wrap captions without dropping chemical names or equipment qualifiers."""
+    return "\n".join(line for paragraph in str(s).splitlines()
+                     for line in textwrap.wrap(paragraph, width=n, break_long_words=True,
+                                               break_on_hyphens=False))
+
+
+def _font_lines(text, size=10, color="#111827", bold=False):
+    return "<BR/>".join(
+        f'<FONT POINT-SIZE="{size}" COLOR="{color}">'
+        + (f"<B>{_esc(line)}</B>" if bold else _esc(line)) + "</FONT>"
+        for line in _wrap(text).splitlines()
+    )
 
 
 # ── Gas stream detection ──────────────────────────────────────────────────────
@@ -192,6 +273,20 @@ def _enforce_mfc_for_gas_streams(ops) -> None:
 
 # ── Label generators ──────────────────────────────────────────────────────────
 
+def _unresolved_inventory_label(op) -> str:
+    p = op.parameters or {}
+    status = str(
+        p.get("inventory_assignment_status")
+        or getattr(op, "assignment_status", "")
+    ).lower()
+    if status != "unresolved":
+        return ""
+    category = str(
+        p.get("unresolved_inventory_category")
+        or getattr(op, "inventory_category", "equipment")
+    ).replace("_", " ")
+    return f"UNRESOLVED: {category}"
+
 def _pump_label(op) -> str:
     """
     Clean pump label: Pump letter, materials, solvent/conc,
@@ -199,19 +294,17 @@ def _pump_label(op) -> str:
     """
     p      = op.parameters or {}
     stream = p.get("stream", "?")
-    title  = f"Pump {stream}"
+    instrument = p.get("instrument_name") or getattr(op, "instrument_name", "")
+    title = f"Pump {stream}\n{instrument}" if instrument else f"Pump {stream}"
 
     # Materials line
     contents = p.get("contents") or []
     if isinstance(contents, str):
         contents = [contents]
     material_parts = []
-    for item in contents[:3]:
-        name = str(item).split("(")[0].strip()
-        material_parts.append(_trunc(name, 22))
-    if len(contents) > 3:
-        material_parts.append(f"+{len(contents)-3}")
-    materials_line = ",  ".join(material_parts) if material_parts else ""
+    for item in contents:
+        material_parts.append(str(item).strip())
+    materials_line = "\n".join(material_parts)
 
     # Solvent · concentration line
     cond_parts = []
@@ -222,18 +315,21 @@ def _pump_label(op) -> str:
     cond_line = "  ·  ".join(cond_parts)
 
     rows = [
-        f'<FONT POINT-SIZE="10" COLOR="#111827"><B>{_esc(title)}</B></FONT>',
+        _font_lines(title, bold=True),
     ]
     if materials_line:
-        rows.append(f'<FONT POINT-SIZE="8.5" COLOR="#1E40AF">{_esc(materials_line)}</FONT>')
+        rows.append(_font_lines(materials_line, 10, "#1E40AF"))
     if cond_line:
-        rows.append(f'<FONT POINT-SIZE="8" COLOR="#374151">{_esc(cond_line)}</FONT>')
+        rows.append(_font_lines(cond_line, 10, "#374151"))
     # Flow rate: separate blue line for visibility
     if p.get("flow_rate_mL_min") is not None:
         rows.append(
             f'<FONT POINT-SIZE="9" COLOR="#2563EB"><B>'
-            f'{float(p["flow_rate_mL_min"]):.2f} mL/min</B></FONT>'
+            f'{float(p["flow_rate_mL_min"]):.6g} mL/min</B></FONT>'
         )
+    unresolved = _unresolved_inventory_label(op)
+    if unresolved:
+        rows.append(f'<FONT POINT-SIZE="8" COLOR="#B91C1C"><B>{_esc(unresolved)}</B></FONT>')
     return "<BR/>".join(rows)
 
 
@@ -241,23 +337,26 @@ def _mfc_label(op) -> str:
     """Label for gas MFC node."""
     p      = op.parameters or {}
     stream = p.get("stream", "?")
+    instrument = p.get("instrument_name") or getattr(op, "instrument_name", "")
     contents = p.get("contents") or []
     if isinstance(contents, str):
         contents = [contents]
-    gas_name = str(contents[0]).split("(")[0].strip() if contents else "Gas"
-    fr   = p.get("flow_rate_mL_min")
+    gas_name = ", ".join(map(str, contents)) if contents else "Gas"
     sccm = p.get("gas_flow_sccm")
-    actual = p.get("gas_flow_actual_mL_min")
     rows = [
-        f'<FONT POINT-SIZE="10" COLOR="#111827"><B>MFC {stream}</B></FONT>',
-        f'<FONT POINT-SIZE="8.5" COLOR="#DC2626">{_esc(gas_name)}</FONT>',
+        _font_lines(f"Stream {stream}\n{instrument or 'MFC'}", bold=True),
+        _font_lines(gas_name, 10, "#DC2626"),
     ]
     if sccm is not None:
-        rows.append(f'<FONT POINT-SIZE="8" COLOR="#374151">{float(sccm):.2f} sccm</FONT>')
-        if actual is not None:
-            rows.append(f'<FONT POINT-SIZE="7.5" COLOR="#6B7280">{float(actual):.3f} mL/min reactor</FONT>')
-    elif fr is not None:
-        rows.append(f'<FONT POINT-SIZE="8" COLOR="#374151">{float(fr):.2f} mL/min</FONT>')
+        rows.append(_font_lines(f"{float(sccm):.6g} mL/min at STP", 10))
+    else:
+        rows.append(_font_lines("Inlet/STP flow not recorded", 10, "#B91C1C"))
+    if p.get("molar_equiv") is not None:
+        species = " O2" if gas_name.strip().lower() == "air" else ""
+        rows.append(_font_lines(f"{float(p['molar_equiv']):.4g} equiv{species} (inlet/STP)", 10))
+    unresolved = _unresolved_inventory_label(op)
+    if unresolved:
+        rows.append(f'<FONT POINT-SIZE="8" COLOR="#B91C1C"><B>{_esc(unresolved)}</B></FONT>')
     return "<BR/>".join(rows)
 
 
@@ -267,25 +366,56 @@ def _reactor_label(op) -> str:
     """
     p = op.parameters or {}
     parts = []
+    instrument = p.get("instrument_name") or getattr(op, "instrument_name", "")
+    light_instrument = p.get("light_instrument_name") or ""
+    temperature_controller = p.get("temperature_controller_name") or ""
 
     if p.get("temperature_C") is not None:
         parts.append(f"{p['temperature_C']}°C")
     if p.get("wavelength_nm") is not None:
         parts.append(f"λ={p['wavelength_nm']:.0f} nm")
-    if p.get("residence_time_min") is not None:
+    tau_inlet = p.get("residence_time_inlet_min")
+    if tau_inlet is not None:
+        basis = "liquid" if not (p.get("gas_flow_sccm") or p.get("Q_gas_sccm")) and "liquid" in str(p.get("residence_time_basis")) else "inlet/STP"
+        parts.append(f"Time ({basis}): {float(tau_inlet):.6g} min")
+    elif p.get("residence_time_min") is not None and not (p.get("gas_flow_sccm") or p.get("Q_gas_sccm")):
         rt = float(p["residence_time_min"])
         parts.append(f"τ={rt:.1f} min" if rt >= 1 else f"τ={rt*60:.0f} s")
     volume = p.get("volume_mL") if p.get("volume_mL") is not None else p.get("reactor_volume_mL")
     if volume is not None:
         parts.append(f"V={float(volume):.1f} mL")
 
-    return "  ·  ".join(parts) if parts else ""
+    diameter = p.get("ID_mm") or p.get("tubing_ID_mm") or p.get("d_mm")
+    if diameter is not None:
+        parts.append(f"ID={float(diameter):g} mm")
+    settings = "\n".join(parts)
+    identity_lines = []
+    if instrument:
+        identity_lines.append(instrument)
+    if light_instrument:
+        identity_lines.append(f"Light: {light_instrument}")
+    if temperature_controller:
+        identity_lines.append(f"Temp: {temperature_controller}")
+    if settings:
+        identity_lines.append(settings)
+    serial_status = p.get("serial_connection_status")
+    if serial_status:
+        identity_lines.append(str(serial_status))
+    unresolved = _unresolved_inventory_label(op)
+    if unresolved:
+        identity_lines.append(unresolved)
+    if identity_lines:
+        return "\n".join(identity_lines)
+    return settings
 
 
 def _bpr_label(op) -> str:
     p = op.parameters or {}
     bar = p.get("pressure_bar") or p.get("BPR_bar")
-    return f"BPR\n  {bar:.0f} bar" if bar else "BPR"
+    instrument = p.get("instrument_name") or getattr(op, "instrument_name", "") or "BPR"
+    label = f"{instrument}\n{bar:g} bar" if bar else str(instrument)
+    unresolved = _unresolved_inventory_label(op)
+    return f"{label}\n{unresolved}" if unresolved else label
 
 
 _SHORT_LABELS = {
@@ -306,20 +436,135 @@ def _textbox_label(op) -> str:
     ot  = op.op_type.lower().replace(" ", "_")
     lbl = _SHORT_LABELS.get(ot) or _SHORT_LABELS.get(op.op_type.lower()) or \
           op.label or op.op_type.replace("_", " ").title()
+    instrument = p.get("instrument_name") or getattr(op, "instrument_name", "")
+    if instrument:
+        lbl = f"{lbl}\n{instrument}"
+    unresolved = _unresolved_inventory_label(op)
+    if unresolved:
+        lbl += f"\n{unresolved}"
 
     # Add one short detail if meaningful
     detail = p.get("method") or p.get("reagent") or ""
-    if detail and len(str(detail)) < 20:
+    if detail:
         return lbl + "\n" + str(detail)
     return lbl
+
+
+def _separator_kind(op, adjacent_stream_types=()) -> str:
+    """Classify a separator from explicit phase metadata before label hints."""
+    p = op.parameters or {}
+    op_type = str(op.op_type).strip().lower().replace("-", "_").replace(" ", "_")
+
+    if op_type in {"gas_liquid_separator", "gas_liquid_separation"}:
+        return "gas_liquid"
+    if op_type in {
+        "liquid_liquid_separator",
+        "liquid_liquid_extraction",
+        "liq_liq_extraction",
+        "lle",
+    }:
+        return "liquid_liquid"
+
+    phases = p.get("phases") or p.get("outlet_phases") or p.get("phase_system") or []
+    if isinstance(phases, dict):
+        phase_values = list(phases.keys()) + list(phases.values())
+    elif isinstance(phases, (list, tuple, set)):
+        phase_values = list(phases)
+    else:
+        phase_values = [phases]
+
+    phase_words = [_normalized_words(value) for value in phase_values]
+    flat_phase_words = [word for words in phase_words for word in words]
+    if any(word in _GAS_PHASE_WORDS for word in flat_phase_words):
+        return "gas_liquid"
+    if sum("liquid" in words for words in phase_words) >= 2:
+        return "liquid_liquid"
+
+    context_values = [
+        op.label,
+        p.get("method"),
+        p.get("separator_type"),
+        p.get("instrument_name"),
+        getattr(op, "instrument_name", ""),
+        *adjacent_stream_types,
+    ]
+    context = " ".join(str(value) for value in context_values if value).lower()
+    normalized_context = " ".join(_normalized_words(context))
+    if (
+        any(word in _GAS_PHASE_WORDS for word in _normalized_words(context))
+        or "gas liquid" in normalized_context
+    ):
+        return "gas_liquid"
+    if (
+        "liquid liquid" in normalized_context
+        or "aqueous organic" in normalized_context
+        or "organic aqueous" in normalized_context
+        or "biphasic liquid" in normalized_context
+    ):
+        return "liquid_liquid"
+
+    # A generic downstream phase separator is conventionally a liquid-liquid
+    # workup unless the topology declares a gas phase.
+    return "liquid_liquid"
+
+
+def _separator_asset(op, adjacent_stream_types=()) -> Path:
+    kind = _separator_kind(op, adjacent_stream_types)
+    return ASSETS["g_l_separator" if kind == "gas_liquid" else "l_l_separator"]
+
+
+def _separator_label(op, adjacent_stream_types=()) -> str:
+    p = op.parameters or {}
+    kind = _separator_kind(op, adjacent_stream_types)
+    fallback = "G-L Separator" if kind == "gas_liquid" else "L-L Separator"
+    instrument = (
+        p.get("instrument_name")
+        or getattr(op, "instrument_name", "")
+        or op.label
+        or fallback
+    )
+    label = str(instrument)
+    unresolved = _unresolved_inventory_label(op)
+    return f"{label}\n{unresolved}" if unresolved else label
 
 
 # ── Node builders ─────────────────────────────────────────────────────────────
 
 NODE_ICON_SIZE = 110   # uniform icon size for all components
 
+
+def _main_process_path(ops, streams):
+    """Choose an existing feed-to-product path; never add or remove connections."""
+    from graphlib import TopologicalSorter, CycleError
+    nodes = {op.op_id: op for op in ops if op.op_type != "led_module"}
+    predecessors = {key: [] for key in nodes}
+    successors = {key: [] for key in nodes}
+    for stream in streams:
+        if stream.from_op in nodes and stream.to_op in nodes:
+            predecessors[stream.to_op].append(stream.from_op)
+            successors[stream.from_op].append(stream.to_op)
+    try:
+        order = list(TopologicalSorter(predecessors).static_order())
+    except CycleError:
+        return []  # Recycle graphs retain their graph layout, not a fictitious linear path.
+    reactor_types = {"reactor", "coil_reactor", "photoreactor", "heated_coil", "packed_bed",
+                     "packed_bed_reactor", "microchannel", "microreactor", "chip", "chip_reactor", "microfluidic"}
+    paths = {}
+    def score(path):
+        return (sum(nodes[key].op_type in reactor_types for key in path), len(path))
+    for key in order:
+        previous = [paths[p] for p in sorted(predecessors[key]) if p in paths]
+        if previous:
+            paths[key] = max(previous, key=score) + [key]
+        elif not predecessors[key] and nodes[key].op_type != "mfc":
+            paths[key] = [key]
+    destinations = [key for key in paths if nodes[key].op_type == "collector"]
+    destinations = destinations or [key for key in paths if not successors[key]]
+    return max((paths[key] for key in sorted(destinations)), key=score, default=[])
+
+
 def _add_pump(dot, node_id: str, op, pump_img: Path):
-    """Syringe pump node with needle port at right-center and clean label."""
+    """Pump symbol with assigned instrument identity and complete feed label."""
     image_w   = NODE_ICON_SIZE
     image_h   = NODE_ICON_SIZE
     half_h    = image_h // 2
@@ -384,7 +629,7 @@ def _add_image_node(dot, node_id: str, label: str, img_path: Path,
     label_rows = "".join(
         f'<TR><TD ALIGN="CENTER" WIDTH="{img_w}"><FONT POINT-SIZE="9" COLOR="#111827">'
         f'{_esc(ln)}</FONT></TD></TR>'
-        for ln in label.split("\n") if ln.strip()
+        for ln in _wrap(label).split("\n") if ln.strip()
     )
     html = (
         '<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="3">'
@@ -396,14 +641,30 @@ def _add_image_node(dot, node_id: str, label: str, img_path: Path,
     dot.node(node_id, label=html, shape="plain")
 
 
-def _add_mixer_image(dot, node_id: str, n_inputs: int):
+def _add_mixer_image(dot, node_id: str, n_inputs: int, op=None):
     """Mixer image node: mixer2 (T-mixer) for ≤2 inputs, mixer3 (cross) for 3+."""
     asset = ASSETS["mixer3"] if n_inputs >= 3 else ASSETS["mixer2"]
     sz = NODE_ICON_SIZE
+    instrument = ""
+    if op is not None:
+        parameters = op.parameters or {}
+        instrument = parameters.get("instrument_name") or getattr(op, "instrument_name", "")
+    label_row = "".join(
+        f'<TR><TD ALIGN="CENTER" WIDTH="{sz}"><FONT POINT-SIZE="9" COLOR="#111827">'
+        f'{_esc(line)}</FONT></TD></TR>'
+        for line in _wrap(instrument).splitlines()
+    )
+    unresolved = _unresolved_inventory_label(op) if op is not None else ""
+    if unresolved:
+        label_row += (
+            f'<TR><TD ALIGN="CENTER" WIDTH="{sz}"><FONT POINT-SIZE="8" '
+            f'COLOR="#B91C1C"><B>{_esc(unresolved)}</B></FONT></TD></TR>'
+        )
     html = (
         '<<TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="0">'
         f'<TR><TD PORT="img" FIXEDSIZE="TRUE" WIDTH="{sz}" HEIGHT="{sz}">'
         f'<IMG SRC="{escape(asset.name)}" SCALE="TRUE"/></TD></TR>'
+        f'{label_row}'
         "</TABLE>>"
     )
     dot.node(node_id, label=html, shape="plain")
@@ -413,8 +674,9 @@ def _add_textbox(dot, node_id: str, op):
     """Styled text box with explicit left/right ports for clean arrow routing."""
     label = _textbox_label(op)
     content_rows = "".join(
-        f'<TD ALIGN="CENTER"><FONT POINT-SIZE="9" COLOR="#1E293B">{_esc(ln)}</FONT></TD>'
-        for ln in label.split("\n")
+        f'<TR><TD ALIGN="CENTER" WIDTH="145"><FONT POINT-SIZE="9" '
+        f'COLOR="#1E293B">{_esc(ln)}</FONT></TD></TR>'
+        for ln in _wrap(label).split("\n")
     )
     # Outer table: [left-port cell | content cell | right-port cell]
     # Named ports ensure arrows attach exactly to the left/right border edge.
@@ -425,7 +687,7 @@ def _add_textbox(dot, node_id: str, op):
         '<TD>'
         '<TABLE BORDER="1" COLOR="#94A3B8" CELLBORDER="0" CELLSPACING="0"'
         ' CELLPADDING="8" BGCOLOR="#F8FAFC">'
-        f'<TR>{content_rows}</TR>'
+        f'{content_rows}'
         '</TABLE>'
         '</TD>'
         '<TD PORT="out" WIDTH="1" HEIGHT="1"></TD>'
@@ -469,7 +731,17 @@ def _add_mfc_node(dot, node_id: str, op):
 # ── Pump image prep ───────────────────────────────────────────────────────────
 
 def _prepare_pump_img() -> Path:
-    """Return a tight-cropped syringe pump image for cleaner rendering."""
+    """Render the neutral pump symbol; model identity belongs in the label."""
+    import cairosvg
+    generic = ICONS_DIR / "pump_generic.svg"
+    rendered = ICONS_DIR / "_pump_generic.png"
+    if not rendered.exists() or rendered.stat().st_mtime < generic.stat().st_mtime:
+        cairosvg.svg2png(url=str(generic), write_to=str(rendered), output_width=480, output_height=480)
+    return rendered
+
+
+def _prepare_legacy_pump_img() -> Path:
+    """Legacy image conversion retained for archived callers only."""
     src = ASSETS["pump"]
     out = ICONS_DIR / "_pump_trimmed.png"
     if out.exists():
@@ -516,20 +788,26 @@ class FlowsheetBuilder:
         output_png: str = "flora_process.png",
     ) -> tuple[str, str]:
         """Build and save the diagram. Returns (svg_path, png_path)."""
+        self.last_render_info = {"renderer": "graphviz", "warnings": []}
         # Graceful fallback to legacy builder if graphviz not available
-        if not shutil.which("dot"):
+        if not _ensure_graphviz_on_path():
             logger.warning("Graphviz 'dot' not found — falling back to legacy SVG builder")
+            self.last_render_info["warnings"].append("Graphviz executable not available.")
             return self._legacy_fallback(topology, title, output_svg, output_png)
 
         try:
             return self._build_graphviz(topology, title, output_svg, output_png)
         except Exception as e:
             logger.error(f"Graphviz build failed: {e} — falling back to legacy builder", exc_info=True)
+            self.last_render_info["warnings"].append(f"Graphviz renderer failed: {e}")
             return self._legacy_fallback(topology, title, output_svg, output_png)
 
     def _build_graphviz(self, topology, title, output_svg, output_png):
         import graphviz
 
+        # Rendering is a pure projection. Some display helpers normalize node
+        # types, so operate on a deep copy and never mutate the saved topology.
+        topology = deepcopy(topology)
         ops    = self._clean_ops(topology)
         _enforce_mfc_for_gas_streams(ops)
         if not ops:
@@ -537,52 +815,40 @@ class FlowsheetBuilder:
 
         pump_img = _prepare_pump_img()
 
-        # Polish topology: remove logically redundant nodes (LLM + deterministic)
-        try:
-            from flora_translate.topology_polisher import polish
-            polished = polish(topology, use_llm=True)
-            ops = polished.unit_operations
-            _enforce_mfc_for_gas_streams(ops)
-            # Use polished streams for adjacency
-            topology = polished
-        except Exception as e:
-            logger.warning(f"Topology polisher failed ({e}) — rendering as-is")
-
         active_ids = {o.op_id for o in ops}
 
         # ── Adjacency (filter streams to active ops only) ─────────────────────
         out_edges: dict[str, list[str]] = defaultdict(list)
         in_edges:  dict[str, list[str]] = defaultdict(list)
+        incident_stream_types: dict[str, list[str]] = defaultdict(list)
         for s in topology.streams:
             if s.from_op in active_ids and s.to_op in active_ids:
                 out_edges[s.from_op].append(s.to_op)
                 in_edges[s.to_op].append(s.from_op)
+                incident_stream_types[s.from_op].append(str(s.stream_type))
+                incident_stream_types[s.to_op].append(str(s.stream_type))
 
         op_map   = {o.op_id: o for o in ops}
         pump_ids = {o.op_id for o in ops if o.op_type in ("pump", "mfc")}
         led_ids  = {o.op_id for o in ops if o.op_type == "led_module"}
-        skip_ids = pump_ids | led_ids
 
         # ── Graph init ────────────────────────────────────────────────────────
         stem = str(Path(output_png).with_suffix(""))
-        dot  = graphviz.Digraph(comment=title or "FLORA Process", format="png")
+        dot  = graphviz.Digraph(comment=title or "FlowPilot Process", format="png")
         dot.attr(**GRAPH_ATTR)
         dot.attr(imagepath=str(ICONS_DIR))
         dot.attr("node",  fontname="Arial")
         dot.attr("edge", **EDGE_ATTR)
 
         if title:
-            dot.attr(label=f'<<FONT POINT-SIZE="13" COLOR="#111827"><B>{_esc(title)}</B></FONT>>',
+            title_html = '<BR/>'.join(_esc(line) for line in _wrap(title, 80).splitlines())
+            dot.attr(label=f'<<FONT POINT-SIZE="13" COLOR="#111827"><B>{title_html}</B></FONT>>',
                      labelloc="t", labeljust="c")
 
         # ── Build graphviz nodes ──────────────────────────────────────────────
         # node_id → graphviz node name (same as op_id, sanitised)
         gv_id = {op.op_id: op.op_id.replace("-", "_").replace(" ", "_")
                  for op in ops}
-
-        # Track synthetic mixer IDs created for 3+ input chaining
-        # synth_pre[original_mixer_gv_id] → list of (synth_id, inputs)
-        synth_pre: dict[str, list[tuple[str, list[str]]]] = {}
 
         # Pre-compute input counts for all mixers (needed to pick mixer2 vs mixer3)
         MIXER_TYPES_SET = {"mixer", "t_mixer", "y_mixer", "quench_mixer"}
@@ -609,7 +875,7 @@ class FlowsheetBuilder:
 
             elif op.op_type in MIXER_TYPES_SET:
                 n_inp = mixer_input_counts.get(op.op_id, 2)
-                _add_mixer_image(dot, vid, n_inp)
+                _add_mixer_image(dot, vid, n_inp, op)
 
             elif op.op_type in ("coil_reactor", "reactor", "heated_coil"):
                 is_photo = bool((op.parameters or {}).get("wavelength_nm"))
@@ -624,7 +890,7 @@ class FlowsheetBuilder:
                 _add_image_node(dot, vid, _reactor_label(op),
                                 ASSETS["reactor"], NODE_ICON_SIZE, NODE_ICON_SIZE)
 
-            elif op.op_type in ("microchannel", "microreactor", "chip",
+            elif op.op_type in ("microchannel", "microreactor", "chip", "chip_reactor",
                                  "microfluidic"):
                 _add_image_node(dot, vid, _reactor_label(op),
                                 ASSETS["microchannel"], NODE_ICON_SIZE, NODE_ICON_SIZE)
@@ -633,8 +899,23 @@ class FlowsheetBuilder:
                 _add_image_node(dot, vid, _textbox_label(op),
                                 ASSETS["degasser"], NODE_ICON_SIZE, NODE_ICON_SIZE)
 
+            elif op.op_type.lower().replace("-", "_").replace(" ", "_") in SEPARATOR_TYPES:
+                stream_types = incident_stream_types.get(op.op_id, [])
+                _add_image_node(
+                    dot,
+                    vid,
+                    _separator_label(op, stream_types),
+                    _separator_asset(op, stream_types),
+                    NODE_ICON_SIZE,
+                    NODE_ICON_SIZE,
+                )
+
             elif op.op_type == "bpr":
                 _add_image_node(dot, vid, _bpr_label(op), ASSETS["bpr"],
+                                NODE_ICON_SIZE, NODE_ICON_SIZE)
+
+            elif op.op_type == "check_valve" and (ICONS_DIR / "check_valve.png").is_file():
+                _add_image_node(dot, vid, _textbox_label(op), ICONS_DIR / "check_valve.png",
                                 NODE_ICON_SIZE, NODE_ICON_SIZE)
 
             elif op.op_type == "collector":
@@ -649,11 +930,20 @@ class FlowsheetBuilder:
         IMAGE_TYPES = {
             "coil_reactor", "reactor", "heated_coil", "photoreactor",
             "packed_bed", "packed_bed_reactor", "bpr", "collector",
-            "microchannel", "microreactor", "chip",
+            "microchannel", "microreactor", "chip", "chip_reactor",
             "deoxygenation_unit", "degas", "degasser",
+            *SEPARATOR_TYPES,
             # Mixers are now image-based too
             "mixer", "t_mixer", "y_mixer", "quench_mixer",
         }
+        if (ICONS_DIR / "check_valve.png").is_file():
+            IMAGE_TYPES.add("check_valve")
+
+        main_path = _main_process_path(ops, topology.streams)
+        main_edges = set(zip(main_path, main_path[1:]))
+        for key in main_path:
+            dot.node(gv_id[key], group="main_process")
+        self.last_render_info["main_process_path"] = main_path
 
         def output_port(op_id: str) -> str:
             """Graphviz port string for the OUTPUT (right side) of a node."""
@@ -661,7 +951,7 @@ class FlowsheetBuilder:
             if op is None:
                 return gv_id.get(op_id, op_id)
             vid = gv_id[op_id]
-            ot  = op.op_type
+            ot = op.op_type.lower().replace("-", "_").replace(" ", "_")
             if ot in ("pump", "mfc"):
                 return f"{vid}:needle:e"
             if ot == "led_module":
@@ -677,90 +967,27 @@ class FlowsheetBuilder:
             if op is None:
                 return gv_id.get(op_id, op_id)
             vid = gv_id[op_id]
-            ot  = op.op_type
+            ot = op.op_type.lower().replace("-", "_").replace(" ", "_")
             if ot in IMAGE_TYPES:
                 return f"{vid}:img"
             # textbox: use named left port
             return f"{vid}:inp:w"
 
-        for op in ops:
-            if op.op_id in skip_ids:
+        # Draw exactly the recorded material connections. The main process uses
+        # center ports; additional feeds enter separately without synthetic mixers.
+        branch_counts = defaultdict(int)
+        for stream in topology.streams:
+            source, target = stream.from_op, stream.to_op
+            if source not in active_ids or target not in active_ids or source in led_ids or target in led_ids:
                 continue
-
-            vid    = gv_id[op.op_id]
-            ot     = op.op_type
-            inputs = in_edges[op.op_id]
-
-            pump_inp = [i for i in inputs if i in pump_ids]
-            main_inp = [i for i in inputs if i not in skip_ids]
-
-            is_mixer = ot in MIXER_TYPES_SET
-
-            if is_mixer:
-                # all_inp: main-flow inputs first, then pump inputs
-                all_inp  = main_inp + pump_inp
-                n_total  = len(all_inp)
-                tgt_base = input_target(op.op_id)  # e.g. "Mixer1:img"
-
-                if n_total <= 2:
-                    # ── T-mixer: two inputs from pumps/flow ──────────────────
-                    # nw = top-left corner, sw = bottom-left corner.
-                    # With ortho routing this creates clean right-angle bends.
-                    headports = ["nw", "sw"]
-                    for i, src_id in enumerate(all_inp):
-                        dot.edge(output_port(src_id),
-                                 tgt_base, headport=headports[i])
-
-                elif n_total == 3:
-                    # ── Cross-mixer: main flow → w, pumps → nw / sw ──────────
-                    if main_inp:
-                        # Main flow enters from the left (west) — direct horizontal
-                        dot.edge(output_port(main_inp[0]),
-                                 tgt_base, headport="w")
-                        for i, src_id in enumerate(pump_inp[:2]):
-                            dot.edge(output_port(src_id),
-                                     tgt_base, headport=["nw", "sw"][i])
-                    else:
-                        # Three pumps, no main flow → pre-mix first two
-                        synth_id = f"_pre_{vid}"
-                        _add_mixer_image(dot, synth_id, 2)
-                        op_map[synth_id] = type("SynthOp", (), {
-                            "op_id": synth_id, "op_type": "mixer", "parameters": {}
-                        })()
-                        gv_id[synth_id] = synth_id
-                        dot.edge(output_port(all_inp[0]),
-                                 f"{synth_id}:img", headport="nw")
-                        dot.edge(output_port(all_inp[1]),
-                                 f"{synth_id}:img", headport="sw")
-                        dot.edge(f"{synth_id}:img:e", tgt_base, headport="w")
-                        dot.edge(output_port(all_inp[2]),
-                                 tgt_base, headport="nw")
-
-                else:
-                    # ── 4+ inputs: chain two mixers ───────────────────────────
-                    synth_id = f"_pre_{vid}"
-                    _add_mixer_image(dot, synth_id, 2)
-                    op_map[synth_id] = type("SynthOp", (), {
-                        "op_id": synth_id, "op_type": "mixer", "parameters": {}
-                    })()
-                    gv_id[synth_id] = synth_id
-                    dot.edge(output_port(all_inp[0]),
-                             f"{synth_id}:img", headport="nw")
-                    dot.edge(output_port(all_inp[1]),
-                             f"{synth_id}:img", headport="sw")
-                    dot.edge(f"{synth_id}:img:e", tgt_base, headport="w")
-                    for i, src_id in enumerate(all_inp[2:4]):
-                        dot.edge(output_port(src_id),
-                                 tgt_base, headport=["nw", "sw"][i])
-
-            else:
-                # Non-mixer: connect all non-led inputs to west side of node
-                for src_id in inputs:
-                    if src_id in led_ids:
-                        continue
-                    tgt = input_target(op.op_id)
-                    # Use w (west/left) for clean horizontal connections
-                    dot.edge(output_port(src_id), tgt, headport="w")
+            is_main = (source, target) in main_edges
+            port = "w"
+            if not is_main and target in main_path and op_map[target].op_type in IMAGE_TYPES:
+                port = "n" if branch_counts[target] % 2 == 0 else "s"
+                branch_counts[target] += 1
+            destination = (f"{gv_id[target]}:img:{port}"
+                           if op_map[target].op_type in IMAGE_TYPES else input_target(target))
+            dot.edge(output_port(source), destination, weight="1000" if is_main else "1")
 
         # ── Render ────────────────────────────────────────────────────────────
         Path(output_png).parent.mkdir(parents=True, exist_ok=True)
@@ -806,7 +1033,13 @@ class FlowsheetBuilder:
         led_ids  = {o.op_id for o in ops if o.op_type == "led_module"}
 
         # Walk main lane (non-pump, non-led) and find consecutive duplicates
-        remove_ids = set(led_ids)  # always remove LED
+        auxiliary_ids = {
+            o.op_id for o in ops
+            if o.op_type in {"heater", "chiller", "heat_exchanger"}
+            and not in_edges.get(o.op_id)
+            and not out_edges.get(o.op_id)
+        }
+        remove_ids = set(led_ids) | auxiliary_ids
 
         DEDUP_TYPES = {"bpr", "inline_filter", "filter"}
 
@@ -835,7 +1068,11 @@ class FlowsheetBuilder:
             from flora_design.visualizer.flowsheet_builder_legacy import (
                 FlowsheetBuilder as LegacyBuilder,
             )
-            return LegacyBuilder().build(topology, title, output_svg, output_png)
+            result = LegacyBuilder().build(topology, title, output_svg, output_png)
+            self.last_render_info["renderer"] = "legacy_svg"
+            return result
         except Exception as e:
             logger.error(f"Legacy builder also failed: {e}")
+            self.last_render_info["renderer"] = "failed"
+            self.last_render_info["warnings"].append(f"Legacy renderer failed: {e}")
             return "", ""

@@ -30,6 +30,8 @@ from flora_design.topology_agent import TopologyAgent
 from flora_design.unit_op_selector import UnitOpSelector
 from flora_design.visualizer.flowsheet_builder import FlowsheetBuilder
 from flora_translate.config import LAB_INVENTORY_PATH, TRANSLATION_MODEL
+from flora_translate.diagram_artifacts import render_topology_artifacts
+from flora_translate.topology_compiler import compile_inventory_topology
 from flora_translate.engine.council_v3 import CouncilV3
 from flora_translate.schemas import (
     BatchRecord,
@@ -86,13 +88,19 @@ def design(
     batch_record = _features_to_batch_record(features, goal_text)
     design_candidate, _ = CouncilV3().run(proposal, batch_record, [], inventory)
 
+    primary_topology, inventory_allocation = compile_inventory_topology(
+        primary_topology,
+        proposal=design_candidate.proposal,
+        inventory=inventory,
+    )
+
     # 6. Generate flowsheet diagram
     logger.info("Step 6: Generating flowsheet diagram")
-    svg_path = str(output_dir_path / "flora_design.svg")
-    png_path = str(output_dir_path / "flora_design.png")
-    FlowsheetBuilder().build(
-        primary_topology, title=goal_text[:60],
-        output_svg=svg_path, output_png=png_path,
+    artifacts = render_topology_artifacts(
+        primary_topology,
+        title=goal_text[:60],
+        base_dir=output_dir_path / "design_diagram_runs",
+        builder=FlowsheetBuilder(),
     )
 
     # 7. Generate explanation
@@ -112,8 +120,14 @@ def design(
         chem_features=features,
         topology=primary_topology,
         design_candidate=design_candidate,
-        svg_path=svg_path,
-        png_path=png_path,
+        svg_path=artifacts["svg_path"],
+        png_path=artifacts["png_path"],
+        diagram_artifacts={
+            key: value for key, value in artifacts.items() if key != "manifest"
+        },
+        diagram_render_manifest=artifacts["manifest"],
+        inventory_allocation=inventory_allocation,
+        instrument_manifest=inventory_allocation.get("instrument_manifest", []),
         explanation=explanation,
         retrieved_records=primary_topology.literature_support,
         alternatives=[alt_topology] if alt_topology else [],

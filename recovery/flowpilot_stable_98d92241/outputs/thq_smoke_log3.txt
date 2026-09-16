@@ -1,0 +1,190 @@
+==============================================================================
+FLORA-Translate smoke run — THQ → 6-methylquinoline aerobic photo-ox
+==============================================================================
+2026-05-27 14:19:01,922 [INFO] Step 1: Parsing batch input
+2026-05-27 14:19:01,922 [INFO] Parsing free-text batch protocol via LLM
+2026-05-27 14:19:12,113 [INFO] Retrying request to /v1/messages in 0.447243 seconds
+2026-05-27 14:19:16,716 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-27 14:19:16,725 [INFO]   Parsed: Photochemical oxidation of 6-methyl-1,2,3,4-tetrahydroquinoline to 6-methylquino...
+2026-05-27 14:19:16,725 [INFO] Step 2: Chemistry analysis (Layer 1)
+2026-05-27 14:19:16,725 [INFO]   Chemistry Agent: Analyzing with claude-opus-4-6
+2026-05-27 14:19:16,734 [INFO] Loaded 2537 fundamentals rules
+2026-05-27 14:19:16,737 [INFO]   Fundamentals: 998 rules relevant to this reaction
+2026-05-27 14:19:16,737 [INFO]     Injected fundamentals knowledge into prompt
+2026-05-27 14:20:08,674 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-27 14:20:08,675 [INFO]     Reasoning summary: • Chemistry type: Catalyst-free photochemical aerobic oxidation/dehydrogenation; blue light (450 nm) directly excites the tetrahydroquinoline substrate, generating a photoexcited state that reacts with O₂
+• Rate-limiting step in batch: Oxygen mass transfer into DMSO solution and photon delivery to b...
+2026-05-27 14:20:08,675 [INFO]     Reaction: Photochemical oxidation of 6-methyl-1,2,3,4-tetrahydroquinoline to 6-methylquinoline (Catalyst-free photo-oxidation via direct substrate excitation)
+2026-05-27 14:20:08,675 [INFO]     Key intermediate: 6-methyl-1,2-dihydroquinoline (partially oxidized intermediate)
+2026-05-27 14:20:08,675 [INFO]     O2-sensitive: False
+2026-05-27 14:20:08,675 [INFO]     Streams: 2
+2026-05-27 14:20:08,675 [INFO]       Stream A: ['6-methyl-1,2,3,4-tetrahydroquinoline', 'DMSO']
+2026-05-27 14:20:08,675 [INFO]       Stream B: ['O₂']
+2026-05-27 14:20:08,675 [INFO]     Retrieval hints: ['photochemical dehydrogenation tetrahydroquinoline', 'catalyst-free photo-oxidation quinoline', 'aerobic oxidation blue LED nitrogen heterocycle', 'direct photoexcitation amine aromatization oxygen', 'photochemical oxidative aromatization DMSO']
+2026-05-27 14:20:08,675 [INFO]   Mechanism: Catalyst-free photo-oxidation via direct substrate excitation
+2026-05-27 14:20:08,675 [INFO]   Streams: 2  O2: False
+2026-05-27 14:20:08,675 [INFO]   Upstream mode: full
+2026-05-27 14:20:08,675 [INFO] Step 3: Retrieving literature analogies (plan-aware)
+2026-05-27 14:20:08,746 [INFO] Using plan-aware retrieval query
+2026-05-27 14:20:08,746 [INFO] Query summary: Photochemical oxidation of 6-methyl-1,2,3,4-tetrahydroquinoline to 6-methylquinoline. Reaction class: Photochemical aero...
+2026-05-27 14:20:10,451 [INFO] HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+2026-05-27 14:20:10,463 [INFO]   Hard filters returned 0 results (mechanism=catalyst-free photo-oxidation via direct substrate excitation, phase=). Relaxing to soft filtering.
+2026-05-27 14:20:10,466 [INFO]   Analogy 1: photochemflow (10).pdf (score=0.531, sem=0.618, field=0.400)
+2026-05-27 14:20:10,466 [INFO]   Analogy 2: photochemflow (93).pdf (score=0.509, sem=0.582, field=0.400)
+2026-05-27 14:20:10,466 [INFO]   Analogy 3: photochemflow (111).pdf (score=0.475, sem=0.658, field=0.200)
+2026-05-27 14:20:10,467 [INFO]   Found 3 analogies
+2026-05-27 14:20:10,467 [INFO] Step 3b: Running 9-step design calculator
+2026-05-27 14:20:10,468 [INFO] All consistency checks passed ✓
+2026-05-27 14:20:10,468 [INFO]   τ = 42.9 min (range (16.67, 225.0)), method = analogy_blended (mass_transfer_gas_liquid), Re = 4, Da = 0.91, ΔP = 3.0707 bar, BPR = yes
+2026-05-27 14:20:10,468 [INFO] Step 3c: Design space grid search
+2026-05-27 14:20:10,470 [INFO]   Design space: 33 candidates, 14 feasible
+2026-05-27 14:20:10,470 [INFO]   Top candidate: τ=12.5min, Q=0.28953mL/min, d=1.6mm, L=12.0m, score=0.708
+2026-05-27 14:20:10,470 [INFO] Step 4: Generating flow proposal via LLM
+2026-05-27 14:20:10,470 [INFO] Generating flow proposal via LLM
+2026-05-27 14:20:38,187 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-27 14:20:38,188 [INFO]   Proposal: 43.0min, coil, 2 streams
+2026-05-27 14:20:38,188 [INFO]   Proposal geometry updated from design space top candidate
+2026-05-27 14:20:38,188 [INFO] Step 5: Multi-agent deliberation council (ENGINE)
+2026-05-27 14:20:38,188 [INFO]   Council v4 — Stage 0: Problem framing
+2026-05-27 14:20:40,460 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:20:40,467 [INFO]     Problem framing: reaction_class=aerobic_oxidation | flags=['O2_reagent', 'gas_liquid', 'photochemical'] | flow_justified=True
+2026-05-27 14:20:40,467 [INFO]   Council v4 — Stage 1: Designer candidate matrix
+2026-05-27 14:20:43,015 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:20:43,024 [INFO]     Designer v4 strategy: tau∈[0.30×, 2.00×], n_tau=6, log, d≤2.0 mm
+2026-05-27 14:20:43,025 [INFO]     Designer v4: 12 total feasible → 12 to council (11 flagged, 34 sampling-infeasible; kill_categories=V_R:24, L:18)
+2026-05-27 14:20:43,025 [INFO]   Council v4 — Stage 2: Domain scoring (12 survivors)
+2026-05-27 14:20:45,235 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:21:01,879 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:21:04,787 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:21:16,489 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:21:16,495 [WARNING] Dr. Chemistry returned 0 scores for 4 candidates [5, 6, 7, 8] — retrying with explicit reminder and higher token budget
+2026-05-27 14:21:19,562 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:21:30,396 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:21:32,950 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:21:43,128 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:21:43,152 [INFO]     Dr. Chemistry scored 12/12 candidates
+2026-05-27 14:21:45,478 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:22:00,521 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:22:02,147 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:22:15,197 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:22:16,717 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:22:39,149 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:22:39,164 [INFO]     Dr. Kinetics scored 12/12 candidates
+2026-05-27 14:22:42,449 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:22:58,225 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:23:00,088 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:23:02,014 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:23:14,954 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:23:19,965 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:23:37,037 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:23:37,044 [INFO]     Dr. Fluidics scored 12/12 candidates
+2026-05-27 14:23:39,227 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:23:49,742 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:23:52,367 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:24:03,167 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:24:06,227 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:24:16,568 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:24:16,573 [INFO]     Dr. Safety scored 12/12 candidates
+2026-05-27 14:24:16,574 [INFO]   Council v4 — Stage 3: Skeptic audit
+2026-05-27 14:24:16,574 [INFO]     Skeptic audit: AUDIT: 39 issues found (3 CRITICAL, 12 HIGH, 0 scope violations). 11 candidates flagged for disqualification. CRITICAL errors found — council MUST correct before proceeding.
+2026-05-27 14:24:16,574 [INFO]       [HIGH] id=2 DUAL_CRITERION_ERROR: Candidate 2: dual_criterion_mixing_fail=True but r_mix=0.333, Da_mass=0.896. Both conditions (r_mix 
+2026-05-27 14:24:16,574 [INFO]       [CRITICAL] id=1 INNER_FILTER_THRESHOLD_ERROR: Candidate 1: A=1.875 > 1.5 (hard disqualify threshold) but hard_gate_failed=False and verdict='REVIS
+2026-05-27 14:24:16,574 [INFO]       [CRITICAL] id=2 INNER_FILTER_THRESHOLD_ERROR: Candidate 2: A=2.500 > 1.5 (hard disqualify threshold) but hard_gate_failed=False and verdict='REVIS
+2026-05-27 14:24:16,574 [INFO]       [CRITICAL] id=4 INNER_FILTER_THRESHOLD_ERROR: Candidate 4: A=1.875 > 1.5 (hard disqualify threshold) but hard_gate_failed=False and verdict='REVIS
+2026-05-27 14:24:16,574 [INFO]       [HIGH] id=1 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 1: Designer hard-gate flagged insufficient conversion (X=0.26 < X_minimum=0.50 (insufficie
+2026-05-27 14:24:16,574 [INFO]       [HIGH] id=2 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 2: Designer hard-gate flagged insufficient conversion (X=0.25 < X_minimum=0.50 (insufficie
+2026-05-27 14:24:16,574 [INFO]       [HIGH] id=3 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 3: Designer hard-gate flagged insufficient conversion (dual-criterion mixing fail: Da_mass
+2026-05-27 14:24:16,574 [INFO]       [HIGH] id=4 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 4: Designer hard-gate flagged insufficient conversion (X=0.36 < X_minimum=0.50 (insufficie
+2026-05-27 14:24:16,574 [INFO]       [HIGH] id=5 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 5: Designer hard-gate flagged insufficient conversion (X=0.26 < X_minimum=0.50 (insufficie
+2026-05-27 14:24:16,574 [INFO]       [HIGH] id=6 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 6: Designer hard-gate flagged insufficient conversion (dual-criterion mixing fail: Da_mass
+2026-05-27 14:24:16,574 [INFO]       [HIGH] id=7 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 7: Designer hard-gate flagged insufficient conversion (X=0.25 < X_minimum=0.50 (insufficie
+2026-05-27 14:24:16,574 [INFO]       [HIGH] id=8 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 8: Designer hard-gate flagged insufficient conversion (X=0.36 < X_minimum=0.50 (insufficie
+2026-05-27 14:24:16,574 [INFO]       [HIGH] id=9 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 9: Designer hard-gate flagged insufficient conversion (dual-criterion mixing fail: Da_mass
+2026-05-27 14:24:16,574 [INFO]       [HIGH] id=10 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 10: Designer hard-gate flagged insufficient conversion (X=0.47 < X_minimum=0.50 (insuffici
+2026-05-27 14:24:16,574 [INFO]       [HIGH] id=11 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 11: Designer hard-gate flagged insufficient conversion (dual-criterion mixing fail: Da_mas
+2026-05-27 14:24:16,574 [WARNING]   Council v4 — Skeptic found CRITICAL errors: ['Candidate 1: A=1.875 > 1.5 (hard disqualify threshold) but hard_gate_failed=Fals', 'Candidate 2: A=2.500 > 1.5 (hard disqualify threshold) but hard_gate_failed=Fals', 'Candidate 4: A=1.875 > 1.5 (hard disqualify threshold) but hard_gate_failed=Fals']. Proceeding with disqualification of affected candidates.
+2026-05-27 14:24:16,574 [INFO]   Council v4 — Stage 3.5: Pre-selection expert refinement
+2026-05-27 14:24:16,574 [INFO]   Council v4 — rescoring 12 revised candidates after bounded expert edits
+2026-05-27 14:24:18,666 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:24:27,191 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:24:28,828 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:24:37,754 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:24:39,491 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:24:48,270 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:24:48,275 [INFO]     Dr. Chemistry scored 12/12 candidates
+2026-05-27 14:24:51,045 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:25:03,004 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:25:14,985 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:25:28,369 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:25:28,376 [INFO]     Dr. Kinetics scored 12/12 candidates
+2026-05-27 14:25:31,203 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:25:45,703 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:25:48,653 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:26:05,377 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:26:09,653 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:26:26,917 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:26:26,926 [INFO]     Dr. Fluidics scored 12/12 candidates
+2026-05-27 14:26:28,068 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:26:41,074 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:26:43,327 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:26:54,303 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:26:56,099 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:26:57,715 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:27:08,170 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:27:08,184 [INFO]     Dr. Safety scored 12/12 candidates
+2026-05-27 14:27:08,184 [INFO]     Skeptic audit: AUDIT: 11 issues found (0 CRITICAL, 5 HIGH, 0 scope violations). 4 candidates flagged for disqualification. No CRITICAL errors — council may proceed with caution.
+2026-05-27 14:27:08,184 [INFO]       [HIGH] id=2 DUAL_CRITERION_ERROR: Candidate 2: dual_criterion_mixing_fail=True but r_mix=0.333, Da_mass=0.896. Both conditions (r_mix 
+2026-05-27 14:27:08,184 [INFO]       [HIGH] id=1 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 1: Designer hard-gate flagged insufficient conversion (X=0.26 < X_minimum=0.50 (insufficie
+2026-05-27 14:27:08,184 [INFO]       [HIGH] id=2 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 2: Designer hard-gate flagged insufficient conversion (X=0.25 < X_minimum=0.50 (insufficie
+2026-05-27 14:27:08,184 [INFO]       [HIGH] id=3 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 3: Designer hard-gate flagged insufficient conversion (X=0.25 < X_minimum=0.50 (insufficie
+2026-05-27 14:27:08,184 [INFO]       [HIGH] id=4 INSUFFICIENT_CONVERSION_HARD_GATE: Candidate 4: Designer hard-gate flagged insufficient conversion (X=0.36 < X_minimum=0.50 (insufficie
+2026-05-27 14:27:08,184 [INFO]   Council v4 — Chief Engineer: weighted selection
+2026-05-27 14:27:17,177 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:27:17,182 [INFO]   Council v4 — Winner: id=9 τ=42.9 min, d=1.0 mm, Q=0.154 mL/min, X=0.6325
+2026-05-27 14:27:17,182 [INFO]   Council v4 — Stage 3.5: Revision Agent on winner id=9
+2026-05-27 14:27:19,194 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:27:19,204 [INFO]   Stage 3.5 applied: id=9 | τ 42.9→98.7 min | d 1.00→1.00 mm | BPR 7.00→7.00 bar | mat FEP→FEP | X 0.63→0.90 | domains=['kinetics']
+2026-05-27 14:27:19,204 [INFO]   Stage 3.5 applied revisions to winner id=9: τ→98.7 min, d→1.00 mm, BPR→7.00 bar
+2026-05-27 14:27:19,204 [INFO]   Council v4 — DFMEA on winning candidate id=9
+2026-05-27 14:27:23,162 [INFO] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-05-27 14:27:23,166 [INFO]   Chief: pump flowrates applied — {'A': 0.0004, 'B': 0.0004}
+2026-05-27 14:27:23,167 [INFO]   Chief: reactor-feed flowrates renormalised ×192.5000 (sum 0.0008 → 0.1540 mL/min; quench streams untouched)
+2026-05-27 14:27:23,167 [INFO] All consistency checks passed ✓
+2026-05-27 14:27:23,168 [INFO] Step 6: Formatting output
+2026-05-27 14:27:45,472 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-27 14:27:45,474 [INFO] Step 7: Generating process flow diagram
+2026-05-27 14:27:50,513 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-27 14:27:50,656 [INFO] PNG saved: outputs/translate_process.png
+2026-05-27 14:27:50,667 [INFO] SVG saved: outputs/translate_process.svg
+2026-05-27 14:27:50,667 [INFO]   Diagram saved: outputs/translate_process.svg
+2026-05-27 14:27:50,667 [INFO] Done — Confidence: MEDIUM
+
+==============================================================================
+POST-RUN SUMMARY
+==============================================================================
+confidence           : 'MEDIUM'
+engine_validated     : True
+safety_flags         : []
+residence_time_min   : 98.74
+flow_rate_mL_min     : 0.154
+tubing_ID_mm         : 1.0
+reactor_volume_mL    : 89.3129
+BPR_bar              : 5.0
+calc.is_gas_liquid   : True
+calc.delta_P_bar     : 2.854073
+calc.gas_holdup      : 0.8297
+
+deliberation rounds  : 2
+consensus_reached    : True
+deliberation summary : ## Council v4 — Stage-gated Engineering Design Summary
+
+**Objectives**: balanced
+**Designer**: 12 survivors, 11 hard-gate disqualified
+
+### Candidate Shortlist
+| id | τ min | d mm | Q mL/min | C M | V
+agents that spoke    : ['CandidateRefinementV4', 'ChiefV4', 'DesignerV4', 'DrChemistryV4', 'DrFluidicsV4', 'DrKineticsV4', 'DrSafetyV4', 'RevisionAgent', 'SkepticV4']
+total agent messages : 9
+
+full result dumped to: outputs/thq_smoke_result.json
+

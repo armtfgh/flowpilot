@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Optional
 
 import flora_translate.engine.llm_agents as llm_agents
@@ -51,11 +52,64 @@ _FLUIDICS_V4_TOOLS = [
 #  JSON parsing helpers
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _parse_partial_score_array(text: str) -> list[dict]:
+    """Recover only complete score rows from a truncated ``scores`` array.
+
+    Provider token limits can cut the outer JSON object after one or more complete
+    candidate rows.  Recovering those rows is safe because coverage validation
+    still retries every missing candidate ID; incomplete rows are never accepted.
+    """
+    match = re.search(
+        r'"(?:scores|candidate_scores|per_candidate_scores|evaluations|results)"\s*:\s*\[',
+        text,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return []
+    decoder = json.JSONDecoder()
+    cursor = match.end()
+    rows: list[dict] = []
+    while cursor < len(text):
+        while cursor < len(text) and text[cursor] in " \t\r\n,":
+            cursor += 1
+        if cursor >= len(text) or text[cursor] == "]":
+            break
+        try:
+            value, end = decoder.raw_decode(text, cursor)
+        except json.JSONDecodeError:
+            break
+        if isinstance(value, dict):
+            rows.append(value)
+        cursor = end
+    return rows
+
+
+def _normalise_score_rows(value) -> list[dict]:
+    """Normalize provider-equivalent score containers to candidate dictionaries."""
+    if isinstance(value, list):
+        return [row for row in value if isinstance(row, dict)]
+    if not isinstance(value, dict):
+        return []
+
+    if any(key in value for key in ("candidate_id", "candidateId", "id")):
+        return [value]
+
+    rows: list[dict] = []
+    for key, row in value.items():
+        if not isinstance(row, dict):
+            continue
+        normalized = dict(row)
+        normalized.setdefault("candidate_id", key)
+        rows.append(normalized)
+    return rows
+
+
 def _parse_score_response(raw: str) -> tuple[str, list[dict]]:
     """Extract (overall_analysis, per_candidate_scores) from LLM output.
 
     Returns (overall_analysis_str, list_of_candidate_dicts).
-    Handles both {"overall_analysis":..., "scores":[...]} and bare list formats.
+    Handles bare lists, common provider aliases, ID-keyed mappings, and complete
+    candidate rows inside an otherwise truncated scores array.
     """
     s = raw.strip()
 
@@ -102,17 +156,45 @@ def _parse_score_response(raw: str) -> tuple[str, list[dict]]:
 
     obj = _extract_obj(candidates_text)
     if obj is None:
-        return "", []
+        return "", _parse_partial_score_array(candidates_text)
 
     if isinstance(obj, list):
-        return "", obj
+        return "", _normalise_score_rows(obj)
 
     if isinstance(obj, dict):
-        overall = str(obj.get("overall_analysis", ""))
-        scores = obj.get("scores", [])
-        if not scores and "candidate_id" in obj:
-            scores = [obj]
-        return overall, list(scores) if isinstance(scores, list) else []
+        overall = str(
+            obj.get("overall_analysis")
+            or obj.get("overallAnalysis")
+            or obj.get("analysis")
+            or obj.get("summary")
+            or ""
+        )
+        score_keys = (
+            "scores",
+            "candidate_scores",
+            "candidateScores",
+            "per_candidate_scores",
+            "evaluations",
+            "results",
+            "candidates",
+        )
+        scores = next((obj[key] for key in score_keys if obj.get(key) is not None), None)
+        if scores is None and isinstance(obj.get("data"), dict):
+            nested = obj["data"]
+            scores = next(
+                (nested[key] for key in score_keys if nested.get(key) is not None),
+                nested,
+            )
+        if scores is None and any(
+            key in obj for key in ("candidate_id", "candidateId", "id")
+        ):
+            scores = obj
+        if scores is None and any(str(key).isdigit() for key in obj):
+            scores = {
+                key: value for key, value in obj.items() if str(key).isdigit()
+            }
+        normalized = _normalise_score_rows(scores)
+        return overall, normalized or _parse_partial_score_array(candidates_text)
 
     return "", []
 
@@ -181,6 +263,8 @@ Use very short reasoning. Own only proposed_changes.concentration_M.""",
         "kinetics": (
             """You are Dr. Kinetics for FLORA Gemma mode.
 Score exactly one candidate using the provided numbers as authoritative.
+Policy: prefer the SHORTEST τ that clears X_floor = 0.30 single-pass.
+Don't penalize X < 0.85 if X ≥ 0.30. BLOCK only if X < 0.15.
 Return one JSON object only, no markdown, no extra text.
 Required keys:
 candidate_id, reasoning, kinetics_score, X_estimated, X_adequate,
@@ -192,6 +276,8 @@ Use expected_conversion as X_estimated if needed. Own only proposed_changes.tau_
         "fluidics": (
             """You are Dr. Fluidics for FLORA Gemma mode.
 Score exactly one candidate using the provided numbers as authoritative.
+Policy: L_soft=15 m, L_hard=30 m. ΔP_soft=2 bar, ΔP_hard=5 bar.
+BLOCK only if L > 30 m, ΔP > 5 bar, or Re > 2300.
 Return one JSON object only, no markdown, no extra text.
 Required keys:
 candidate_id, reasoning, fluidics_score, Re, dP_bar, r_mix, dual_criterion_mixing_fail,
@@ -244,7 +330,7 @@ def _build_gemma_context(
 def _claude_compact_prompt_bundle(domain: str) -> tuple[str, str]:
     bundles = {
         "chemistry": (
-            """You are Dr. Chemistry in FLORA Claude benchmark mode.
+            """You are Dr. Chemistry in FlowPilot bounded scoring mode.
 Score the listed candidates using the provided numeric data only. Do not call tools.
 Be concise. Use BLOCK only for explicit hard-gate impossibility, not mere suboptimality.
 Return JSON only:
@@ -254,9 +340,10 @@ Own only concentration_M.""",
             "combined_score",
         ),
         "kinetics": (
-            """You are Dr. Kinetics in FLORA Claude benchmark mode.
+            """You are Dr. Kinetics in FlowPilot bounded scoring mode.
 Score the listed candidates using the provided numeric data only. Do not call tools.
-Use BLOCK only for clearly unacceptable conversion/time logic, not mere weakness.
+Policy: prefer the SHORTEST τ that clears X_floor = 0.30 single-pass.
+Don't penalize X < 0.85 if X ≥ 0.30. BLOCK only if X < 0.15.
 Return JSON only:
 {"overall_analysis":"1-2 short sentences","scores":[{"candidate_id":1,"reasoning":"short reason","kinetics_score":0.0,"X_estimated":0.0,"tau_proposed_final_min":0.0,"verdict":"ACCEPT|WARNING|REVISE|BLOCK","proposed_changes":{"tau_min":9.0}}]}
 If no kinetics edit is needed, use proposed_changes: {}.
@@ -264,9 +351,10 @@ Own only tau_min.""",
             "kinetics_score",
         ),
         "fluidics": (
-            """You are Dr. Fluidics in FLORA Claude benchmark mode.
+            """You are Dr. Fluidics in FlowPilot bounded scoring mode.
 Score the listed candidates using the provided numeric data only. Do not call tools.
-Use BLOCK only for explicit severe fluidic impossibility, not simple room for improvement.
+Policy: L_soft=15 m, L_hard=30 m. ΔP_soft=2 bar, ΔP_hard=5 bar.
+BLOCK only if L > 30 m, ΔP > 5 bar, or Re > 2300.
 Return JSON only:
 {"overall_analysis":"1-2 short sentences","scores":[{"candidate_id":1,"reasoning":"short reason","fluidics_score":0.0,"Re":0.0,"dP_bar":0.0,"r_mix":0.0,"verdict":"ACCEPT|WARNING|REVISE|BLOCK","proposed_changes":{"d_mm":0.5}}]}
 If no fluidics edit is needed, use proposed_changes: {}.
@@ -274,7 +362,7 @@ Own only d_mm.""",
             "fluidics_score",
         ),
         "safety": (
-            """You are Dr. Safety in FLORA Claude benchmark mode.
+            """You are Dr. Safety in FlowPilot bounded scoring mode.
 Score the listed candidates using the provided numeric data only. Do not call tools.
 Be conservative, but do not invent hazards not supported by the given data.
 Return JSON only:
@@ -315,12 +403,19 @@ def _build_claude_compact_context(
 
 
 def _clean_local_scores(scores: list[dict], valid_ids: set[int], score_key: str) -> list[dict]:
+    if len(valid_ids) == 1 and len(scores) == 1 and isinstance(scores[0], dict):
+        # A singleton repair request is unambiguous even when a model renumbers
+        # the only row as candidate 1. Preserve the score and restore the exact
+        # requested identifier before applying the normal coverage checks.
+        scores[0]["candidate_id"] = next(iter(valid_ids))
     cleaned: list[dict] = []
     for entry in scores:
         if not isinstance(entry, dict):
             continue
         try:
-            cid = int(entry.get("candidate_id"))
+            cid = int(
+                entry.get("candidate_id", entry.get("candidateId", entry.get("id")))
+            )
         except (TypeError, ValueError):
             continue
         if cid not in valid_ids:
@@ -453,6 +548,14 @@ def _run_scoring_agent_claude_compact(
                 still_missing.update(missing)
         remaining = [c for c in candidates if int(c.get("id", 0)) in still_missing and int(c.get("id", 0)) not in score_map]
 
+    repaired_ids: list[int] = []
+    if strict_coverage:
+        repaired_ids = _repair_missing_scores_deterministically(
+            domain=domain,
+            agent_name=agent_name,
+            score_map=score_map,
+            candidates=candidates,
+        )
     ordered_scores = _ordered_scores(score_map, candidates)
     _enforce_coverage(
         agent_name=agent_name,
@@ -460,8 +563,31 @@ def _run_scoring_agent_claude_compact(
         valid_ids={int(c.get("id", 0)) for c in candidates},
         strict_coverage=strict_coverage,
     )
+    if repaired_ids:
+        overall_parts.append(
+            f"Deterministic coverage fallback supplied missing {domain} rows for "
+            f"candidate ids {repaired_ids}; no domain-expert inference is claimed."
+        )
     overall_analysis = " ".join(s for s in overall_parts if s)
-    return overall_analysis, ordered_scores, []
+    fallback_log = []
+    if repaired_ids:
+        fallback_log.append({
+            "name": "deterministic_scoring_coverage_fallback",
+            "domain": domain,
+            "candidate_ids": repaired_ids,
+            "reason": "LLM score missing after bounded retries",
+        })
+    return overall_analysis, ordered_scores, fallback_log
+
+
+def _use_bounded_anthropic_scoring() -> bool:
+    """Use a bounded score contract for Claude in production and benchmarks.
+
+    Candidate engineering metrics have already been calculated deterministically.
+    Re-running the same arithmetic through tool loops adds latency and can consume
+    the response budget before Claude emits the required JSON score payload.
+    """
+    return _is_anthropic_council_mode()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -575,12 +701,22 @@ residence times. Your scoring and reasoning must be quantitative throughout.
   τ < 0.5×τ_lit → explain what physical justification exists for the shorter time
   τ > 2×τ_lit → explain why longer time is needed (slow mechanism, RTD margin)
 
-**Conversion adequacy:**
-  Compute X = 1 − exp(−τ / τ_kinetics) and compare to target (default 0.85):
-  X ≥ 0.85 → 1.0 | X 0.70–0.85 → 0.7 | X 0.50–0.70 → 0.4 | X < 0.50 → 0.1
-  Always state X explicitly and whether it meets the target.
+**Conversion adequacy (with X_floor = 0.30):**
+  Compute X = 1 − exp(−τ / τ_kinetics). The system policy is short-τ-with-
+  bounded-L-and-ΔP: prefer the SHORTEST τ that still clears the X ≥ 0.30
+  single-pass floor. Do not penalize a design for landing below 0.85 if it
+  beats the floor — that's the intended behaviour.
+  X ≥ 0.85 → 1.0 | X 0.60–0.85 → 0.85 | X 0.30–0.60 → 0.6 | X < 0.30 → 0.1
+  Always state X explicitly and whether it clears X_floor (0.30).
   RTD effect: for laminar flow at τ/τ_k < 2×, fast-moving core sees τ/2 —
   mention this when the safety margin is thin.
+
+**Short-τ design preference (HARD POLICY):**
+  Among candidates that all clear X ≥ 0.30, prefer the one with the smallest τ.
+  Productivity (1/τ) is the primary engineering objective; conversion is a
+  hard floor, not a maximization target. If two candidates both achieve
+  X ≥ 0.30 and the shorter-τ one delivers higher mg/h or smaller V_R, that's
+  the better design even if its X is lower.
 
 **Mixing-kinetics coupling:**
   τ_mixing_required = t_mix / 0.15. If τ_proposed < τ_mixing_required, kinetics
@@ -592,14 +728,17 @@ residence times. Your scoring and reasoning must be quantitative throughout.
   Productivity: mg/h at design conditions. Space-time yield (mol/L/h).
 
 **Final τ decision rule:**
-  τ_final = max(τ_kinetics, τ_mixing_required, τ_lit / 2)
-  State this explicitly for each candidate.
+  τ_final = max(τ_mixing_required, τ_lit / 4)
+  Note: τ_kinetics is the 90% conversion time. With X_floor=0.30, the floor
+  is reached at τ = 0.36 × τ_kinetics, so τ_kinetics is no longer the lower
+  bound — use τ_mixing_required and a quarter of τ_lit instead. State this
+  explicitly for each candidate.
 
-## Verdicts
-  ACCEPT:  score ≥ 0.70, X ≥ 0.85, IF valid, τ ≥ τ_mixing_required
-  WARNING: score 0.50–0.70, X 0.70–0.85, or thin τ/τ_k margin (< 1.5×)
-  REVISE:  X < 0.70, or IF clearly out of class range without justification
-  BLOCK:   X < 0.50 (unless user approved)
+## Verdicts (updated for short-τ policy)
+  ACCEPT:  score ≥ 0.70, X ≥ 0.30 (floor), IF valid, τ ≥ τ_mixing_required
+  WARNING: score 0.50–0.70, X 0.30–0.50, or thin τ/τ_k margin
+  REVISE:  X < 0.30 (below floor), or IF clearly out of class range without justification
+  BLOCK:   X < 0.15 (well below floor and outside SCREEN_REQUIRED scope)
 
 ## Tools
 Use `estimate_residence_time` to independently verify τ_kinetics. Call it and
@@ -658,9 +797,15 @@ numbers: Re, ΔP, r_mix, L, De, pump headroom. You also own hardware specificati
   De > 10 → secondary flow bonus (improves mixing, tightens RTD). Note this.
   State Re and flow regime explicitly.
 
-**Pressure headroom:**
-  ΔP / P_pump_max: < 0.20 → 1.0, 0.20–0.50 → good, 0.50–0.80 → caution,
-  > 0.80 → 0.0. Compute pump_headroom_pct = (1 − ΔP/P_max) × 100.
+**Pressure headroom (HARD POLICY: ΔP_soft = 2 bar, ΔP_hard = 5 bar):**
+  Score by absolute ΔP first, pump headroom second:
+    ΔP ≤ 2.0 bar → 1.0 (target)
+    ΔP 2.0–5.0 bar → linear penalty to 0
+    ΔP > 5.0 bar → BLOCK
+  Then check pump headroom: ΔP / P_pump_max < 0.20 → fine; > 0.80 → BLOCK.
+  The 2-bar soft cap keeps ΔP below the gas-liquid BPR floor of 3 bar so
+  the BPR can independently regulate two-phase pressure.
+  Compute pump_headroom_pct = (1 − ΔP/P_max) × 100.
   If headroom < 20%, explain what happens under partial blockage (Q drift +10%,
   filter fouling +20% ΔP) — does the pump stall?
 
@@ -672,9 +817,10 @@ numbers: Re, ΔP, r_mix, L, De, pump headroom. You also own hardware specificati
   Formula: d_fix = d_current × √(0.15 / r_mix_current). Round to commercial size.
   Show the calculation if a d change is recommended.
 
-**Geometry:**
-  L < 15 m → single coil, 1.0. L 15–25 m → two-coil build, penalise slightly.
-  L > 25 m → BLOCK.
+**Geometry (HARD POLICY: L_soft = 15 m, L_hard = 30 m):**
+  L ≤ 15 m → single bench cassette, 1.0
+  L 15–30 m → linear penalty to 0; multi-coil build, increasingly impractical
+  L > 30 m → BLOCK (bench-impractical footprint).
 
 **Hardware specification (merged):**
   Pump: Q < 2 mL/min → syringe pump (Harvard, New Era); Q 2–10 → HPLC piston.
@@ -684,11 +830,11 @@ numbers: Re, ΔP, r_mix, L, De, pump headroom. You also own hardware specificati
   Coil winding: R_coil ≥ 5 × d_outer to prevent kinking.
   Blockage risk: d ≤ 0.5 mm at Q < 0.08 mL/min → flag particulate/crystal risk.
 
-## Verdicts
-  ACCEPT:  fluidics_score ≥ 0.70, no hard blocks, hardware feasible
-  WARNING: score 0.50–0.70, elevated Re or ΔP, small d blockage risk
+## Verdicts (updated for L/ΔP policy)
+  ACCEPT:  fluidics_score ≥ 0.70, L ≤ 15 m, ΔP ≤ 2 bar, no hard blocks
+  WARNING: score 0.50–0.70, L 15–30 m, or ΔP 2–5 bar, or elevated Re
   REVISE:  dual mixing fail (need d decrease), ΔP headroom < 20%
-  BLOCK:   Re > 2300, L > 25 m
+  BLOCK:   Re > 2300, L > 30 m, ΔP > 5 bar
 
 ## Tools
 Use `calculate_pressure_drop` for what-if scenarios (Q +20%, partial blockage).
@@ -757,8 +903,9 @@ Write as if you are signing off a risk assessment — be specific and thorough.
 
 **BPR adequacy:**
   Liquid-only: BPR_set = P_vap(T) + ΔP + 0.5 bar minimum safety margin.
-  Gas-liquid:  BPR_set = max(5.0, P_vap + ΔP) + 2.0 bar mandatory margin.
-               NEVER recommend BPR < 5.0 bar for gas-liquid. Ever.
+  Gas-liquid:  hard floor = max(3.0, P_vap + ΔP); recommended setting adds
+               a 2.0 bar robustness margin. BPR = 3.0 bar is an allowed
+               evidence-backed screening point when the hard floor is met.
   Call `calculate_bpr_required` and show the calculated P_min and P_recommended.
   Compare to current BPR setting. State whether BPR is adequate with margin.
 
@@ -790,7 +937,7 @@ Write as if you are signing off a risk assessment — be specific and thorough.
   ACCEPT:              safety_score ≥ 0.80, all gates passed
   APPROVED_WITH_CONDITIONS: score 0.60–0.80, manageable conditions explicitly stated
   REVISE:              BPR inadequate, material concern, thermal caution
-  BLOCK:               Da_thermal > 1.0, gas-liquid BPR < 5 bar, opaque photoreactor,
+  BLOCK:               Da_thermal > 1.0, gas-liquid BPR < 3 bar, opaque photoreactor,
                        incompatible material without a safe alternative
 
 ## Tools
@@ -911,6 +1058,122 @@ def _ordered_scores(score_map: dict[int, dict], candidates: list[dict]) -> list[
     return ordered
 
 
+def _deterministic_coverage_score(domain: str, candidate: dict) -> dict:
+    """Return conservative numeric triage when a scoring LLM omits a row.
+
+    This is deliberately not a substitute for domain-expert reasoning. It only
+    applies policies already encoded in the bounded prompts, labels its source,
+    and leaves non-numeric domains at a neutral warning score. Independent hard
+    gates still decide whether a candidate may proceed.
+    """
+    cid = int(candidate.get("id", 0))
+    provenance = {
+        "source": "deterministic_coverage_fallback",
+        "reason": "LLM score missing after bounded retries",
+        "limitations": "Numeric policy triage only; no domain-expert inference was obtained.",
+    }
+    common = {
+        "candidate_id": cid,
+        "proposed_changes": {},
+        "concerns": ["Domain LLM score unavailable; deterministic coverage fallback used."],
+        "score_provenance": provenance,
+    }
+
+    if domain == "kinetics":
+        conversion = _safe_float(candidate.get("expected_conversion"), 0.0)
+        if conversion < 0.15:
+            score, verdict = 0.10, "BLOCK"
+        elif conversion < 0.30:
+            score, verdict = 0.40, "REVISE"
+        else:
+            score, verdict = 0.65, "WARNING"
+        return {
+            **common,
+            "reasoning": (
+                "Deterministic kinetics triage from expected conversion using the "
+                "declared 0.15 hard floor and 0.30 screening floor."
+            ),
+            "kinetics_score": score,
+            "X_estimated": conversion,
+            "tau_proposed_final_min": _safe_float(candidate.get("tau_min")),
+            "verdict": verdict,
+        }
+
+    if domain == "fluidics":
+        length_m = _safe_float(candidate.get("L_m"))
+        delta_p_bar = _safe_float(candidate.get("delta_P_bar"))
+        reynolds = _safe_float(candidate.get("Re"))
+        hard_fail = length_m > 30.0 or delta_p_bar > 5.0 or reynolds > 2300.0
+        soft_fail = length_m > 15.0 or delta_p_bar > 2.0
+        score, verdict = (
+            (0.10, "BLOCK") if hard_fail else
+            (0.45, "REVISE") if soft_fail else
+            (0.65, "WARNING")
+        )
+        return {
+            **common,
+            "reasoning": (
+                "Deterministic fluidics triage from the declared length, pressure-drop, "
+                "and Reynolds-number thresholds."
+            ),
+            "fluidics_score": score,
+            "Re": reynolds,
+            "dP_bar": delta_p_bar,
+            "r_mix": _safe_float(candidate.get("r_mix")),
+            "verdict": verdict,
+        }
+
+    if domain == "safety":
+        bpr_bar = _safe_float(candidate.get("BPR_bar"))
+        return {
+            **common,
+            "reasoning": (
+                "No deterministic rule can replace a chemistry-specific safety review; "
+                "the candidate remains a warning and is still subject to independent hard gates."
+            ),
+            "safety_score": 0.50,
+            "BPR_current_bar": bpr_bar,
+            "BPR_adequate": None,
+            "material_recommendation": str(candidate.get("tubing_material") or ""),
+            "verdict": "WARNING",
+        }
+
+    return {
+        **common,
+        "reasoning": (
+            "No deterministic rule can replace chemistry review; the candidate remains "
+            "a neutral warning and is still subject to independent chemistry hard gates."
+        ),
+        "combined_score": 0.50,
+        "verdict": "WARNING",
+    }
+
+
+def _repair_missing_scores_deterministically(
+    *,
+    domain: str,
+    agent_name: str,
+    score_map: dict[int, dict],
+    candidates: list[dict],
+) -> list[int]:
+    """Fill only omitted score rows and return the repaired candidate IDs."""
+    repaired: list[int] = []
+    for candidate in candidates:
+        cid = int(candidate.get("id", 0))
+        if cid in score_map:
+            continue
+        score_map[cid] = _deterministic_coverage_score(domain, candidate)
+        repaired.append(cid)
+    if repaired:
+        logger.error(
+            "%s exhausted bounded scoring retries for candidate ids %s; "
+            "using explicitly labeled deterministic coverage fallback",
+            agent_name,
+            repaired,
+        )
+    return repaired
+
+
 def _enforce_coverage(
     *,
     agent_name: str,
@@ -933,6 +1196,7 @@ def _enforce_coverage(
 
 def _run_scoring_agent_batched(
     *,
+    domain: str,
     agent_name: str,
     system_prompt: str,
     candidates: list[dict],
@@ -991,6 +1255,14 @@ def _run_scoring_agent_batched(
 
         remaining = [c for c in candidates if int(c.get("id", 0)) in still_missing and int(c.get("id", 0)) not in score_map]
 
+    repaired_ids: list[int] = []
+    if strict_coverage:
+        repaired_ids = _repair_missing_scores_deterministically(
+            domain=domain,
+            agent_name=agent_name,
+            score_map=score_map,
+            candidates=candidates,
+        )
     ordered_scores = _ordered_scores(score_map, candidates)
     _enforce_coverage(
         agent_name=agent_name,
@@ -998,6 +1270,17 @@ def _run_scoring_agent_batched(
         valid_ids={int(c.get("id", 0)) for c in candidates},
         strict_coverage=strict_coverage,
     )
+    if repaired_ids:
+        overall_parts.append(
+            f"Deterministic coverage fallback supplied missing {domain} rows for "
+            f"candidate ids {repaired_ids}; no domain-expert inference is claimed."
+        )
+        all_tc.append({
+            "name": "deterministic_scoring_coverage_fallback",
+            "domain": domain,
+            "candidate_ids": repaired_ids,
+            "reason": "LLM score missing after bounded retries",
+        })
     overall_analysis = " ".join(part for part in overall_parts if part)
     return overall_analysis, ordered_scores, all_tc
 
@@ -1031,7 +1314,7 @@ def _run_scoring_agent(
         for entry in scores:
             if not isinstance(entry, dict):
                 continue
-            cid = entry.get("candidate_id")
+            cid = entry.get("candidate_id", entry.get("candidateId", entry.get("id")))
             try:
                 cid = int(cid)
             except (TypeError, ValueError):
@@ -1106,7 +1389,7 @@ def run_chemistry_scoring(
         )
         logger.info("    Dr. Chemistry scored %d/%d candidates", len(scores), len(candidates))
         return oa, scores, tc
-    if benchmark_claude_compact_mode and _is_anthropic_council_mode():
+    if _use_bounded_anthropic_scoring():
         oa, scores, tc = _run_scoring_agent_claude_compact(
             domain="chemistry",
             agent_name="Dr. Chemistry",
@@ -1126,8 +1409,9 @@ def run_chemistry_scoring(
         is_photochem, pump_max_bar, intensification_mandate,
     )
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
-    if batch_size and batch_size < len(candidates):
+    if batch_size and batch_size <= len(candidates):
         oa, scores, tc = _run_scoring_agent_batched(
+            domain="chemistry",
             agent_name="Dr. Chemistry",
             system_prompt=_CHEMISTRY_SYSTEM,
             candidates=candidates,
@@ -1184,7 +1468,7 @@ def run_kinetics_scoring(
         )
         logger.info("    Dr. Kinetics scored %d/%d candidates", len(scores), len(candidates))
         return oa, scores, tc
-    if benchmark_claude_compact_mode and _is_anthropic_council_mode():
+    if _use_bounded_anthropic_scoring():
         oa, scores, tc = _run_scoring_agent_claude_compact(
             domain="kinetics",
             agent_name="Dr. Kinetics",
@@ -1204,8 +1488,9 @@ def run_kinetics_scoring(
         is_photochem, pump_max_bar, intensification_mandate,
     )
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
-    if batch_size and batch_size < len(candidates):
+    if batch_size and batch_size <= len(candidates):
         oa, scores, tc = _run_scoring_agent_batched(
+            domain="kinetics",
             agent_name="Dr. Kinetics",
             system_prompt=_KINETICS_SYSTEM,
             candidates=candidates,
@@ -1262,7 +1547,7 @@ def run_fluidics_scoring(
         )
         logger.info("    Dr. Fluidics scored %d/%d candidates", len(scores), len(candidates))
         return oa, scores, tc
-    if benchmark_claude_compact_mode and _is_anthropic_council_mode():
+    if _use_bounded_anthropic_scoring():
         oa, scores, tc = _run_scoring_agent_claude_compact(
             domain="fluidics",
             agent_name="Dr. Fluidics",
@@ -1282,8 +1567,9 @@ def run_fluidics_scoring(
         is_photochem, pump_max_bar, intensification_mandate,
     )
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
-    if batch_size and batch_size < len(candidates):
+    if batch_size and batch_size <= len(candidates):
         oa, scores, tc = _run_scoring_agent_batched(
+            domain="fluidics",
             agent_name="Dr. Fluidics",
             system_prompt=_FLUIDICS_SYSTEM,
             candidates=candidates,
@@ -1340,7 +1626,7 @@ def run_safety_scoring(
         )
         logger.info("    Dr. Safety scored %d/%d candidates", len(scores), len(candidates))
         return oa, scores, tc
-    if benchmark_claude_compact_mode and _is_anthropic_council_mode():
+    if _use_bounded_anthropic_scoring():
         oa, scores, tc = _run_scoring_agent_claude_compact(
             domain="safety",
             agent_name="Dr. Safety",
@@ -1360,8 +1646,9 @@ def run_safety_scoring(
         is_photochem, pump_max_bar, intensification_mandate,
     )
     valid_ids = {c.get("id", i + 1) for i, c in enumerate(candidates)}
-    if batch_size and batch_size < len(candidates):
+    if batch_size and batch_size <= len(candidates):
         oa, scores, tc = _run_scoring_agent_batched(
+            domain="safety",
             agent_name="Dr. Safety",
             system_prompt=_SAFETY_SYSTEM,
             candidates=candidates,
@@ -1406,6 +1693,7 @@ def run_domain_scoring(
     strict_coverage: bool = False,
     benchmark_claude_compact_mode: bool = False,
     intensification_mandate: Optional[dict] = None,
+    enabled_agents: tuple[str, ...] | list[str] | set[str] | None = None,
 ) -> dict:
     """Run all four domain scoring agents (Stage 2).
 
@@ -1423,6 +1711,8 @@ def run_domain_scoring(
           "blocked_by_scoring": [candidate_ids with a BLOCK verdict]
         }
     """
+    enabled = set(enabled_agents or ("chemistry", "kinetics", "fluidics", "safety"))
+
     chem_oa, chemistry_scores, chem_tc = run_chemistry_scoring(
         candidates=candidates, table_markdown=table_markdown,
         chemistry_brief=chemistry_brief, objectives=objectives,
@@ -1430,7 +1720,7 @@ def run_domain_scoring(
         batch_size=batch_size, strict_coverage=strict_coverage,
         benchmark_claude_compact_mode=benchmark_claude_compact_mode,
         intensification_mandate=intensification_mandate,
-    )
+    ) if "chemistry" in enabled else ("Disabled by execution contract", [], [])
     kin_oa, kinetics_scores, kin_tc = run_kinetics_scoring(
         candidates=candidates, table_markdown=table_markdown,
         chemistry_brief=chemistry_brief, objectives=objectives,
@@ -1438,7 +1728,7 @@ def run_domain_scoring(
         batch_size=batch_size, strict_coverage=strict_coverage,
         benchmark_claude_compact_mode=benchmark_claude_compact_mode,
         intensification_mandate=intensification_mandate,
-    )
+    ) if "kinetics" in enabled else ("Disabled by execution contract", [], [])
     flu_oa, fluidics_scores, flu_tc = run_fluidics_scoring(
         candidates=candidates, table_markdown=table_markdown,
         chemistry_brief=chemistry_brief, objectives=objectives,
@@ -1446,7 +1736,7 @@ def run_domain_scoring(
         batch_size=batch_size, strict_coverage=strict_coverage,
         benchmark_claude_compact_mode=benchmark_claude_compact_mode,
         intensification_mandate=intensification_mandate,
-    )
+    ) if "fluidics" in enabled else ("Disabled by execution contract", [], [])
     saf_oa, safety_scores, saf_tc = run_safety_scoring(
         candidates=candidates, table_markdown=table_markdown,
         chemistry_brief=chemistry_brief, objectives=objectives,
@@ -1454,7 +1744,7 @@ def run_domain_scoring(
         batch_size=batch_size, strict_coverage=strict_coverage,
         benchmark_claude_compact_mode=benchmark_claude_compact_mode,
         intensification_mandate=intensification_mandate,
-    )
+    ) if "safety" in enabled else ("Disabled by execution contract", [], [])
 
     blocked: set[int] = set()
     for domain_scores in (chemistry_scores, kinetics_scores, fluidics_scores, safety_scores):
@@ -1478,6 +1768,10 @@ def run_domain_scoring(
             "safety": saf_tc,
         },
         "blocked_by_scoring": sorted(blocked),
+        "enabled_scoring_agents": sorted(enabled),
+        "disabled_scoring_agents": sorted(
+            {"chemistry", "kinetics", "fluidics", "safety"} - enabled
+        ),
     }
     return enrich_scoring_with_flow_values(
         candidates, result, intensification_mandate=intensification_mandate
@@ -1546,7 +1840,8 @@ candidate into concrete, minimal, justified parameter edits.
 
 **BPR — revise only if Dr. Safety flagged BPR_adequate=false:**
   Liquid-only: BPR_bar = P_vap(T) + ΔP + 0.5 bar safety margin.
-  Gas-liquid:  BPR_bar = max(5.0, P_vap + ΔP) + 2.0 bar.
+  Gas-liquid:  BPR_bar = max(3.0, P_vap + ΔP) + 2.0 bar when adding the
+               recommended robustness margin; 3.0 bar remains the hard floor.
   If agent reported BPR_required_bar, set BPR = BPR_required_bar + 0.5.
   Show arithmetic.
 
@@ -1598,6 +1893,13 @@ def run_revision_stage(
     temperature_C: float,
     concentration_M: float,
     extinction_coeff_M_cm: Optional[float] = None,
+    batch_yield_fraction: Optional[float] = None,
+    batch_time_min: Optional[float] = None,
+    translation_policy: str = "intensify",
+    measured_evidence_available: bool = False,
+    measured_tau_floor_min: Optional[float] = None,
+    pump_max_flow_mL_min: Optional[float] = None,
+    gas_liquid_max_bpr_bar: float = 50.0,
 ) -> Optional[dict]:
     """Stage 3.5: Revision Agent proposes parameter edits for the council winner.
 
@@ -1710,10 +2012,81 @@ def run_revision_stage(
     # Build revised candidate by recomputing metrics with new τ/d if changed
     new_tau = float(proposed.get("tau_min", winner.get("tau_min")))
     new_d   = float(proposed.get("d_mm",   winner.get("d_mm")))
+
+    current_tau = float(winner.get("tau_min", 0.0) or 0.0)
+    if (
+        (translation_policy or "").lower() == "evidence_first"
+        and not measured_evidence_available
+        and current_tau > 0
+        and new_tau < current_tau - 1e-6
+    ):
+        logger.warning(
+            "  Stage 3.5 evidence-first guard rejected unsupported tau reduction "
+            "for winner id=%d: %.3f -> %.3f min",
+            cid,
+            current_tau,
+            new_tau,
+        )
+        new_tau = current_tau
+    if (
+        measured_tau_floor_min is not None
+        and measured_tau_floor_min > 0
+        and new_tau < measured_tau_floor_min
+    ):
+        logger.warning(
+            "  Stage 3.5 measured-evidence guard raised tau for winner id=%d: "
+            "%.3f -> %.3f min",
+            cid,
+            new_tau,
+            measured_tau_floor_min,
+        )
+        new_tau = float(measured_tau_floor_min)
+    tau_k = float(winner.get("tau_kinetics_min") or new_tau or current_tau or 1.0)
+    if (
+        (translation_policy or "").lower() == "intensify"
+        and new_tau > current_tau + 1e-6
+        and tau_k > 0
+    ):
+        if batch_yield_fraction is not None and batch_yield_fraction > 0:
+            x_target = min(0.90, max(float(batch_yield_fraction) * 1.10, 0.65))
+        else:
+            x_target = 0.85
+        # Required τ to hit x_target under first-order kinetics k = -ln(0.1)/tau_k:
+        # x_target = 1 - exp(-tau / (tau_k / -ln(0.1)))
+        # → tau = tau_k * ln(1/(1-x_target)) / ln(10)
+        import math as _math
+        tau_for_target = tau_k * _math.log(1.0 / max(1.0 - x_target, 1e-6)) / _math.log(10.0)
+        # Cap the proposed bump at the target-required τ. If LLM proposed
+        # more (i.e. chasing X > x_target), clamp down to x_target's tau.
+        if new_tau > tau_for_target * 1.05:
+            logger.info(
+                "  Stage 3.5 X-target cap: proposed τ=%.1f min > τ_for_X=%.1f min "
+                "(x_target=%.2f from batch_yield=%s); clamping to %.1f min.",
+                new_tau, tau_for_target, x_target,
+                f"{batch_yield_fraction:.2f}" if batch_yield_fraction else "default",
+                tau_for_target,
+            )
+            new_tau = round(tau_for_target, 2)
     orig_Q  = float(winner.get("Q_mL_min") or 0.01)
     tau_k   = float(winner.get("tau_kinetics_min") or new_tau)
     IF_used = float(winner.get("IF_used") or 6.0)
     MW      = float(winner.get("assumed_MW") or 250.0)
+    proposed_bpr = float(proposed.get("BPR_bar", winner.get("BPR_bar", 0.0)))
+    proposed_material = proposed.get(
+        "tubing_material",
+        winner.get("tubing_material", "FEP"),
+    )
+    if (
+        abs(new_tau - current_tau) <= 1e-9
+        and abs(new_d - float(winner.get("d_mm") or new_d)) <= 1e-9
+        and abs(proposed_bpr - float(winner.get("BPR_bar", 0.0) or 0.0)) <= 1e-9
+        and proposed_material == winner.get("tubing_material", "FEP")
+    ):
+        logger.info(
+            "  Stage 3.5: all proposed changes were rejected or no-op for winner id=%d",
+            cid,
+        )
+        return None
 
     try:
         from flora_translate.engine.sampling import compute_metrics
@@ -1731,6 +2104,14 @@ def run_revision_stage(
             is_photochem     = is_photochem,
             extinction_coeff_M_cm = extinction_coeff_M_cm,
             tau_source       = "revision_agent_stage_3.5",
+            is_gas_liquid    = is_gas_liquid,
+            BPR_bar           = proposed_bpr,
+            target_gas_equiv_inlet = float(
+                winner.get("target_gas_equiv_inlet") or 1.0
+            ),
+            gas_reagent_fraction = float(
+                winner.get("gas_reagent_fraction") or 1.0
+            ),
         )
     except Exception as e:
         logger.warning("compute_metrics failed during revision: %s — using shallow copy", e)
@@ -1743,8 +2124,8 @@ def run_revision_stage(
     revised["hard_gate_flags"]  = []
     revised["hard_gate_status"] = "PASS"
     # BPR and material are not recomputed by compute_metrics — apply from proposed
-    revised["BPR_bar"]        = float(proposed.get("BPR_bar", winner.get("BPR_bar", 0.0)))
-    revised["tubing_material"]= proposed.get("tubing_material", winner.get("tubing_material", "FEP"))
+    revised["BPR_bar"]        = proposed_bpr
+    revised["tubing_material"]= proposed_material
     # Revision provenance
     revised["revision_applied"]   = True
     revised["revision_rationale"] = revision_data.get("change_rationale", {})
@@ -1759,6 +2140,8 @@ def run_revision_stage(
             is_gas_liquid=is_gas_liquid,
             pump_max_bar=pump_max_bar,
             BPR_bar=float(revised.get("BPR_bar", 0.0)),
+            max_flow_rate_mL_min=pump_max_flow_mL_min,
+            gas_liquid_max_bpr_bar=gas_liquid_max_bpr_bar,
         )
         if not feasible:
             logger.warning(
