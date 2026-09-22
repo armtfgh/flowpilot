@@ -2229,9 +2229,13 @@ def translate(
             runtime.benchmark_max_total_revised_candidates
         ),
         execution_config=runtime.council_execution,
+        council_backflow_review=runtime.council_backflow_review,
+        council_physics_profile=runtime.council_physics_profile,
     )
 
     # 6. Format output
+    if scientific and design_candidate.chemistry_plan is not None:
+        chemistry_plan = design_candidate.chemistry_plan
     logger.info("Step 6: Formatting output")
     result = OutputFormatter().format(design_candidate, analogies)
     result["engineering_history"] = {
@@ -2722,7 +2726,34 @@ def translate(
         if not unchanged:
             result["final_validation"]["status"] = "blocked"
             result["final_validation"].setdefault("unresolved_reasons", []).append("scientific_selected_design_preserved")
+    if scientific and runtime.council_backflow_review and result.get("process_topology"):
+        from flora_translate.engine.council_v4.backflow import assess_topology
+        result["backflow_assessment"] = assess_topology(result["process_topology"],
+            FlowProposal.model_validate(result["proposal"]), inventory)
+        flow_review = result.get("scientific_assessment", {}).get("backflow_review", {})
+        result["backflow_assessment"]["council_decision"] = deepcopy(flow_review.get("decision"))
+        result["backflow_assessment"]["revision_status"] = flow_review.get("application_status")
     result["final_design"] = build_final_design_contract(result)
+    if result.get("backflow_assessment"):
+        result["final_design"]["flow_operability"] = deepcopy(result["backflow_assessment"])
+    if result.get("scientific_assessment", {}).get("physics_review"):
+        physics_review = result["scientific_assessment"]["physics_review"]
+        result["final_design"].setdefault("flow_operability", {})["physics_screen"] = {
+            "schema_version": physics_review["schema_version"],
+            "profile_provenance": physics_review["profile"]["provenance"],
+            "laboratory_execution_status": "review_required", "backflow_probability": None,
+            "design_modification_applied": False,
+            "selected_candidate_results": next((deepcopy(r) for r in physics_review["results"]
+                if r["candidate_id"] == result["scientific_assessment"]["selected_candidate_id"]), None),
+            "reviewer_assessments": deepcopy(physics_review.get("reviewer_assessments", {})),
+            "limitations": physics_review["limitations"]}
+        from flora_translate.engine.council_v4.physics_tools import selected_physics_findings
+        operability = result["final_design"]["flow_operability"]
+        findings = selected_physics_findings(operability["physics_screen"]["selected_candidate_results"])
+        operability.setdefault("findings", []).extend(findings)
+        operability["laboratory_execution_status"] = "review_required"
+        if result.get("backflow_assessment") is not None:
+            result["backflow_assessment"]["findings"].extend(deepcopy(findings))
     publish_final_design_artifacts(result, result["final_design"])
     if (
         result["final_design"]["status"] != "executable"

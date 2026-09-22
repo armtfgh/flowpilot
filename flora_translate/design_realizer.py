@@ -14,6 +14,7 @@ from fractions import Fraction
 from collections import Counter
 from typing import Any, Iterable
 from flora_translate.pump_settings import select_scale, setting_supported, stream_weight
+from flora_translate.gas_settings import maximum_gas_setting, gas_setting_at_least, gas_setting_supported
 
 from flora_translate.component_identity import (
     component_key, component_name, is_solvent_component, unique_components,
@@ -421,11 +422,24 @@ def _normalized_streams(
             )
         )
     ]
-    return _reconcile_physical_gas_feeds(
+    reconciled = _reconcile_physical_gas_feeds(
         filtered,
         authoritative_gas=authoritative_gas,
         decisions=decisions,
     )
+    delivery = plan.scientific_context.get("gas_delivery", {}) if plan else {}
+    if delivery.get("identity_source") == "council_screening_proposal":
+        for stream in reconciled:
+            if stream.phase == "gas":
+                stream.pump_role = "Council-proposed O2 feed; confirmation required"
+        for decision in decisions or []:
+            if decision.get("decision") == "restore_protocol_gas_identity":
+                decision.update(
+                    decision="apply_council_gas_source_proposal",
+                    basis="Unapproved council alternative; original batch gas remains in the frozen intake.",
+                    requires_chemist_confirmation=True,
+                )
+    return reconciled
 
 
 def _reconcile_candidate_operations(
@@ -463,8 +477,12 @@ def _protocol_reagent_gas(batch_record: BatchRecord, chemistry_plan=None) -> str
     delivery = (chemistry_plan.scientific_context.get("gas_delivery", {}) if chemistry_plan else {})
     if delivery.get("identity_source") == "chemist_answer" and delivery.get("species"):
         return str(delivery["species"])
-    if (delivery.get("identity_source") == "inventory_screening_proposal"
+    if (delivery.get("identity_source") in {"inventory_screening_proposal", "council_screening_proposal"}
             and delivery.get("requires_chemist_confirmation") is True and delivery.get("species")):
+        if delivery.get("identity_source") == "council_screening_proposal" and (
+                delivery.get("decision_source") != "council_backflow_review"
+                or delivery.get("previous_species") != "air" or delivery.get("species") != "O2"):
+            raise ValueError("Unsupported council gas-source revision")
         return str(delivery["species"])
     atmosphere = str(batch_record.atmosphere or "").lower().replace("₂", "2")
     raw = " ".join(
@@ -1145,10 +1163,18 @@ def _solve_gas_stream_rates(
             fraction,
         )
         if mfc is not None:
+            try:
+                maximum = maximum_gas_setting(mfc)
+            except ValueError as exc:
+                issues.append({"category": "gas_flow_feasibility", "stream_label": stream.stream_label, "reason": str(exc)})
+                stream.gas_flow_sccm = None
+                stream.gas_flow_actual_mL_min = None
+                stream.flow_rate_mL_min = None
+                continue
             if mfc.min_flow_sccm is not None:
                 sccm = max(sccm, float(mfc.min_flow_sccm))
-            if mfc.max_flow_sccm is not None and sccm > float(mfc.max_flow_sccm):
-                factor = float(mfc.max_flow_sccm) / sccm
+            if maximum is not None and sccm > maximum:
+                factor = maximum / sccm
                 liquid_streams = [
                     item
                     for item in proposal.streams
@@ -1172,7 +1198,7 @@ def _solve_gas_stream_rates(
                         target_equiv,
                         fraction,
                     )
-                    sccm = min(sccm, float(mfc.max_flow_sccm))
+                    sccm = min(sccm, maximum)
                     decisions.append(
                         {
                             "decision": "coupled_gas_liquid_flow_solution",
@@ -1194,7 +1220,18 @@ def _solve_gas_stream_rates(
                             ),
                         }
                     )
-                    sccm = float(mfc.max_flow_sccm)
+                    sccm = maximum
+            try:
+                before_grid = sccm
+                sccm = gas_setting_at_least(mfc, sccm)
+                if mfc.flow_rate_increment_sccm is not None:
+                    decisions.append({"decision": "MFC_setting_grid", "stream_label": stream.stream_label,
+                        "equipment_id": mfc.equipment_id, "requested_STP_mL_min": before_grid,
+                        "selected_STP_mL_min": sccm, "increment_STP_mL_min": mfc.flow_rate_increment_sccm,
+                        "basis": "Round upward on the declared setting grid; recalculate delivered equivalents and stage time."})
+            except ValueError as exc:
+                issues.append({"category": "gas_flow_feasibility", "stream_label": stream.stream_label, "reason": str(exc)})
+                sccm = 0.0
         pressure_absolute = max(float(proposal.BPR_bar or 0.0) + 1.01325, 1.01325)
         proposal.BPR_basis = "gauge"
         proposal.pressure_absolute_bar = round(pressure_absolute, 6)
@@ -2016,6 +2053,8 @@ def _all_feed_devices_feasible(proposal: FlowProposal, inventory: LabInventory |
             if device.min_flow_sccm is not None and flow < device.min_flow_sccm - 1e-9:
                 return False
             if device.max_flow_sccm is not None and flow > device.max_flow_sccm + 1e-9:
+                return False
+            if not gas_setting_supported(device, flow):
                 return False
         else:
             device = pumps.get(str(stream.pump_equipment_id or ""))

@@ -23,6 +23,8 @@ class PipelineRuntimeOptions:
     exclude_record_ids: frozenset[str] = field(default_factory=frozenset)
     retrieval_mode: str = "semantic"
     candidate_budget: int = 12
+    council_backflow_review: bool = True
+    council_physics_profile: dict[str, Any] | None = None
     objective_override: str | None = None
     hard_constraints: tuple[str, ...] = ()
     benchmark_recorder: Any = None
@@ -40,8 +42,16 @@ class PipelineRuntimeOptions:
     model_endpoints: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        if type(self.council_backflow_review) is not bool:
+            raise ValueError("council_backflow_review must be boolean")
         if self.design_policy not in {"legacy", "scientific_v2"}:
             raise ValueError("design_policy must be legacy or scientific_v2")
+        if self.council_physics_profile is not None:
+            if self.design_policy != "scientific_v2" or not self.council_backflow_review:
+                raise ValueError("Physics tools require scientific_v2 and the topology backflow review")
+            from flora_translate.engine.council_v4.transient_flow import TransientProfile
+            object.__setattr__(self, "council_physics_profile",
+                               TransientProfile.model_validate(self.council_physics_profile).model_dump())
         if self.candidate_budget < 1:
             raise ValueError("candidate_budget must be at least 1")
         if self.design_policy == "scientific_v2" and self.candidate_budget != 12:
@@ -94,6 +104,8 @@ class PipelineRuntimeOptions:
             "exclude_record_ids": sorted(self.exclude_record_ids),
             "retrieval_mode": self.retrieval_mode,
             "candidate_budget": self.candidate_budget,
+            "council_backflow_review": self.council_backflow_review,
+            "council_physics_profile": self.council_physics_profile,
             "objective_override": self.objective_override,
             "hard_constraints": list(self.hard_constraints),
             "benchmark_strict_scoring": self.benchmark_strict_scoring,

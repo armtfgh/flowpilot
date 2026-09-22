@@ -95,6 +95,7 @@ def build_result_report(result: dict[str, Any]) -> dict[str, Any]:
         "canonical_sha256": final.get("canonical_sha256"), "status": final.get("status"),
         "gas_reference": {"flow_unit": "mL/min at STP", "temperature_K": 273.15, "pressure_bar": 1.01325},
         "stages": stages, "streams": streams, "issues": issues,
+        "flow_operability": deepcopy(final.get("flow_operability")),
         "responses": _response_audit(result, stages, streams),
     }
 

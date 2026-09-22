@@ -170,7 +170,16 @@ export function CouncilTranscript({result}: {result: Json}) {
   const log = result.deliberation_log || {};
   const rounds: Json[][] = (log.rounds || []).map((r: any) => Array.isArray(r) ? r : r.messages || r.entries || [r]);
   const messages = result.council_messages || [];
+  const flow = result.final_design?.flow_operability;
   return <div className="reportStack"><div className="sectionTitle"><h2>Council deliberation</h2><span>{rounds.length || result.council_rounds || 0} rounds · {rounds.flat().length || messages.length} records</span></div>
+    {flow?.applicable && <details className="auditSection" open><summary>Flow operability · laboratory review required</summary><div className="auditBody">
+      <p>Lower gas flow does not establish protection against backflow. Numerical closure is not laboratory approval.</p>
+      {flow.council_decision && <><h3>Council proposal</h3><RecordText value={flow.council_decision}/><p>Revision status: {flow.revision_status?.replaceAll("_", " ")}</p></>}
+      {(flow.findings || []).map((finding: Json) => <section key={finding.finding_id}><h3>{finding.kind.replaceAll("_", " ")}</h3>
+        <p>{finding.message}</p><p><b>Reverse path:</b> {finding.reverse_path?.join(" → ")}</p><p>{finding.required_action}</p>
+        <p><b>Scenarios:</b> {(finding.scenarios || []).join("; ")}</p></section>)}
+      <details><summary>Assessment and assumptions</summary><RecordText value={flow}/></details>
+    </div></details>}
     <p className="reportNote">Recorded candidate discussion, before final inventory realization. These statements are model assessments, not final run conditions.</p>
     {!rounds.length && !messages.length && <p>No council transcript was stored in this run.</p>}
     {(rounds.length ? rounds : messages.length ? [messages] : []).map((round, i) => <details className="auditSection" key={i} open>

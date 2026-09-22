@@ -2760,6 +2760,8 @@ class CouncilV4:
         benchmark_max_total_revised_candidates: Optional[int] = None,
         intake_package: Optional[DesignInputPackage | dict] = None,
         execution_config: Optional[CouncilExecutionConfig | dict] = None,
+        council_backflow_review: bool = True,
+        council_physics_profile: Optional[dict] = None,
     ) -> tuple[DesignCandidate, DesignCalculations]:
         """Run the full council pipeline.
 
@@ -2772,7 +2774,8 @@ class CouncilV4:
         if enabled(chemistry_plan):
             from flora_translate.engine.council_v4.scientific import run_scientific_council
             return run_scientific_council(proposal, batch_record, chemistry_plan,
-                inventory, analogies, objectives, candidate_budget, intake_package)
+                inventory, analogies, objectives, candidate_budget, intake_package,
+                backflow_review=council_backflow_review, physics_profile=council_physics_profile)
         execution = CouncilExecutionConfig.coerce(execution_config)
         current = proposal.model_copy(deep=True)
         log = DeliberationLog()

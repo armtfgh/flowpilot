@@ -663,6 +663,7 @@ function ResultWorkspace({ result, job, tab, setTab }: { result: Json; job: Job 
   const final = result.final_design || {};
   const params = final.parameters || {};
   const executable = final.status === "executable";
+  const flowReviewRequired = Boolean(final.flow_operability?.applicable);
   const assumedEquipment = (result.instrument_manifest || []).filter((item: Json) => item.requires_pre_run_verification);
   const pendingAssumptions = (result.design_realization?.decisions || []).filter((item: Json) => item.confirmation_required);
   const gasDelivery = result.scientific_assessment?.source_context?.gas_delivery || result.proposal?.scientific_design?.gas_delivery_policy;
@@ -679,7 +680,8 @@ function ResultWorkspace({ result, job, tab, setTab }: { result: Json; job: Job 
     else if (job?.job_id && job.job_id !== "demo") window.open(`/api/design/jobs/${job.job_id}/download`, "_blank");
   };
   return <section className="resultWorkspace">
-    <div className={`resultBanner ${executable ? "executable" : "blocked"}`}><div>{executable ? <CheckCircle2 size={22}/> : <AlertTriangle size={22}/>}<span><b>{executable ? "Executable screening design" : "Design withheld"}</b><small>{result.disposition_rationale || (executable ? "Canonical contract closed against inventory and engineering gates." : "Inspect blocking reasons before execution.")}</small></span></div><div className="bannerActions"><span className="confidence">{result.confidence || "--"} confidence</span><button onClick={download} disabled={job?.job_id === "demo"}><Download size={15}/>JSON</button></div></div>
+    <div className={`resultBanner ${!executable ? "blocked" : flowReviewRequired ? "review" : "executable"}`}><div>{executable && !flowReviewRequired ? <CheckCircle2 size={22}/> : <AlertTriangle size={22}/>}<span><b>{!executable ? "Design withheld" : flowReviewRequired ? "Screening proposal: laboratory review required" : "Executable screening design"}</b><small>{executable && flowReviewRequired ? "Parameters are available for review, not approved for execution. Resolve branch protection and operating-pressure checks first." : result.disposition_rationale || (executable ? "Canonical contract closed against inventory and engineering gates." : "Inspect blocking reasons before execution.")}</small></span></div><div className="bannerActions"><span className="confidence">{result.confidence || "--"} confidence</span><button onClick={download} disabled={job?.job_id === "demo"}><Download size={15}/>JSON</button></div></div>
+    {result.final_design?.flow_operability?.applicable && <div className="inventoryRecovery" role="alert"><b>Flow operability requires laboratory review</b><p>Backflow paths and protective equipment remain to be verified. See the Council tab before using these proposed conditions.</p></div>}
     {!!assumedEquipment.length && <div className="warningRow"><AlertTriangle size={17}/><span><b>Equipment verification required before laboratory use</b>{assumedEquipment.map((item: Json) => item.name || item.equipment_id).join("; ")}</span></div>}
     {gasDelivery?.requires_chemist_confirmation && <div className="warningRow gasChangeWarning"><AlertTriangle size={18}/><span><b>Unapproved gas-feed change: {gasDelivery.batch_species || "batch gas"} to {gasDelivery.species}</b>Laboratory confirmation and safety review are required before use. {gasDelivery.rationale}</span></div>}
     {!!pendingAssumptions.length && <div className="warningRow"><AlertTriangle size={17}/><div><b>Chemist review required before laboratory use</b><ul>{pendingAssumptions.map((item: Json, i: number) => <li key={i}>{item.decision === "oxidant_gas_inventory_substitution"
@@ -755,6 +757,9 @@ function Closure({ result }: { result: Json }) {
     ["Process topology", Boolean(result.process_topology?.unit_operations?.length)],
     ["Autosave", Boolean(result.autosave_dir)]
   ];
+  if (result.final_design?.flow_operability?.laboratory_execution_status === "review_required") {
+    checks.push(["Flow operability", false]);
+  }
   return <div className="checkList">{checks.map(([label, pass]) => <div key={String(label)} className={pass ? "pass" : "fail"}>{pass ? <CheckCircle2 size={16}/> : <AlertTriangle size={16}/>}<span>{label}</span><b>{pass ? "closed" : "review"}</b></div>)}{issues.slice(0, 4).map((issue: Json, i: number) => <div className="issue" key={i}><Info size={16}/><span>{issue.message || String(issue)}</span></div>)}</div>;
 }
 
@@ -770,7 +775,7 @@ function Topology({ result, job }: { result: Json; job: Job | null }) {
   useEffect(() => setArtifactFailed(false), [artifact]);
   useEffect(() => setZoom(1), [artifact]);
   return <div className="topologyLayout"><div className="topologyCanvas">
-    <div className="topologyHead"><div><h2>{executable ? "Executable process topology" : "Requirements topology"}</h2><p>{ops.length} declared unit operations · inlet/STP gas basis</p></div><div className="diagramTools">
+    <div className="topologyHead"><div><h2>{executable ? result.final_design?.flow_operability?.applicable ? "Proposed process topology" : "Executable process topology" : "Requirements topology"}</h2><p>{ops.length} declared unit operations · inlet/STP gas basis</p></div><div className="diagramTools">
       <button className="iconButton" title="Zoom out" aria-label="Zoom out" disabled={zoom <= 1} onClick={() => setZoom(z => Math.max(1, z - 0.5))}><ZoomOut size={16}/></button>
       <button className="iconButton" title="Zoom in" aria-label="Zoom in" disabled={zoom >= 5} onClick={() => setZoom(z => Math.min(5, z + 0.5))}><ZoomIn size={16}/></button>
       <button className="iconButton" title="Fit diagram" aria-label="Fit diagram" onClick={() => setZoom(1)}><Maximize2 size={16}/></button>

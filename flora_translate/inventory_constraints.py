@@ -116,6 +116,8 @@ def inventory_prompt_block(inventory: LabInventory | None) -> str:
                 )
             if item.max_pressure_bar is not None:
                 details.append(f"max pressure: {item.max_pressure_bar:g} bar")
+            if item.flow_rate_increment_sccm is not None:
+                details.append(f"inlet/STP setting increment: {item.flow_rate_increment_sccm:g} mL/min")
             details.append(f"service: {item.service_status}")
             label = item.name + (f" ({item.type})" if item.type else "")
             lines.append(

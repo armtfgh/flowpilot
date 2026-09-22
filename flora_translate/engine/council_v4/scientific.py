@@ -251,7 +251,7 @@ def _call_json_review(call_llm, system, request, token_budget, audit, save):
                 raise ValueError(f'{request["role"]} returned invalid JSON after two recorded attempts') from exc
 
 
-def run_scientific_council(proposal, batch, plan, inventory, analogies, objectives, budget=12, intake=None):
+def run_scientific_council(proposal, batch, plan, inventory, analogies, objectives, budget=12, intake=None, backflow_review=True, physics_profile=None):
     from flora_translate.engine.llm_agents import call_llm
     from flora_translate.engine import llm_agents
     from flora_translate.intake_agent import intake_context_block
@@ -273,10 +273,35 @@ def run_scientific_council(proposal, batch, plan, inventory, analogies, objectiv
     def save():
         (archive / "audit.json").write_text(json.dumps(audit, indent=2, default=str), encoding="utf-8")
     save()
+    physics = None
+    if physics_profile is not None:
+        if not backflow_review:
+            raise ValueError("Physics tools require topology review")
+        from flora_translate.engine.council_v4.physics_tools import PhysicsToolSession
+        physics = PhysicsToolSession(pool, batch, plan, inventory, intake, physics_profile, archive)
+        for row, assessment in zip(pool, physics.assessments):
+            row["backflow_assessment"] = assessment
+        audit["backflow_review"] = {"enabled": True, "application_status": "existing_reviewers_with_physics_tools",
+                                    "before": physics.assessments, "backflow_resolved": False}
+        audit["physics_review"] = physics.manifest()
+    elif backflow_review:
+        from flora_translate.engine.council_v4.backflow import review_and_revise
+        pool, plan = review_and_revise(pool, batch, plan, inventory, intake,
+            lambda system, request: _call_json_review(call_llm, system, request, 3000, audit, save), audit, save)
+        audit.update(candidates=pool, source_context=deepcopy(plan.scientific_context), pool_sha256=pool_fingerprint(pool))
+    else:
+        audit["backflow_review"] = {"enabled": False, "application_status": "disabled"}
+    save()
     context = {"objective": objectives, "objective_policy": intent, "authority_labeled_intake": intake_context_block(intake),
                "source_context": audit["source_context"], "analogy_audit": audit["analogy_audit"],
                "candidates": [candidate_summary(c) for c in pool],
                "computed_comparisons": comparison_facts(pool, audit["source_context"])}
+    if backflow_review and audit["backflow_review"].get("application_status") != "not_applicable":
+        flow_review = audit["backflow_review"]
+        context["flow_operability_review"] = {k: flow_review[k] for k in (
+            "decision", "application_status", "revision_checks", "revision_error",
+            "requires_chemist_confirmation", "backflow_resolved") if k in flow_review}
+        context["candidate_backflow_assessments"] = [row.get("backflow_assessment", {}) for row in pool]
     # Send only physical annotations, not entire repeated calculator prose.
     for row in context["candidates"]:
         row["engineering"] = [{"stage_number": s["stage_number"], "status": s["status"],
@@ -302,16 +327,49 @@ def run_scientific_council(proposal, batch, plan, inventory, analogies, objectiv
               "Account for temperature deviations, later feed dilution and addition order, equipment and unanswered safety/solubility issues. "
               "Do not rewrite candidate numbers. A hard violation vetoes a candidate; an unresolved experimental outcome is an uncertainty, not proof of failure. "
               "Keep each candidate justification under 45 words and each uncertainty under 20 words. Use a shared assessment for issues common to all candidates.")
+    if backflow_review and audit["backflow_review"].get("application_status") != "not_applicable":
+        system += (" Address supplied flow_operability_review and reverse-path findings explicitly. "
+                   "A reduced gas flow does not resolve reverse connectivity. A proposal requiring chemist confirmation is not an approved gas supply. "
+                   "State branch-specific protection requirements; do not infer protection from a valve on a different branch. "
+                   "Missing operating data must remain unconfirmed, not silently replaced by equipment maximum ratings.")
+    if physics:
+        system += (" DrFluidics and DrSafety use an experimental deterministic pressure-network tool. "
+            "Tool results are conditional on unmeasured parameters, not measured evidence, probabilities, or proof of safe operation. "
+            "Distinguish as_designed from hypothetical alternatives and entered_profile from gas-volume sensitivity. "
+            "No reversal in these tests does not establish safety. Report predicted liquid displacement, not oxygen reaching Reactor 1. "
+            "A gas check valve's cracking pressure concerns pressure DIFFERENCE across that valve, not BPR minus cracking pressure. "
+            "Respect equipment_roles: a gas MFC is not the liquid pump. Do not rewrite designs or automatically approve pure oxygen. "
+            "Recommend mitigations only as unapproved proposals with chemistry, inventory and oxygen-service review. "
+            "Assumed transient results alone are not confirmed hard violations of a candidate. Retain unresolved limitations.")
     entries = []
+    physics_reviewers = {}
     for role, focus in [("DrChemistry", "identity, order of addition, chemical compatibility, solubility and no intermediate isolation"),
                         ("DrKinetics", "stage coupling, evidence sufficiency, screening informativeness, uncertainty"),
                         ("DrFluidics", "cumulative stream flows, inventory assignments, geometry and hydraulic closure"),
                         ("DrSafety", "pressure, temperature, volatility, materials and controls requiring chemist confirmation")]:
+        tool_response = None
+        if physics and role in {"DrFluidics", "DrSafety"}:
+            from flora_translate.engine.council_v4.physics_tools import compact_tool_result, validate_physics_assessment
+            tool_response = physics.call_reviewer_tool(role,
+                lambda sys, req: _call_json_review(call_llm, sys, req, 1200, audit, save))
+            context.setdefault("physics_tool_results", {})[role] = compact_tool_result(tool_response)
+            audit["physics_review"] = physics.manifest()
+            audit["physics_review"]["reviewer_assessments"] = deepcopy(physics_reviewers)
+            save()
         request = {"role": role, "focus": focus, "context": context,
             "response_schema": {"reviews": [{"candidate_id": "integer, exactly one per candidate 1..12",
                 "recommendation": "prefer | acceptable | reject", "hard_violation": "boolean",
                 "justification": "brief evidence-based assessment", "uncertainties": ["specific uncertainty"]}]}}
+        if tool_response:
+            request["response_schema"]["physics_assessment"] = {
+                "tool_result_id": tool_response["result_id"], "evidence_ids": ["actual simulation evidence ID(s) used"],
+                "proposed_alternatives": ["conditional mitigation and what remains unconfirmed; empty allowed"],
+                "limitations": ["explicit limitations of the simulation and missing measurements"]}
         parsed = _call_json_review(call_llm, system, request, 6000, audit, save)
+        if tool_response:
+            physics_reviewers[role] = validate_physics_assessment(parsed, tool_response)
+            audit["physics_review"]["reviewer_assessments"] = deepcopy(physics_reviewers)
+            save()
         rows = parsed.get("reviews", [])
         ids = [r.get("candidate_id") for r in rows]
         if sorted(ids) != list(range(1, 13)) or any(type(r.get("hard_violation")) is not bool or r.get("recommendation") not in {"prefer", "acceptable", "reject"} or not r.get("justification") for r in rows):
@@ -321,6 +379,9 @@ def run_scientific_council(proposal, batch, plan, inventory, analogies, objectiv
             chain_of_thought=json.dumps(parsed, indent=2), findings=[f"Reviewed all {len(rows)} complete stage designs."], status="WARNING"))
     # A soft preference against an experiment is not a physical prohibition.
     veto = {r["candidate_id"] for rows in audit["reviews"].values() for r in rows if r["hard_violation"]}
+    if physics:
+        audit["physics_review"]["reviewer_assessments"] = physics_reviewers
+        context["physics_reviewer_assessments"] = physics_reviewers
     request = {"role": "Skeptic", "context": context, "reviews": audit["reviews"], "already_vetoed": sorted(veto),
                "task": "Audit cross-domain conflicts and unsupported scientific claims. Return extra vetoes only for identified hard violations.",
                "response_schema": {"vetoes": [{"candidate_id": "integer", "reason": "hard violation and evidence"}], "assessment": "brief", "required_measurements": ["measurement"]}}
@@ -364,6 +425,12 @@ def run_scientific_council(proposal, batch, plan, inventory, analogies, objectiv
               chain_of_thought=json.dumps(data, indent=2), status="WARNING") for role, data in [("Skeptic", skeptic), ("Chief", chief)]]
     log = DeliberationLog(rounds=[entries, later], total_rounds=2, consensus_reached=False,
                          summary="12 hardware-bound candidates reviewed; first experiment selected, chemical performance unvalidated.")
+    flow = audit["backflow_review"]
+    if flow.get("decision"):
+        log.rounds.insert(0, [AgentDeliberation(agent="FlowOperability", agent_display_name="Flow operability",
+            round=0, chain_of_thought=json.dumps(flow["decision"], indent=2),
+            findings=[flow["application_status"]], status="WARNING")])
+        log.total_rounds = 3
     calculations = DesignCalculator().run(batch, chemistry_plan=plan, proposal=chosen, inventory=inventory)
-    return DesignCandidate(proposal=chosen, chemistry_plan=plan, council_rounds=2, deliberation_log=log,
+    return DesignCandidate(proposal=chosen, chemistry_plan=plan, council_rounds=log.total_rounds, deliberation_log=log,
             human_explanation=chief["justification"], safety_report={"status": "screening_hypothesis", "limitations": chief.get("limitations", [])}), calculations

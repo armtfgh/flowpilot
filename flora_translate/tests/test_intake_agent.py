@@ -365,3 +365,23 @@ def test_oxygen_free_first_stage_does_not_steal_second_stage_air_feed():
     assert package.engineering_requirements["gas"]["species"] == "air"
     assert package.engineering_requirements["gas"]["introduction_stage"] == 2
     assert "Q-GAS-003" not in package.active_question_ids
+
+
+@pytest.mark.parametrize('answer,species,fraction', [
+    ('Pure oxygen (O2), 100 mol% O2. Require pure oxygen at Stage 2; do not use air.', 'O2', 1.0),
+    ('Use pure oxygen, not air.', 'O2', 1.0),
+    ('Use oxygen instead of compressed air.', 'O2', 1.0),
+    ('Use air rather than pure oxygen.', 'air', .21),
+    ('O2, 50 mol% in nitrogen.', 'O2', .5),
+    ('Air (21% oxygen).', 'air', .21),
+])
+def test_explicit_gas_answer_excludes_negated_alternatives(answer, species, fraction):
+    package = IntakeAgent().analyze(
+        'Step 1: under argon. Step 2: open to air for oxidation.',
+        answers=[IntakeAnswer(question_id='Q-GAS-001', answer=answer)],
+        use_llm=False,
+    )
+    gas = package.engineering_requirements['gas']
+    assert gas['identity_source'] == 'chemist_answer'
+    assert gas['species'] == species
+    assert gas['reagent_mole_fraction'] == pytest.approx(fraction)

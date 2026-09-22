@@ -638,12 +638,22 @@ def _protocol_gas_stage(text: str) -> int | None:
 
 
 def _parse_gas_identity_and_fraction(value: Any) -> dict[str, Any] | None:
-    identity = _gas_identity_from_text(str(value or ""))
+    text = str(value or "").replace("₂", "2").replace("₃", "3")
+    # Excluded alternatives in an answer are not the requested feed identity.
+    gas_names = (r"air|oxygen|o2|hydrogen chloride|hydrogen|h2|carbon dioxide|co2|"
+                 r"carbon monoxide|syngas|ozone|o3|chlorine|cl2|ammonia|nh3|"
+                 r"hcl gas|sulfur dioxide|so2")
+    text = re.sub(
+        rf"\b(?:do\s+not|don't|must\s+not|never|not|without|rather\s+than|instead\s+of)"
+        rf"\s+(?:(?:use|using|feed|introduce|supply|select|choose)\s+)?"
+        rf"(?:(?:pure|ambient|compressed)\s+)?(?:{gas_names})\b",
+        "", text, flags=re.I,
+    )
+    identity = _gas_identity_from_text(text)
     if not identity:
         return None
     species, default_fraction = identity
-    text = str(value or "")
-    percent = re.search(r"(\d+(?:\.\d+)?)\s*%", text)
+    percent = re.search(r"(\d+(?:\.\d+)?)\s*(?:mol\s*)?%", text, re.I)
     decimal = re.search(r"(?:fraction|mole fraction|purity)\s*[:=]?\s*(0(?:\.\d+)?|1(?:\.0+)?)", text, re.I)
     if not decimal:
         decimal = re.search(

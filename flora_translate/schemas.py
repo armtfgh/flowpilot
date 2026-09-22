@@ -142,6 +142,7 @@ class GasHardwareSpec(InventoryItemSpec):
     gas: str = ""
     min_flow_sccm: Optional[float] = None
     max_flow_sccm: Optional[float] = None
+    flow_rate_increment_sccm: Optional[float] = Field(default=None, gt=0, allow_inf_nan=False)
     max_pressure_bar: Optional[float] = None
     required_outlet_accessory_type: str = ""
 

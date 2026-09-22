@@ -140,6 +140,7 @@ class InventoryAllocator:
             )
             return
         if op_type == "mfc":
+            from flora_translate.gas_settings import gas_setting_supported
             gas = _operation_gas(operation)
             flow = _num(operation.parameters.get("gas_flow_sccm"))
             requested_id = str(
@@ -153,6 +154,7 @@ class InventoryAllocator:
                 and (not gas or not item.gas or _gas_matches(gas, item.gas))
                 and (item.min_flow_sccm is None or flow >= item.min_flow_sccm - 1e-12)
                 and (item.max_flow_sccm is None or flow <= item.max_flow_sccm + 1e-12)
+                and gas_setting_supported(item, flow)
                 and (item.max_pressure_bar is None or self.proposal.BPR_bar <= item.max_pressure_bar + 1e-12)
             ]
             self._claim(
