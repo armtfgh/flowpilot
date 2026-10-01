@@ -282,6 +282,13 @@ def analyze_intake(payload: IntakePayload) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.get("/api/inventory/editor-schema")
+def inventory_editor_schema() -> dict[str, Any]:
+    from .inventory_editor import editor_schema
+
+    return editor_schema()
+
+
 @app.get("/api/inventory/profiles")
 def inventory_profiles() -> dict[str, Any]:
     from flora_translate.inventory_profiles import list_inventory_profiles

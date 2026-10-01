@@ -30,9 +30,15 @@ test("archived KHU gap is actionable and changing profile rebinds the package", 
   await expect(page.getByRole("heading", { name: "Requirements topology", exact: true })).toBeVisible();
   await page.getByLabel("Inventory profile", { exact: true }).selectOption(updatedId);
   await expect(page.getByText("INV-PRESSURE-001", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Run with resolved inventory" })).toBeEnabled();
+  // This old archive predates the mandatory gas-introduction confirmation.
+  // Resolving equipment must not bypass that newer chemistry input gate.
+  await expect(page.getByRole("button", { name: "Run with resolved inventory" })).toBeDisabled();
   await expect(page.getByText("Precheck passed", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Return to intake", exact: true }).click();
+  const gasStage = page.locator(".question").filter({ hasText: "Q-GAS-003" });
+  await gasStage.locator("textarea").fill("Stage 2, aerobic oxidation.");
+  await page.locator(".intakePanel .toggle input").uncheck({ force: true });
+  await page.getByRole("button", { name: "Save answers", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Design input is frozen" })).toBeVisible();
   await page.getByLabel("Upstream chemistry model").selectOption("qwen3.6-27b");
   await page.getByLabel("Downstream and council model").selectOption("qwen3.6-27b");
@@ -131,7 +137,7 @@ test("confirmation form handles available and unavailable without restarting int
   await page.getByLabel("Maximum pressure (bar)", { exact: true }).fill("8");
   await page.getByRole("button", { name: "Save inventory confirmation" }).click();
   await expect(page.getByText("Precheck passed", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Run with resolved inventory" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Run with resolved inventory" })).toBeDisabled();
   expect(submitted.equipment.equipment_id).toBe("browser-test-bpr");
   await noOverflow(page);
   await page.evaluate(() => window.scrollTo(0, 0));

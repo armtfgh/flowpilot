@@ -92,9 +92,14 @@ def get_model_endpoint_overrides() -> dict[str, str]:
     return dict(_MODEL_ENDPOINT_OVERRIDES)
 
 
+def _uses_responses_api(model: str) -> bool:
+    name = (model or "").lower()
+    return name == "gpt-6-astra" or name.startswith("gpt-6-astra-")
+
+
 def _supports_explicit_temperature(model: str) -> bool:
     """Return whether models in the supported publication set accept temperature."""
-    return True
+    return not _uses_responses_api(model)
 
 
 def _runtime_kwargs(provider: str, model: str) -> dict:
@@ -105,7 +110,7 @@ def _runtime_kwargs(provider: str, model: str) -> dict:
         and _supports_explicit_temperature(model)
     ):
         kwargs["temperature"] = _RUNTIME_OVERRIDES["temperature"]
-    if provider in {"openai", "ollama"} and "seed" in _RUNTIME_OVERRIDES:
+    if provider in {"openai", "ollama"} and "seed" in _RUNTIME_OVERRIDES and not _uses_responses_api(model):
         kwargs["seed"] = _RUNTIME_OVERRIDES["seed"]
     return kwargs
 
@@ -158,6 +163,10 @@ def _usage_to_dict(resp) -> dict:
         "cache_creation_input_tokens": _get("cache_creation_input_tokens"),
         "cache_read_input_tokens": _get("cache_read_input_tokens"),
     }
+    for name in ("input_tokens_details", "output_tokens_details"):
+        details = getattr(usage, name, None)
+        if details is not None:
+            data[name] = details.model_dump() if hasattr(details, "model_dump") else dict(details)
     return {k: v for k, v in data.items() if v is not None}
 
 
@@ -178,10 +187,13 @@ def _base_event(
         "system_chars": len(system or ""),
         "user_chars": len(user_content or ""),
     }
-    if "temperature" in _RUNTIME_OVERRIDES:
+    if "temperature" in _RUNTIME_OVERRIDES and _supports_explicit_temperature(model):
         event["temperature"] = _RUNTIME_OVERRIDES["temperature"]
-    if "seed" in _RUNTIME_OVERRIDES:
+    if "seed" in _RUNTIME_OVERRIDES and not _uses_responses_api(model):
         event["seed"] = _RUNTIME_OVERRIDES["seed"]
+    if _uses_responses_api(model):
+        event["reasoning_effort"] = _RUNTIME_OVERRIDES.get("reasoning_effort", "medium")
+        event["sampling_controls_applied"] = False
     if _RUNTIME_OVERRIDES.get("capture_content"):
         event["system_prompt"] = system
         event["user_prompt"] = user_content
@@ -369,6 +381,107 @@ def _stringify_messages(messages: list[dict]) -> str:
     return "\n".join(parts)
 
 
+def _responses_request(*, model, system, inputs, max_tokens, api_name, json_schema=None, **extra):
+    # Reasoning consumes the same output budget as visible text. Preserve ample
+    # headroom for both architectures without changing legacy model requests.
+    limit = max(max_tokens, 16384)
+    effort = _RUNTIME_OVERRIDES.get("reasoning_effort", "medium")
+    if effort not in {"low", "medium", "high", "xhigh", "max"}:
+        raise ValueError(f"Unsupported Astra reasoning effort: {effort}")
+    kwargs = {
+        "model": model,
+        "instructions": system,
+        "input": inputs,
+        "max_output_tokens": limit,
+        "reasoning": {"effort": effort},
+        "store": False,
+        # Carry encrypted reasoning across tool turns without server storage.
+        "include": ["reasoning.encrypted_content"],
+        **extra,
+    }
+    schema = json_schema or _RUNTIME_OVERRIDES.get("json_schema")
+    if schema:
+        kwargs["text"] = {"format": {
+            "type": "json_schema", "name": "flowpilot_benchmark_output",
+            "strict": False, "schema": schema,
+        }}
+    elif _RUNTIME_OVERRIDES.get("json_mode"):
+        kwargs["text"] = {"format": {"type": "json_object"}}
+    started = time.perf_counter()
+    def complete_stream():
+        # Streaming avoids an idle connection while long reasoning requests run.
+        # Only a terminal response is returned; partial output is never a design.
+        with _get_openai_client().responses.create(**kwargs, stream=True) as stream:
+            for event in stream:
+                if event.type in {"response.completed", "response.incomplete", "response.failed"}:
+                    return event.response
+                if event.type == "error":
+                    raise RuntimeError(f"Astra streaming error: {event.message}")
+        raise RuntimeError("Astra stream ended without a terminal response")
+
+    resp = _retry_llm_request(
+        complete_stream,
+        provider="openai", model=model, api_name=api_name,
+    )
+    content = (resp.output_text or "").strip()
+    calls = [item for item in resp.output if item.type == "function_call"]
+    event = {
+        **_base_event(api_name=api_name, provider="openai", model=model,
+                      max_tokens=limit, system=system,
+                      user_content=_stringify_messages(inputs)),
+        "api": "responses", "streaming": True, "response_id": resp.id,
+        "returned_model": resp.model, "requested_max_tokens": max_tokens,
+        "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+        "usage": _usage_to_dict(resp), "response_chars": len(content),
+        "finish_reason": resp.status, "tool_calls_requested": len(calls),
+        **_content_event(content),
+    }
+    if _RUNTIME_OVERRIDES.get("capture_content"):
+        event["request_input"] = inputs
+        event["tool_definitions"] = extra.get("tools", [])
+        event["response_format"] = kwargs.get("text")
+        event["tool_calls"] = [item.model_dump() for item in calls]
+    _emit_llm_event(event)
+    if resp.status != "completed":
+        raise RuntimeError(f"{api_name}: Astra response {resp.status}: {resp.incomplete_details}")
+    if not content and not calls:
+        raise RuntimeError(f"{api_name}: Astra returned no text or tool calls (possible refusal)")
+    return resp
+
+
+def _responses_tool_loop(system, user_content, tools, tool_executor, max_tokens, max_tool_turns):
+    inputs = [{"role": "user", "content": user_content}]
+    definitions = [{
+        "type": "function", "name": tool["name"],
+        "description": tool.get("description", ""),
+        "parameters": tool["input_schema"], "strict": False,
+    } for tool in tools]
+    log = []
+    for turn in range(max_tool_turns + 1):
+        final = turn == max_tool_turns
+        resp = _responses_request(
+            model=ENGINE_MODEL_OPENAI, system=system, inputs=inputs,
+            max_tokens=max_tokens,
+            api_name="call_llm_with_tools_force_final" if final else "call_llm_with_tools_turn",
+            tools=definitions, tool_choice="none" if final else "auto",
+        )
+        calls = [item for item in resp.output if item.type == "function_call"]
+        if not calls:
+            return resp.output_text.strip(), log
+        if final:
+            raise RuntimeError("Astra requested tools after the tool-turn limit")
+        inputs.extend(item.model_dump(exclude_none=True) for item in resp.output)
+        for call in calls:
+            arguments = json.loads(call.arguments)
+            if not isinstance(arguments, dict) or call.name not in {tool["name"] for tool in tools}:
+                raise ValueError("Invalid Astra tool request")
+            result = tool_executor(call.name, arguments)
+            log.append({"tool": call.name, "input": arguments, "result": result})
+            inputs.append({"type": "function_call_output", "call_id": call.call_id,
+                           "output": json.dumps(result)})
+    raise RuntimeError("Astra tool loop ended without a final response")
+
+
 def _bounded_local_messages(
     system: str,
     messages: list[dict],
@@ -429,6 +542,15 @@ def call_model_messages(
     user_content = _stringify_messages(messages)
 
     if resolved_provider == "openai":
+        if _uses_responses_api(model):
+            resp = _responses_request(
+                model=model, system=system, inputs=messages, max_tokens=max_tokens,
+                api_name=api_name, json_schema=json_schema,
+            )
+            return TextGenerationResult(
+                text=resp.output_text.strip(), provider="openai", model=model,
+                usage=_usage_to_dict(resp), finish_reason=resp.status,
+            )
         kwargs = _runtime_kwargs("openai", model)
         effective_json_schema = json_schema or _RUNTIME_OVERRIDES.get("json_schema")
         if effective_json_schema:
@@ -646,6 +768,11 @@ def call_llm(system: str, user_content: str, max_tokens: int) -> str:
       "ollama"    → local model at OLLAMA_BASE_URL
     """
     if ENGINE_PROVIDER in ("openai",):
+        if _uses_responses_api(ENGINE_MODEL_OPENAI):
+            return call_model_text(
+                model=ENGINE_MODEL_OPENAI, system=system, user_content=user_content,
+                max_tokens=max_tokens, provider="openai", api_name="call_llm",
+            ).text
         kwargs = _runtime_kwargs("openai", ENGINE_MODEL_OPENAI)
         started = time.perf_counter()
         resp = _retry_llm_request(
@@ -818,6 +945,11 @@ def call_llm_with_tools(
     (most local models don't reliably support tools).
     """
     tool_calls_log: list[dict] = []
+
+    if ENGINE_PROVIDER == "openai" and _uses_responses_api(ENGINE_MODEL_OPENAI):
+        return _responses_tool_loop(
+            system, user_content, tools, tool_executor, max_tokens, max_tool_turns,
+        )
 
     # ── Ollama fallback (no reliable tool support) ───────────────────────────
     if ENGINE_PROVIDER == "ollama":

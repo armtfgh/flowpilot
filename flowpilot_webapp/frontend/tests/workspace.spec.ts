@@ -41,6 +41,7 @@ test("inventory workspace and mobile navigation remain usable", async ({ page },
     await page.getByRole("button", { name: "Menu" }).click();
   }
   await page.getByRole("button", { name: /Inventory/ }).click();
+  await page.getByRole("button", { name: "Import documents", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Import laboratory inventory" })).toBeVisible();
   await expect(page.getByText("Choose PDF, Word, PowerPoint, spreadsheet, or JSON")).toBeVisible();
   await expectNoPageOverflow(page);

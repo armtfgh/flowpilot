@@ -1,0 +1,861 @@
+FlowPilot user-facing intake (complete, verbatim)
+
+The archived protocol plus objective contains 894 characters. The inventory is a separate 4,342-character input. The following transcription and the companion flowpilot_user_input.txt preserve the source text; line wrapping is a display operation.
+
+Fmoc-L-methionine (3.7 mmol, 1.0 equiv) and 4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%) were dissolved in acetonitrile at 0.10 M in a round-bottom flask. The solution was exposed to air and irradiated with a 1.5 W LED centered near 420 nm at 21 C for 5 min. Fmoc-methionine sulfoxide was formed in 99% yield. Translate this into one conservative continuous-flow photochemical screening design. Report feed preparation, air delivery and oxygen-equivalent basis, gas-liquid mixing, pressure basis, photoreactor assignment, wavelength, temperature, liquid flow, inlet/STP and pressure-corrected in-channel gas flow, liquid contact residence time, reactor volume, separation, collection, startup, shutdown, and oxygen/acetonitrile/light safety controls.
+
+
+
+OBJECTIVE:
+
+Produce one executable, inventory-constrained first gas-liquid photochemical flow screen without using the held-out source answer.
+
+
+
+
+
+One-shot engineered prompt (complete, verbatim)
+
+The one-shot call used claude-opus-4-6, temperature 0.2 and recorded seed 1007535521. Its system and user messages contain 6,799 characters in total, with 2,095 recorded input tokens. The two messages below are restored from the archived prompt files, without inserting spaces inside JSON keys. Their system/user labels are editorial and not included in the character count. The protocol, objective and inventory are shared with FlowPilot.
+
+[SYSTEM MESSAGE]
+
+You are a general chemistry assistant. Translate a batch chemistry protocol into a practical continuous-flow experiment.
+
+[USER MESSAGE]
+
+FROZEN DESIGN INPUT:
+
+RAW BATCH PROTOCOL:
+
+Fmoc-L-methionine (3.7 mmol, 1.0 equiv) and 4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%) were dissolved in acetonitrile at 0.10 M in a round-bottom flask. The solution was exposed to air and irradiated with a 1.5 W LED centered near 420 nm at 21 C for 5 min. Fmoc-methionine sulfoxide was formed in 99% yield. Translate this into one conservative continuous-flow photochemical screening design. Report feed preparation, air delivery and oxygen-equivalent basis, gas-liquid mixing, pressure basis, photoreactor assignment, wavelength, temperature, liquid flow, inlet/STP and pressure-corrected in-channel gas flow, liquid contact residence time, reactor volume, separation, collection, startup, shutdown, and oxygen/acetonitrile/light safety controls.
+
+
+
+OBJECTIVE:
+
+Produce one executable, inventory-constrained first gas-liquid photochemical flow screen without using the held-out source answer.
+
+
+
+HARD CONSTRAINTS:
+
+- Use only the authoritative inventory supplied below.
+
+- Use one premixed Fmoc-L-methionine/photocatalyst/acetonitrile liquid feed and the declared air MFC.
+
+- Use the declared gas-liquid mixer before the 420 nm photoreactor.
+
+- Operate at the available 3 bar BPR setpoint and state whether pressure is absolute or gauge.
+
+- Report air at inlet/STP and pressure-corrected in-channel conditions and calculate oxygen equivalents from 21 mol% oxygen.
+
+- Use liquid flow and the 1.0 mL reactor volume to define liquid contact residence time; do not use total gas-plus-liquid volumetric flow as reaction time.
+
+- No inline degasser is available or required because air is a reagent.
+
+- All selected equipment must be named by its inventory equipment_id.
+
+- Return SCREEN unless the inventory cannot support a safe design.
+
+
+
+AVAILABLE INVENTORY (authoritative JSON):
+
+{"BPR_available":[3.0],"collectors":[{"equipment_id":"collector_photo_100","max_pressure_bar":1.0,"name":"Amber vented collection vessel","type":"collection vessel","volume_mL":100.0}],"connectors":[{"equipment_id":"connector_photo_set","material":"PFA","max_pressure_bar":10.0,"name":"PFA photochemistry connector set","supported_ID_mm":[1.0],"type":"photoreactor union set"}],"degassers":[],"filters":[],"gas_hardware":[{"equipment_id":"gas_air_clean","gas":"air","max_pressure_bar":10.0,"name":"Clean dry air supply and regulator","type":"gas_supply"},{"equipment_id":"mfc_air_10","gas":"air","max_flow_sccm":10.0,"max_pressure_bar":10.0,"min_flow_sccm":0.1,"name":"Air mass-flow controller","type":"MFC"}],"light_sources":[{"allowed_temperatures_C":[21.0,25.0],"compatible_reactor":"coil","equipment_id":"light_photo_420","max_temperature_C":40.0,"min_temperature_C":15.0,"name":"420 nm photochemistry LED","power_W":1.5,"wavelength_nm":420.0}],"mixers":[{"equipment_id":"mixer_photo_t","material":"PFA","max_inputs":2,"max_pressure_bar":10.0,"max_total_flow_mL_min":2.0,"min_total_flow_mL_min":0.01,"name":"PFA gas-liquid T-mixer","supported_ID_mm":[1.0],"type":"T-mixer"}],"pressure_controllers":[{"equipment_id":"bpr_photo_3","max_pressure_bar":3.0,"min_pressure_bar":3.0,"name":"Photochemistry BPR","setpoints_bar":[3.0],"type":"BPR"}],"pumps":[{"compatible_materials":["acetonitrile","Fmoc-L-methionine","4,7-diphenyl-2,1,3-benzothiadiazole"],"equipment_id":"pump_photo_liquid","max_flow_rate_mL_min":1.0,"max_pressure_bar":10.0,"min_flow_rate_mL_min":0.01,"name":"Photochemistry HPLC pump","type":"HPLC"}],"reactor_trains":[],"reactors":[{"ID_mm":1.0,"allowed_temperatures_C":[21.0,25.0],"configuration":"irradiated PFA coil","equipment_id":"reactor_photo_100","light_source":"light_photo_420","material":"PFA","max_pressure_bar":10.0,"max_temperature_C":40.0,"min_pressure_bar":0.0,"min_temperature_C":15.0,"name":"One milliliter PFA photocoil","system":"420 nm photochemistry module","type":"photochemical coil","volume_mL":1.0,"wavelength_nm":420.0}],"safety_accessories":[{"capabilities":["shield_or_containment","vented_separator"],"compatible_hazards":["high_intensity_light","oxygen_enriched_organic_stream","acetonitrile_vapor"],"equipment_id":"safety_photo_enclosure","max_pressure_bar":1.0,"name":"Interlocked photochemical enclosure and vent","type":"interlocked enclosure"}],"schema_version":"flowpilot_lab_inventory_v3.0","separators":[{"equipment_id":"separator_photo_gl","max_flow_mL_min":5.0,"max_pressure_bar":5.0,"name":"Vented gas-liquid separator","supported_phases":["gas","liquid"],"type":"gas-liquid separator"}],"strict_assignment":true,"temperature_controllers":[{"allowed_temperatures_C":[21.0,25.0],"equipment_id":"controller_photo_thermostat","max_temperature_C":40.0,"min_temperature_C":15.0,"name":"Photoreactor thermostat","type":"recirculating thermostat"}],"tubing":[{"ID_mm":1.0,"equipment_id":"tubing_photo_pfa_10","length_m":1.273,"material":"PFA","max_pressure_bar":10.0,"max_temperature_C":60.0,"name":"PFA photoreactor coil tubing","transparent":true}]}
+
+
+
+CHEMIST-CONFIRMED CHEMISTRY IDENTITY:
+
+{"confirmed":true,"mechanism_type":"photocatalytic aerobic oxidation","reaction_class":"oxidation","reaction_name":"photocatalytic aerobic oxidation of Fmoc-L-methionine"}
+
+
+
+Propose one complete flow design with numeric operating conditions, stream assignments, safety controls, and a brief rationale. Return one JSON object and no markdown with exactly these top-level fields: recommended_disposition, disposition_rationale, and proposal. The proposal value must be a JSON object, not a JSON-encoded string.
+
+
+
+The proposal object uses these fields:
+
+
+
+residence_time_min, flow_rate_mL_min, temperature_C, concentration_M,
+
+BPR_bar, reactor_type, tubing_material, tubing_ID_mm, reactor_volume_mL,
+
+residence_time_basis, residence_time_inlet_min,
+
+residence_time_in_channel_min, light_setup, wavelength_nm, streams,
+
+mixer_type, mixing_order_reasoning, pre_reactor_steps,
+
+post_reactor_steps, chemistry_notes, stage_parameters,
+
+reasoning_per_field, literature_analogies, engine_validated,
+
+safety_flags, confidence.
+
+
+
+Each stream is an object with stream_label, pump_role, contents, solvent,
+
+phase, flow_rate_mL_min, concentration_M, molar_equiv, gas_flow_sccm, and
+
+gas_flow_actual_mL_min where applicable. Distinguish inlet/STP gas flow from
+
+pressure-corrected in-channel gas flow. Ensure reactor_volume_mL is consistent
+
+with flow and residence time. State assumptions rather than inventing missing
+
+facts.
+
+
+
+recommended_disposition must be exactly EXECUTE, SCREEN, or BLOCK. Use BLOCK
+
+when the hard constraints make a safe design physically or operationally
+
+impossible. Use SCREEN for a feasible first experiment that still requires
+
+experimental validation. Use EXECUTE only for a directly executable design
+
+supported by sufficient evidence.
+
+
+
+FlowPilot returned design
+
+The final structured FlowPilot artifact contains the inventory-realized SCREEN design shown in Figure S13 and summarized in Table S22. The 8,274-character generated report reproduced afterward is a distinct archived LLM narrative and does not agree with those final parameters. It is preserved as historical evidence, not endorsed as an executable procedure. The 17,149-character one-shot response is reproduced in the following subsection.
+
+
+
+Figure S13. Horizontal redraw of the archived inventory-assigned topology for the Claude Opus 4.6 FlowPilot photochemical-oxidation run, repeat 01. The diagram represents the final structured design, not the unreconciled LLM narrative reproduced below. Its 1.0 mL reactor, 0.12427 mL/min liquid flow and 1.856819 mL/min air feed at inlet/STP correspond to a nominal V_R/Q_L time of 8.046994 min and 1.4 oxygen equivalents. This nominal time is not a measured liquid contact time. The recorded disposition is SCREEN, not experimentally validated execution. The exact one-shot response is preserved in the following subsection and the companion files. The layout and generic pump symbol have been updated for readability; recorded equipment, connectivity and operating conditions are unchanged.
+
+
+
+
+
+Table S22. Final structured parameters and contemporaneous generated narrative for the same archived FlowPilot run.
+
+FieldFinal structured recordRaw LLM narrativeReactor geometric volume (mL)1.01.6094Liquid flow (mL/min)0.124270.2Reported residence time (min)8.046994; nominal V_R/Q_L5.0; claimed liquid-holdup timeAir at inlet/STP (mL/min)1.8568190.4483O2 equivalents1.4Claims 1.0; arithmetic gives 0.210Temperature / BPR21 C / 3 bar gauge21 C / 3 bar gaugeValidation statusArchived final checks: ready; disposition SCREENNOT engine-validated; LOW confidenceAuthorityFinal structured contractHistorical raw narrative; not operating instructions
+
+
+
+Archived raw narrative follows unchanged:
+
+# Flow Chemistry Protocol: Photocatalytic Aerobic Oxidation of Fmoc-L-Methionine to Fmoc-Methionine Sulfoxide
+
+
+
+---
+
+
+
+## (1) Proposed Flow Setup
+
+
+
+**Reaction:** Singlet-oxygen-mediated thioether → sulfoxide oxidation using 4,7-diphenyl-2,1,3-benzothiadiazole as a triplet photosensitizer, with air as the O₂ source.
+
+
+
+**Configuration:** Single-stage gas–liquid segmented (Taylor) flow photoreactor.
+
+
+
+### Streams
+
+
+
+| Stream | Contents | Phase | Flow Rate | Equipment |
+
+|--------|----------|-------|-----------|-----------|
+
+| **A** (Liquid) | Fmoc-L-methionine (0.10 M, 1.0 equiv) + 4,7-diphenyl-2,1,3-benzothiadiazole (0.01 M, 10 mol%) in acetonitrile | Liquid | 0.2 mL/min | Syringe/HPLC pump |
+
+| **B** (Gas) | Clean dry air (21 mol% O₂) | Gas | 0.4483 sccm (≈0.12 mL/min at operating pressure) | Mass flow controller |
+
+
+
+**Mixing:** Streams A and B meet at a T-mixer (1.0 mm ID) to establish segmented gas–liquid (Taylor) flow before entering the irradiated zone.
+
+
+
+### Reactor
+
+
+
+- **Type:** PFA coil reactor, 1.0 mm ID
+
+- **Total reactor volume:** 1.6094 mL (liquid holdup ~1.0 mL; gas holdup fraction = 0.3786)
+
+- **Residence time:** 5.0 min (defined as liquid-phase reactor volume ÷ liquid flow rate)
+
+- **Temperature:** 21.0 °C (thermostatted)
+
+- **Light source:** 420 nm LED module, 1.5 W, wrapped around the PFA coil
+
+- **Back-pressure regulator:** 3.0 bar (gauge), giving ~4.0 bar absolute
+
+
+
+### Downstream
+
+
+
+1. Gas–liquid separator to vent spent air safely
+
+2. Collect liquid product in an amber vessel (protect from ambient light)
+
+3. Discard the first ~3 reactor volumes (~3.0 mL) as startup waste before collecting steady-state product
+
+
+
+### Preparation Steps
+
+
+
+1. Dissolve Fmoc-L-methionine (0.10 M) and photocatalyst (0.01 M) in acetonitrile in an **amber bottle** to prevent premature photoactivation.
+
+2. Prime the liquid pump and establish air flow through the MFC.
+
+3. Establish stable segmented flow through the reactor **before** turning on the 420 nm LED.
+
+4. Confirm stable back-pressure at 3.0 bar before beginning collection.
+
+
+
+### Shutdown Sequence
+
+
+
+Turn off the LED first → stop MFC → stop liquid pump → flush reactor with 5 reactor volumes of neat acetonitrile.
+
+
+
+---
+
+
+
+## (2) Rationale for Conditions
+
+
+
+### Residence Time (5.0 min)
+
+
+
+The batch protocol completes in 5 min. This was adopted directly as a conservative first screen. The automated design engine initially calculated a much shorter τ (~0.25 min, representing a 20× intensification factor), but flagged severe O₂ mass-transfer limitation (transfer sufficiency only 0.19×) and poor axial dispersion (Pe ≈ 2) at that short time. The 5.0 min residence time provides a safe starting point. Literature analogies for related photocatalytic oxidations in flow show 16–384× batch-to-flow acceleration, suggesting that once baseline conversion is confirmed, residence time can likely be shortened substantially.
+
+
+
+### Temperature (21.0 °C)
+
+
+
+Matches the batch protocol. The chemistry plan identifies this reaction as temperature-insensitive. The thermal Damköhler number (Da_th = 0.003974) confirms negligible heat accumulation — the reactor can remove heat ~250× faster than it is generated (UA = 1.931231 W/K vs. heat generation of 0.077 W). No thermal runaway risk.
+
+
+
+### Concentration (0.1 M)
+
+
+
+Directly from the batch protocol. Consistent with literature analogies for photocatalytic sulfoxidations in acetonitrile.
+
+
+
+### Tubing and Reactor Geometry (PFA, 1.0 mm ID)
+
+
+
+PFA is transparent at 420 nm, enabling irradiation through the reactor wall. The 1.0 mm ID provides short optical path length (~0.5 mm average for an annular irradiation geometry), which is a major advantage over a batch round-bottom flask where photon penetration is limited. The small diameter also promotes well-defined Taylor flow slugs with thin liquid films, enhancing gas–liquid mass transfer (calculated kLa = 0.153 s⁻¹).
+
+
+
+### Gas Flow and Pressure (0.4483 sccm air, 3.0 bar BPR)
+
+
+
+At 0.2 mL/min liquid flow and 0.10 M substrate, the substrate molar flow is 0.020 mmol/min. The air flow delivers 0.020 mmol/min O₂ (1.0 equiv at the inlet). The O₂ transfer sufficiency is calculated at 11.3679×, meaning the gas–liquid mass transfer capacity exceeds the O₂ consumption requirement by more than 11-fold — O₂ delivery is not limiting under these conditions. The 3.0 bar BPR increases dissolved O₂ concentration via Henry's law (~4× vs. atmospheric) and stabilizes the gas–liquid flow pattern by preventing uncontrolled bubble expansion.
+
+
+
+### Wavelength (420 nm)
+
+
+
+Matches the absorption maximum of 4,7-diphenyl-2,1,3-benzothiadiazole (~400–420 nm) and the batch protocol specification.
+
+
+
+### Catalyst Loading (10 mol%)
+
+
+
+High by typical photocatalysis standards, but directly from the batch protocol. No reason to change for an initial screen.
+
+
+
+---
+
+
+
+## (3) Key Differences from the Batch Protocol
+
+
+
+| Parameter | Batch | Flow |
+
+|-----------|-------|------|
+
+| **Reactor geometry** | Round-bottom flask (long optical path, poor photon penetration) | 1.0 mm ID PFA coil (short path, uniform irradiation) |
+
+| **Gas–liquid contact** | Headspace exposure or balloon; limited interfacial area | Segmented Taylor flow; high kLa (0.153 s⁻¹), thin liquid films around gas slugs |
+
+| **O₂ delivery** | Diffusion-limited from headspace | Continuous co-flow; 11.4× excess transfer capacity |
+
+| **Pressure** | Atmospheric | 3.0 bar gauge (4.0 bar abs) — increases dissolved O₂ ~4× |
+
+| **Light exposure control** | Entire flask irradiated; difficult to control dose precisely | Only the reactor coil is irradiated; residence time defines photon dose exactly |
+
+| **Over-oxidation control** | Controlled by reaction time (manual quench by stopping irradiation) | Controlled by residence time (product exits irradiated zone automatically) |
+
+| **Scale** | Fixed batch size | Continuous; throughput = 1.2 mmol/h at current settings, scalable by numbering up or increasing flow rate |
+
+
+
+The primary flow advantages are (a) dramatically improved gas–liquid mass transfer and (b) uniform, short-path-length irradiation. Both address the two identified batch limitations.
+
+
+
+---
+
+
+
+## (4) Warnings and Flags from Engineering Validation
+
+
+
+### ⚠️ This design is NOT engine-validated — screening is required
+
+
+
+The automated design engine could not converge on a validated final design. The safety report states:
+
+
+
+> **"ENGINE_FALLBACK: screen required — no usable candidates after filtering"**
+
+
+
+**Confidence level: LOW.**
+
+
+
+This means the 5.0 min / 0.2 mL/min conditions represent a conservative starting point, not an optimized design. The engine generated five screen candidates (S1–S5) exploring residence times of 0.25–0.5 min, tubing IDs of 0.5–1.6 mm, and temperatures of 21–41 °C, but none passed all engineering gates simultaneously.
+
+
+
+### What to do in practice
+
+
+
+1. **Run the baseline first** (5.0 min, 21 °C, 0.1 M, 0.4483 sccm air, 3.0 bar BPR) and measure conversion and sulfoxide selectivity (vs. sulfone over-oxidation).
+
+2. If conversion is high (>90%), systematically reduce residence time by increasing liquid flow rate (e.g., 0.4, 0.8, 1.0 mL/min → τ = 2.5, 1.25, 1.0 min) to find the minimum τ for acceptable yield.
+
+3. If conversion is low, increase air flow (MFC allows up to 10 sccm) or modestly increase temperature (31–41 °C per screen candidates S2/S3).
+
+
+
+### Specific risks to monitor
+
+
+
+- **Over-oxidation to sulfone:** The main selectivity concern. The product sulfoxide can react with additional ¹O₂. If sulfone is detected, reduce residence time or lower O₂ equivalents.
+
+- **Photocatalyst precipitation:** At 0.01 M in acetonitrile, the benzothiadiazole catalyst should be fully soluble, but verify before running. Any precipitation will clog the 1.0 mm ID tubing.
+
+- **Pressure drop:** Calculated two-phase pressure drop is negligible (0.009 bar), well within the 3.0 bar BPR capacity. Not a concern.
+
+- **Feed solution stability:** The premixed substrate + catalyst solution must be kept in the dark (amber bottle/foil wrap). Exposure to ambient light could initiate premature reaction and consume dissolved O₂, leading to inconsistent results.
+
+- **BPR pressure basis:** The design assumes 3.0 bar gauge (4.0 bar absolute). Confirm whether your BPR is rated in gauge or absolute pressure, as this affects gas compression calculations and dissolved O₂ concentration.
+
+One-shot raw response (complete, verbatim)
+
+The 17,149-character one-shot provider response below is preserved exactly, including its code fence and errors. The archived FlowProposal parser reported six type-validation errors. The response contains conflicting channel-gas values (0.136 and 0.167 mL/min) and reports 0.235 oxygen equivalents. These are findings about the raw response, not a claim that every parsed benchmark field was scored identically. The final-outcome judge score and the legacy parser/QA diagnostics are distinct records.
+
+```json
+
+{
+
+  "recommended_disposition": "SCREEN",
+
+  "disposition_rationale": "The batch protocol is well-defined with mild conditions (room temperature, visible light, air as oxidant, short reaction time). All required equipment is available in inventory. The translation to flow is straightforward: a single liquid feed mixed with air in a T-mixer, irradiated in a 1.0 mL PFA photocoil at 420 nm, followed by gas-liquid separation and collection. This is a conservative first screen requiring experimental validation of conversion under segmented gas-liquid flow conditions.",
+
+  "proposal": {
+
+    "residence_time_min": 5.0,
+
+    "flow_rate_mL_min": 0.20,
+
+    "temperature_C": 21.0,
+
+    "concentration_M": 0.10,
+
+    "BPR_bar": 3.0,
+
+    "reactor_type": "photochemical coil",
+
+    "tubing_material": "PFA",
+
+    "tubing_ID_mm": 1.0,
+
+    "reactor_volume_mL": 1.0,
+
+    "residence_time_basis": "Liquid contact residence time = reactor_volume_mL / liquid_flow_rate_mL_min. The gas slugs reduce the liquid holdup fraction, so the true liquid residence time in the irradiated zone will be longer than 5.0 min. This 5.0 min value is a conservative lower bound matching the batch irradiation time. The actual liquid-phase residence time depends on the gas-liquid slug pattern and liquid holdup fraction (typically 0.4-0.6 for Taylor flow), which would give an effective liquid residence time of roughly 8-12 min. This provides a safety margin for the first screen.",
+
+    "residence_time_inlet_min": 5.0,
+
+    "residence_time_in_channel_min": 5.0,
+
+    "light_setup": {
+
+      "equipment_id": "light_photo_420",
+
+      "name": "420 nm photochemistry LED",
+
+      "power_W": 1.5,
+
+      "wavelength_nm": 420,
+
+      "notes": "Identical to batch: 1.5 W LED at 420 nm. The PFA coil is transparent and wrapped around or positioned adjacent to the LED. Shorter optical path (1.0 mm ID) compared to batch flask should improve photon delivery efficiency."
+
+    },
+
+    "wavelength_nm": 420,
+
+    "streams": [
+
+      {
+
+        "stream_label": "liquid_feed",
+
+        "pump_role": "liquid reagent delivery",
+
+        "equipment_id": "pump_photo_liquid",
+
+        "contents": "Fmoc-L-methionine (0.10 M) and 4,7-diphenyl-2,1,3-benzothiadiazole (0.010 M, 10 mol%) dissolved in acetonitrile",
+
+        "solvent": "acetonitrile",
+
+        "phase": "liquid",
+
+        "flow_rate_mL_min": 0.20,
+
+        "concentration_M": 0.10,
+
+        "catalyst_concentration_M": 0.010,
+
+        "molar_equiv": {
+
+          "Fmoc_L_methionine": 1.0,
+
+          "photocatalyst": 0.10
+
+        },
+
+        "gas_flow_sccm": null,
+
+        "gas_flow_actual_mL_min": null,
+
+        "feed_preparation": "Dissolve Fmoc-L-methionine (1.375 g, 3.7 mmol) and 4,7-diphenyl-2,1,3-benzothiadiazole (106.6 mg, 0.37 mmol) in acetonitrile to a final volume of 37.0 mL in an amber glass bottle. Sonicate briefly if needed to ensure complete dissolution. This provides approximately 185 min of run time at 0.20 mL/min, sufficient for startup, steady-state collection, and shutdown. Prepare feed under subdued lighting to avoid premature photocatalytic activation."
+
+      },
+
+      {
+
+        "stream_label": "air_feed",
+
+        "pump_role": "gas reagent delivery (oxidant)",
+
+        "equipment_id_supply": "gas_air_clean",
+
+        "equipment_id_mfc": "mfc_air_10",
+
+        "contents": "clean dry air (approximately 21 mol% O2, 79 mol% N2)",
+
+        "solvent": null,
+
+        "phase": "gas",
+
+        "flow_rate_mL_min": null,
+
+        "concentration_M": null,
+
+        "molar_equiv": null,
+
+        "gas_flow_sccm": 0.50,
+
+        "gas_flow_inlet_STP_mL_min": 0.50,
+
+        "gas_flow_actual_mL_min": 0.167,
+
+        "gas_flow_calculations": {
+
+          "STP_conditions": "0 °C (273.15 K), 1.01325 bar",
+
+          "operating_pressure_bar": 3.0,
+
+          "operating_temperature_C": 21.0,
+
+          "pressure_type": "gauge; absolute operating pressure = 3.0 bar gauge + 1.0 bar atmospheric = 4.0 bar absolute",
+
+          "correction_factor": "V_actual = V_STP × (P_STP / P_actual) × (T_actual / T_STP) = 0.50 × (1.01325 / 4.0) × (294.15 / 273.15) = 0.50 × 0.2533 × 1.0769 = 0.136 mL/min",
+
+          "gas_flow_actual_corrected_mL_min": 0.136,
+
+          "gas_to_liquid_ratio_actual": 0.68,
+
+          "notes": "At 0.50 sccm air and 0.20 mL/min liquid, the gas-to-liquid volumetric ratio at operating conditions is approximately 0.68, producing well-defined Taylor flow (segmented slug flow) in the 1.0 mm ID tubing. This regime maximizes gas-liquid interfacial area and ensures efficient oxygen mass transfer."
+
+        },
+
+        "oxygen_equivalent_basis": {
+
+          "air_flow_sccm": 0.50,
+
+          "O2_fraction_in_air": 0.21,
+
+          "O2_flow_sccm": 0.105,
+
+          "O2_molar_flow_umol_per_min": 4.69,
+
+          "calculation": "n_O2 = (P × V_dot) / (R × T) = (1.01325e5 Pa × 1.05e-7 L/min × 1e-3 m3/L) / (8.314 J/(mol·K) × 273.15 K) × 1e6 = 4.69 µmol/min at STP",
+
+          "substrate_molar_flow_umol_per_min": 20.0,
+
+          "O2_to_substrate_ratio": 0.235,
+
+          "stoichiometric_requirement": "The sulfoxidation requires 0.5 equiv O2 per substrate (2 electrons per thioether, O2 is 4-electron oxidant in pairs). At 0.235 mol O2 per mol substrate, oxygen delivery is approximately 0.47 stoichiometric equivalents per pass. Given the 5 min contact time and efficient Taylor flow mass transfer, this should be sufficient for high conversion as demonstrated in the batch (which used ambient air exposure). If conversion is low, air flow can be increased up to 10 sccm (MFC maximum).",
+
+          "excess_note": "Conservative starting point. The batch protocol used open-flask air exposure which provides effectively unlimited O2. In flow, the segmented regime provides high interfacial area. Air flow can be increased in subsequent screens if needed."
+
+        }
+
+      }
+
+    ],
+
+    "mixer_type": {
+
+      "equipment_id": "mixer_photo_t",
+
+      "name": "PFA gas-liquid T-mixer",
+
+      "type": "T-mixer",
+
+      "total_flow_at_operating_conditions_mL_min": 0.336,
+
+      "within_mixer_limits": true,
+
+      "mixer_limits_mL_min": "0.01 to 2.0"
+
+    },
+
+    "mixing_order_reasoning": "The liquid feed (premixed substrate + photocatalyst in acetonitrile) and air are combined at the PFA T-mixer before entering the photoreactor. This generates a segmented gas-liquid (Taylor) flow pattern that maximizes O2 mass transfer into the liquid slugs during irradiation. Premixing the liquid avoids any solubility or precipitation issues at the mixer. The T-mixer is placed immediately upstream of the photoreactor coil to minimize non-irradiated volume.",
+
+    "pre_reactor_steps": [
+
+      {
+
+        "step": 1,
+
+        "description": "Liquid feed from pump_photo_liquid and air from mfc_air_10 (supplied by gas_air_clean) are combined at mixer_photo_t to generate segmented gas-liquid Taylor flow.",
+
+        "equipment_ids": ["pump_photo_liquid", "gas_air_clean", "mfc_air_10", "mixer_photo_t"],
+
+        "connections": "PFA tubing (tubing_photo_pfa_10) with connector_photo_set unions, 1.0 mm ID throughout."
+
+      }
+
+    ],
+
+    "post_reactor_steps": [
+
+      {
+
+        "step": 1,
+
+        "description": "The gas-liquid stream exits the photoreactor through bpr_photo_3 (3.0 bar gauge back-pressure regulator) to maintain constant pressure in the reactor and ensure stable Taylor flow.",
+
+        "equipment_id": "bpr_photo_3"
+
+      },
+
+      {
+
+        "step": 2,
+
+        "description": "After the BPR, the depressurized stream enters separator_photo_gl (vented gas-liquid separator) to remove the gas phase (spent air). The gas vent is routed to the enclosure exhaust.",
+
+        "equipment_id": "separator_photo_gl"
+
+      },
+
+      {
+
+        "step": 3,
+
+        "description": "The liquid product stream is collected in collector_photo_100 (amber vented collection vessel, 100 mL). The amber glass protects the product from further photochemical reaction. The vessel vent is connected to the enclosure exhaust to handle residual acetonitrile vapor.",
+
+        "equipment_id": "collector_photo_100"
+
+      }
+
+    ],
+
+    "stage_parameters": {
+
+      "reactor": {
+
+        "equipment_id": "reactor_photo_100",
+
+        "name": "One milliliter PFA photocoil",
+
+        "volume_mL": 1.0,
+
+        "ID_mm": 1.0,
+
+        "material": "PFA",
+
+        "configuration": "irradiated PFA coil",
+
+        "light_source": "light_photo_420",
+
+        "wavelength_nm": 420,
+
+        "temperature_C": 21.0,
+
+        "pressure_bar_gauge": 3.0,
+
+        "pressure_bar_absolute": 4.0
+
+      },
+
+      "temperature_control": {
+
+        "equipment_id": "controller_photo_thermostat",
+
+        "setpoint_C": 21.0,
+
+        "notes": "Recirculating thermostat maintains reactor at 21 °C, matching batch conditions. Also removes heat from LED."
+
+      },
+
+      "tubing": {
+
+        "equipment_id": "tubing_photo_pfa_10",
+
+        "ID_mm": 1.0,
+
+        "material": "PFA",
+
+        "length_m": 1.273,
+
+        "calculated_volume_mL": 1.0,
+
+        "volume_check": "π × (0.5 mm)² × 1273 mm = π × 0.25 × 1273 = 999.7 mm³ ≈ 1.0 mL. Consistent with declared reactor volume."
+
+      },
+
+      "connectors": {
+
+        "equipment_id": "connector_photo_set",
+
+        "material": "PFA",
+
+        "supported_ID_mm": 1.0
+
+      },
+
+      "safety_enclosure": {
+
+        "equipment_id": "safety_photo_enclosure",
+
+        "capabilities": ["shield_or_containment", "vented_separator"],
+
+        "compatible_hazards": ["high_intensity_light", "oxygen_enriched_organic_stream", "acetonitrile_vapor"],
+
+        "notes": "All wetted components (mixer, reactor, BPR, separator, collector) are housed inside the interlocked photochemical enclosure. The enclosure provides: (1) light shielding from 420 nm LED, (2) containment and ventilation for acetonitrile vapor, (3) containment in case of tubing failure releasing O2-enriched acetonitrile."
+
+      }
+
+    },
+
+    "chemistry_notes": "This is a photocatalytic aerobic sulfoxidation. 4,7-Diphenyl-2,1,3-benzothiadiazole absorbs at 420 nm and generates singlet oxygen (¹O₂) or acts via electron-transfer mechanism to oxidize the thioether of Fmoc-L-methionine to the corresponding sulfoxide. The reaction is highly selective (sulfoxide over sulfone) under these mild conditions. Air serves as the terminal oxidant. The batch protocol achieved 99% yield in 5 min at room temperature, indicating a fast and clean reaction. In flow, the enhanced mass transfer of O2 in Taylor flow and the short optical path in the 1.0 mm ID tubing should maintain or improve efficiency. The 0.10 M concentration matches batch conditions. No competing side reactions are expected at this temperature and irradiation time.",
+
+    "startup_procedure": [
+
+      "1. Verify all connections are secure and the system is leak-tested with air at 4.0 bar absolute (3.0 bar gauge).",
+
+      "2. Ensure safety_photo_enclosure is closed and interlocked. Verify ventilation is active.",
+
+      "3. Set controller_photo_thermostat to 21 °C and allow to equilibrate.",
+
+      "4. With LED OFF, start pump_photo_liquid at 0.20 mL/min with pure acetonitrile (no substrate) to fill and wet the system.",
+
+      "5. Start mfc_air_10 at 0.50 sccm. Verify stable segmented flow visually (if viewport available) or by stable pressure reading.",
+
+      "6. Allow at least 3 reactor volumes (3.0 mL liquid, ~15 min) of acetonitrile + air to flush through the system and establish steady-state pressure at bpr_photo_3.",
+
+      "7. Switch liquid feed from pure acetonitrile to the prepared substrate/catalyst solution.",
+
+      "8. Turn on light_photo_420 (420 nm, 1.5 W).",
+
+      "9. Allow at least 3 liquid residence times (15 min) for steady state before beginning product collection.",
+
+      "10. Divert the outlet to collector_photo_100 and begin timed collection."
+
+    ],
+
+    "shutdown_procedure": [
+
+      "1. Turn off light_photo_420.",
+
+      "2. Switch liquid feed from substrate solution back to pure acetonitrile.",
+
+      "3. Continue pumping acetonitrile at 0.20 mL/min with air at 0.50 sccm for at least 3 reactor volumes (15 min) to flush substrate from the system.",
+
+      "4. Stop mfc_air_10.",
+
+      "5. Continue pumping acetonitrile for 2 additional reactor volumes (10 min) to purge residual air from the system.",
+
+      "6. Stop pump_photo_liquid.",
+
+      "7. Depressurize system by allowing flow through bpr_photo_3 until pressure equilibrates to ambient.",
+
+      "8. Turn off controller_photo_thermostat.",
+
+      "9. Cap or seal collector_photo_100 (amber vessel) and label with run parameters.",
+
+      "10. Open safety_photo_enclosure only after LED is confirmed off and system is depressurized."
+
+    ],
+
+    "safety_flags": {
+
+      "oxygen_enriched_organic_stream": {
+
+        "risk": "Air mixed with acetonitrile under pressure creates a potentially flammable mixture. Acetonitrile has a flash point of 2 °C and LEL of 3.0 vol% in air.",
+
+        "mitigations": [
+
+          "Operating at 21 °C with no external heating above flash point.",
+
+          "Using air (21% O2) rather than pure oxygen significantly reduces risk.",
+
+          "Gas-to-liquid ratio is low (0.68 at operating conditions); the system is predominantly liquid-filled.",
+
+          "All components rated to 10 bar; operating at 4.0 bar absolute provides >2× safety margin.",
+
+          "safety_photo_enclosure provides containment and ventilation in case of leak.",
+
+          "No ignition sources inside enclosure (LED is low-power, 1.5 W, non-thermal).",
+
+          "Gas vent from separator_photo_gl is routed through enclosure exhaust to fume hood."
+
+        ]
+
+      },
+
+      "acetonitrile_vapor": {
+
+        "risk": "Acetonitrile is toxic (TLV-TWA 40 ppm). Vapor may be released at separator and collector.",
+
+        "mitigations": [
+
+          "safety_photo_enclosure is ventilated and interlocked.",
+
+          "collector_photo_100 is vented through enclosure exhaust.",
+
+          "separator_photo_gl gas vent is routed to exhaust.",
+
+          "Total acetonitrile throughput is low (~0.20 mL/min)."
+
+        ]
+
+      },
+
+      "high_intensity_light": {
+
+        "risk": "420 nm LED (1.5 W) can cause eye damage.",
+
+        "mitigations": [
+
+          "safety_photo_enclosure shields operator from direct and reflected light.",
+
+          "Interlock prevents LED operation when enclosure is open.",
+
+          "Appropriate laser/LED safety eyewear available as secondary protection."
+
+        ]
+
+      },
+
+      "pressure": {
+
+        "risk": "System operates at 4.0 bar absolute (3.0 bar gauge).",
+
+        "mitigations": [
+
+          "All components rated to ≥5 bar (most to 10 bar).",
+
+          "bpr_photo_3 provides passive pressure relief.",
+
+          "collector_photo_100 is rated to 1.0 bar and is downstream of BPR (at ambient pressure).",
+
+          "Leak test performed during startup with air before introducing solvent."
+
+        ]
+
+      }
+
+    },
+
+    "reasoning_per_field": {
+
+      "residence_time_min": "Set to 5.0 min to match the batch irradiation time. This is the liquid contact residence time calculated as reactor_volume / liquid_flow_rate = 1.0 mL / 0.20 mL/min = 5.0 min. The actual liquid residence time will be longer due to gas slugs reducing liquid holdup, providing a conservative margin.",
+
+      "flow_rate_mL_min": "0.20 mL/min liquid flow gives exactly 5.0 min residence time in the 1.0 mL reactor. This is well within the pump range (0.01-1.0 mL/min) and provides a comfortable operating point for stable flow.",
+
+      "temperature_C": "21 °C matches the batch protocol exactly and is an allowed setpoint for both the reactor and thermostat.",
+
+      "concentration_M": "0.10 M matches the batch protocol exactly.",
+
+      "BPR_bar": "3.0 bar gauge (4.0 bar absolute) is the only available BPR setpoint. This pressurization serves to: (1) keep air dissolved/compressed for better mass transfer, (2) suppress bubble coalescence for stable Taylor flow, (3) prevent acetonitrile boiling (not a concern at 21 °C but good practice).",
+
+      "gas_flow_sccm": "0.50 sccm air provides approximately 0.47 stoichiometric equivalents of O2 per pass relative to substrate. This is a conservative starting point; the MFC can deliver up to 10 sccm if more O2 is needed. The gas-to-liquid ratio of ~0.68 at operating conditions is appropriate for Taylor flow.",
+
+      "reactor_volume_mL": "1.0 mL as specified by reactor_photo_100. Verified by tubing dimensions: π × (0.5 mm)² × 1273 mm ≈ 1.0 mL.",
+
+      "wavelength_nm": "420 nm matches the batch protocol and the absorption maximum of 4,7-diphenyl-2,1,3-benzothiadiazole photocatalyst.",
+
+      "mixer_type": "PFA T-mixer is the only available gas-liquid mixer. Total flow (0.336 mL/min at operating conditions) is within the mixer's range (0.01-2.0 mL/min)."
+
+    },
+
+    "literature_analogies": "Photocatalytic aerobic oxidations in flow using organic photocatalysts and segmented gas-liquid flow are well-precedented. Similar sulfoxidations have been demonstrated in PFA coil reactors with visible light LEDs. The use of air rather than pure O2 is safer and sufficient for this fast reaction. Taylor flow in millimeter-scale tubing provides excellent gas-liquid mass transfer with interfacial areas of 1000-5000 m²/m³, far exceeding batch stirred vessels.",
+
+    "engine_validated": false,
+
+    "confidence": 0.88
+
+  }
+
+}
+
+```

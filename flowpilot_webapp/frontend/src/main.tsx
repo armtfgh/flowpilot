@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import "./styles.css";
 import { ProcessSummary, StageOverview, EngineeringHistory, Responses, CouncilTranscript, ScientificAssessment, displayUnits } from "./result_views";
+import { InventoryWorkspace } from "./inventory_workspace";
 
 declare const __FLOWPILOT_UI_BUILD__: string;
 const WORKSPACE_STORAGE_KEY = "flowpilot_workspace_v1";
@@ -513,7 +514,7 @@ function App() {
         analyze={() => analyze()} submitAnswers={submitAnswers} runDesign={runDesign}
         busy={busy || restoring || deploymentBlocked} job={job} result={result} resultTab={resultTab} setResultTab={setResultTab}
       />}
-      {view === "inventory" && <InventoryWorkspace profiles={profiles} refresh={refreshSystem} onUse={(profile) => { applyProfile(profile); setView("design"); }}/>}
+      {view === "inventory" && <InventoryWorkspace api={api} profiles={profiles} refresh={refreshSystem} onUse={(profile) => { applyProfile(profile); setView("design"); }}/>}
       {view === "runs" && <div className="viewStack">
         {!!activeJobs.length && <section className="activeJobList"><h2>In-progress designs</h2>{activeJobs.map((item) => <div key={item.job_id}>
           <span><code>{item.job_id}</code><b>{item.phase}</b><small>{shortTime(item.created_at)}</small></span>
@@ -842,29 +843,6 @@ function ExperimentLoop({ job, result }: { job: Job | null; result: Json }) {
   return <div className="cycleLayout"><section><div className="sectionTitle"><h2>Add experimental result</h2><span>actual wet-lab values</span></div><div className="formGrid">{fields.map(([label, key, unit]) => <label className="field" key={key}><span>{label} <small>{unit}</small></span><input type="number" value={form[key]} onChange={(e) => setForm({...form, [key]: e.target.value})}/></label>)}</div><label className="field"><span>Observations</span><textarea value={form.notes} onChange={(e) => setForm({...form, notes: e.target.value})} placeholder="Pressure drift, precipitation, gas-liquid stability, impurities…"/></label><div className="actions"><button onClick={add}><Plus size={15}/>Add cycle</button><button className="primary" disabled={!experiments.length || busy} onClick={refine}><Sparkles size={15}/>Refine from {experiments.length} cycle{experiments.length === 1 ? "" : "s"}</button></div>{error && <div className="inlineError">{error}</div>}</section><section><div className="sectionTitle"><h2>Campaign history</h2><span>{experiments.length} cycles</span></div>{experiments.length ? <div className="cycleList">{experiments.map((e, i) => <div key={i}><span>v{i + 1}</span><div><b>{formatValue(e.outcomes.yield_pct ?? e.outcomes.conversion_pct)}%</b><small>{formatValue(e.actual_conditions.residence_time_min)} min · {formatValue(e.actual_conditions.flow_rate_mL_min)} mL/min</small></div><button onClick={() => setExperiments(experiments.filter((_, j) => i !== j))}><Trash2 size={14}/></button></div>)}</div> : <Empty icon={<TestTube2 size={22}/>} title="No wet-lab cycles" text="Add the actual conditions and analytical result from the first run."/>}{refinement && <div className="refinement"><span className="eyebrow">Next design</span><h3>{refinement.decision?.status?.replaceAll("_", " ")}</h3><p>{refinement.decision?.diagnosis}</p><TagList values={refinement.decision?.recommended_actions || []}/><JsonViewer value={refinement.decision?.next_experiment || {}} compact/></div>}</section></div>;
 }
 
-function InventoryWorkspace({ profiles, refresh, onUse }: { profiles: Json[]; refresh: () => void; onUse: (profile: InventoryProfile) => void }) {
-  const [name, setName] = useState("New laboratory inventory");
-  const [laboratory, setLaboratory] = useState("");
-  const [text, setText] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
-  const [useLlm, setUseLlm] = useState(true);
-  const [profile, setProfile] = useState<InventoryProfile | null>(null);
-  const [jsonText, setJsonText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-  const extract = async () => {
-    setBusy(true); setError("");
-    const body = new FormData(); body.append("name", name); body.append("laboratory", laboratory); body.append("source_text", text); body.append("use_llm", String(useLlm)); files.forEach((f) => body.append("files", f));
-    try { const p = await api<InventoryProfile>("/api/inventory/extract", { method: "POST", body }); setProfile(p); setJsonText(JSON.stringify(p, null, 2)); }
-    catch (e) { setError(String((e as Error).message || e)); } finally { setBusy(false); }
-  };
-  const applyJson = async () => { try { const p = await api<InventoryProfile>("/api/inventory/import", { method: "POST", body: JSON.stringify(JSON.parse(jsonText)) }); setProfile(p); setJsonText(JSON.stringify(p, null, 2)); } catch (e) { setError(String((e as Error).message || e)); } };
-  const save = async () => { if (!profile) return; setBusy(true); try { const r = await api<{ profile: InventoryProfile }>("/api/inventory/save", { method: "POST", body: JSON.stringify({ profile }) }); setProfile(r.profile); setJsonText(JSON.stringify(r.profile, null, 2)); refresh(); } catch (e) { setError(String((e as Error).message || e)); } finally { setBusy(false); } };
-  const counts = profile ? equipmentCounts(profile.lab_inventory) : [];
-  return <div className="viewStack"><section className="inventoryBuild"><div className="panel sourcePanel"><div className="panelHead"><div><span className="eyebrow">Source</span><h2><Upload size={17}/>Import laboratory inventory</h2></div></div><div className="twoFields"><label className="field"><span>Profile name</span><input value={name} onChange={(e) => setName(e.target.value)}/></label><label className="field"><span>Laboratory</span><input value={laboratory} onChange={(e) => setLaboratory(e.target.value)}/></label></div><button className="dropZone" onClick={() => inputRef.current?.click()}><Upload size={24}/><b>Choose PDF, Word, PowerPoint, spreadsheet, or JSON</b><span>{files.length ? files.map((f) => f.name).join(", ") : "Multiple source documents are supported"}</span></button><input ref={inputRef} hidden type="file" multiple accept=".pdf,.docx,.pptx,.xlsx,.json,.txt,.md,.csv" onChange={(e) => setFiles(Array.from(e.target.files || []))}/><label className="field"><span>Additional equipment and constraints</span><textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Example: No inline degasser. Minimum syringe-pump flow is 0.010 mL/min…"/></label><div className="inlineControls"><label className="toggle"><input type="checkbox" checked={useLlm} onChange={(e) => setUseLlm(e.target.checked)}/><i/><span>LLM-assisted extraction</span></label><button className="primary" disabled={busy || (!files.length && !text.trim())} onClick={extract}><Sparkles size={15}/>Extract inventory</button></div>{error && <div className="inlineError">{error}</div>}</div>
-    <div className="panel inventoryPreview"><div className="panelHead"><div><span className="eyebrow">Normalized profile</span><h2><FileJson size={17}/>Schema preview</h2></div>{profile && <span className={`statusPill ${profile.validation?.valid ? "success" : "warning"}`}>{profile.validation?.valid ? "valid" : "review"}</span>}</div>{profile ? <><div className="inventoryCounts">{counts.map(([label, value]) => <div key={label}><strong>{value}</strong><span>{label}</span></div>)}</div><InventorySnapshot profile={profile}/><div className="validationList">{profile.validation?.errors?.map((v, i) => <div className="bad" key={`e${i}`}><AlertTriangle size={14}/>{v}</div>)}{profile.validation?.warnings?.map((v, i) => <div key={`w${i}`}><Info size={14}/>{v}</div>)}</div><div className="actions"><button onClick={applyJson}><RefreshCw size={15}/>Validate edits</button><button className="primary" onClick={save} disabled={busy}><Save size={15}/>Save profile</button><button onClick={() => onUse(profile)}><ArrowRight size={15}/>Use in design</button></div></> : <Empty icon={<FileJson size={24}/>} title="No extracted profile" text="Upload equipment documentation or enter the laboratory constraints."/>}</div></section>{profile && <section className="panel jsonEditor"><div className="panelHead"><h2><FileJson size={17}/>Editable inventory JSON</h2><span className="tag">FlowPilot inventory profile v3</span></div><textarea value={jsonText} onChange={(e) => setJsonText(e.target.value)} spellCheck={false}/></section>}<section className="panel savedProfiles"><div className="panelHead"><h2><Archive size={17}/>Saved profiles</h2><span className="tag">{profiles.length} profiles</span></div><div className="profileRows">{profiles.map((p) => <div key={p.profile_id}><div><b>{p.name}</b><small>{p.laboratory || "Laboratory not specified"} · version {p.version}</small></div><span>{p.reactor_count} reactors · {p.pump_count} pumps</span><button onClick={async () => onUse(await api<InventoryProfile>(`/api/inventory/profiles/${p.profile_id}`))}>Use <ArrowRight size={14}/></button></div>)}</div></section></div>;
-}
 
 function InventorySnapshot({ profile }: { profile: InventoryProfile }) {
   const inv = profile.lab_inventory || {};

@@ -1,0 +1,93 @@
+GUI operation, inventory management, and auditable examples
+
+Actual browser captures document protocol entry, answer saving and inventory validation on 9 September 2026. Result and council views reopen the archived DPDTC run. These are software-interaction examples, not additional benchmark outcomes or chemical experiments.
+
+The GUI example is the two-stage DPDTC-mediated amidation of 3-methyl-4-nitrobenzoic acid with benzylamine, with a thioester intermediate. Its input specifies 30 min at 95 C for activation, 5-10 min cooling, and another 30 min at 95 C after amine addition. This example is separate from the three benchmark chemistries in Section 4. The original run used claude-opus-4-6 upstream and claude-sonnet-4-6 downstream with 12 candidates. The captured current interface and the archived scientific-design policy are identified in the companion records; they must not be assumed to be identical to every historical benchmark configuration.
+
+Batch entry, follow-up questions, and saved answers
+
+Figures S12–S13 show the user-facing input process. The chemist enters the protocol, binds the saved laboratory profile, and reviews the questions selected by the versioned question bank. The screenshot session used deterministic question selection with LLM-assisted extraction switched off, allowing the interface sequence to be reproduced without a new provider call. This check establishes repeatability of this question-selection mode; it does not establish reproducibility of model-generated chemistry or numerical designs.
+
+Three fresh requests with the same protocol, profile and extraction mode returned identical pending question IDs and question-set hashes. The pending IDs were Q-OBJ-001, Q-CHEM-001, Q-HIST-001, Q-HYP-001. The user supplied the archived objective and chemistry confirmation, supplied the archived hypotheses, and marked absent experimental history unavailable. The answer-saving endpoint returned ready_for_design = true. Complete questions, answers and intermediate packages are retained in the companion evidence, including items not simultaneously visible inside the scrolling GUI panel.
+
+(a) Batch protocol input
+
+
+
+(b) Answered package
+
+
+
+Figure S12. Actual FlowPilot interface: (a) entry of the complete two-stage batch protocol before analysis; (b) the completion state after saving the required answers. The panels are different moments in the same live intake demonstration. LLM-assisted extraction was disabled. Frozen means that the answered input package is ready for submission, not that a chemical design or yield has been validated. Full-screen originals are retained alongside these interface crops.
+
+
+
+Figure S13. Actual follow-up question panel with stable IDs, question-bank version, question-set hash and entered answers. The visible examples concern objective and chemistry identity; other questions remain within the scrollable panel. Scrollbars and partially visible textarea contents are native interface behavior, not edited text. Complete input and answer records accompany the ESI. Three identical deterministic intake requests produced the same pending IDs and hash.
+
+Inventory input, normalization, and laboratory constraints
+
+The inventory workspace separates source material from a normalized, editable profile (Figure S14). It accepts uploaded laboratory documents and free-text equipment or constraint descriptions; the JSON editor provides a structured validation route. Users review equipment identifiers, quantities, units, capability limits and unavailable functions before saving a version or selecting Use in design. Source extraction is not itself laboratory confirmation. A schema-valid profile may still contain warnings or missing capabilities, and design-specific compatibility is checked separately.
+
+The demonstrated structured route uses KHU Laboratory Inventory, version 4, schema flowpilot_inventory_profile_v3.0. Its seven reactor entries and three pump entries are inventory records, not a claim of seven reactor families or three physical pumps: one pump entry describes three Chemyx units. The profile combines source-derived data with subsequent chemist confirmations. The BPR named Noname has confirmed setpoints 2, 8 and 9 bar even though the original PDF did not list BPR settings. The retained source-warning text refers to that original omission and is not a complete description of the later pressure-controller entry.
+
+During the interface check, uploading this JSON through the generic Extract inventory operation with LLM assistance disabled returned an empty inventory and validation warnings. Pasting the existing JSON into the editor and selecting Validate edits retained all seven reactor and three pump records. Figure S14 therefore documents the structured validation route, not a successful PDF extraction experiment. The failed extraction response and screenshot are retained as a current input-path limitation; the source inventory was not overwritten or resaved during the capture session.
+
+Table S18. Examples of the KHU version-4 inventory data and their interpretation.
+
+Inventory itemStored informationDesign implicationDegassingNo inline degasser; offline pre-degassing is allowed.Omit the device, not the oxygen-exclusion requirement.ReactorsPFA: 2, 5 and 10 mL; two 5 mL/1.016 mm units and one 5 mL/0.762 mm unit. FEP: 10 and 20 mL.Use declared volume, material and ID combinations.TemperatureProfile limits: PFA 80 °C; FEP 50 °C.Equipment-specific limits, not universal material limits.PumpsThree Chemyx Fusion 100 units; Vapourtec SF-10 and R2C+.Check the selected pump and syringe range.Pressure controlConfirmed BPR settings: 2, 8 and 9 bar; maximum 10 bar.Check the full flow path and pressure basis.MixingOne connector; no dedicated mixer.Generic T-mixer requires verification; a two-port union cannot merge feeds.Source caveatsConflicting tubing units, missing radiant power and original BPR omission.Retain uncertainty; a missing-value sentinel is not measured zero.
+
+(a) Inventory input
+
+
+
+Figure S14. Inventory workspace, panel (a): actual upload controls and the separate field for additional equipment or constraints. The KHU JSON file is selected here. This capture shows available controls, not evidence that every supported document format has been validated. The structured JSON-validation result is shown on the following page.
+
+(b) Normalized profile and warnings
+
+
+
+Figure S14 (continued). Inventory workspace, panel (b): validated KHU profile after loading the structured JSON through the editor and selecting Validate edits. Equipment record counts, assigned names, warnings, and save/use controls remain visible. VALID denotes schema/profile validation, not complete hardware availability or laboratory safety. Warnings were not removed for presentation.
+
+Stage-resolved output and run provenance
+
+Figure S15 pairs a horizontal redraw of the archived DPDTC topology with the original GUI process-summary screenshot. Table S19 transcribes the final stage values at readable manuscript text size. The second liquid feed enters between the reactors, so the Stage 2 flow is the sum of the upstream liquid and the new amine feed. Both stages are liquid-only in this example. The generic gas-basis note visible in the GUI is not evidence of a gas feed here. For a gas-containing design, inlet/STP apparent time is a reporting convention and must not be presented as measured in-channel contact time.
+
+Table S19. Archived DPDTC screening parameters shown by the GUI; not a validated synthesis procedure.
+
+QuantityStage 1Stage 2ReactionThioester formationAmide formationReactor volume / material5 mL / PFA5 mL / PFATubing ID0.762 mm1.016 mmCumulative liquid flow0.298142 mL/min0.372678 mL/minNew feed at this stageStream A: 0.298142 mL/minStream B: 0.074536 mL/minNominal liquid time16.7705 min13.4164 minTemperature80 C80 CRecorded pressure2 bar gauge2 bar gaugeGas feedNoneNone
+
+The approximately 30.19 min combined nominal time is a proposed screen, not a measured conversion time. The source batch used 95 C; the selected profile restricts the chosen PFA coils to 80 C. The UI reports LOW confidence and requires verification of the generic interstage mixer. Neither a passing contract nor council agreement establishes that reduced temperature and shorter holds preserve yield. The pump pictograms are generic: equipment names and identifiers specify the peristaltic and HPLC pumps and take precedence over the icon's internal syringe-pump label.
+
+(a) Process topology
+
+
+
+(b) Stage and feed tables
+
+
+
+Figure S15. Archived-run output: (a) topology redrawn with a horizontal main process path, right-angle interstage feed and generic pump symbols; equipment names and numerical labels are retained from the archived graph; (b) the original GUI process-summary screenshot, including the interstage feed and cumulative Stage 2 flow. Both panels describe the same archived result. Numerical values are also transcribed in Table S19. The generic T-mixer remains a disclosed verification requirement. This is a software screening output, not a wet-lab validated protocol. Original interface captures and graph files remain in the companion evidence.
+
+Examples of critical findings and evaluator limitations
+
+Table S20 gives traceable examples from retained one-shot and FlowPilot outcomes. They were selected to illustrate different failure mechanisms, not sampled to estimate a failure rate. A judge flag, a source-supported design inconsistency, and a deterministic software block are different observations. Multiple criteria can flag the same underlying defect. The archived benchmark scores and Figure S9 flag counts are unchanged; the arithmetic recheck below is an explicit post hoc audit, not a silent rescore.
+
+Table S20. Concrete archived issues and one checked evaluator false positive.
+
+Record / criterionObserved issueInterpretationOne-shot Opus 4.6; hydrogenolysis repeat 01; N2-D1FC65D8; UO-05The procedure places a vented gas-liquid separator before the sole pressure-defining BPR while describing a pressurized reactor. The original post-reactor instructions confirm this order.One judge flagged UO-05. The stated pressure-control and venting arrangement is incomplete as written; component pressure ratings alone do not resolve the topology.One-shot Opus 4.6; hydrogenolysis repeat 02; N2-B6923FF7; UO-07The main parameter reports 20.27 min, while its own basis text gives 3.0 mL / 0.1 mL/min = 30.0 min empty-bed time and a different holdup time.Two judges flagged UO-07. The claimed basis and serialized value disagree. Distinct time definitions must not be collapsed into one unlabeled value.FlowPilot Qwen3.6-27B; CuAAC repeat 03; N2-110E4388; UO-02/03/11The final preparation instruction charges 0.25 mmol Cu/C into a 10 mL feed even though the catalyst is also assigned to a packed-bed cartridge. The saved operating_procedure confirms the instruction.One judge raised three criterion flags for one solids-assignment defect. The feed-preparation compiler and heterogeneous-catalyst placement must agree; passing geometry checks is insufficient.FlowPilot Opus 4.6; oxidation repeat 01; archived worked-run transcriptThe archived council summary reports no usable candidates and a calculator center-point fallback. The raw narrative and final structured conditions then differ (companion archive).Operational fallback and artifact synchronization are separate limitations. A completed pipeline does not establish successful council selection or consistency of every report artifact.FlowPilot GPT-4o; oxidation repeat 03; N2-E85D424E; UO-08One Qwen judge called 3.3158 sccm versus 3.3158 mL/min at STP a factor-of-1000 defect.This specific allegation is incorrect. These volumetric units are equal at the same standard conditions. The arithmetic gives approximately 1 O2 equivalent, not 0.001. The historical flag remains disclosed as a judge false positive.
+
+Unit audit for N2-E85D424E: oxygen feed = (3.3158 mL/min air x 0.21) / (22.414 mL/mmol) = 0.0310662 mmol/min O2. Dividing by the recorded substrate flow of 0.031068 mmol/min gives 0.99994 equivalent. The same reference temperature and pressure must be used for both volume units. This checks the stated thousand-fold allegation only; it does not validate all other aspects of that design. It also explains why the heatmap should be described as judge-reported critical flags rather than confirmed error counts.
+
+Recorded council discussion and disagreement
+
+Figure S16 shows the actual Council tab for the same DPDTC run. Four domain reviewers evaluate the candidate set, after which a Skeptic and Chief record cross-domain assessment and selection. Table S21 reproduces exact saved excerpts showing a disagreement about candidate 6 and the eventual selection of candidate 1. These are explicit model-authored review outputs, not a reconstruction of hidden model reasoning and not a fabricated dialogue. The GUI groups domain reviews and synthesis into two display rounds; this must not be interpreted as two complete candidate-generation/revision cycles.
+
+
+
+Figure S16. Actual Council tab with expandable domain, Skeptic and Chief records. WARNING states are retained. Display rounds organize the recorded contributions and are not evidence of independent physical validation or two full optimization cycles. Exact source excerpts and the complete machine-readable discussion accompany Table S21.
+
+Table S21. Exact archived council excerpts; statements are model assessments, not endorsed chemical facts.
+
+Speaker and decisionVerbatim recorded assessmentDrChemistryCandidate 6rejectS1 16.8 min / S2 6.7 min; total 23.5 min. S2 at 6.7 min is the shortest Stage 2 across all candidates. With uncharacterized kinetics, this risks incomplete amide coupling entering collection. Throughput gain does not justify this yield risk for a screening experiment.DrKineticsCandidate 6acceptableτ1=16.8 min (10 mL coil), τ2=6.7 min; total 23.5 min. High feed throughput. Tests whether Stage 2 aminolysis can complete in <7 min at 80 °C. Vapourtec SF-10 at 0.596 mL/min well within range. Stage 2 exposure very short.DrSafetyCandidate 6acceptableS1 16.8 min in 10 mL coil / S2 6.7 min, total ~23 min. High feed throughput (0.596 mL/min S1). Very short S2 hold is the primary risk; tests whether aminolysis is fast once thioester is formed.SkepticConflicting domain preferencesNo hard veto on this disagreementDrChemistry rejected candidates 6 and 12; DrKinetics and DrSafety accepted both as valid exploratory boundary points. DrFluidics accepted both. No hard violation was identified by any reviewer for either candidate. The rejections by DrChemistry are chemical-risk preferences, not hard violations. No veto is warranted on that basis alone.ChiefFinal candidate selectionCandidate 1Candidate 1 delivers the highest feed throughput among candidates whose total residence time is at or below the 60-minute batch cycle (including cooling), at 30.2 min total with both stages halved symmetrically. It uses two available 5 mL PFA coils within all hard constraints, employs the SF-10 and R2C+ pumps well within their operating ranges, and the 2 bar BPR is available. The symmetric 16.8/13.4 min allocation explores whether both stages can be shortened simultaneously—the most direct test of the throughput objective—without arbitrarily assuming one stage is rate-limiting. No hard violations exist.
+
+The discussion exposes uncertainty rather than proving the selected timing is correct. The Chief's phrase '60-minute batch cycle (including cooling)' is itself inconsistent with the source's two 30 min heated holds plus 5-10 min cooling. The quoted statement is preserved as an audit example. The saved Skeptic record also assumes a connector can serve an interstage T-junction; the actual port count and compatible mixing hardware must be verified rather than inferred from agreement among agents. No laboratory validation follows from these recorded assessments.

@@ -1,0 +1,394 @@
+[
+  {
+    "paragraph_id": "P01",
+    "section": "Abstract",
+    "docx_paragraph_index": 6,
+    "outline": "Overview: research assistant, architecture, benchmark and experimental evidence.",
+    "source_text": "Designing a continuous-flow synthesis requires chemical objectives, transport, operating conditions and available equipment to be considered together. Here we present FlowPilot, an agentic research assistant that supports this end-to-end design task from a batch protocol and the researcher’s laboratory constraints. Standardized dialogue establishes the design brief; chemistry-aware retrieval and a handbook-derived rule base inform candidate generation; and a specialist council reviews alternatives alongside deterministic engineering calculations. The resulting process configuration connects feed compositions, stage conditions, equipment assignments and an inspectable topology, with records retained for experimental feedback. Across three chemistry cases, five generator models and three repeats, a matched architecture comparison produced 90 designs evaluated against 14 fixed criteria by separate LLM judges. Mean benchmark scores increased from 0.794 for one-shot generation to 0.917 for FlowPilot, while judge-reported critical flags decreased from 98 to 4. Laboratory implementation of photoredox Giese addition/oxidation and telescoped DPDTC-mediated amidation gave 97–98% and 68–86% NMR yields, respectively. Together, these studies demonstrate how coordinated chemical reasoning, quantitative checks and equipment-aware design can support researcher-led development of connected flow processes."
+  },
+  {
+    "paragraph_id": "P02",
+    "section": "Introduction",
+    "docx_paragraph_index": 8,
+    "outline": "Motivation: flow opportunities require laboratory-specific process design.",
+    "source_text": "Continuous-flow chemistry allows synthesis to be organized around controlled mixing, heating, irradiation and contact between phases.1-4 These capabilities have broadened access to photochemical, electrochemical and gas–liquid transformations and enabled routes to pharmaceutical intermediates.5-10 Connecting reaction stages can further reduce intermediate handling and support multistep or on-demand production.11-14 For the researcher, however, the opportunity is accompanied by a design problem: choosing an arrangement of streams, reactors and controls that realizes the chemistry with the instruments actually available.15-16 A batch protocol establishes a starting point for this task, but does not specify the continuous process that should be built."
+  },
+  {
+    "paragraph_id": "P03",
+    "section": "Introduction",
+    "docx_paragraph_index": 9,
+    "outline": "Problem: chemistry, stage conditions and equipment decisions are coupled.",
+    "source_text": "The difficulty lies in the coupling between decisions. Reactor geometry affects irradiation, heat and mass transfer, and pressure loss, while adding a reagent between reactors changes both composition and downstream flow.17-21 Gas delivery couples stoichiometry to phase behavior and makes the reference conditions used for volumetric flow and residence time consequential.22 In a telescoped synthesis, incomplete conversion upstream also changes the material available for the next transformation. Integrated apixaban synthesis and photochemical routes to sartan intermediates illustrate the coordination required across reaction stages and hardware.23-24 An effective design assistant must therefore reason about the connected process, rather than recommend each operating parameter in isolation."
+  },
+  {
+    "paragraph_id": "P04",
+    "section": "Introduction",
+    "docx_paragraph_index": 10,
+    "outline": "Context: planning, simulation and optimization support different development tasks.",
+    "source_text": "Digital methods address complementary parts of this challenge. Computer-aided synthesis planning identifies reaction routes,25-27 process simulation evaluates connected unit operations,28-29 and Bayesian or active-learning methods guide experimental optimization.30-34 AI-informed robotic flow synthesis links planning to physical execution,35 while modular platforms such as RoboChem-Flex and LLM-assisted UV-visible auto-reactometry extend automated optimization and screening.36-37 Alongside these developments, researchers need support in formulating the initial process itself: specifying feeds, selecting compatible equipment and defining a defensible operating region before an experimental campaign can refine it."
+  },
+  {
+    "paragraph_id": "P05",
+    "section": "Introduction",
+    "docx_paragraph_index": 11,
+    "outline": "Context: scientific agents connect researcher intent to tools and operations.",
+    "source_text": "Large language models (LLMs) offer a way to connect that design intent to specialist tools through natural-language interaction. ChemCrow and Coscientist combine chemical reasoning with tool use and experimentation, whereas El Agente coordinates computational chemistry workflows.38-40 Co-Scientist and Paper2Agent extend collaborative scientific reasoning and the reuse of computational methods.41-42 Closer to laboratory execution, ACRA links literature procedures to executable chemical descriptions and available hardware; AutoLabs combines clarification and self-correction for liquid handling; and PRISM incorporates simulation feedback before robotic execution.43-45 These studies establish the value of agents as coordinators of scientific work, not merely generators of chemical text."
+  },
+  {
+    "paragraph_id": "P06",
+    "section": "Introduction",
+    "docx_paragraph_index": 12,
+    "outline": "Prior work: existing flow and process agents define the comparison.",
+    "source_text": "Flow chemistry and process development are already part of this emerging scope. Chat-microreactor uses literature-derived information for flow-pattern prediction and microreactor design guidance,46 and SapoMind combines recommendations with experimental optimization of continuous-flow lanolin saponification.47 LLM-RDF addresses end-to-end synthesis development through agents for literature search, experimental design, execution, analysis and interpretation, including reactor-design tasks.48 Multi-agent process-design systems provide complementary capabilities: Tian et al. generate topologies and parameters for simulation flowsheets,49 and the CeProAgents preprint integrates knowledge extraction, conceptual design and parameter optimization.50 Together, these studies show how chemical agents increasingly connect reactor and process design to broader synthesis-development workflows."
+  },
+  {
+    "paragraph_id": "P07",
+    "section": "Introduction",
+    "docx_paragraph_index": 13,
+    "outline": "Design requirement: unite chemistry, quantitative conditions and available hardware.",
+    "source_text": "The relevant question is how such capabilities are organized around a laboratory-specific process. The CAAF preprint explores deterministic constraint checking and candidate revision, including a constructed flow-reactor problem,51 while El Agente Gráfico and La Agente Óptima investigate structured scientific execution and agent-supervised optimization.52-53 For researcher-led flow development, this direction calls for a common representation linking the intended chemistry, the quantitative conditions of each stage and the equipment that can realize them. It should also allow the researcher to express priorities, inspect competing designs and return experimental observations without losing the assumptions behind an earlier proposal. The scope and reported validation of directly related systems are compared in Table S1."
+  },
+  {
+    "paragraph_id": "P08",
+    "section": "Introduction",
+    "docx_paragraph_index": 14,
+    "outline": "Contribution: FlowPilot supports the researcher through end-to-end process design.",
+    "source_text": "Here we introduce FlowPilot as an agentic research assistant for end-to-end flow-process design. The researcher supplies a batch procedure, available instruments and a design objective; standardized follow-up questions establish missing requirements, experimental evidence and hypotheses. FlowPilot then develops and reviews alternative connected configurations using chemistry-aware retrieval, handbook-derived engineering knowledge, quantitative calculations and a specialist council. Its design task extends from deciding where reagents and gases enter to selecting reactor conditions and assigning equipment. End-to-end denotes this integrated design workflow, with the researcher retaining responsibility for experimental implementation and interpretation."
+  },
+  {
+    "paragraph_id": "P09",
+    "section": "Introduction",
+    "docx_paragraph_index": 15,
+    "outline": "Mechanism: retrieval, council and calculations share one inspectable design record.",
+    "source_text": "The organizing principle is that chemical interpretation, engineering consistency and equipment feasibility must inform one another. Retrieved precedents guide candidate choices but do not establish transferable kinetics; engineering tools recalculate dependent quantities; and council specialists examine chemical, kinetic, fluidic and safety implications before selection. A shared final record connects stage and stream conditions to the equipment list and diagram, making the proposal available for inspection and subsequent revision. This structure is important because fluent chemical reasoning can coexist with elementary errors or overconfidence,54 and model-guided optimization can still produce invalid suggestions within a defined search space.55 For a design assistant, success must therefore be assessed at the level of the complete proposed process."
+  },
+  {
+    "paragraph_id": "P10",
+    "section": "Introduction",
+    "docx_paragraph_index": 16,
+    "outline": "Evidence roadmap: retrieval, architecture comparison and two connected reactions.",
+    "source_text": "We evaluate FlowPilot at three complementary levels: the alignment of retrieved precedents with the chemistry plan, the quality of delivered designs relative to matched one-shot generation, and the implementation of connected processes in the laboratory. The architecture comparison uses several model families, a fixed outcome-based rubric and separate evaluator calls; internal ablations examine the contribution of council review and candidate exploration. Two experimental sequences then probe distinct design challenges. Photoredox Giese addition followed by oxidation requires a controlled change from an oxygen-free to an oxygen-fed environment, whereas DPDTC-mediated amidation requires coordinated activation, interstage reagent addition and downstream conversion without intermediate isolation. Together, these assessments examine whether the proposed architecture supports coherent process development, beyond producing plausible reaction instructions."
+  },
+  {
+    "paragraph_id": "P11",
+    "section": "Results: Architecture and Knowledge (Figures 1-3)",
+    "docx_paragraph_index": 19,
+    "outline": "Define the problem: intake connects chemistry, objectives and laboratory constraints.",
+    "source_text": "FlowPilot begins by making the researcher’s process-development problem explicit (Figure 1). A protocol supplies chemical facts, whereas the objective, inventory and follow-up answers define what the proposed process should achieve and what the laboratory can support. The confirmed input package keeps measured evidence separate from hypotheses and missing information. The upstream chemistry module identifies the transformations, stage boundaries, incompatible feeds and sensitivities that shape the design space. Literature retrieval and handbook-derived knowledge then inform an initial quantitative proposal. In this way, a desired chemical outcome is developed into a set of connected operations rather than treated as a request to rewrite the batch procedure."
+  },
+  {
+    "paragraph_id": "P12",
+    "section": "Results: Architecture and Knowledge (Figures 1-3)",
+    "docx_paragraph_index": 20,
+    "outline": "Coordinate decisions: specialists review alternatives and recalculate revised conditions.",
+    "source_text": "The council evaluates alternatives where those operations interact (Figure 1d). A Designer proposes candidate configurations; Chemistry, Kinetics, Fluidics and Safety specialists examine transformation fidelity, reaction-time plausibility, transport, hardware and hazards. The Skeptic examines contradictions and unsupported assumptions, and the Orchestrator selects among the reviewed candidates. A shorter residence time, for example, is not considered independently of the reactor volume, achievable feed rate or chemical evidence supporting that exposure. When operating choices change, deterministic calculations update the dependent quantities before the revised candidate is assessed. The review record retains disagreement, rejected alternatives and selection rationales, allowing the researcher to distinguish a constraint-driven decision from an exploratory hypothesis."
+  },
+  {
+    "paragraph_id": "P13",
+    "section": "Results: Architecture and Knowledge (Figures 1-3)",
+    "docx_paragraph_index": 21,
+    "outline": "Realize the proposal: compatible equipment, stage data and topology agree.",
+    "source_text": "Equipment assignment is part of this design process rather than a final list appended to it. Available pump channels, reactor dimensions, thermal limits and compatible irradiation modules constrain which operating points can be realized. The selected proposal is reconciled into a common final record containing the streams, stages, equipment assignments and process graph. Numerical views and the diagram derive from that record; unresolved requirements and earlier calculations remain identifiable as diagnostics. This links what the researcher would assemble to the quantities used to assess it, and preserves a basis for incorporating later experimental observations. Figures S1–S2 and Tables S2–S3 describe the data contracts and provenance mechanisms."
+  },
+  {
+    "paragraph_id": "P14",
+    "section": "Results: Architecture and Knowledge (Figures 1-3)",
+    "docx_paragraph_index": 25,
+    "outline": "Ground chemical choices: corpus coverage and annotated process precedents.",
+    "source_text": "Candidate design requires both chemical precedents and general engineering knowledge. FlowPilot’s curated literature resource contains 464 classified records spanning thermal synthesis, photoredox catalysis, heterogeneous photocatalysis, cross-coupling, oxidation/reduction and other reaction classes (Figure 2). The recorded hardware includes capillary and coil reactors, microreactors, photoreactors and packed beds, with fluoropolymers prominent among reported tubing materials. Explicit inlet-stream counts are available for 154 processes; two- and three-stream configurations account for 91 and 30 records, respectively. These annotations help relate a chemical plan to alternative ways of supplying reagents and arranging reactors, without prescribing a default topology or treating an absent annotation as evidence that an operation is unnecessary."
+  },
+  {
+    "paragraph_id": "P15",
+    "section": "Results: Architecture and Knowledge (Figures 1-3)",
+    "docx_paragraph_index": 26,
+    "outline": "Ground engineering choices: rule coverage, applicability and calculation boundaries.",
+    "source_text": "The complementary handbook-derived resource contains 2,537 structured rules covering reactor design, heat transfer, catalysts, residence time, photochemistry, materials, scale-up, pressure, mixing and safety (Figure 2e–f). These rules provide engineering context when a close chemical analogue is unavailable or when a candidate must be evaluated beyond reaction identity. Coverage is uneven: heat-transfer rules are densely associated with thermal synthesis and cross-coupling, whereas photochemistry rules concentrate in photoredox and photocycloaddition classes. The rule store therefore informs interpretation and review rather than functioning as a universally validated predictive model; only the checks implemented in the calculation layer act as deterministic constraints. Figures S3–S4 and Tables S4–S5 report the frozen corpus and computed rule-base coverage."
+  },
+  {
+    "paragraph_id": "P16",
+    "section": "Results: Architecture and Knowledge (Figures 1-3)",
+    "docx_paragraph_index": 30,
+    "outline": "Retrieve evidence: chemistry-aware queries and progressively relaxed search filters.",
+    "source_text": "A broad corpus is useful only if the retrieved records reflect the process under consideration. FlowPilot therefore enriches the search with reaction class, mechanism, catalyst family, solvent and wavelength from the chemistry plan (Figure 3a). Search progresses from mechanism- and phase-filtered paired records to relaxed filters and, when necessary, the full corpus; field-aware ranking then orders the candidates (Figure S5; Table S6). This allows the assistant to seek closely related evidence while retaining a route to broader analogies when exact matches are sparse. We examined the contribution of query enrichment and metadata reranking in separate retrospective analyses using stored corpus embeddings, rather than treating corpus size alone as evidence of retrieval quality."
+  },
+  {
+    "paragraph_id": "P17",
+    "section": "Results: Architecture and Knowledge (Figures 1-3)",
+    "docx_paragraph_index": 31,
+    "outline": "Measure search changes: enriched queries and observed reranking activity.",
+    "source_text": "In the two query-enrichment examples, chemically specific term counts increased from 7 to 15 and from 7 to 14 (Figure 3b). A separate rank analysis evaluated 20 neighbors for each of 80 corpus queries, giving 1,600 query–result pairs. Adding the metadata score changed 401 ranks (25.1%) relative to embedding-only ordering. These changes quantify reranking activity, not an independent measure of reaction relevance."
+  },
+  {
+    "paragraph_id": "P18",
+    "section": "Results: Architecture and Knowledge (Figures 1-3)",
+    "docx_paragraph_index": 32,
+    "outline": "Interpret retrieval: better metadata alignment is not transferable kinetic evidence.",
+    "source_text": "In a separate family-alignment analysis, the mean proportion of top-five records sharing the query’s recorded catalyst family increased from 40.0% to 95.0% for iridium, 42.7% to 90.7% for organic dyes, 77.3% to 94.7% for ruthenium, 87.1% to 98.6% for TiO2, and 45.0% to 60.0% for ZnO (Figure 3c); the corresponding query counts were 8, 15, 15, 14 and 4. The effect was therefore not uniform across families, but the ranking more often retained the chemistry descriptors requested by the plan. Because catalyst-family metadata contribute to the score, this measures alignment with those descriptors, not independent proof that reaction times or yields transfer between systems. Retrieved records remain evidence for council assessment rather than ready-made operating instructions. Figure 3d illustrates the ranking change; Figures S5–S6 and Tables S6–S7 give the analyses and their scope."
+  },
+  {
+    "paragraph_id": "P19",
+    "section": "Results: Architecture Comparison and Experimental Transition (Figure 4)",
+    "docx_paragraph_index": 36,
+    "outline": "Test architecture: matched one-shot comparisons across three complementary chemistries.",
+    "source_text": "We next asked whether coordinating these capabilities improves the delivered process design beyond what the same LLM can produce in one response (Figure 4a). Three cases exposed different design demands: Cu/C-catalyzed azide–alkyne cycloaddition (CuAAC) required catalyst placement and pressurized liquid operation; photochemical oxidation required irradiation and gas bookkeeping; and hydrogenolysis combined a liquid feed, hydrogen and a solid catalyst. For each case, one-shot generation and FlowPilot received the same protocol, objective, authoritative inventory and requested final-output structure. The one-shot baseline thus received a complete design brief, not merely a short chemistry question. Source records were excluded from FlowPilot retrieval, although this does not establish their absence from model pretraining."
+  },
+  {
+    "paragraph_id": "P20",
+    "section": "Results: Architecture Comparison and Experimental Transition (Figure 4)",
+    "docx_paragraph_index": 37,
+    "outline": "Define assessment: model diversity, repeats, fixed criteria and three judges.",
+    "source_text": "The five-model comparison included Qwen3.6-27B and Qwen3.8-27B alongside GPT-4o, Claude Sonnet 4.6 and Claude Opus 4.6. This spans locally served 27B models and commercial model families, allowing the architecture effect to be examined separately from choosing a particular generator. Each model was tested in both architectures for three repeats of each case, giving 90 outcomes. Three separate Qwen, OpenAI and Claude evaluator calls assessed each normalized final design using the same 14 criteria, covering chemical fidelity, feed chemistry, numerical and topology consistency, inventory, physical plausibility, operating procedures and uncertainty. The rubric rewards the delivered design rather than the presence of agents or a long discussion. Applicable integer ratings from 0 to 4 were averaged with equal judge and criterion weights and divided by four; critical flags were retained separately. Tables S8–S9 define the rubric, and Table S10 specifies the complementary module-ablation screen."
+  },
+  {
+    "paragraph_id": "P21",
+    "section": "Results: Architecture Comparison and Experimental Transition (Figure 4)",
+    "docx_paragraph_index": 38,
+    "outline": "Explain fairness: matched information, unequal computation and repeat-level statistics.",
+    "source_text": "The comparison holds task information constant, not computation: FlowPilot can retrieve evidence, call tools and revise candidates, whereas one-shot generation uses one model call. It therefore tests the utility of the complete design architecture, not whether agent dialogue alone causes an improvement at equal token cost. For each model and architecture, the three case scores were averaged within each repeat; the reported mean and sample standard deviation summarize those three repeat-level values. Generator and architecture labels were removed from evaluator packets, but judging remained an LLM-based assessment, with shared model families and potentially recognizable output styles. The exact inputs, evaluator configuration, applicability rules and repeat structure are retained in ESI Section 4 and Methods."
+  },
+  {
+    "paragraph_id": "P22",
+    "section": "Results: Architecture Comparison and Experimental Transition (Figure 4)",
+    "docx_paragraph_index": 41,
+    "outline": "Interpret gains: model-dependent improvement and competitive local-model designs.",
+    "source_text": "FlowPilot increased the mean score for each of the five generators (Figure 4b; Table S11). Across this cohort, the architecture means were 0.917 for FlowPilot and 0.794 for one-shot generation. The gain was largest for GPT-4o (+0.226), followed by Qwen3.8-27B (+0.168) and Qwen3.6-27B (+0.139); Claude Sonnet 4.6 and Opus 4.6 showed smaller gains of +0.034 and +0.049. The one-shot means spanned 0.684–0.890, whereas FlowPilot means occupied the narrower range of 0.904–0.932. This pattern suggests that the design architecture was particularly useful when direct generation left more requirements unresolved. The two 27B models within FlowPilot also exceeded the commercial one-shot means in this cohort, supporting the practical value of workflow structure without establishing that a smaller model is intrinsically more capable. The smaller Claude gains are equally informative: stronger direct outputs leave less room for improvement. Figure 4 additionally retains an archived GPT-5.4 comparison, which is not pooled into the five-model summaries."
+  },
+  {
+    "paragraph_id": "P23",
+    "section": "Results: Architecture Comparison and Experimental Transition (Figure 4)",
+    "docx_paragraph_index": 42,
+    "outline": "Assess defects: fewer judge flags, distinguished from confirmed physical failures.",
+    "source_text": "The critical-flag analysis provides a complementary view of these averages (Figure 4c; Table S12). Judges recorded 98 flags across 45 one-shot outcomes and 4 across 45 FlowPilot outcomes; 18 and 43 outcomes, respectively, had no flag. Thus the higher mean score was accompanied by fewer flagged defects, rather than only more complete descriptions. These counts represent evaluator findings: several flags can refer to one underlying problem, and a flag is not an independently confirmed physical failure. Accordingly, the computational results support improved design quality under the fixed assessment, not a corresponding numerical probability of successful or safe experimental execution."
+  },
+  {
+    "paragraph_id": "P24",
+    "section": "Results: Architecture Comparison and Experimental Transition (Figure 4)",
+    "docx_paragraph_index": 43,
+    "outline": "Locate benefits: process integration, chemistry-specific effects and generation costs.",
+    "source_text": "The case-specific analysis helps locate the improvement (Figure S7). Hydrogenolysis showed the largest mean gain for both Qwen models and for Opus 4.6, consistent with the demands of coordinating gas delivery, catalyst contact and pressure control. At criterion level, the displayed gains in executable topology were positive for every model–case mean, whereas transformation-fidelity changes were small in comparison (Figure S8). This pattern points to process integration, not simply recognition of the named reaction, as an important source of the observed benefit. Not every criterion improved, and the run-level flag map retains the remaining failures (Figure S9). Resource use must also be considered: Figure S10 reports tokens, runtime and generation cost, while Figure 4e relates score to cost under the archived price schedule. The Qwen configurations offered higher score-per-generation-cost ratios under that schedule; this is a deployment-relevant trade-off, not a measurement of local hardware costs or experimental productivity. Table S13 defines the numerical closure checks underlying the engineering assessment."
+  },
+  {
+    "paragraph_id": "P25",
+    "section": "Results: Architecture Comparison and Experimental Transition (Figure 4)",
+    "docx_paragraph_index": 44,
+    "outline": "Interpret ablations: council matters; additional refinement is not uniformly beneficial.",
+    "source_text": "To examine which parts of the architecture contributed, we separately tested 15 Qwen3.8-27B configurations over the same three cases (Figure 4d; Table S10). Removing the council reduced the mean score from 0.928 to 0.670, below the 0.743 one-shot result in this screen. An initial staged workflow without cross-domain review was therefore not sufficient to outperform direct generation. Removing individual Chemistry, Fluidics, Safety or Kinetics reviewers produced smaller changes, with means between 0.902 and 0.924. However, one-pass council review (0.932) and omission of preselection refinement (0.935) slightly exceeded the full configuration. The evidence favors coordinated review over the absence of review, but not the assumption that every extra agent call or revision cycle is beneficial. Because each condition was generated once per chemistry, these standard deviations describe between-case variation; they do not establish a statistically resolved ranking of individual modules."
+  },
+  {
+    "paragraph_id": "P26",
+    "section": "Results: Architecture Comparison and Experimental Transition (Figure 4)",
+    "docx_paragraph_index": 45,
+    "outline": "Assess exploration: candidate budgets, engineering profiles and selection variability.",
+    "source_text": "A separate historical study examined council configuration and candidate budgets for integrated isoxazole synthesis56 (Figure S11; Tables S14–S17). Across five repeats, the normalized engineering radar-area score changed from 0.31 ± 0.03 before council review to 0.48 ± 0.23 afterward. The higher mean and larger dispersion show why candidate exploration should be assessed together with selection consistency, rather than by the best individual run. This engineering-profile statistic is distinct from the fixed-criterion judge score; the archived model matrix, revision counts and metric definitions allow the two analyses to be interpreted separately."
+  },
+  {
+    "paragraph_id": "P27",
+    "section": "Results: Architecture Comparison and Experimental Transition (Figure 4)",
+    "docx_paragraph_index": 46,
+    "outline": "Connect to practice: GUI provenance, inspectable disagreements and remaining defects.",
+    "source_text": "These assessments also need to remain useful to the researcher making an experimental decision. The interface retains the original protocol and answered follow-up questions (Figure S12), the categorized inventory and constraints (Figure S13; Table S18), and linked stage conditions, topology and council review (Figure S14; Table S19). The audit examples include pressure-control and residence-time inconsistencies in one-shot designs, a catalyst-placement defect in a FlowPilot output, and an evaluator false positive (Table S20). Recorded council exchanges show how conflicting assessments and candidate selection can be inspected rather than hidden behind a final recommendation (Table S21). This connection between design, evidence and review provides the starting point for testing the proposed process in the laboratory."
+  },
+  {
+    "paragraph_id": "P28",
+    "section": "Results: Architecture Comparison and Experimental Transition (Figure 4)",
+    "docx_paragraph_index": 47,
+    "outline": "Introduce experiments: three priority sets, two realized configurations per chemistry.",
+    "source_text": "We next examined two connected-stage reactions that were separate from the architecture-benchmark cases. The purpose was to assess how the design workflow accommodates chemical sequence, equipment and researcher priorities when preparing an experiment, and what becomes apparent only after implementation. For each chemistry, three standardized response sets retained the same batch protocol and laboratory inventory while varying the design brief. Set 1 prioritized integrated final yield without unnecessarily long residence times; Set 2 emphasized high conversion with the shortest reasonably justified starting times; and Set 3 gave greater emphasis to throughput, compactness and overall operating balance. These were related design priorities, not three different reactions or replicate experiments. Full objectives, hypotheses and fixed-ID answers are reproduced in ESI Section 8. Some sets converged to the same implemented conditions, giving two distinct reported operating points for each chemistry. The following analysis connects those conditions to chemical outcomes, while distinguishing the initial proposal from changes made during implementation."
+  },
+  {
+    "paragraph_id": "P29",
+    "section": "Results: Connected-Process Experiments (Figures 5-6)",
+    "docx_paragraph_index": 49,
+    "outline": "Giese purpose: separate radical addition from oxygen-dependent sulfoxide formation.",
+    "source_text": "The first case couples photoredox carbon–carbon bond formation to selective oxidation of the resulting sulfide (Figure 5). Photoinduced electron transfer generates an alpha-thiomethyl radical from an alpha-silyl sulfide; addition to acrylonitrile forms the sulfide intermediate, which is then oxidized to sulfoxide 4a.57 The batch procedure separates these transformations in time, with 4 h under argon followed by 6 h exposed to air. The connected flow design instead separates the oxygen-free and oxygen-fed environments spatially. All three response sets therefore required oxygen introduction only at the second-stage inlet and at least two equivalents relative to the substrate. The process-design question was how to combine sufficient upstream sulfide formation with downstream oxygen delivery, irradiation and gas–liquid operation, not simply how far the batch time could be shortened."
+  },
+  {
+    "paragraph_id": "P30",
+    "section": "Results: Connected-Process Experiments (Figures 5-6)",
+    "docx_paragraph_index": 50,
+    "outline": "Giese realization: compatible irradiation, feeds and explicitly defined time indices.",
+    "source_text": "We implemented this arrangement using a 2 or 5 mL PFA coil in a Vapourtec UV-150 module followed by a separately illuminated 20 mL FEP coil, both at 25 ± 1 °C. The reactor–light pairing preserved the compatibility of the first-stage module while allowing the second coil to use its own irradiation source. A 2.0 mL sample loop introduced substrate 1a (0.100 M), acrylonitrile (0.200 M) and iridium photocatalyst (0.500 mM) into the carrier stream at 0.020 mL min−1. The first-stage nominal liquid times were consequently 100 and 250 min. Pure oxygen entered at the interstage mixer at a controller setting of 0.090 mL min−1. Under the proposal’s STP convention (273.15 K, 1 atm), this corresponds to 0.00402 mmol min−1 of oxygen, or 2.01 equivalents against the nominal substrate feed. The displayed second-stage index of 181.82 min uses inlet-reference gas volume, 20/(0.020 + 0.090); it is not the residence time at reactor pressure. ESI Section 9 distinguishes these nominal calculations from the experimental gas-reference and sample-collection metadata."
+  },
+  {
+    "paragraph_id": "P31",
+    "section": "Results: Connected-Process Experiments (Figures 5-6)",
+    "docx_paragraph_index": 51,
+    "outline": "Giese learning: backflow feedback, revised oxygen delivery and measured yields.",
+    "source_text": "Implementation revealed an additional constraint that stoichiometry alone did not capture. An initial trial with pure oxygen at 0.43 mL min−1 and liquid at 0.020 mL min−1 showed gas backflow toward the first reactor. We specified pure oxygen in the revised design inputs and reduced the gas setting to 0.090 mL min−1; the gas choice was researcher-directed, not an autonomous discovery by the model. The proposal included a gas-line check valve, although that component alone does not establish protection of the upstream liquid branch. With a 7 bar cartridge BPR and recorded system pressures of 5.1–5.6 bar, the implemented 2 mL first-stage configuration, reported jointly for Sets 1/3, gave 97% yield, whereas the 5 mL configuration associated with Set 2 gave 98%. These are NMR yields, compared contextually with the published flow yield of 90%.57 Both operating points supported the connected transformation; the one-percentage-point difference does not resolve a residence-time benefit without replicates. Table S22 and Figures S15–S16 document the conditions, irradiation and apparatus. The case demonstrates why spatial reaction design, quantitative gas delivery and observations from the assembled apparatus must be considered together."
+  },
+  {
+    "paragraph_id": "P32",
+    "section": "Results: Connected-Process Experiments (Figures 5-6)",
+    "docx_paragraph_index": 55,
+    "outline": "Amidation purpose: couple thioester formation, amine addition and downstream conversion.",
+    "source_text": "The second case tests a different form of stage coupling: formation and downstream consumption of a reactive intermediate (Figure 6). 3-Methyl-4-nitrobenzoic acid is activated by 2,2′-dipyridyldithiocarbonate (DPDTC) in the presence of DMAP to form a 2-pyridyl thioester; benzylamine then undergoes aminolysis to give the amide.58 The batch procedure uses two 30 min periods at 95 °C, separated by cooling and amine addition. For continuous operation, FlowPilot must distinguish a necessary chemical sequence from a batch-handling operation: benzylamine must enter after activation, whereas cooling need not be reproduced automatically if direct transfer can be implemented. The three response sets emphasized integrated yield, conversion-focused timing and throughput, respectively, while preserving this chemistry and the intended feed stoichiometry (ESI Section 8)."
+  },
+  {
+    "paragraph_id": "P33",
+    "section": "Results: Connected-Process Experiments (Figures 5-6)",
+    "docx_paragraph_index": 56,
+    "outline": "Amidation realization: preserve stoichiometry and account for cumulative downstream flow.",
+    "source_text": "We implemented separate activation and amine feeds using two channels of the same Vapourtec E-series system, with direct interstage mixing and no intermediate isolation. Feed A contained acid (0.500 M), DPDTC (0.525 M) and DMAP (0.0500 M) in 2-MeTHF; Feed B contained benzylamine (2.10 M). For Set 1, liquid rates of 0.160 and 0.0400 mL min−1 delivered nominal acid and amine molar flows of 0.0800 and 0.0840 mmol min−1, preserving 1.05 equivalents of amine. Two 5 mL ETFE coils gave nominal times of 31.25 and 25.00 min, because the downstream coil receives both liquid feeds. This distinction is central to the design: specifying two reactor times without updating the downstream material balance would not preserve the proposed stoichiometry and exposure. The implementation used a 2.0 mL sample loop for Feed A, a 95 °C water bath for both coils and a 7 bar cartridge BPR; recorded pressure for Set 1 was 5.2–5.3 bar."
+  },
+  {
+    "paragraph_id": "P34",
+    "section": "Results: Connected-Process Experiments (Figures 5-6)",
+    "docx_paragraph_index": 57,
+    "outline": "Amidation learning: relate yield differences to stage allocation and flow.",
+    "source_text": "Set 1 gave 86% yield. Sets 2/3 shared a second implemented configuration: a 10 mL first coil and a 5 mL second coil, with feed rates of 0.280 and 0.0700 mL min−1, stage times of 35.71 and 14.29 min, and 68% yield. Both outcomes and the 98% literature batch reference are NMR yields.58 The second configuration increased nominal substrate delivery from 0.0800 to 0.140 mmol min−1 and reduced total nominal time from 56.25 to 50.00 min, but redistributed exposure toward the activation stage and away from amidation. Its lower final yield despite the longer first-stage time illustrates why upstream residence time or total process time alone is an inadequate design objective. The observations motivate further examination of the downstream exposure and intermediate composition, but do not identify a rate-limiting step because several variables changed together. Table S23 and Figure S17 report the conditions and apparatus; Tables S24–S25 connect the proposals to implementation changes and component molar feeds. Together with the photochemical case, this experiment shows the role of FlowPilot in formulating testable, connected process choices whose chemical performance remains subject to measurement."
+  },
+  {
+    "paragraph_id": "P35",
+    "section": "Discussion",
+    "docx_paragraph_index": 61,
+    "outline": "Synthesize novelty: the connected, laboratory-specific process is the design target.",
+    "source_text": "The central contribution of FlowPilot is to make the connected flow process, rather than an isolated reaction condition, the object of agentic design. A researcher can begin with a conventional procedure and a laboratory inventory, express a design priority, and inspect alternative configurations in terms of chemistry, quantitative operation and realizable equipment. This complements microreactor assistants, synthesis-development platforms and process-simulation agents by organizing their related capabilities around a laboratory-specific design task.46-51,59-60 Linking these steps allows a proposed operating point to be examined together with its chemical rationale and hardware requirements, rather than as a detached recommendation."
+  },
+  {
+    "paragraph_id": "P36",
+    "section": "Discussion",
+    "docx_paragraph_index": 62,
+    "outline": "Interpret architecture: coordinated review matters more than agent count alone.",
+    "source_text": "The benchmark helps explain why this organization matters. The same generator produced higher mean scores within FlowPilot for all five models, and improvements extended to topology, material balance and inventory rather than being confined to chemical nomenclature. In the module screen, simply separating the initial workflow into stages without council review performed poorly, whereas coordinated review recovered much of the design quality. At the same time, simpler council settings occasionally matched or exceeded the complete configuration. These findings argue for selective, accountable review of coupled decisions rather than maximizing agent count or discussion length. They also identify a practical opportunity for locally served models: the tested 27B generators delivered competitive assessed designs when supported by the architecture, although additional computation is part of that benefit."
+  },
+  {
+    "paragraph_id": "P37",
+    "section": "Discussion",
+    "docx_paragraph_index": 63,
+    "outline": "Interpret experiments: apparatus behavior and complete-sequence performance require measurement.",
+    "source_text": "The experiments address a different question from the benchmark: what happens when a proposed configuration becomes an apparatus and the complete reaction sequence is tested? For Giese addition/oxidation, separating oxygen exposure spatially enabled the connected chemistry, but the backflow observation exposed a pressure-interaction problem not settled by gas-equivalent arithmetic. For amidation, feed stoichiometry and stage allocation were coupled, and the higher nominal substrate feed gave lower yield despite longer upstream exposure. The response sets thus provided alternative starting priorities rather than a guarantee of distinct or improved experimental outcomes. The sample-loop implementations establish product formation at the reported conditions; they should not be interpreted as measurements of sustained production or as a controlled comparison of all three objectives."
+  },
+  {
+    "paragraph_id": "P38",
+    "section": "Discussion",
+    "docx_paragraph_index": 64,
+    "outline": "Define progression: traceable decisions and measured feedback support prospective refinement.",
+    "source_text": "A useful design assistant must consequently retain both the rationale for a proposal and the evidence that later challenges it. FlowPilot’s saved inputs, stage calculations, equipment assignments and council records support this relationship between researcher and model, while the remaining design defects and evaluator false positive show why neither model confidence nor a benchmark score should substitute for scientific judgment. Experimental observations can be returned with the conditions actually used, so that subsequent proposals respond to measured process behavior rather than repeated assumptions. Coupling this record to Bayesian optimization or language-guided experimental priors offers a route to more systematic prospective refinement.30-34,61 The next test of that workflow is whether it reduces experimental effort across additional chemistries and inventories, not merely whether it produces a more persuasive initial answer."
+  },
+  {
+    "paragraph_id": "P39",
+    "section": "Conclusion",
+    "docx_paragraph_index": 66,
+    "outline": "Restate contribution: one researcher-facing environment links knowledge, design and hardware.",
+    "source_text": "FlowPilot provides an agentic design environment in which researchers can develop continuous-flow processes from reaction-level information and the equipment available in their laboratory. Standardized interaction defines the problem; literature and handbook knowledge inform the alternatives; and council review with engineering calculations connects chemical intent to feeds, stage conditions and a realizable process configuration. The shared design record makes these decisions inspectable and provides continuity between a proposal and the next experimental cycle."
+  },
+  {
+    "paragraph_id": "P40",
+    "section": "Conclusion",
+    "docx_paragraph_index": 67,
+    "outline": "Consolidate evidence: benchmark gains and experimentally implemented connected reactions.",
+    "source_text": "Across the five-model architecture comparison, the mean benchmark score increased from 0.794 for one-shot generation to 0.917 for FlowPilot, with fewer judge-reported critical flags. The internal screen supports the role of coordinated review while showing that additional refinement is not uniformly beneficial. Laboratory implementation then demonstrated the connected Giese addition/oxidation and amidation sequences at 97–98% and 68–86% NMR yield, respectively. The gas-flow observations and yield differences between operating points reveal the importance of testing the complete process, beyond checking the consistency of its description."
+  },
+  {
+    "paragraph_id": "P41",
+    "section": "Conclusion",
+    "docx_paragraph_index": 68,
+    "outline": "Take-home message: support experimental development rather than replace experimentation.",
+    "source_text": "These results position FlowPilot as a partner in researcher-led process development: it organizes the design decisions that must agree, exposes assumptions for review and retains measured outcomes for further refinement. Its value is not to replace experimentation with a generated protocol, but to connect chemical knowledge, engineering design and laboratory implementation within one accountable workflow."
+  },
+  {
+    "paragraph_id": "P42",
+    "section": "Methods",
+    "docx_paragraph_index": 71,
+    "outline": "Inputs: fixed questions, frozen packages, evidence authority and campaign separation.",
+    "source_text": "The standardized workflow begins with a batch protocol and a structured intake package recording the objective, chemistry identity, experimental history, laboratory inventory, operating limits, and chemist hypotheses. Follow-up questions use stable identifiers and predefined readiness rules; optional evidence can be explicitly marked unavailable. The confirmed package is frozen for the run, retaining the answers and their provenance. Measured observations, protocol facts, and hypotheses are stored separately. Hard safety and equipment constraints remain mandatory even when earlier measurements were obtained under different conditions. Computational comparisons used archived case packages rather than newly generated conversations, keeping the supplied chemistry and constraints constant between architectures. The intake contract and question rules are given in ESI Section 2 and Tables S2–S3. Benchmark campaigns and subsequent laboratory-design runs were treated as distinct software/configuration records; the dated development history is summarized in the companion version-history record."
+  },
+  {
+    "paragraph_id": "P43",
+    "section": "Methods",
+    "docx_paragraph_index": 73,
+    "outline": "Knowledge: corpus annotation, missing metadata and handbook-derived rules.",
+    "source_text": "The literature resource comprised 464 classified flow-chemistry records annotated with available reaction, reactor, material, operating-condition, yield, and inlet-stream information. Missing metadata were retained as missing rather than filled from model inference. A complementary handbook-derived store contained 2,537 engineering rules with topic, severity, source, and applicability information.3-4,21 Relevant rules supplied context to chemistry interpretation; only checks implemented in the calculation and validation routines acted as deterministic constraints. Field completeness and rule coverage are reported in Tables S4–S5."
+  },
+  {
+    "paragraph_id": "P44",
+    "section": "Methods",
+    "docx_paragraph_index": 74,
+    "outline": "Live retrieval: filters, weighting, relaxation and source exclusion.",
+    "source_text": "For operational retrieval, the chemistry plan supplies reaction class, mechanism, catalyst, solvent, phase regime, and operating conditions. The search begins with paired batch-flow records under mechanism and phase filters, relaxes filters when fewer than three candidates remain, and expands to the full corpus when no paired result remains. The final score combines semantic and field similarity with weights of 0.60 and 0.40. The operational field components and weights are listed in Table S6. In the architecture benchmark, the designated source record was excluded before final retrieval selection; this restriction does not establish absence from model pretraining."
+  },
+  {
+    "paragraph_id": "P45",
+    "section": "Methods",
+    "docx_paragraph_index": 75,
+    "outline": "Offline analysis: embedding comparisons, query sampling and alignment definitions.",
+    "source_text": "The retrospective figure analyses used stored corpus embeddings and inverse Euclidean-distance similarity, 1/(1 + d), rather than newly generated query embeddings. The rank analysis reranked the 20 nearest non-self records for 80 queries using photocatalyst, solvent, and wavelength terms weighted 0.30, 0.20, and 0.20; temperature and concentration were not included in that offline score. A separate family analysis sampled up to 15 queries per recorded family and measured the fraction of matching-family records in each top-five result set. Its 56 queries and script-specific similarity functions are documented in ESI Section 3.4 and Table S7. These analyses measure metadata alignment, not the full live retrieval policy or independent chemical correctness."
+  },
+  {
+    "paragraph_id": "P46",
+    "section": "Methods",
+    "docx_paragraph_index": 77,
+    "outline": "Liquid calculations: molar feeds, stage balances and residence-time definitions.",
+    "source_text": "The engineering layer recalculated quantities dependent on proposed operating choices. Component molar delivery was obtained from concentration and liquid volumetric flow, and each stage received the cumulative flow of the streams introduced at or upstream of that stage. For a nominal liquid-filled reactor, the stage time was calculated as reactor volume divided by local liquid flow. An interstage feed therefore changed the downstream material balance and time calculation without changing the upstream flow. Packed-bed empty volume, estimated liquid holdup, and catalyst-contact time were distinguished where applicable. Stage totals were formed only from times reported on compatible bases."
+  },
+  {
+    "paragraph_id": "P47",
+    "section": "Methods",
+    "docx_paragraph_index": 78,
+    "outline": "Gas/thermal calculations: reference states, time bases and screening assumptions.",
+    "source_text": "Gas equivalents were calculated from the reactive-gas molar flow divided by the limiting-reactant molar flow, including gas composition and the stated reference temperature and pressure. The proposal STP convention was 273.15 K and 1 atm. Where required by a benchmark contract, in-channel gas volume was derived by ideal-gas scaling using absolute operating pressure and temperature. The inlet-reference index V/(Qliquid + Qgas,STP) was kept separate from pressure-corrected apparent time and from an experimentally measured residence time. Pressure-loss and thermal screening used the selected geometry, phase assumptions, and available material properties; estimated heat-transfer or reaction-enthalpy inputs were identified as assumptions. The implemented quantities, multiphase conventions, and heat-transfer screening are detailed in ESI Section 5 and Table S13."
+  },
+  {
+    "paragraph_id": "P48",
+    "section": "Methods",
+    "docx_paragraph_index": 80,
+    "outline": "Council procedure: candidate generation, specialist review, revisions and selection records.",
+    "source_text": "The downstream Designer generated alternative geometries and operating choices from the chemistry plan, retrieved analogies, engineering calculations, and inventory constraints. The Chemistry, Kinetics, Fluidics, and Safety specialists reviewed chemical compatibility, reaction-time plausibility, transport and hardware feasibility, and hazards, respectively. The Skeptic examined assumptions and contradictions, and the Orchestrator selected among the reviewed candidates. Agent verdicts and proposed revisions were stored with candidate identifiers. Changes to independent variables triggered deterministic recalculation before a candidate could be compared or published. Candidate and revision budgets followed the configuration recorded for each campaign rather than being inferred from the final output. Rejected alternatives and revision history were retained alongside the selected candidate. Council terminology, configuration studies, and examples of actual deliberation are documented in ESI Section 6 and Section 7.5."
+  },
+  {
+    "paragraph_id": "P49",
+    "section": "Methods",
+    "docx_paragraph_index": 82,
+    "outline": "Inventory procedure: form/document input, validation and equipment-capability checks.",
+    "source_text": "Inventory profiles were entered through categorized equipment forms, imported as structured JSON, or normalized from laboratory documents into typed records with stable identifiers. Available quantities, system membership, material, reactor volume and diameter, pump range and setting increment, pressure and temperature limits, and compatible light modules were recorded where supplied. The form fields share the pipeline's equipment schema, and edited profiles require validation before export or design use. Realization assigned required operations to available items and checked the declared capability and connectivity constraints. Calculations were repeated when equipment selection changed a dependent quantity. An unresolved essential requirement was retained as a diagnostic requirement, not silently replaced with invented hardware (Figure S13; Table S18)."
+  },
+  {
+    "paragraph_id": "P50",
+    "section": "Methods",
+    "docx_paragraph_index": 83,
+    "outline": "Output procedure: synchronized rendering, autosave, feedback and reconstruction requirements.",
+    "source_text": "The final design contract reconciled the selected proposal, stage table, stream table, equipment allocation, and topology. GUI numerical views and the executable process diagram were derived from that record; earlier calculations and council exchanges remained separately available for inspection. Timestamped run folders stored the input package, result, final contract, topology, equipment allocation, and available diagram artifacts. Experimental feedback was linked to the conditions actually tested before being supplied to a later design cycle. ESI Sections 2.4–2.5 and 7 document the GUI and saved artifacts, with the machine-readable feedback and provenance records retained in the companion archive. Exact computational replay additionally requires the model, decoding settings, dependencies, and software revision recorded for the campaign."
+  },
+  {
+    "paragraph_id": "P51",
+    "section": "Methods",
+    "docx_paragraph_index": 85,
+    "outline": "Benchmark generation: matched inputs, models, repeats and computation differences.",
+    "source_text": "The primary comparison used CuAAC, photochemical oxidation, and hydrogenolysis case packages with the same protocol, objective, inventory, and final-output contract for both architectures. One-shot generation received this information in a single call; FlowPilot distributed it across its interpretation, calculation, review, and realization stages. Qwen3.6-27B, Qwen3.8-27B, GPT-4o, Claude Sonnet 4.6, and Claude Opus 4.6 were each used with both architectures for three generation repeats per case, giving 90 outcomes at the recorded generation temperature of 0.2. The archived GPT-5.4 generator results additionally displayed in Figure 4b–c were not included in these five-model aggregates or Tables S11–S12. Exact case prompts, inventories, and model records are retained in ESI Section 4. The comparison concerns delivered design quality under matched task information, not equal token or computation budgets."
+  },
+  {
+    "paragraph_id": "P52",
+    "section": "Methods",
+    "docx_paragraph_index": 86,
+    "outline": "Judging: masked packets, fixed ratings, applicability and equal-weight aggregation.",
+    "source_text": "For judging, final designs were normalized into candidate packets with generator and architecture labels removed. Separate Qwen, OpenAI, and Claude judge calls received the candidate, common input context, reference facts, deterministic verification evidence, and the fixed 14-criterion rubric. The archived judge configuration used Qwen3.6-27B, GPT-5.4, and Claude Sonnet 4.6 at temperature 0.0; these evaluator calls were separate from candidate generation. Each applicable criterion received an integer rating from 0 to 4. Ratings were averaged across judges for each criterion, then across applicable criteria, and divided by four to give a score from 0 to 1. All judges and applicable criteria had equal weight. Gas bookkeeping and multistage closure could be excluded only when their applicability conditions were false; missing required information was scored rather than treated as inapplicable. Critical flags were counted separately from the numerical score. Deterministic evidence did not confer an architecture-specific bonus, and identity masking did not guarantee that output style concealed the architecture. Some evaluator model families also served as generators; separate calls therefore do not establish statistical independence or remove possible model-family preferences. Scoring anchors, criterion definitions, and applicability rules are specified in Tables S8–S9."
+  },
+  {
+    "paragraph_id": "P53",
+    "section": "Methods",
+    "docx_paragraph_index": 88,
+    "outline": "Statistics: repeat-level means/SD, flag aggregation and cost definitions.",
+    "source_text": "For each generator and architecture, the three case scores were averaged within each repeat. Reported architecture error bars are the sample standard deviation of these three repeat-level means, not the dispersion of all nine individual outcomes. Critical-flag counts were summed across the three cases within a repeat before calculating their mean and sample standard deviation. The aggregate values in Tables S11–S12 use only the five-model cohort. Generation cost was estimated from recorded token usage and the archived model-specific price schedule, excluding evaluator calls and deployment costs. Figure 4e uses mean score divided by mean generation cost; the case-specific ESI plots instead summarize per-outcome score-to-cost ratios (Figure S10). The comparisons are descriptive; no statistical-significance claim or population-wide generalization is made from three repeats and three selected chemistries."
+  },
+  {
+    "paragraph_id": "P54",
+    "section": "Methods",
+    "docx_paragraph_index": 89,
+    "outline": "Ablation procedure: module conditions, case variation and separate historical study.",
+    "source_text": "The internal ablation screen fixed the generator to Qwen3.8-27B and tested 15 conditions over the same three cases, producing 45 outcomes with one generation per condition-case pair. The conditions removed or modified council components, revision stages, selection, or candidate budgets. Disabled specialists received no substitute score, and active council weights were renormalized. The resulting standard deviations describe between-case variation, not repeatability; all conditions are reported in Table S10. A separate historical study crossed four upstream and four council endpoints and tested candidate budgets of 1, 6, 12, and 24 with five repeats. Its engineering-profile metrics were normalized independently of the LLM-judge rubric (ESI Section 6; Tables S14–S17). No experimental yield uncertainty was inferred from these computational repeats."
+  },
+  {
+    "paragraph_id": "P55",
+    "section": "Methods",
+    "docx_paragraph_index": 91,
+    "outline": "Experimental procedure: sample loops, staged feeds, equipment and operating conditions.",
+    "source_text": "We implemented the two connected-stage cases using a Vapourtec E-series system with sample-loop injection. For the Giese addition/oxidation sequence, a PFA coil in a 450 nm UV-150 module was followed by a separately illuminated FEP coil. The first stage was designed to remain oxygen-free, although the exact feed-degassing procedure was not specified in the supplied laboratory methods. Pure oxygen was introduced through an MFC at the interstage mixer, and both reactors were maintained at 25 ± 1 °C. For DPDTC-mediated amidation, the acid/DPDTC/DMAP solution and benzylamine solution were delivered by separate channels, with amine addition between two ETFE coils maintained at 95 °C. Both setups used a 7 bar cartridge BPR; recorded system pressure was reported separately from the cartridge rating. Actual concentrations, molar feeds, operating points, and proposal-to-implementation differences are tabulated in ESI Section 9 and Tables S22–S25."
+  },
+  {
+    "paragraph_id": "P56",
+    "section": "Methods",
+    "docx_paragraph_index": 92,
+    "outline": "Analysis: NMR basis, characterization, grouped results and outstanding metadata.",
+    "source_text": "NMR yields were reported using 1,3-benzodioxole as the internal standard. Isolated products were characterized by 1H and 13C NMR spectroscopy and low-resolution mass spectrometry. Shared response-set entries in the supplied laboratory record were treated as grouped operating points, not independent replicates, and no experimental standard deviation was assigned without individual measurements. ESI Section 9 contains the feed preparation, work-up, irradiation specifications, apparatus photographs, and characterization records; Figures S18–S21 reproduce the product spectra. MFC reference-state confirmation, collection windows, and quantitative-NMR calculation records are identified there as outstanding metadata rather than filled by inference."
+  }
+]

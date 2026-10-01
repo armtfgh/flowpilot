@@ -1,0 +1,297 @@
+[0] p FlowPilot: A Multi-Agent AI System for Continuous Flow Chemistry Process Design
+
+[1] p Amirreza Mottafegh†, Mincheol Park†, Jun-young Jo, Jin Suk Myung, Boyoung Park*, and Gwang-Noh* Ahn
+
+[2] p Digital Chemical Research Center, Korea Research Institute of Chemical Technology, 141Gajeongro, Yuseong, Daejeon 34114, Republic of Korea
+
+[3] p †Amirreza Mottafegh and Mincheol Park contributed equally to this work.
+
+[4] p ABSTRACT
+
+[5] p Translating a batch protocol into continuous flow requires chemical reasoning, engineering calculations, and equipment choices to remain consistent. We present FlowPilot, a multi-agent AI system that connects these decisions through standardized chemist intake, literature retrieval, deterministic calculation, specialist review, and inventory reconciliation. A corpus of 464 classified literature records and 2,537 handbook-derived rules supports the workflow. The resulting design record links stage conditions, stream assignments, equipment, and the process diagram. We evaluate the architecture using matched one-shot and full-pipeline generation across three chemistry cases, five retained generator models, and three repeats, yielding 90 outcomes. Separate LLM judges apply 14 fixed criteria informed by deterministic checks. The mean benchmark score increases from 0.794 for one-shot generation to 0.917 for FlowPilot, while raw judge critical flags decrease from 98 to 4. Internal ablations examine the contribution of council review. Photoredox Giese addition followed by aerobic oxidation and telescoped DPDTC-mediated amidation are selected for prospective laboratory evaluation. The results support an auditable route from a batch protocol to a first flow experiment, while leaving reaction performance to experimental validation.
+
+[6] p INTRODUCTION
+
+[7] p A batch protocol describes what was done in a vessel; a continuous-flow design must also specify how materials move through a connected process. This distinction matters because the advantages of flow chemistry arise from the interaction between chemistry and reactor operation, not from miniaturization alone.1-4 Controlled heat and mass transfer, irradiation, electrochemical interfaces, and gas delivery have enabled pharmaceutical synthesis and transformations that are difficult to operate reproducibly in batch.5-10 Multistep and on-demand systems further demonstrate the value of coordinating reaction stages with downstream operations.11-14 Nevertheless, available hardware and a successful batch procedure do not uniquely determine a suitable flow configuration.15-16 The practical challenge is to turn chemical intent into a process specification whose reaction sequence, feeds, operating conditions, and equipment remain mutually consistent.
+
+[8] p The decisions are coupled across length scales and stages. Reactor geometry affects transport and pressure loss; heating and mixing affect the conditions experienced by the reacting stream; and an interstage addition changes both composition and the volumetric flow entering the next reactor.17-21 Consequently, a residence time cannot be selected independently of reactor volume, stream flow rates, and the basis used to describe a multiphase mixture. Gas equivalents require a molar-flow calculation rather than a comparison of gas and liquid volumetric rates.22 These dependencies become especially important in telescoped chemistry, where incomplete upstream conversion changes the material available to the downstream reaction. Integrated apixaban synthesis and photochemical routes to sartan intermediates illustrate the chemical and operational coordination required in practical multistep development.23-24
+
+[9] p Digital tools already support substantial parts of this task. Computer-aided synthesis planning proposes routes,25-27 process simulation evaluates specified configurations,28-29 and Bayesian or active-learning strategies guide experimental optimization.30-34 AI-informed robotic flow synthesis has connected planning to physical execution.35 RoboChem-Flex and UV-visible auto-reactometry further demonstrate modular reaction optimization and LLM-assisted photochemical screening, respectively.36-37 These advances establish a strong foundation for automated experimental development. The question addressed here concerns a complementary task: assembling an inspectable initial flow-process proposal from a reaction procedure, the chemist's objectives, and the equipment available in a particular laboratory.
+
+[10] p LLM tools and scientific agents provide routes from unstructured descriptions to coordinated actions. ChemCrow and Coscientist connect chemical reasoning with tools and experimentation, while El Agente orchestrates computational chemistry.38-40 Recent Co-Scientist and Paper2Agent studies extend collaborative scientific reasoning and tested reuse of computational methods.41-42 Procedural systems are particularly relevant: ACRA maps literature procedures to executable chemical descriptions and available hardware, AutoLabs combines clarification, calculation and self-correction for liquid handling, and PRISM introduces simulation feedback before robotic execution.43-45 Together, these systems establish language-based interfaces, agent collaboration and hardware-aware validation as practical foundations for more integrated chemical workflows.
+
+[11] p Direct precedents in continuous-flow chemistry sharpen the comparison. Pan et al.'s Chat-microreactor extracts literature-based flow information, predicts flow patterns, and provides knowledge-enhanced microreactor design guidance, including a piperacillin example.46 Wang et al.'s SapoMind recommends and experimentally optimizes continuous lanolin saponification conditions.47 Ruan et al.'s LLM-RDF has broader scope: its agents support synthesis development through experimental execution, kinetic analysis, optimization, purification, and reactor scale-up design.48 These contributions extend beyond condition optimization to include reactor design and experimentally supported development. Their breadth shifts the comparison from whether a system uses agents or performs calculations to how it connects a reaction procedure, a process configuration and an available laboratory.
+
+[12] p Related process-design work already links language to quantitative engineering representations. Tian et al. generate process topologies and configure parameters for executable simulations, evaluating the resulting flowsheets computationally.49 The CeProAgents preprint organizes chemical process development into knowledge, concept and parameter cohorts, including flowsheet tasks and simulator-based optimization.50 The CAAF preprint formalizes deterministic assertions and tests constraint conflicts in a constructed pharmaceutical flow-reactor design problem.51 From the Aspuru-Guzik group, the El Agente Gráfico and La Agente Óptima preprints investigate typed execution state and agent-supervised optimization, including a physical flow-chemistry campaign in the latter.52-53 The emerging landscape therefore spans chemical procedures, local hydrodynamics, process simulation and constraint validation, with different input-output representations and experimental boundaries.
+
+[13] p FlowPilot focuses on translating reaction-level instructions into a connected, laboratory-specific flow configuration. This requires relating the order of chemical transformations to stream introduction, reagent concentrations and molar feeds, reactor volumes, stage-specific residence-time conventions, and compatible equipment assignments. FlowPilot addresses this integration task by jointly constructing and reconciling these quantities in one inspectable process record. This task differs in emphasis from predicting a local flow pattern, optimizing conditions on an established platform, or configuring a general process simulator, while overlapping with parts of each. The task-level comparison and its evidence boundaries are provided in ESI Section 11; it is not a performance ranking of the published systems.
+
+[14] p Evaluation must distinguish numerical consistency from chemical performance. ChemBench demonstrates that strong aggregate chemical knowledge can coexist with elementary errors and overconfidence, while uncertainty-calibrated optimization research documents invalid suggestions from direct LLM prompting within defined reaction search spaces.54-55 In a flow proposal, valid formatting or agreement among agents cannot establish correct stoichiometry, compatible hardware, or adequate reaction time. We therefore ask whether a workflow that separates chemical interpretation, deterministic calculation, and specialist review produces more consistent and complete designs than one-shot generation under the same chemistry and inventory information. The comparison tests the delivered workflows, not equal-compute performance or the isolated effect of agent count.
+
+[15] p Here we introduce FlowPilot as a hybrid design workflow that connects standardized chemist intake, literature-grounded reasoning, quantitative engineering analysis, and inventory reconciliation. Intake records protocol facts, objectives, measured evidence, equipment limits and hypotheses separately. Chemistry interpretation and plan-aware retrieval supply relevant precedents; deterministic routines calculate dependent quantities; and a seven-agent council reviews and revises candidate operating choices. A common final record links stream tables, stage conditions, equipment assignments and the process diagram. The output is a quantitatively specified proposal for experimental implementation after laboratory review, not an automatically validated operating procedure. In particular, numerical closure cannot substitute for kinetic evidence, and a shorter residence time is a hypothesis to test rather than proof of successful intensification.
+
+[16] p The study separates information support, computational design quality and prospective experimental performance. Corpus and retrieval analyses evaluate the context supplied to the generator. Matched architecture comparisons use a fixed rubric, deterministic verification evidence and separate LLM judges; module ablations and a historical isoxazole study examine configuration sensitivity.56 Two connected-stage cases then define the laboratory evaluation: photoredox Giese addition followed by aerobic oxidation tests the translation of oxygen-free and oxygen-fed stages into one equipment configuration (Figure 5), while DPDTC-mediated amidation tests staged reagent addition, coupled flow calculations and intermediate transfer without isolation (Figure 6).57-58 The experiments will assess whether the proposed configurations can be implemented and deliver useful chemical outcomes; the computational benchmark alone cannot establish either result.
+
+[17] p RESULTS
+
+[18] p FlowPilot organizes batch-to-flow translation around a shared process description (Figure 1). The chemist supplies the protocol, design objective, and laboratory inventory, then resolves standardized follow-up questions about missing chemistry, constraints, and experimental history. The confirmed answers form a stored input package for the run. The upstream module converts that context into a chemistry plan identifying species, reaction stages, stream incompatibilities, sensitivities, and possible flow-specific advantages. Retrieval supplies relevant precedents, and engineering calculations establish an initial proposal containing reactor geometry, stream assignments, residence-time assumptions, and operating conditions. Council review and equipment reconciliation then assess that proposal before it becomes the final reported design.
+
+[19] p 
+
+[20] p Figure 1. FlowPilot system architecture. User inputs are converted into a chemistry plan and an initial engineering proposal, supported by flow-chemistry literature and handbook knowledge. The seven-agent council generates and reviews candidate designs, records structured verdicts, and proposes bounded revisions. The selected candidate is reconciled with engineering calculations and laboratory inventory before a process-flow diagram, protocol, report, confidence assessment, and supporting citations are returned. The illustrated recipe card is schematic; computational validation does not establish experimental performance.
+
+[21] p The downstream council supplies chemical and cross-domain review alongside deterministic numerical checks (Figure 1d). Rather than asking one model to produce a single final answer, the system generates a candidate pool and distributes review across domain-specialized agents. The Designer proposes candidate geometries and operating points; Chemistry Agent evaluates chemical compatibility, photochemical constraints, and stream logic; Kinetics Agent evaluates residence time and conversion plausibility; Fluidics Agent evaluates flow regime, pressure drop, mixing, and hardware compatibility; Safety Agent evaluates pressure, thermal, material, and handling risks; the Skeptic audits assumptions and internal consistency; and the Orchestrator selects the final candidate. This structure produces not only a selected design but also a record of rejected alternatives, revised candidates, disqualified candidates, and the rationale for each decision.
+
+[22] p For a reconciled result, the output is a structured design package containing stage and stream parameters, equipment assignments, a process diagram, supporting analogies, and the review record. Numerical views and the diagram refer to the same final design contract, while unresolved requirements remain visible. This common record connects a chemical proposal to specific equipment and makes subsequent experimental feedback attributable to the conditions actually considered. The authority boundaries, input contracts, and provenance mechanisms are described in Figures S1-S2 and Tables S1-S3; computational closure does not itself establish reaction performance.
+
+[23] p Literature and rule-base coverage
+
+[24] p The literature dataset covers a broad range of flow-chemistry applications (Figure 2). The curated export contains 464 classified literature records spanning thermal synthesis, photoredox catalysis, heterogeneous photocatalysis, cross-coupling, oxidation/reduction, and other reaction classes. Reactor types range from capillary/coil and microreactor/chip systems to photoreactors and packed beds, with fluoropolymer tubing prominent among the reported materials. Explicit inlet-stream counts are available for 154 processes; two- and three-stream configurations account for 91 and 30 of these records, respectively. These annotations supply precedents rather than prescribing a default number of streams. The diversity supports retrieval across photochemical and non-photochemical processes with different materials and operating regimes.
+
+[25] p 
+
+[26] p Figure 2. Literature corpus and engineering rule-base coverage. (a-d) Reaction classes, reactor types, reported materials, and inlet-stream configurations in the curated flow-chemistry corpus; explicit inlet-stream counts are available for 154 records. (e) Category and severity distribution within the 2,537-rule engineering knowledge base. (f) Recorded associations between rule categories and chemistry classes. Full categorical exports and field-specific availability are reported in Figures S3-S4 and Tables S4-S5; associations indicate knowledge coverage rather than independent validation of every rule.
+
+[27] p The engineering knowledge base contained 2,537 structured rules spanning reactor design, heat transfer, catalyst behavior, residence time, photochemistry, materials, scale-up, pressure, mixing, and safety (Figure 2e-f). Coverage was not uniform across chemistry classes: heat-transfer rules were densely associated with thermal synthesis and cross-coupling, whereas photochemistry rules concentrated in photoredox and photocycloaddition classes. This structured rule landscape supplies domain context for evaluating model-generated designs alongside deterministic checks, rather than relying only on model priors. The frozen corpus composition and computed rule-base coverage are reported in Figures S3-S4 and Tables S4-S5.
+
+[28] p Plan-aware retrieval improves analogy quality
+
+[29] p Coverage alone does not show that a relevant precedent will be selected. We therefore evaluated the retrieval system against a semantic-search baseline (Figure 3). The baseline embeds the batch protocol or query summary and ranks records by cosine similarity. FlowPilot enriches the query using the chemistry plan, including reaction class, mechanism, photocatalyst family, solvent, and wavelength. Filtering starts with paired records under mechanism and phase constraints, relaxes filters when fewer than three matches remain, and expands to all records if no paired match remains. A field-aware score then reranks the candidates. Figure 3a summarizes the workflow; Figure S5 and Table S6 specify its tier transitions and scoring weights.
+
+[30] p 
+
+[31] p Figure 3. Plan-aware retrieval. (a) Three-tier filtering strategy: hard metadata filter, relaxed metadata filter, and pure semantic fallback. (b) Query enrichment expands chemically specific search terms approximately two-fold relative to a naive semantic baseline. (c) Top-5 photocatalyst-family matching rates by family (iridium, organic dye, ruthenium, TiO2, ZnO) for semantic baseline vs FlowPilot reranking. (d) Representative reranking outcome showing closer wavelength and photocatalyst-family alignment.
+
+[32] p The enriched query representation approximately doubled the number of chemically specific search terms in the two examples shown in Figure 3b. A photoredox-catalysis query increased from 7 naive terms to 15 FlowPilot terms, and a photocatalytic radical difunctionalization query increased from 7 to 14 terms. In the retrieval-pair benchmark, 1,600 query–result pairs were evaluated. FlowPilot reranked 25.1% of these 1,600 pairs relative to the pure semantic baseline, indicating that field-aware scoring changed the ordering of the candidate analogies presented to the design engine.
+
+[33] p The strongest retrieval improvement was observed for photocatalyst-family matching. For iridium systems, top-five family matching increased from 40.0% under semantic search to 95.0% after reranking. Organic-dye systems improved from 42.7% to 90.7%, ruthenium systems from 77.3% to 94.7%, TiO2 systems from 87.1% to 98.6%, and ZnO systems from 45.0% to 60.0% (Figure 3c). The demonstration in Figure 3d illustrates how field-aware ranking promotes records with a matching photocatalyst family and relevant wavelength context. These results measure metadata alignment, not the accuracy of a transferred kinetic estimate or the eventual reaction yield. Retrieval tiers, scoring weights, benchmark data, and source-exclusion controls are detailed in Figures S5-S6 and Tables S6-S7.
+
+[34] p Ablation and architecture comparison
+
+[35] p Improved retrieval does not by itself establish that the resulting flow design is consistent. We therefore compared one-shot generation with the full FlowPilot pipeline while holding the chemistry, inventory, and requested output contract constant (Figure 4a). The three cases were CuAAC, photochemical oxidation, and hydrogenolysis, with three generation repeats per model-architecture-case combination. Separate Qwen, OpenAI, and Claude judge calls evaluated normalized final designs against 14 fixed criteria, using the same source context and deterministic verification evidence. Criteria address chemical fidelity, stream and reactor consistency, equipment feasibility, operating procedure, and uncertainty. Applicable integer ratings from 0 to 4 were averaged with equal criterion and judge weights and normalized to a score from 0 to 1. Critical flags were recorded separately. Tables S8-S10 provide the scoring anchors, criterion definitions, and module-screen summaries.
+
+[36] p 
+
+[37] p Figure 4. Ablation benchmarking and cost efficiency. (a) Architecture comparison under shared inputs and fixed evaluation. (b) Benchmark scores and (c) raw judge critical flags: mean and sample SD across three three-case repeats. Flags are not independently confirmed physical errors. These panels retain the archived GPT-5.4 comparison, whereas the ESI summary cohort contains five models. (d) Selected Qwen3.8-27B module ablations: mean and between-case SD, with one generation per case-condition. (e) FlowPilot score per generation cost under the recorded price schedule (log scale), excluding deployment costs. Full definitions and case-level results are in ESI Section 3.
+
+[38] p Across the five-model cohort in Table S11, full-pipeline mean scores ranged from 0.904 to 0.932, compared with 0.684 to 0.890 for matched one-shot generation (Figure 4b). The mean gain was largest for GPT-4o (+0.226), followed by Qwen3.8-27B (+0.168) and Qwen3.6-27B (+0.139); the Claude gains were smaller (+0.034 and +0.049). The judges recorded 98 critical flags across the 45 one-shot outcomes and 4 across the 45 FlowPilot outcomes; 18 and 43 outcomes, respectively, had no critical flag (Figure 4c; Table S12). The score and flag summaries therefore point in the same direction within this cohort: improved completeness and fewer flagged inconsistencies. They do not establish universal model superiority or measured reaction success. Figure 4d provides a complementary internal comparison, with council removal causing the largest score decrease among the configurations shown.
+
+[39] p The aggregate comparison is complemented by chemistry-specific scores (Figure S7), criterion-level score differences (Figure S8), and the location of critical flags within individual runs (Figure S9). Figure S10 reports tokens, estimated generation costs, and observed runtime. The higher Qwen score-per-generation-cost values in Figure 4e therefore reflect the recorded token-price schedule, not a measurement of total deployment cost. Tables S13-S14 define numerical closure and equipment checks; Tables S15-S16 specify feedback and replay records. Figure S11 and Table S17 distinguish user-composed input from system-assembled prompts and returned artifacts for one matched run. This supports the practical input-handling argument without implying that FlowPilot uses fewer total model tokens. The legacy heuristic QA values in that worked example are not the fixed-criteria scores used in Figure 4.
+
+[40] p The earlier council model-matrix and candidate-budget experiment is reported separately in Figure S12 and Tables S18-S21. In the five-repeat comparison, the normalized radar-area score changed from 0.31 +/- 0.03 before council review to 0.48 +/- 0.23 afterward. This engineering-profile measure is not the multi-LLM benchmark score in Figure 4. The ESI defines Need revision, New versions, Combined pool, and Disqualified, and reports runtime, token use, geometry, and radar normalization. Figure S13 and Table S22 distinguish the final structured FlowPilot topology from its contemporaneous generated narrative; the complete one-shot response is retained alongside this worked example.
+
+[41] p The ESI also shows how the chemist supplies and inspects the information behind a design. Figures S14-S15 and Table S23 document protocol entry and fixed-ID follow-up questions. Figure S16 and Table S24 show inventory import, normalization, and equipment warnings; Figure S17 and Table S25 show stage-resolved topology and stream parameters from a reopened run. Concrete failures are retained in Table S26, and Figure S18 and Table S27 expose actual council disagreement and selection records. Figure S19 and Table S28 place these views in the complete GUI and saved-run context. These operational records connect the computational benchmark to an inspectable workflow. The remaining question, addressed by the planned cases below, is how selected proposals perform in connected laboratory reactions.
+
+[42] p Case study 1: photoredox Giese addition followed by aerobic oxidation
+
+[43] p The first connected-process case couples photoredox Giese addition with oxidation of the resulting sulfide to a sulfoxide (Figure 5). In the literature transformation, photoinduced single-electron transfer generates an alpha-thiomethyl radical from an alpha-silyl sulfide; addition to acrylonitrile constructs the C-C bond, and subsequent oxygen-dependent photochemistry changes the sulfur oxidation state.57 This sequence tests more than residence-time selection: the oxygen-free first stage and oxidizing second stage must remain distinct within a continuously connected process. The collaborator's batch protocol uses 4 h under argon followed by 6 h exposed to air. These durations define source observations, not a kinetic law that can be scaled by a universal intensification factor. The implementation test therefore links the position of oxygen addition and reactor-light compatibility to the actual connected train, rather than judging a proposed residence time in isolation.
+
+[44] p The latest proposal binds each coil to a compatible irradiation module and introduces pure oxygen only at the Stage 2 inlet. For response Set 1, a 2 mL PFA coil in the Vapourtec UV-150 module is followed by a 20 mL FEP coil in the separately illuminated manual module. At a liquid feed of 0.020 mL min-1, Stage 1 has a nominal liquid residence time of 100 min. The 0.100 M substrate feed corresponds to 0.00200 mmol min-1; an oxygen inlet flow of 0.090 mL min-1 at 273.15 K and 1 atm supplies 0.00402 mmol min-1, or 2.01 equivalents. Both stages are proposed at 25 °C, with 450 and 448 nm irradiation, respectively. The Stage 2 inlet/STP index, V/(Qliquid + Qgas,STP), is 181.82 min; it is not a measurement of residence under reactor pressure.
+
+[45] p This revision responds to the collaborator's observation of gas entering the upstream reactor during an earlier high-gas-flow trial. Requiring pure oxygen lowers the total gas feed needed for a given oxygen molar input relative to air, but does not by itself resolve pressure-driven backflow. The archived proposal contains a gas-line check valve and a 7 bar(g) back-pressure setting; liquid-branch protection, pressure compatibility, and startup behavior still require laboratory review. The later council backflow tools provide conditional diagnostics, not a validated probability of failure or permission to execute. Figure S20 and Tables S29-S31 document the inputs, component feeds, three response-set outputs, and measurement plan. Sets 1 and 3 produce the same reported settings, whereas Set 2 increases the first-stage volume to 5 mL; these are not three independent replicates. Final sulfoxide yields are reserved as XXX, with conversion, selectivity, analytical method, and actual operating conditions to be entered alongside them.
+
+[46] p 
+
+[47] p Figure 5. Inventory-constrained photoredox Giese addition/oxidation. (a) Protocol and design context. (b) Archived Set 1 topology with compatible irradiation modules and oxygen introduced only before Stage 2. (c) Chemical sequence. (d) Proposed conditions for three response sets; XXX fields below reserve wet-lab yields, not measured or simulated data. Stage 1 time is V/Qliquid; the Stage 2 value is an inlet/STP reporting index, not in-channel residence. Pressure/backflow checks remain unresolved. Full feeds, source inputs and other topologies are in ESI Section 8.1.
+
+[48] p Case study 2: telescoped DPDTC-mediated amidation
+
+[49] p The second case is a thermal, two-stage amidation of 3-methyl-4-nitrobenzoic acid with benzylamine (Figure 6). DPDTC and DMAP first generate a 2-pyridyl thioester; downstream aminolysis forms the amide C(O)-N bond while displacing the sulfur-containing leaving group.58 The input specifies 30 min at 95 °C for each batch stage, separated by cooling and amine addition. In a telescoped flow proposal, the thioester is neither isolated nor assumed to form quantitatively. Its formation in Stage 1 limits the reactive intermediate available in Stage 2, making final amide yield the appropriate combined-process response. This case links the proposed amine-addition point and feed stoichiometry to the changed flow entering Stage 2, allowing configuration consistency and final chemical performance to be assessed separately.
+
+[50] p The proposed feed structure retains the amine as a separate stream until the interstage junction. Feed A contains acid (0.500 M), DPDTC (0.525 M), and DMAP (0.0500 M) in 2-MeTHF; Feed B contains benzylamine (2.10 M). In Set 1, QA = 0.160 and QB = 0.0400 mL min-1 give acid and amine molar flows of 0.0800 and 0.0840 mmol min-1, preserving 1.05 equivalents of amine. The second reactor receives the sum of the two liquid feeds. Two 5 mL ETFE coils therefore give 31.25 and 25.00 min, respectively, at 95 °C. The 7 bar(g) setting is a proposed means of maintaining liquid operation above the solvent's normal boiling temperature; pressure ratings and thermal behavior must still be confirmed for the assembled train. Omitting batch cooling is a design hypothesis, not evidence that interstage temperature is irrelevant.
+
+[51] p Sets 2 and 3 select the same reported operating point: a 10 mL first reactor and 5 mL second reactor with liquid feeds of 0.280 and 0.0700 mL min-1, yielding stage times of 35.71 and 14.29 min. These proposals shorten the second stage while increasing the first-stage time, rather than applying a common speed-up factor to the complete sequence. The distinction can be tested by measuring residual acid, thioester, and final amide alongside the final yield. Feed concentrations are nominal preparation targets; premix stability, solubility, and the actual intermediate concentration require measurement. Figure S21 and Tables S32-S34 give the response sets, stage and feed calculations, and experimental reporting template. Final amide yields remain YYY pending insertion of the verified measurements and their analytical basis.
+
+[52] p The alpha-bromination example from the original preprint59 is retained unchanged as Figure S22 in ESI Section 9 for historical comparison. It is distinct from the current amidation case and is not presented as a new laboratory validation.
+
+[53] p 
+
+[54] p Figure 6. Connected two-stage DPDTC-mediated amidation. (a) Protocol and design context. (b) Archived Set 1 topology with downstream amine addition and no intermediate isolation. (c) Acid activation through a 2-pyridyl thioester to N-benzyl-3-methyl-4-nitrobenzamide. (d) Proposed stage-specific conditions; YYY fields below reserve wet-lab yields. Times follow V/Q for the specified liquid-phase design, not measured conversion; downstream flow includes both feeds. Sets 2 and 3 coincide and are not independent replicates. Feed concentrations, molar flows and reporting fields are in ESI Section 8.2.
+
+[55] p DISCUSSION
+
+[56] p FlowPilot addresses batch-to-flow translation as a connected-process design task. Chemistry interpretation, literature retrieval and specialist review determine what should be proposed, while deterministic calculations reconcile dependent quantities and equipment assignments. Their contributions are evaluated at different levels: Figure 3 measures retrieval alignment, Figure 4 compares delivered designs, and the component ablations examine the role of review. A shared process record connects these steps to the stream table and topology, making the relationship between chemical assumptions and engineering conditions explicit.
+
+[57] p The matched architecture comparison shows higher mean scores with FlowPilot for each of the five retained generators, with the improvement depending on the model (Figure 4b). In the internal Qwen3.8-27B screen, removing the council reduced the mean score from 0.928 to 0.670 across the three cases (Figure 4d; Table S10). Individual specialist removals had smaller effects. This single-generation-per-cell screen is a descriptive component comparison, not a statistical demonstration that every specialist is necessary. The historical model-matrix and budget experiments further show that broader candidate exploration does not guarantee better outcomes (Figure S12; Tables S18-S21). Together, these results support coordinated review while showing why configuration matters.
+
+[58] p This emphasis complements related advances in microreactor design, experimental synthesis development, process simulation and deterministic constraint validation.46-51 FlowPilot links the reaction sequence to explicit feed compositions, molar flows, stage calculations and available equipment in one record. Its focus on coupled stream, stage and equipment consistency also complements process-optimization and materials-development agents.60,61 The comparison in ESI Section 11 describes these differences in task and output; the one-shot benchmark is an architecture comparison within this study, not a head-to-head evaluation of the published systems.
+
+[59] p The archived examples show why record-level inspection remains important alongside aggregate scores. Table S26 includes conflicting one-shot residence-time bookkeeping and a FlowPilot catalyst-preparation inconsistency, while Table S22 documents disagreement between structured conditions and an accompanying narrative. These examples motivate a common final record and traceable revision decisions. Retaining the inputs, calculations, equipment selections and council exchanges makes both design conflicts and evaluator errors available for examination rather than hiding them behind a single score.
+
+[60] p Figures 5 and 6 connect this computational assessment to two-stage chemical processes. Giese addition followed by oxidation requires control of the oxygen-addition point, irradiation compatibility and gas delivery. DPDTC-mediated amidation requires staged reagent addition, consistent molar feeds and downstream residence-time calculations that account for the increased liquid flow. Their laboratory evaluation will test implementability and final chemical performance separately from numerical closure. The existing feedback interface provides a route to refine subsequent proposals using measured outcomes and actual operating settings. Integration with Bayesian optimization30-34 and language-guided priors62 offers a further direction for testing chemist hypotheses against accumulated evidence. These prospective extensions preserve the same distinction between proposed conditions and observed process behavior.
+
+[61] p CONCLUSION
+
+[62] p FlowPilot connects a batch protocol and chemist-supplied constraints to a traceable first flow-process proposal. Standardized intake establishes the design context, chemistry-aware retrieval supplies precedents, deterministic calculation links dependent parameters, and specialist review assesses candidate operating choices. Equipment reconciliation and a common final record connect the selected conditions to the process diagram and supporting report.
+
+[63] p For the five-model, three-chemistry cohort, the mean fixed-criteria score increased from 0.794 for one-shot generation to 0.917 for FlowPilot, with fewer raw judge critical flags. Module ablations support a contribution from council review, while historical model-matrix and budget studies show that this contribution depends on configuration. These findings support the coordinated workflow as a practical basis for batch-to-flow design, within the limits of the evaluated cases and rubric. The Giese/oxidation and DPDTC-amidation studies will examine the separate question of experimental performance.
+
+[64] p For the chemist, the intended benefit is a shorter path from an initial procedure to an inspectable proposal: enter the protocol, resolve the standardized questions, select an inventory profile, and review the linked design records. Measurements can then be returned with the actual conditions to inform a subsequent design cycle. This connects proposal generation with experimental development while preserving the distinction between what was assumed, calculated, proposed, and observed.
+
+[65] p More broadly, the hybrid pattern demonstrated here, LLM-driven interpretation coupled with deterministic computation and multi-agent cross-domain audit, is not specific to flow chemistry. Any engineering design problem that is currently solved by a small team of complementary specialists iterating across coupled domains is a candidate for the same architectural approach. The modular design of FlowPilot is intended to make such extensions practical.
+
+[66] p METHODS
+
+[67] p A literature corpus containing 464 classified flow-chemistry records was annotated with available reaction, reactor, material, operating-condition, yield, and stream-count metadata. Field completeness was reported separately (Table S4). A complementary handbook-derived engineering knowledge base3-4,21 contained 2,537 rules categorized by topic and severity. The rule-base analysis describes coverage and recorded associations, while the deterministic calculator implements the numerical checks used during design.
+
+[68] p The plan-aware retrieval pipeline first generates a chemistry plan from the user input and then constructs an expanded query containing reaction class, mechanism, photocatalyst family, and sensitivity flags. Retrieved candidates are reranked by a field-aware score that rewards mechanistic relevance over superficial semantic similarity.
+
+[69] p The translation workflow comprises standardized intake, chemistry interpretation, retrieval, engineering calculation, candidate generation, council review, inventory realization, and topology rendering. LLMs propose chemical interpretations and independent design choices; deterministic routines recalculate dependent quantities and check their consistency. Chemist objectives and available evidence guide residence-time and throughput choices. A nominal intensification factor is not treated as proof of conversion, and an inventory-compatible operating point is not itself an experimentally validated procedure. Stage parameters, stream assignments, and topology are reconciled before final publication. Major development milestones and their dated evidence are summarized in Table S35 (ESI Section 10). Later scientific-policy and backflow extensions are separated from the frozen software used for the earlier architecture benchmarks. Table S36 (ESI Section 11) compares the input, output, engineering scope and validation evidence of six directly related systems with FlowPilot. It is a literature-based scope comparison, not an additional benchmark or evidence of performance superiority.
+
+[70] p The council reviews a candidate pool under bounded domain authority. Each of the seven agents (Designer, Chemistry Agent, Kinetics Agent, Fluidics Agent, Safety Agent, Skeptic, Orchestrator) may only modify fields within its own domain. Revised candidates are recomputed deterministically before final scoring.
+
+[71] p The matched architecture comparison used the same frozen case input and final-output contract for one-shot generation and FlowPilot. Five retained generator models, two architectures, three chemistry cases, and three generation repeats yielded 90 outcomes in the ESI cohort. Three judge families received identity-masked final designs, source context, deterministic verification evidence, and the fixed rubric in Tables S8-S9. Each applicable criterion was rated from 0 to 4; ratings were averaged across judges and criteria, then divided by four. Gas bookkeeping and multistage closure were omitted only when inapplicable. Per-model error bars summarize the sample SD of three repeat-level means, each averaging the three cases. Critical flags were recorded separately. Exact inputs, model records, applicability rules, and archived evaluation limitations are given in ESI Section 3.
+
+[72] p The internal module screen fixed the generator to Qwen3.8-27B and generated each condition-case combination once; its SD therefore measures variation between chemistries, not repeatability. Figure 4d shows selected conditions and Table S10 provides the displayed module summaries. The separate historical model-matrix experiment crossed four upstream and four council endpoints, and the candidate-budget study tested B = 1, 6, 12, and 24 with five repeats. Their validation dispositions, numerical data, and metric definitions are reported in ESI Section 6.1 and Tables S18-S21. These studies are kept distinct from the independent-judge outcome benchmark.
+
+[73] p AUTHOR INFORMATION
+
+[74] p Corresponding Author
+
+[75] p *Gwang-Noh Ahn, E-mail: gnahn@krict.re.kr
+
+[76] p Author Contributions
+
+[77] p A.M. and M.P. contributed equally to this work. The complete contributor-role statement and approval of the final author list will be confirmed by all authors before submission.
+
+[78] p Notes
+
+[79] p Availability of data and code
+
+[80] p Source code and data will be provided to peer reviewers via GitHub during the review process and publicly released upon publication of this work.
+
+[81] p ACKNOWLEDGMENT
+
+[82] p This work was supported by the Strategic Research Program (“Accelerated Scale-up of Advanced Materials via Autonomous Experimental Systems”, DK2685-01) of the National Research Council of Science & Technology (NST), funded by the Ministry of Science and ICT (MSIT) of the Republic of Korea, and by the Research Program of the Korea Research Institute of Chemical Technology (KRICT) (KK2651-10 and BSK26-118).
+
+[83] p ABBREVIATIONS
+
+[84] p BPR, back-pressure regulator; DPDTC, dipyridyldithiocarbonate; Da, Damköhler number; FEP, fluorinated ethylene propylene; IF, intensification factor; LLM, large language model; MFC, mass flow controller; Pe, Péclet number; PFA, perfluoroalkoxy; PFD, process flow diagram; PTFE, polytetrafluoroethylene; RAG, retrieval-augmented generation; Re, Reynolds number; STY, space-time yield.
+
+[85] p REFERENCES
+
+[86] p Rossetti, I.; Compagnoni, M. Chemical Reaction Engineering, Process Design and Scale-up Issues at the Frontier of Synthesis: Flow Chemistry. Chem. Eng. J. 2016, 296, 56–70. https://doi.org/10.1016/j.cej.2016.02.119.
+
+[87] p Feng, K.; Zhu, Y.-Y.; Gu, S.; Long, J.; Wang, H.-F. Typical Cases of Continuous Flow Chemistry in Pharmaceutical Synthesis in 2023‐2024. Asian J. Org. Chem. 2025, 14, e202500132. https://doi.org/10.1002/ajoc.202500132.
+
+[88] p Capaldo, L.; Wen, Z.; Noël, T. A Field Guide to Flow Chemistry for Synthetic Organic Chemists. Chem. Sci. 2023, 14 (16), 4230–4247. https://doi.org/10.1039/D3SC00992K.
+
+[89] p Plutschack, M. B.; Pieber, B.; Gilmore, K.; Seeberger, P. H. The Hitchhiker’s Guide to Flow Chemistry. Chem. Rev. 2017, 117 (18), 11796–11893. https://doi.org/10.1021/acs.chemrev.7b00183.
+
+[90] p Cambié, D.; Bottecchia, C.; Straathof, N.; Hessel, V.; Noël, T. Applications of Continuous-Flow Photochemistry in Organic Synthesis, Material Science, and Water Treatment. Chem. Rev. 2016, 116 (17), 10276–10341. https://doi.org/10.1021/acs.chemrev.5b00707.
+
+[91] p Padoin, N.; Matiazzo, T.; Riella, H.; Soares, C. A Perspective on the Past, the Present, and the Future of Computational Fluid Dynamics (CFD) in Flow Chemistry. J. Flow Chem. 2024, 14, 239–256. https://doi.org/10.1007/s41981-024-00313-4.
+
+[92] p Movsisyan, M.; Delbeke, E.; Berton, J.; Battilocchio, C.; Ley, S.; Stevens, C. Taming Hazardous Chemistry by Continuous Flow Technology. Chem. Soc. Rev. 2016, 45 (18), 4892–4928. https://doi.org/10.1039/c5cs00902b.
+
+[93] p Yasukawa, T.; Kobayashi, S. Translation of Batch to Continuous Flow in Photoredox Reactions. ACS Central Science. July 16, 2021, pp 1099–1101. https://doi.org/10.1021/acscentsci.1c00711.
+
+[94] p Noël, T.; Cao, Y.; Laudadio, G. The Fundamentals Behind the Use of Flow Reactors in Electrochemistry. Acc. Chem. Res. 2019, 52, 2858–2869. https://doi.org/10.1021/acs.accounts.9b00412.
+
+[95] p Gemoets, H.; Su, Y.; Shang, M.; Hessel, V.; Luque, R.; Noël, T. Liquid Phase Oxidation Chemistry in Continuous-Flow Microreactors. Chem. Soc. Rev. 2016, 45 (1), 83–117. https://doi.org/10.1039/c5cs00447k.
+
+[96] p Wegner, J.; Ceylan, S.; Kirschning, A. Flow Chemistry – A Key Enabling Technology for (Multistep) Organic Synthesis. Adv. Synth. Catal. 2012, 354, 17–57. https://doi.org/10.1002/adsc.201100584.
+
+[97] p Plouffe, P.; Macchi, A.; Roberge, D. From Batch to Continuous Chemical Synthesis—A Toolbox Approach. Org. Process Res. Dev. 2014, 18, 1286–1294. https://doi.org/10.1021/op5001918.
+
+[98] p Ingham, R. J.; Battilocchio, C.; Fitzpatrick, D. E.; Sliwinski, E.; Hawkins, J. M.; Ley, S. V. A Systems Approach Towards an Intelligent and Self-Controlling Platform for Integrated Continuous Reaction Sequences. Angew. Chem. Int. Ed. 2015, 54 (1), 144–148. https://doi.org/10.1002/anie.201409356.
+
+[99] p Adamo, A.; Beingessner, R. L.; Behnam, M.; Chen, J.; Jamison, T. F.; Jensen, K. F.; Monbaliu, J.-C. M.; Myerson, A. S.; Revalor, E. M.; Snead, D. R.; Stelzer, T.; Weeranoppanant, N.; Wong, S. Y.; Zhang, P. On-Demand Continuous-Flow Production of Pharmaceuticals in a Compact, Reconfigurable System. Science 2016, 352 (6281), 61–67. https://doi.org/10.1126/science.aaf1337.
+
+[100] p Holtze, C.; Boehling, R. Batch or Flow Chemistry? – A Current Industrial Opinion on Process Selection. Curr. Opin. Chem. Eng. 2022, 36, 100798. https://doi.org/10.1016/j.coche.2022.100798.
+
+[101] p Glasnov, T. N.; Kappe, C. O. The Microwave-to-Flow Paradigm: Translating High-Temperature Batch Microwave Chemistry to Scalable Continuous-Flow Processes. Chem. Eur. J. 2011, 17 (43), 11956–11968. https://doi.org/10.1002/chem.201102065.
+
+[102] p Zhang, J.; Wang, K.; Teixeira, A.; Jensen, K.; Luo, G. Design and Scaling Up of Microchemical Systems: A Review. Annu. Rev. Chem. Biomol. Eng. 2017, 8, 285–305. https://doi.org/10.1146/annurev-chembioeng-060816-101443.
+
+[103] p An, H.; Li, A.; Sasmito, A. P.; Kurnia, J. C.; Jangam, S. V.; Mujumdar, A. S. Computational Fluid Dynamics (CFD) Analysis of Micro-Reactor Performance: Effect of Various Configurations. Chem. Eng. Sci. 2012, 75, 85–95. https://doi.org/10.1016/j.ces.2012.03.004.
+
+[104] p Ripken, R. M.; Wood, J. A.; Schlautmann, S.; Günther, A.; Gardeniers, H. J. G. E.; Le Gac, S. Towards Controlled Bubble Nucleation in Microreactors for Enhanced Mass Transport. React. Chem. Eng. 2021, 6 (10), 1869–1877. https://doi.org/10.1039/D1RE00092F.
+
+[105] p Mielke, E.; Plouffe, P.; Koushik, N.; Eyholzer, M.; Gottsponer, M.; Kockmann, N.; Macchi, A.; Roberge, D. M. Local and Overall Heat Transfer of Exothermic Reactions in Microreactor Systems. React. Chem. Eng. 2017, 2 (5), 763–775. https://doi.org/10.1039/C7RE00085E.
+
+[106] p Guidi, M.; Seeberger, P. H.; Gilmore, K. How to Approach Flow Chemistry. Chem. Soc. Rev. 2020, 49 (24), 8910–8932. https://doi.org/10.1039/C9CS00832B.
+
+[107] p Mallia, C. J.; Baxendale, I. R. The Use of Gases in Flow Synthesis. Org. Process Res. Dev. 2016, 20 (2), 327–360. https://doi.org/10.1021/acs.oprd.5b00222.
+
+[108] p Chauhan, R.; Rana, A.; Mottafegh, A.; Kim, D. P.; Singh, A. K. Manual to Auto-Optimization Platform of Multistep Apixaban Synthesis. Organic Process Research & Development 2025, 29 (3), 881-888. https://doi.org/10.1021/acs.oprd.4c00535.
+
+[109] p Aand, D.; Rana, A.; Mottafegh, A.; Kim, D. P.; Singh, A. K. Autonomous closed-loop photochemical reaction optimization for the synthesis of various angiotensin II receptor blocker molecules. Reaction Chemistry & Engineering 2024, 9 (9), 2427-2435. https://doi.org/10.1039/D4RE00138A.
+
+[110] p Tu, Z.; Choure, S.; Fong, M. H.; Roh, J.; Levin, I.; Yu, K.; Joung, J.; Morgan, N.; Li, S.-C.; Sun, X.; Lin, H.; Murnin, M.; Liles, J.; Struble, T.; Fortunato, M.; Liu, M.; Green, W.; Jensen, K.; Coley, C. ASKCOS: Open-Source, Data-Driven Synthesis Planning. Acc. Chem. Res. 2025, 58 (11), 1764–1775. https://doi.org/10.1021/acs.accounts.5c00155.
+
+[111] p Coley, C.; Green, W.; Jensen, K. Machine Learning in Computer-Aided Synthesis Planning. Acc. Chem. Res. 2018, 51 (5), 1281–1289. https://doi.org/10.1021/acs.accounts.8b00087.
+
+[112] p Hartog, P.; Westerlund, A.; Tetko, I.; Genheden, S. Investigations into the Efficiency of Computer-Aided Synthesis Planning. J. Chem. Inf. Model. 2025, 65 (4), 1771–1781. https://doi.org/10.1021/acs.jcim.4c01821.
+
+[113] p Haydary, J. Chemical Process Design and Simulation; Wiley: 2018. https://doi.org/10.1002/9781119311478.
+
+[114] p Reynoso-Donzelli, S.; Ricardez-Sandoval, L. A Reinforcement Learning Approach with Masked Agents for Chemical Process Flowsheet Design. AIChE J. 2025, 71 (1), e18584. https://doi.org/10.1002/aic.18584.
+
+[115] p Mottafegh, A.; Joo, J.-U.; Na, G.-S.; Sharma, V.; Kim, D.-P. AI-Assisted Autonomous Manufacturing of Tailored Drug-Loaded Nanoparticles by Multi-Step Continuous-Flow Platform. Chem. Eng. J. 2024, 500, 157454. https://doi.org/10.1016/j.cej.2024.157454.
+
+[116] p Dunlap, J.; Ethier, J.; Putnam-Neeb, A.; Iyer, S.; Luo, S.-X. L.; Feng, H.; Torres, J. G.; Doyle, A.; Swager, T.; Vaia, R.; Mirau, P.; Crouse, C.; Baldwin, L. Continuous Flow Synthesis of Pyridinium Salts Accelerated by Multi-Objective Bayesian Optimization with Active Learning. Chem. Sci. 2023, 14, 8061–8069. https://doi.org/10.1039/d3sc01303k.
+
+[117] p Ahn, G.-N.; Kang, J.-H.; Lee, H.-J.; Park, B. E.; Kwon, M.; Na, G.-S.; Kim, H.; Seo, D.-H.; Kim, D.-P. Exploring Ultrafast Flow Chemistry by Autonomous Self-Optimizing Platform. Chem. Eng. J. 2023, 453, 139707. https://doi.org/10.1016/j.cej.2022.139707.
+
+[118] p Mottafegh, A.; Ahn, G.-N.; Kim, D.-P. Meta Optimization Based on Real-Time Benchmarking of Multiple Surrogate Models for Autonomous Flow Synthesis. Lab. Chip 2023, 23 (6), 1613–1621. https://doi.org/10.1039/D2LC00938B.
+
+[119] p Jorayev, P.; Soritz, S.; Sung, S.; Jeraal, M.; Russo, D.; Barthelme, A.; Toussaint, F.; Gaunt, M.; Lapkin, A. Machine Learning-Driven Optimization of Continuous-Flow Photoredox Amine Synthesis. Org. Process Res. Dev. 2025, 29, 1411–1422. https://doi.org/10.1021/acs.oprd.4c00533.
+
+[120] p Coley, C. W.; Thomas III, D. A.; Lummiss, J. A. M.; Jaworski, J. N.; Breen, C. P.; Schultz, V.; Hart, T.; Fishman, J. S.; Rogers, L.; Gao, H.; Hicklin, R. W.; Plehiers, P. P.; Byington, J.; Piotti, J. S.; Green, W. H.; Hart, A. J.; Jamison, T. F.; Jensen, K. F. A Robotic Platform for Flow Synthesis of Organic Compounds Informed by AI Planning. Science 2019, 365 (6453), eaax1566. https://doi.org/10.1126/science.aax1566.
+
+[121] p Pilon, S.; Savino, E.; Bayley, O. M.; Vanzella, M.; Claros, M.; Siasiaridis, P.; Liu, J.; Lukas, F.; Damian, M.; Tseliou, V.; Intini, N.; Slattery, A.; SanJosé-Orduna, J.; den Hartog, T.; Peters, R. A. H.; Gargano, A. F. G.; Mutti, F. G.; Noël, T. A flexible and affordable self-driving laboratory for automated reaction optimization. Nature Synthesis 2026, advance online publication. https://doi.org/10.1038/s44160-026-01053-0.
+
+[122] p Chauhan, R.; Mottafegh, A.; Rana, A.; Singh, A. K. UV-visible Auto-Reactometry enabled parallel screening for accelerating chemical synthesis development with LLM. Chemical Engineering Journal 2026, 533, 174829. https://doi.org/10.1016/j.cej.2026.174829.
+
+[123] p M. Bran, A.; Cox, S.; Schilter, O.; Baldassari, C.; White, A. D.; Schwaller, P. Augmenting Large Language Models with Chemistry Tools. Nat. Mach. Intell. 2024, 6 (5), 525–535. https://doi.org/10.1038/s42256-024-00832-8.
+
+[124] p Boiko, D. A.; MacKnight, R.; Kline, B.; Gomes, G. Autonomous Chemical Research with Large Language Models. Nature 2023, 624 (7992), 570–578. https://doi.org/10.1038/s41586-023-06792-0.
+
+[125] p Zou, Y.; Cheng, A. H.; Aldossary, A.; Bai, J.; Leong, S. X.; Campos-Gonzalez-Angulo, J. A.; Choi, C.; Ser, C. T.; Tom, G.; Wang, A.; Zhang, Z.; Yakavets, I.; Hao, H.; Crebolder, C.; Bernales, V.; Aspuru-Guzik, A. El Agente: An Autonomous Agent for Quantum Chemistry. Matter 2025, 8 (7), 102263. https://doi.org/10.1016/j.matt.2025.102263.
+
+[126] p Gottweis, J.; Weng, W.-H.; Daryin, A.; Tu, T.; Sirkovic, P.; Myaskovsky, A.; Glowaty, G.; Weissenberger, F.; Orlandi, A.; Popovici, D.; Palepu, A.; Rong, K.; Tanno, R.; Saab, K.; Zhang, F.; Blum, J.; Carroll, A.; Kulkarni, K.; Tomašev, N.; Zverinski, D.; Rendulic, I.; Vedadi, E.; Hasler, F.; Rimanic, L.; Boia, M.; Budiselic, I.; Feinstein, B.; Bellaiche, M.; Sheffer, T.; Freyberg, J.; Ratcliff, J.; Bertolli, O.; Chou, K.; Hassidim, A.; Gokturk, B.; Vahdat, A.; Guan, Y.; Dhillon, V.; Vaishnav, E. D.; Lee, B.; Costa, T. R. D.; Penadés, J. R.; Peltz, G.; Matias, Y.; Manyika, J.; Hassabis, D.; Xu, Y.; Kohli, P.; Pawlosky, A.; Karthikesalingam, A.; Natarajan, V. Accelerating scientific discovery with Co-Scientist. Nature 2026, 655 (8122), 487-496. https://doi.org/10.1038/s41586-026-10644-y.
+
+[127] p Miao, J.; Davis, J. R.; Zhang, Y.; Pritchard, J. K.; Zou, J. Reimagining research papers as interactive and reliable AI agents. Nature 2026, advance online publication. https://doi.org/10.1038/s41586-026-11044-y.
+
+[128] p Pagel, S.; Jirasek, M.; Cronin, L. Verification and execution of the scientific literature via chemputation augmented by large language models. Communications Chemistry 2026, 9 (1), 191. https://doi.org/10.1038/s42004-026-01993-w.
+
+[129] p Panapitiya, G.; Saldanha, E.; Job, H.; Hess, O. AutoLabs: cognitive multi-agent systems with self-correction for autonomous chemical experimentation. Scientific Reports 2026, 16 (1), 19554. https://doi.org/10.1038/s41598-026-45593-z.
+
+[130] p Hsu, B.; Setty, P. V.; Butler, R. M.; Lewis, R.; Stone, C.; Weinberg, R.; Brettin, T.; Stevens, R.; Foster, I.; Ramanathan, A. PRISM: protocol refinement through intelligent simulation modeling. Digital Discovery 2026, 5 (6), 2613-2628. https://doi.org/10.1039/D6DD00004E.
+
+[131] p Pan, Y.; Xiao, Q.; Zhao, F.; Li, Z.; Liu, J.; Ullah, S.; Lim, K. H.; Huang, T.; Yu, Z.; Li, C.; Zhang, D.; Xue, Q.; Chen, Q.; Kawi, S.; Wang, Y.; Luo, G. Chat-microreactor: A large-language-model-based assistant for designing continuous flow systems. Chemical Engineering Science 2025, 311, 121567. https://doi.org/10.1016/j.ces.2025.121567.
+
+[132] p Wang, Q.; Wang, Y.; Gong, X. An LLM-Based Intelligent Agent and Its Application in Making the Lanolin Saponification Process Greener. Pharmaceuticals 2026, 19 (2), 264. https://doi.org/10.3390/ph19020264.
+
+[133] p Ruan, Y.; Lu, C.; Xu, N.; He, Y.; Chen, Y.; Zhang, J.; Xuan, J.; Pan, J.; Fang, Q.; Gao, H.; Shen, X.; Ye, N.; Zhang, Q.; Mo, Y. An automatic end-to-end chemical synthesis development platform powered by large language models. Nature Communications 2024, 15 (1), 10160. https://doi.org/10.1038/s41467-024-54457-x.
+
+[134] p Tian, X.; Du, W.; Yang, S.; Hu, H.; Xin, H.; Qu, S.; Ye, K. From Text to Simulation: A Multi-Agent LLM Workflow for Automated Chemical Process Design. Proceedings of the AAAI Conference on Artificial Intelligence 2026, 40 (35), 29705-29713. https://doi.org/10.1609/aaai.v40i35.40215.
+
+[135] p Yang, Y.; Li, R.; Ma, J.; Zhang, K.; Liu, Q.; Han, J.; Bu, Y.; Zhou, J.; Lian, D.; Li, X.; Chen, E. CeProAgents: A Hierarchical Agents System for Automated Chemical Process Development. arXiv 2026, 2603.01654v1. Preprint. https://arxiv.org/abs/2603.01654v1.
+
+[136] p Zhang, T. Harness as an Asset: Enforcing Determinism via the Convergent AI Agent Framework (CAAF). arXiv 2026, 2604.17025v3. Preprint. https://arxiv.org/abs/2604.17025v3.
+
+[137] p Bai, J.; Aldossary, A.; Swanick, T.; Müller, M.; Kang, Y.; Choi, C.; Yoshikawa, N.; Zhang, Z.; Lee, J. W.; Ko, T. W.; Yin, A.; Vakili, M. G.; Crebolder, C.; Bernales, V.; Aspuru-Guzik, A. El Agente Gráfico: A Semantic Execution Runtime for Scientific Agents. arXiv 2026, 2602.17902v2. Preprint. https://arxiv.org/abs/2602.17902v2.
+
+[138] p Müller, M.; Bai, J.; Gottstein, W.; Mandal, A.; Nazeri, M.; Savino, E.; Fang, Y.; Das, S.; Carrillo, S. P. G.; Kang, Y.; Pérez-Sánchez, J. B.; Pilon, S.; Fitzner, M.; Noël, T.; Gu, F.; Bernales, V.; Aspuru-Guzik, A. La Agente Óptima: Towards Agentic Self-Driving Laboratories. arXiv 2026, 2609.04564v1. Preprint. https://arxiv.org/abs/2609.04564v1.
+
+[139] p Mirza, A.; Alampara, N.; Kunchapu, S.; Ríos-García, M.; Emoekabu, B.; Krishnan, A.; Gupta, T.; Schilling-Wilhelmi, M.; Okereke, M.; Aneesh, A.; Asgari, M.; Eberhardt, J.; Elahi, A. M.; Elbeheiry, H. M.; Gil, M. V.; Glaubitz, C.; Greiner, M.; Holick, C. T.; Hoffmann, T.; Ibrahim, A.; Klepsch, L. C.; Köster, Y.; Kreth, F. A.; Meyer, J.; Miret, S.; Peschel, J. M.; Ringleb, M.; Roesner, N. C.; Schreiber, J.; Schubert, U. S.; Stafast, L. M.; Wonanke, A. D. D.; Pieler, M.; Schwaller, P.; Jablonka, K. M. A framework for evaluating the chemical knowledge and reasoning abilities of large language models against the expertise of chemists. Nature Chemistry 2025, 17 (7), 1027-1034. https://doi.org/10.1038/s41557-025-01815-x.
+
+[140] p Ranković, B.; Griffiths, R.-R.; Schwaller, P. Large language models as uncertainty-calibrated optimizers for experimental discovery. Nature Machine Intelligence 2026, 8 (9), 1466-1477. https://doi.org/10.1038/s42256-026-01283-z.
+
+[141] p Ahn, G.-N.; Shin, J.-A.; Lee, S. Sustainable Continuous Synthesis of 3,5-Disubstituted Isoxazoles: Development of an Integrated Reaction–Separation–Recovery System for Deep Eutectic Solvents. ACS Sustainable Chem. Eng. 2025, 13, 6589–6597. https://doi.org/10.1021/acssuschemeng.5c00580.
+
+[142] p Park, J.; Kim, S. H.; Cho, J.-Y.; Atriardi, S. R.; Kim, J.-Y.; Mardhiyah, H.; Park, B. Y.; Woo, S. K. Batch and Flow Synthesis of Sulfides and Sulfoxides Using Green Solvents and Oxidant through Visible-Light Photocatalysis. Green Chem. 2025, 27, 3284–3292. https://doi.org/10.1039/d4gc05769d.
+
+[143] p Saunders, J. M.; Oceguera Nava, E.; Li, J.; Wong, M. J.; Freiberg, K. M.; Lipshutz, B. H. Flow-to-Flow Technology: Amide Formation in the Absence of Traditional Coupling Reagents Using DPDTC. ACS Sustainable Chem. Eng. 2025, 13, 6646–6655. https://doi.org/10.1021/acssuschemeng.5c00914.
+
+[144] p Lu, Y.; Yan, Z.; Jiang, Y.; He, H.; Zhou, J.; Gao, S.; Xing, D. α-Bromination of Aldehydes by Continuous Flow Chemistry and Its Application to the Flow Synthesis of 2-Aminothiazoles. Organic Process Research & Development 2025, 29, 2047-2055. https://doi.org/10.1021/acs.oprd.5c00076.
+
+[145] p Zeng, T.; Badrinarayanan, S.; Ock, J.; Lai, C.-K.; Barati Farimani, A. LLM-Guided Chemical Process Optimization with a Multi-Agent Approach. Mach. Learn. Sci. Technol. 2025, 6 (4), 045067. https://doi.org/10.1088/2632-2153/ae2382.
+
+[146] p Kim, S.; Choi, J.; Jang, K.; Park, J.; Bernales, V.; Aspuru-Guzik, A.; Jung, Y. Materealize: A Multi-Agent Deliberation System for End-to-End Material Design and Synthesis. arXiv January 22, 2026. https://doi.org/10.48550/arXiv.2601.15743.
+
+[147] p Mottafegh, A.; Ahn, G.-N. Adaptive human-in-the-loop optimization using language-guided priors for chemical experiments. Journal of Chemical Information and Modeling 2026, 66 (15), 8833-8847. https://doi.org/10.1021/acs.jcim.6c00976.
+
+[148] sectPr 
