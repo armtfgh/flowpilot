@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import re
+from copy import deepcopy
 from typing import Any
 
 from pydantic import ValidationError
+from flora_translate.component_identity import has_stationary_catalytic_role
 
 from flora_translate.executable_artifacts import (
     artifact_semantic_issues,
@@ -54,8 +56,8 @@ SEMANTIC_GATES = {
     "residence_time_basis_unambiguous": {
         "FINAL-RESIDENCE-TIME-BASIS-UNKNOWN"
     },
-    "gas_primary_basis_inlet_stp": {
-        "FINAL-GAS-BASIS-NOT-INLET-STP"
+    "gas_time_basis_consistent": {
+        "FINAL-GAS-TIME-BASIS-INCONSISTENT"
     },
     "mixing_regime_matches_topology": {
         "FINAL-MIXING-REGIME-TOPOLOGY-CONFLICT"
@@ -151,6 +153,7 @@ def build_final_design_contract(result: dict[str, Any]) -> dict[str, Any]:
         "chemistry_identity": None,
         "stream_components": [],
         "stationary_components": stationary_components,
+        "decision_rationale": deepcopy(proposal.get("decision_rationale") or {}),
         "safety": None,
         "operating_procedure": [],
         "validation_experiments": [],
@@ -471,19 +474,24 @@ def _build_executable_process_graph(
             raise ValueError(
                 f"reactor operation {reactor.op_id} has no inventory equipment assignment"
             )
-        basis = str(parameters.get("residence_time_basis") or "liquid-only")
+        basis = str(parameters.get("residence_time_basis") or "")
+        normalized_basis = normalize_residence_time_basis(basis)
+        if normalized_basis == "unknown":
+            if any(feed["phase"] == "gas" for feed in feeds):
+                raise ValueError(f"reactor {reactor.op_id} requires an explicit residence-time basis in a gas process")
+            basis = "liquid-only"
+            normalized_basis = normalize_residence_time_basis(basis)
         liquid_flow = _number(
             parameters.get("Q_liquid_mL_min"),
             parameters.get("Q_inlet_mL_min"),
         )
-        basis_lower = basis.lower()
-        if "inlet" in basis_lower or "stp" in basis_lower:
+        if normalized_basis == INLET_STP_BASIS:
             gas_flow = _number(parameters.get("Q_gas_sccm"))
             residence_time = _number(
                 parameters.get("residence_time_inlet_min"),
                 parameters.get("residence_time_min"),
             )
-        elif "channel" in basis_lower:
+        elif normalized_basis == IN_CHANNEL_BASIS:
             gas_flow = _number(parameters.get("Q_gas_actual_mL_min"))
             residence_time = _number(
                 parameters.get("residence_time_in_channel_min"),
@@ -574,6 +582,9 @@ def _consistency_issues(
     topology: dict[str, Any],
 ) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
+    council_block = (proposal.get("inventory_constraints") or {}).get("council_selection_block")
+    if council_block:
+        issues.append({"code": "FINAL-COUNCIL-NO-APPROVED-CANDIDATE", "message": str(council_block)})
     checks = dict(validation.get("checks") or {})
     for check, passed in checks.items():
         if passed is False:
@@ -807,25 +818,10 @@ def _resolved_stationary_components(
                 str(reagent.get("notes") or ""),
             ]
         ).lower()
-        normalized = " ".join(re.findall(r"[a-z0-9]+", context))
-        words = set(normalized.split())
-        is_catalyst = bool({"catalyst", "catalytic"} & words)
-        is_stationary = any(
-            marker in normalized
-            for marker in (
-                "heterogeneous",
-                "immobilized",
-                "supported catalyst",
-                "packed",
-                "cartridge",
-                "fixed bed",
-                "stationary",
-                "not in feed",
-                "not in solution",
-            )
-        )
         key = _component_key(name)
-        if name and key not in known and is_catalyst and is_stationary:
+        if name and key not in known and has_stationary_catalytic_role(
+            context, declared_loading=str(reagent.get("equiv_or_loading") or ""),
+        ):
             resolved.append(
                 {
                     "name": name,
@@ -900,6 +896,15 @@ def _gas_composition_and_equivalent_issues(
             continue
         fraction = _number(stream.get("gas_reagent_mole_fraction"))
         identities = [str(item).strip().lower().replace("₂", "2") for item in stream.get("contents") or []]
+        named_air = len(identities) == 1 and bool(re.fullmatch(r"(?:(?:clean|dry|compressed|filtered)\s+)*air", identities[0]))
+        if named_air and not _close(fraction, 0.21, tolerance=0.001):
+            issues.append({
+                "code": "FINAL-GAS-COMPOSITION-INCONSISTENT",
+                "message": "A named air stream must use 0.21 as the oxygen mole fraction; gas identity and composition disagree.",
+            })
+            # Independently check the claimed oxygen equivalents, not the
+            # same erroneous fraction that produced them.
+            fraction = 0.21
         pure_oxygen = len(identities) == 1 and bool(re.fullmatch(r"(?:pure\s+)?(?:o2|oxygen)(?:\s*\((?:gas|o2|oxygen)\))?", identities[0]))
         if pure_oxygen and not _close(
             fraction, 1.0, tolerance=0.001

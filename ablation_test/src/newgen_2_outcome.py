@@ -7,6 +7,8 @@ import json
 import re
 from pathlib import Path
 from typing import Any
+from copy import deepcopy
+from ablation_test.src.outcome_verification import delivered_arithmetic, resolves_json_path
 
 
 IDENTITY_RE = re.compile(
@@ -54,14 +56,19 @@ def _normal_stages(value: Any) -> list[dict[str, Any]]:
     return []
 
 
+def _public_parameters(proposal):
+    """Same final-parameter boundary for both architectures, including blocks."""
+    excluded = {"streams", "stage_parameters", "pre_reactor_steps", "post_reactor_steps",
+        "chemistry_notes", "reasoning_per_field", "safety_flags", "inventory_selection",
+        "inventory_constraints", "evidence_calibration", "literature_analogies",
+        "decision_rationale", "heat_transfer_metrics", "multiphase_metrics", "scientific_design"}
+    return {key: deepcopy(value) for key, value in proposal.items() if key not in excluded}
+
+
 def _one_shot_outcome(result: dict[str, Any]) -> dict[str, Any]:
     proposal = dict(result.get("proposal") or result.get("raw_proposal") or {})
     return {
-        "parameters": {key: value for key, value in proposal.items() if key not in {
-            "streams", "stage_parameters", "pre_reactor_steps", "post_reactor_steps",
-            "chemistry_notes", "reasoning_per_field", "safety_flags", "inventory_selection",
-            "inventory_constraints", "evidence_calibration", "literature_analogies",
-        }},
+        "parameters": _public_parameters(proposal),
         "streams": proposal.get("streams") or [],
         "stages": _normal_stages(proposal.get("stage_parameters")),
         "topology": {
@@ -92,7 +99,9 @@ def _pipeline_outcome(result: dict[str, Any]) -> dict[str, Any]:
     topology = result.get("process_topology") or final.get("process_graph") or {}
     executable = final.get("status") == "executable"
     return {
-        "parameters": final.get("parameters") or proposal,
+        "parameters": _public_parameters(final.get("parameters") or proposal),
+        "delivery_status": final.get("status"),
+        "delivery_issues": (final.get("consistency") or {}).get("issues") or final.get("issues") or [],
         "streams": final.get("streams") or proposal.get("streams") or [],
         "stages": _normal_stages(final.get("stages") or proposal.get("stage_parameters")),
         "topology": topology,
@@ -111,6 +120,8 @@ def _pipeline_outcome(result: dict[str, Any]) -> dict[str, Any]:
             "confidence": result.get("confidence"),
             "validation_experiments": final.get("validation_experiments") if executable else [],
             "canonical_sha256": final.get("canonical_sha256") if executable else None,
+            "decision_rationale": {k: v for k, v in (proposal.get("decision_rationale") or {}).items()
+                                   if v.get("status") == "conditions_preserved"},
         },
         "reported_disposition": result.get("reported_disposition") or result.get("recommended_disposition"),
         "disposition_rationale": result.get("disposition_rationale"),
@@ -128,7 +139,7 @@ def build_outcome_packet(
     pipeline_outcome = result.get("variant") == "full" or isinstance(final, dict)
     outcome = _pipeline_outcome(result) if pipeline_outcome else _one_shot_outcome(result)
     packet = {
-        "schema_version": "flowpilot_newgen_2_0_blinded_outcome_v1.0",
+        "schema_version": "flowpilot_newgen_2_0_blinded_outcome_v1.1",
         "candidate_id": candidate,
         "case_context": {
             "case_label": case_context.get("case_label"),
@@ -141,7 +152,8 @@ def build_outcome_packet(
             "applicability": {"gas_process": has_gas, "multistage_process": is_multistage},
         },
         "delivered_final_outcome": outcome,
-        "deterministic_verification_sheet": deterministic_verification,
+        "deterministic_verification_sheet": {**deepcopy(deterministic_verification),
+            "delivered_arithmetic": delivered_arithmetic(outcome, multistage=is_multistage)},
         "evaluation_boundary": (
             "Evaluate only this delivered outcome. Internal architecture, intermediate reasoning, "
             "council traces, validators, and generator identity are withheld from primary scoring."
@@ -167,7 +179,31 @@ def packet_gate(packet: dict[str, Any]) -> list[str]:
     return errors
 
 
-def response_schema() -> dict[str, Any]:
+def evidence_path_catalog(packet: dict[str, Any]) -> list[str]:
+    """Provide exact existing evidence containers without hiding packet content.
+
+    A parent object is sufficient when a defect is an absent field. Restricting
+    citation syntax does not prescribe observations, scores or corrections.
+    """
+    paths = set()
+    def add_children(value, path, depth):
+        paths.add(path)
+        if depth <= 0:
+            return
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if str(key).isidentifier():
+                    add_children(child, path + "." + key, depth - 1)
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                add_children(child, f"{path}[{index}]", 0)
+    for key in ("case_context", "delivered_final_outcome", "deterministic_verification_sheet"):
+        if key in packet:
+            add_children(packet[key], "$." + key, 2)
+    return sorted(paths)
+
+
+def response_schema(packet: dict[str, Any] | None = None) -> dict[str, Any]:
     row = {
         "type": "object",
         "additionalProperties": False,
@@ -190,6 +226,8 @@ def response_schema() -> dict[str, Any]:
             "confidence": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"]},
         },
     }
+    if packet is not None:
+        row["properties"]["evidence_paths"]["items"]["enum"] = evidence_path_catalog(packet)
     return {
         "type": "object", "additionalProperties": False,
         "required": ["candidate_id", "criterion_scores", "overall_executability", "cross_criterion_notes"],
@@ -264,6 +302,17 @@ def validate_response(response: dict[str, Any], rubric: dict[str, Any], packet: 
             errors.append(f"{cid}: critical_error requires score <=1 and CRITICAL severity")
         if score == 4 and (severity != "NONE" or row["critical_error"]):
             errors.append(f"{cid}: score 4 requires NONE severity")
+        if str(packet.get("schema_version", "")).endswith("v1.1"):
+            for path in row["evidence_paths"]:
+                if not resolves_json_path(packet, path):
+                    errors.append(f"{cid}: evidence path does not resolve: {path}")
+            outcome = packet.get("delivered_final_outcome") or {}
+            topology = outcome.get("topology") or {}
+            operations = outcome.get("chemistry_and_operations") or {}
+            if score == 4 and cid == "UO-05" and "unit_operations" in topology and not topology["unit_operations"]:
+                errors.append(f"{cid}: score 4 contradicts an explicitly empty delivered topology")
+            if score == 4 and cid == "UO-13" and outcome.get("delivery_status") == "blocked" and not operations.get("operating_procedure"):
+                errors.append(f"{cid}: score 4 contradicts a blocked delivery with no executable operating procedure")
         if score <= 2:
             if not row["evidence_paths"] or not row["observed_values"]:
                 errors.append(f"{cid}: score <=2 requires evidence paths and observed values")
@@ -281,6 +330,11 @@ literally and equally. The published flow reference is supporting evidence, not 
 Differences from it are not defects unless they contradict protocol facts, physics, inventory, safety,
 or lack a defensible basis. Treat the deterministic verification sheet as authoritative for calculations
 it explicitly tests; if you reject one of its conclusions, identify the exact erroneous input or formula.
+Use exact JSON evidence paths (for example $.delivered_final_outcome.streams[0]);
+cite the existing parent object when a missing field is the defect. Do not invent paths.
+Read explicit delivery_status and delivery_issues. An empty blocked topology cannot
+receive full marks for executable topology. Missing operating instructions cannot
+be inferred from inventory. Distinguish oxygen equivalents from total air equivalents.
 Do not provide chain-of-thought. Return only the requested JSON object."""
     user = (
         "Evaluate this blinded candidate against every fixed criterion exactly once.\n\n"
@@ -295,6 +349,12 @@ Do not provide chain-of-thought. Return only the requested JSON object."""
         "a criterion-specific critical condition, have score 0 or 1, and severity CRITICAL. Cite exact "
         "JSON paths. Judge all architectures by the same final-output standard.\n\n"
         f"FROZEN RUBRIC:\n{json.dumps(rubric, ensure_ascii=False, sort_keys=True)}\n\n"
-        f"BLINDED PACKET:\n{json.dumps(packet, ensure_ascii=False, sort_keys=True)}"
+        f"BLINDED PACKET:\n{json.dumps(packet, ensure_ascii=False, sort_keys=True)}\n\n"
+        "EVIDENCE PATH CATALOG (copy citation paths exactly from this list):\n"
+        + "\n".join(evidence_path_catalog(packet))
+        + "\nCite a listed parent object for a missing child field. In observed_values, "
+        "state the actual value or explicitly state what is missing. Do not invent "
+        "a numeric observation to describe absent information. The catalog constrains "
+        "citations only; it does not change the rubric or your assessment."
     )
     return system, user

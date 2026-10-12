@@ -274,12 +274,12 @@ def compute_metrics(
 
     # Damköhler (mass-transfer): k·d²/D where k inferred from τ_kinetics (90% conv)
     # τ_k = -ln(0.10)/k  →  k = 2.303/τ_k_s
-    tau_k_s = max(tau_kinetics_min * 60.0, 1.0)
-    k_s_inv = 2.303 / tau_k_s
+    tau_k_s = max(tau_kinetics_min * 60.0, 1e-9)
+    k_s_inv = math.log(10.0) / tau_k_s
     Da_mass = k_s_inv * d_m ** 2 / D_MOLECULAR
 
     # Kinetics — first-order expected conversion
-    X = 1.0 - math.exp(-tau_s / tau_k_s)
+    X = -math.expm1(-k_s_inv * tau_s)
     X = min(X, 1.0)
 
     # Throughput

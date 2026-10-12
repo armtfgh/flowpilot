@@ -25,6 +25,52 @@ SOLVENT_IDENTITY_ALIASES = (
 )
 
 
+def has_catalytic_role(value: str) -> bool:
+    """Recognize catalyst role variants without depending on a compound name."""
+    return bool(re.search(r"\b(?:pre[- ]?)?(?:photo|electro)?catal(?:yst|ytic)\b", str(value), re.I))
+
+
+def has_stationary_catalytic_role(value: str, *, declared_loading: str = "") -> bool:
+    """Shared placement classification, used only in a packed-bed context."""
+    normalized = " ".join(re.findall(r"[a-z0-9]+", str(value).lower()))
+    stationary = re.search(
+        r"\b(?:heterogeneous|immobilized|supported catalyst|pre packed|prepacked|"
+        r"packed|cartridge|fixed bed|stationary|not in solution|not in feed|"
+        r"dissolved loading not applicable)\b", normalized,
+    )
+    # Use the component's declared flow loading, not a bed mentioned elsewhere
+    # or only in a historical batch procedure.
+    flow_loading = re.split(r"\bflow\s*:", declared_loading, flags=re.I)[-1]
+    fixed_loading = re.search(
+        r"\b(?:pre[ -]?)?packed[ -](?:bed|reactor|tube|column)\b|\bcartridge\b", flow_loading, re.I,
+    )
+    # Physical placement is authoritative even when the model calls a bed
+    # component a material, source, reagent or adsorbent instead of a catalyst.
+    supported_material = re.search(r"\b(?:heterogeneous|immobilized|supported)\b", normalized)
+    pumped_solid = re.search(
+        r"\b(?:slurry|suspension|suspended|pumped feed)\b",
+        f"{normalized} {flow_loading}", re.I,
+    )
+    explicit_stationary_phase = re.search(r"\b(?:stationary|fixed) phase\b", normalized)
+    installed_bed = re.search(r"\b(?:installed|supplied|existing)\s+(?:[^.;]+?\s+)?bed\b", flow_loading, re.I)
+    return bool(not pumped_solid and (
+        (has_catalytic_role(normalized) and stationary)
+        or (supported_material and (fixed_loading or explicit_stationary_phase or installed_bed))
+    ))
+
+
+def has_output_only_role(value: str) -> bool:
+    """An output identity does not authorize adding that species to a feed.
+
+    Explicit dual input uses, such as product seeding or an analytical standard,
+    remain inputs. The caller preserves deliberately declared feed membership.
+    """
+    role = str(value).casefold()
+    output = re.search(r"\b(?:product|by[ -]?product|intermediate)\b", role)
+    input_use = re.search(r"\b(?:substrate|reactant|reagent|additive|seed|seeding|standard|starting material|feed)\b", role)
+    return bool(output and not input_use)
+
+
 def component_name(value: str) -> str:
     text = str(value).strip()
     # Strip a dose/role annotation, never parentheses within a chemical name.

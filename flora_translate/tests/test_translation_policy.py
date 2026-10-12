@@ -339,15 +339,15 @@ def test_infeasible_refinement_keeps_original_candidate() -> None:
     assert summary["candidate_changes"][0]["rejected_variant_count"] == 1
 
 
-def test_scoring_blocks_cannot_erase_all_audited_candidates() -> None:
+def test_numerical_audit_cannot_override_all_specialist_blocks() -> None:
     disqualified, overridden = _resolve_disqualify_ids(
         [{"id": 1}, {"id": 2}],
         {"blocked_by_scoring": [1, 2]},
         {"disqualify_ids": []},
     )
 
-    assert disqualified == set()
-    assert overridden == {1, 2}
+    assert disqualified == {1, 2}
+    assert overridden == set()
 
 
 def test_scoring_block_still_removes_candidate_when_alternative_exists() -> None:
@@ -368,5 +368,5 @@ def test_deterministic_audit_disqualification_is_never_overridden() -> None:
         {"disqualify_ids": [1]},
     )
 
-    assert disqualified == {1}
-    assert overridden == {2}
+    assert disqualified == {1, 2}
+    assert overridden == set()

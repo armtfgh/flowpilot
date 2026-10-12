@@ -19,6 +19,7 @@ import re
 from typing import Optional
 
 import flora_translate.engine.llm_agents as llm_agents
+from flora_translate.engine.council_v4.review_contract import REVIEW_POLICY, validated_model
 from flora_translate.engine.flow_value import enrich_scoring_with_flow_values, mandate_dict
 from flora_translate.engine.llm_agents import call_llm, call_llm_with_tools
 from flora_translate.engine.tool_definitions import (
@@ -242,10 +243,15 @@ def _slim_candidate(candidate: dict) -> dict:
         "IF_used": candidate.get("IF_used"),
         "temperature_C": candidate.get("temperature_C"),
         "hard_gate_flags": candidate.get("hard_gate_flags") or [],
+        "model_validity": candidate.get("model_validity") or {},
         "warnings": candidate.get("warnings") or [],
     }
     if candidate.get("flow_sense_report"):
         row["flow_sense_report"] = candidate.get("flow_sense_report")
+    if candidate.get("inventory_realized"):
+        for key in ["inventory_realized", "equipment_id", "reactor_type", "residence_time_basis", "residence_time_inlet_min", "residence_time_in_channel_min", "hydraulic_model", "gas_holdup_status", "streams", "stationary_components"]:
+            row[key] = candidate.get(key)
+        row["scientific_rationale"] = (candidate.get("realized_proposal") or {}).get("reasoning_per_field", {})
     return row
 
 
@@ -257,14 +263,14 @@ Score exactly one candidate using the provided numbers as authoritative.
 Return one JSON object only, no markdown, no extra text.
 Required keys:
 candidate_id, reasoning, combined_score, verdict, proposed_changes, concerns.
-Use very short reasoning. Own only proposed_changes.concentration_M.""",
+Use very short reasoning. Own concentration_M and validated component_placements repairs.""",
             "combined_score",
         ),
         "kinetics": (
             """You are Dr. Kinetics for FLORA Gemma mode.
 Score exactly one candidate using the provided numbers as authoritative.
-Policy: prefer the SHORTEST τ that clears X_floor = 0.30 single-pass.
-Don't penalize X < 0.85 if X ≥ 0.30. BLOCK only if X < 0.15.
+Follow the researcher objective and model_validity. Unvalidated conversion is
+a screening hypothesis; it cannot establish failure or justify a BLOCK.
 Return one JSON object only, no markdown, no extra text.
 Required keys:
 candidate_id, reasoning, kinetics_score, X_estimated, X_adequate,
@@ -298,7 +304,8 @@ invent one. Own only proposed_changes.BPR_bar and proposed_changes.tubing_materi
             "safety_score",
         ),
     }
-    return bundles[domain]
+    system, field = bundles[domain]
+    return system + REVIEW_POLICY, field
 
 
 def _build_gemma_context(
@@ -336,14 +343,14 @@ Be concise. Use BLOCK only for explicit hard-gate impossibility, not mere subopt
 Return JSON only:
 {"overall_analysis":"1-2 short sentences","scores":[{"candidate_id":1,"reasoning":"short reason","combined_score":0.0,"verdict":"ACCEPT|WARNING|REVISE|BLOCK","proposed_changes":{"concentration_M":0.2}}]}
 If no chemistry edit is needed, use proposed_changes: {}.
-Own only concentration_M.""",
+Own concentration_M and validated component_placements repairs.""",
             "combined_score",
         ),
         "kinetics": (
             """You are Dr. Kinetics in FlowPilot bounded scoring mode.
 Score the listed candidates using the provided numeric data only. Do not call tools.
-Policy: prefer the SHORTEST τ that clears X_floor = 0.30 single-pass.
-Don't penalize X < 0.85 if X ≥ 0.30. BLOCK only if X < 0.15.
+Follow the researcher objective and model_validity. Unvalidated conversion is
+a screening hypothesis; it cannot establish failure or justify a BLOCK.
 Return JSON only:
 {"overall_analysis":"1-2 short sentences","scores":[{"candidate_id":1,"reasoning":"short reason","kinetics_score":0.0,"X_estimated":0.0,"tau_proposed_final_min":0.0,"verdict":"ACCEPT|WARNING|REVISE|BLOCK","proposed_changes":{"tau_min":9.0}}]}
 If no kinetics edit is needed, use proposed_changes: {}.
@@ -372,7 +379,8 @@ Own only BPR_bar and tubing_material.""",
             "safety_score",
         ),
     }
-    return bundles[domain]
+    system, field = bundles[domain]
+    return system + REVIEW_POLICY, field
 
 
 def _build_claude_compact_context(
@@ -701,44 +709,32 @@ residence times. Your scoring and reasoning must be quantitative throughout.
   τ < 0.5×τ_lit → explain what physical justification exists for the shorter time
   τ > 2×τ_lit → explain why longer time is needed (slow mechanism, RTD margin)
 
-**Conversion adequacy (with X_floor = 0.30):**
-  Compute X = 1 − exp(−τ / τ_kinetics). The system policy is short-τ-with-
-  bounded-L-and-ΔP: prefer the SHORTEST τ that still clears the X ≥ 0.30
-  single-pass floor. Do not penalize a design for landing below 0.85 if it
-  beats the floor — that's the intended behaviour.
-  X ≥ 0.85 → 1.0 | X 0.60–0.85 → 0.85 | X 0.30–0.60 → 0.6 | X < 0.30 → 0.1
-  Always state X explicitly and whether it clears X_floor (0.30).
-  RTD effect: for laminar flow at τ/τ_k < 2×, fast-moving core sees τ/2 —
-  mention this when the safety margin is thin.
+**Conversion and exposure:**
+  Compute X = 1 − exp(−ln(10) × τ / τ_kinetics), with τ_kinetics defined as t90.
+  Label this an unvalidated proxy unless model_validity supplies supporting
+  evidence. Apply a conversion threshold only when requested by the researcher
+  and supported by an applicable validated model.
 
-**Short-τ design preference (HARD POLICY):**
-  Among candidates that all clear X ≥ 0.30, prefer the one with the smallest τ.
-  Productivity (1/τ) is the primary engineering objective; conversion is a
-  hard floor, not a maximization target. If two candidates both achieve
-  X ≥ 0.30 and the shorter-τ one delivers higher mg/h or smaller V_R, that's
-  the better design even if its X is lower.
+**Design preference:**
+  Follow the supplied objective. Compare exposure, throughput and uncertainty
+  together. For a first screen, preserve a defensible protocol-based starting
+  exposure; shorter time or larger computed productivity is not inherently better.
+  Literature times are transfer hypotheses whose chemical and operating context
+  must match; do not treat a fixed fraction of a precedent time as a requirement.
 
-**Mixing-kinetics coupling:**
-  τ_mixing_required = t_mix / 0.15. If τ_proposed < τ_mixing_required, kinetics
-  prediction is optimistic (reaction-rate-limited assumption breaks down).
-  State: tau_mixing_required_min and whether τ_proposed exceeds it.
+**Mixing and integration:**
+  Discuss whether the mixing model applies to the actual flow regime and reactor.
+  Cross-tube diffusion does not establish packed-bed or segmented-flow mixing.
+  Unvalidated transport estimates motivate measurements, not a mandatory hold.
+  Label calculated productivity with its assumed conversion. A multiple of τ
+  is a proposed startup interval, not evidence that steady state was reached.
 
-**Integration checks:**
-  Steady-state wait time: t_steady = 3 × τ (how long before reactor reaches SS).
-  Productivity: mg/h at design conditions. Space-time yield (mol/L/h).
-
-**Final τ decision rule:**
-  τ_final = max(τ_mixing_required, τ_lit / 4)
-  Note: τ_kinetics is the 90% conversion time. With X_floor=0.30, the floor
-  is reached at τ = 0.36 × τ_kinetics, so τ_kinetics is no longer the lower
-  bound — use τ_mixing_required and a quarter of τ_lit instead. State this
-  explicitly for each candidate.
-
-## Verdicts (updated for short-τ policy)
-  ACCEPT:  score ≥ 0.70, X ≥ 0.30 (floor), IF valid, τ ≥ τ_mixing_required
-  WARNING: score 0.50–0.70, X 0.30–0.50, or thin τ/τ_k margin
-  REVISE:  X < 0.30 (below floor), or IF clearly out of class range without justification
-  BLOCK:   X < 0.15 (well below floor and outside SCREEN_REQUIRED scope)
+## Verdicts
+  ACCEPT: a defensible exposure consistent with the objective and evidence.
+  WARNING: uncertain kinetics, transferability or contact time requiring measurement.
+  REVISE: a supported change resolves an identified inconsistency.
+  BLOCK: an explicit hard constraint fails, or an applicable validated model
+  demonstrates failure of a required conversion. Low unvalidated X is a WARNING.
 
 ## Tools
 Use `estimate_residence_time` to independently verify τ_kinetics. Call it and
@@ -999,7 +995,7 @@ def _build_scoring_context(
     n = len(candidates)
     slim = [_slim_candidate(c) for c in candidates]
     return (
-        f"## Chemistry brief\n{chemistry_brief}\n\n"
+        REVIEW_POLICY + f"\n## Chemistry brief\n{chemistry_brief}\n\n"
         f"## Intensification mandate\n{json.dumps(mandate_dict(intensification_mandate), ensure_ascii=False)}\n\n"
         f"## User objectives\n{objectives or 'balanced'}\n\n"
         f"## Photochemical reaction: {is_photochem}\n\n"
@@ -1007,6 +1003,11 @@ def _build_scoring_context(
         f"## Surviving candidate table ({n} candidates — score ALL)\n"
         f"{table_markdown}\n\n"
         f"## Candidate flow-sense evidence JSON\n{json.dumps(slim, ensure_ascii=False)}\n\n"
+        "For inventory_realized candidates, geometry and feed assignments are the actual declared hardware. "
+        "Treat tau_min as the labeled nominal liquid-volume index, not a measured multiphase contact time. "
+        "Pressure-drop, mixing and conversion proxies cannot establish packed-bed behavior or measured yield. "
+        "Distinguish a hard physical/inventory conflict from a heuristic operating margin or an unvalidated intensification target. "
+        "Proposed changes must stay within the authoritative inventory; if a different time is needed on a fixed reactor, propose a compatible liquid flow.\n\n"
         "Each scoring agent must include its flow-value contribution field in each score entry: "
         "Dr. Chemistry -> selectivity_flow_value; Dr. Kinetics -> tau_reduction_flow_value plus "
         "achieved_reduction_factor, target_reduction_factor, reduction_achievement; "
@@ -1081,7 +1082,9 @@ def _deterministic_coverage_score(domain: str, candidate: dict) -> dict:
 
     if domain == "kinetics":
         conversion = _safe_float(candidate.get("expected_conversion"), 0.0)
-        if conversion < 0.15:
+        if not validated_model(candidate, "kinetics"):
+            score, verdict = 0.65, "WARNING"
+        elif conversion < 0.15:
             score, verdict = 0.10, "BLOCK"
         elif conversion < 0.30:
             score, verdict = 0.40, "REVISE"
@@ -1090,8 +1093,9 @@ def _deterministic_coverage_score(domain: str, candidate: dict) -> dict:
         return {
             **common,
             "reasoning": (
-                "Deterministic kinetics triage from expected conversion using the "
-                "declared 0.15 hard floor and 0.30 screening floor."
+                "Missing kinetics review; unvalidated conversion cannot establish failure."
+                if not validated_model(candidate, "kinetics") else
+                "Deterministic triage of the declared validated conversion model."
             ),
             "kinetics_score": score,
             "X_estimated": conversion,
@@ -1413,7 +1417,7 @@ def run_chemistry_scoring(
         oa, scores, tc = _run_scoring_agent_batched(
             domain="chemistry",
             agent_name="Dr. Chemistry",
-            system_prompt=_CHEMISTRY_SYSTEM,
+            system_prompt=_CHEMISTRY_SYSTEM + REVIEW_POLICY,
             candidates=candidates,
             chemistry_brief=chemistry_brief,
             objectives=objectives,
@@ -1427,7 +1431,7 @@ def run_chemistry_scoring(
         )
     else:
         oa, scores, tc = _run_scoring_agent(
-            "Dr. Chemistry", _CHEMISTRY_SYSTEM, context,
+            "Dr. Chemistry", _CHEMISTRY_SYSTEM + REVIEW_POLICY, context,
             CHEMISTRY_TOOLS, valid_ids, max_tokens,
         )
         _enforce_coverage(
@@ -1492,7 +1496,7 @@ def run_kinetics_scoring(
         oa, scores, tc = _run_scoring_agent_batched(
             domain="kinetics",
             agent_name="Dr. Kinetics",
-            system_prompt=_KINETICS_SYSTEM,
+            system_prompt=_KINETICS_SYSTEM + REVIEW_POLICY,
             candidates=candidates,
             chemistry_brief=chemistry_brief,
             objectives=objectives,
@@ -1506,7 +1510,7 @@ def run_kinetics_scoring(
         )
     else:
         oa, scores, tc = _run_scoring_agent(
-            "Dr. Kinetics", _KINETICS_SYSTEM, context,
+            "Dr. Kinetics", _KINETICS_SYSTEM + REVIEW_POLICY, context,
             KINETICS_TOOLS, valid_ids, max_tokens,
         )
         _enforce_coverage(
@@ -1571,7 +1575,7 @@ def run_fluidics_scoring(
         oa, scores, tc = _run_scoring_agent_batched(
             domain="fluidics",
             agent_name="Dr. Fluidics",
-            system_prompt=_FLUIDICS_SYSTEM,
+            system_prompt=_FLUIDICS_SYSTEM + REVIEW_POLICY,
             candidates=candidates,
             chemistry_brief=chemistry_brief,
             objectives=objectives,
@@ -1585,7 +1589,7 @@ def run_fluidics_scoring(
         )
     else:
         oa, scores, tc = _run_scoring_agent(
-            "Dr. Fluidics", _FLUIDICS_SYSTEM, context,
+            "Dr. Fluidics", _FLUIDICS_SYSTEM + REVIEW_POLICY, context,
             _FLUIDICS_V4_TOOLS, valid_ids, max_tokens,
         )
         _enforce_coverage(
@@ -1650,7 +1654,7 @@ def run_safety_scoring(
         oa, scores, tc = _run_scoring_agent_batched(
             domain="safety",
             agent_name="Dr. Safety",
-            system_prompt=_SAFETY_SYSTEM,
+            system_prompt=_SAFETY_SYSTEM + REVIEW_POLICY,
             candidates=candidates,
             chemistry_brief=chemistry_brief,
             objectives=objectives,
@@ -1664,7 +1668,7 @@ def run_safety_scoring(
         )
     else:
         oa, scores, tc = _run_scoring_agent(
-            "Dr. Safety", _SAFETY_SYSTEM, context,
+            "Dr. Safety", _SAFETY_SYSTEM + REVIEW_POLICY, context,
             SAFETY_TOOLS, valid_ids, max_tokens,
         )
         _enforce_coverage(
@@ -1830,7 +1834,7 @@ candidate into concrete, minimal, justified parameter edits.
 ## Rules — only change what was explicitly flagged
 
 **τ (residence time) — revise only if Dr. Kinetics gave REVISE/BLOCK for low X:**
-  Target X = 0.90. τ_revised = −τ_kinetics_min × ln(1 − 0.90) = τ_kinetics × 2.303.
+  Target X = 0.90. τ_revised = −τ_kinetics_min × ln(1 − 0.90) / ln(10) = τ_kinetics_min.
   Cap at min(4 × τ_original, 300 min). Show arithmetic.
 
 **d (tube diameter) — revise only if Dr. Fluidics flagged r_mix > 0.20:**
@@ -1871,7 +1875,7 @@ candidate into concrete, minimal, justified parameter edits.
   },
   "unchanged_fields": ["concentration_M", "temperature_C"],
   "change_rationale": {
-    "tau_min": "Dr. Kinetics REVISE: X=0.63 < 0.85 target. τ_kinetics=55 min. τ_revised = 55×2.303 = 126.7 → 127.3 min (capped at 4×90=360).",
+    "tau_min": "Dr. Kinetics REVISE: X=0.63 < 0.85 target. τ_kinetics=55 min. τ_revised = 55 min for 90% under the unvalidated first-order t90 model.",
     "d_mm": "Dr. Fluidics REVISE: r_mix=0.31. d_fix = 1.6×√(0.15/0.31) = 1.6×0.695 = 1.11 → rounded down to 1.0 mm.",
     "BPR_bar": "Dr. Safety: BPR_adequate=false. BPR_required=0.11 bar + 0.5 margin = 0.6 bar.",
     "tubing_material": "Dr. Safety: recommended FEP for DMF at 120°C, pH neutral."
@@ -1986,7 +1990,7 @@ def run_revision_stage(
 
     revision_data: dict = {}
     try:
-        raw = call_llm(_REVISION_SYSTEM, context, max_tokens=700)
+        raw = call_llm(_REVISION_SYSTEM + REVIEW_POLICY, context, max_tokens=700)
         s = raw.strip()
         if "```" in s:
             for part in s.split("```")[1::2]:

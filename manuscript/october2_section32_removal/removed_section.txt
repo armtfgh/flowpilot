@@ -1,0 +1,25 @@
+Retrieval settings, benchmark and source-exclusion controls
+
+Main-text Figure 3 presents the retrieval workflow. Table S5 records the operational numerical settings needed for reproduction; the offline evaluations below used the explicitly stated, reduced scoring functions and should not be confused with a run of every operational tier.
+
+Table S5. Frozen plan-aware retrieval tiers and reranking weights.
+
+ComponentSettingScope or transitionTier 1Paired records; mechanism + phase filtersRelax when fewer than three hits remainTier 2Paired records; filters relaxedExpand when no hits remainTier 3All records; no metadata filterReturn ranked available recordsSemantic similarity0.60Contribution to final reranking scoreField similarity0.40Contribution to final reranking scorePhotocatalyst0.30Contribution within field similaritySolvent / wavelength0.20 / 0.20Contributions within field similarityTemperature / concentration0.15 / 0.15Contributions within field similarity
+
+The retrospective rank analysis used the archived implementation in visualization/fig3c_score_decomposition.py. Eighty corpus records were sampled without replacement with seed 42. Each query was compared with its 20 nearest non-self records, giving 1,600 query–result pairs. Embedding similarity was 1/(1 + d), where d is Euclidean distance. The offline final score was 0.60 times embedding similarity plus 0.40 times a reduced field score containing photocatalyst, solvent, and wavelength terms weighted 0.30, 0.20, and 0.20. Temperature and concentration terms were not included, and the reduced weights were not renormalized. The source export records 401 changed ranks (25.1%) and no exact query-ID self-hit. This is an offline reranking analysis, not a run of the complete operational query-enrichment and tier-filtering pipeline in Table S5.
+
+The separate family-alignment analysis used visualization/fig3d_rag_quality.py, with seed 42 and up to 15 queries per family: iridium (8), organic dyes (15), ruthenium (15), TiO2 (14), and ZnO (4). For each query, the metric was the fraction of five retrieved records with the same name-pattern-derived family label; reported rates are means over queries. The rank and family scripts both used photocatalyst, solvent, and wavelength terms, but their family classifiers and wavelength functions were not identical. In the rank script, wavelength similarity is 1 within 30 nm and decreases linearly to 0 at 100 nm; the family script uses max(0, 1 − |Δλ|/100). Matching nonempty family labels score 1, nonmatching labels score 0.3, and absent labels score 0. The rank script groups unrecognized nonempty catalyst names as other_pc, whereas the family script leaves unrecognized names unassigned. Solvent scoring uses normalized exact-name matches. Because family labels enter both ranking and evaluation, these rates describe metadata alignment rather than independent validation of chemical analogy quality.
+
+Source-exclusion controls in the architecture campaigns remove the designated held-out source identifiers before final retrieval selection. The offline rank-pair CSV independently confirms no exact query self-hit. The family-analysis helper sets the self semantic similarity to zero but does not explicitly mask the self record after adding the metadata score. The archived family aggregates alone therefore do not certify strict self-exclusion for every query. The illustrative ranking contains no exact query self-hit, but is not a substitute for the missing complete family-query rankings. None of these controls establishes that the source publications were absent from model pretraining.
+
+
+
+Table S6. Retrospective retrieval-analysis summary. Rank changes summarize 80 queries with 20 neighbors each. Family-match rates summarize a separate 56-query sample over five families. The offline scripts use the reduced three-field score described in Section 3.2, not the full operational score in Table S5.
+
+Metric or familySemantic retrievalPlan-aware rerankingEvaluation nQuery-result pairs reranked-25.1% changed rank1,600 pairsIridium family match40.0%95.0%8 queriesOrganic-dye family match42.7%90.7%15 queriesRuthenium family match77.3%94.7%15 queriesTiO2 family match87.1%98.6%14 queriesZnO family match45.0%60.0%4 queries
+
+
+
+
+
+Figure S5. Retrospective metadata alignment and source-exclusion controls. (a) Mean top-five same-family fractions, with query counts. (b) Rank changes among 1,600 query–result pairs: 401 (25.1%) change rank; positive values indicate promotion. (c) Weighted component scores and nonzero fractions among pairs with the query field available. (d) Recorded family labels for an illustrative iridium query; ? denotes unassigned metadata. (e) Source-exclusion procedure used in the architecture campaigns. Panels (a–d) derive from separate offline analyses; Section 3.2 specifies their scoring functions and self-exclusion limitations. The figure does not independently establish reaction relevance or absence from model pretraining.

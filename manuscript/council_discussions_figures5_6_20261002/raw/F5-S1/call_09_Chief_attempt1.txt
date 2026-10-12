@@ -1,0 +1,76 @@
+```json
+{
+  "candidate_id": 1,
+  "justification": "Candidate 1 (S1: 2 mL PFA, τ_liq=100 min, 0.42× batch; S2: 20 mL FEP, τ_inlet=181.8 min, 0.51× batch; BPR 7 bar, 2.01 equiv O2, 0.09 sccm) is selected as the interpretable balanced baseline. Under balanced priority with no kinetic data, neither stage should be assumed adequate or inadequate from time ratios alone. C1 provides mid-range exposure in both stages, uses narrow-bore (1 mm) PFA and FEP giving defined photon geometry, and sets the highest system pressure among the 20 mL FEP group (7 bar), maximising dissolved O2 driving force for Stage 2. All shared unresolved issues apply; no hard violations found.",
+  "objective_alignment": "Balanced priority requires an interpretable starting point from which shorter and longer stage holds can be compared. C1 anchors the screen at 0.42× batch (S1) and 0.51× batch (S2), covering sub-batch exposure for both stages simultaneously. This is not the shortest or longest design; it is the mid-range combination that allows yield data from a single run to direct subsequent experiments toward longer S1 (C3, C6) or longer S2 (if both 0.42× and 0.51× prove insufficient), or shorter (C7, C12) if both are already excessive. BPR 7 bar provides the highest O2 pressure head among FEP-20 mL candidates, minimising one source of Stage 2 variability. No yield or conversion can be inferred; adequacy of either stage is uncharacterized.",
+  "alternatives": [
+    {
+      "candidate_id": 6,
+      "reason_not_selected": "S1 at 250 min (1.04× batch) in 5 mL PFA 1 mm provides near-batch Stage 1 exposure and is the preferred near-batch S1 candidate (narrow bore, better photon geometry than ETFE 2.4 mm). However, gas-first as-designed startup simulation did not reach BPR opening pressure within the finite window, leaving full steady-state startup behaviour unconfirmed. Under balanced priority with no prior data, spending the first experiment on a near-batch S1 condition without confirming startup operability is less efficient than C1 as an anchor. If C1 data show Stage 1 conversion is limiting, C6 becomes the priority follow-up."
+    },
+    {
+      "candidate_id": 7,
+      "reason_not_selected": "S1: 100 min (0.42× batch, same as C1); S2: 10 mL PFA 1 mm, τ_inlet=90.9 min (0.25× batch), BPR 7 bar. Provides the short-S2, short-S1 bracketing point. S2 apparent index is the lowest among narrow-bore 7-bar candidates; if oxidation requires closer to batch time, this condition risks insufficient Stage 2 exposure without yielding diagnostic information. C1's longer S2 (181.8 min, 0.51× batch) is more likely to produce detectable product, making C1 more informative as the first experiment. C7 is the recommended short-S2 follow-up after C1."
+    },
+    {
+      "candidate_id": 3,
+      "reason_not_selected": "S1: 5 mL ETFE 2.4 mm, τ_liq=250 min (1.04× batch); S2: 20 mL FEP, τ_inlet=181.8 min, BPR 7 bar. Near-batch S1 in large-bore ETFE; photon penetration at 2.4 mm ID is uncharacterized relative to the batch narrow-tube geometry. Additionally, gas-first as-designed startup simulation did not reach BPR opening pressure (finite window). The combination of uncharacterized photon delivery and unconfirmed startup makes C3 less interpretable as a first experiment than C1 (PFA 1 mm, simpler startup profile). If S1 is rate-limiting, C6 (same τ, narrow bore, confirmed photon geometry) is preferred over C3."
+    }
+  ],
+  "shared_assessment": {
+    "applies_to_all_candidates": [
+      "Unprotected liquid-branch reverse path: gas introduction junction (Stage 2) connects directly to Stage 1 reactor via the liquid branch with no forward-oriented non-return valve on that branch. The CV-3301 check valve is declared only on the MFC (gas) branch and does not protect the liquid branch. This is an unresolved credible risk (BF-REVERSE-PATH:st2_mixer:s3:st1_reactor) across all twelve candidates. Reducing gas flow does not close this path. Branch-specific non-return protection on the liquid line must be reviewed before any candidate is executed.",
+      "Pure O2 substitution: The protocol specifies air (ambient atmosphere). Use of pure O2 was not approved in the original design; the prior experiment used O2 without design approval and observed reverse flow. Pure O2 use constitutes an unapproved gas-source change requiring chemist confirmation, oxygen-service review, and materials compatibility assessment before laboratory execution.",
+      "CV-3301 pressure rating: Cracking pressure (1.0 bar) is not a pressure rating. Maximum pressure rating of CV-3301 is unconfirmed and must be verified before use at 7–8 bar system pressures. The cracking pressure concerns the differential pressure across that valve, not BPR minus cracking pressure.",
+      "Physics tool results: DrFluidics and DrSafety outputs are conditional on illustrative unmeasured parameters (viscosity 1.0 mPa·s, gas plenum 0.2 mL, MFC ΔP 1.0 bar, liquid compliance 0.01 mL/bar, multiphase resistance multiplier 3.0). No liquid displacement predicted does not establish safe operation or exclude backflow under real startup, transient, or shutdown conditions. Tool output is predicted liquid displacement at the junction, not confirmation that oxygen reaches or does not reach Stage 1.",
+      "Gas residence-time index: Q_gas_sccm and Q_gas_STP values are gas volume at inlet/STP (273.15 K, 1.01325 bar). The apparent Stage 2 index V/(Q_liquid + Q_gas_STP) is not a measured liquid residence time or photon exposure. Gas equivalents are proposed inlet molar ratios, not measured stoichiometric uptake.",
+      "Wavelength: Protocol specifies 452 nm. UV-150/450 nm (Stage 1) and Manual 2/448 nm (Stage 2) are nearest available; photon adequacy for catalyst excitation is not established.",
+      "Stage 2 temperature: Not batch-resolved. All candidates assign 25°C; no validated rate correction is available.",
+      "Kinetics: Uncharacterized for both stages. No yield, conversion, or rate superiority can be inferred from any hold ratio.",
+      "Acrylonitrile: Excluded from RED pump tubing. All candidates assign liquid feed to BLUE pump; consistent with exclusion constraint."
+    ]
+  },
+  "answer_impacts": [
+    {
+      "question_id": "Q-GAS-001",
+      "effect": "Pure O2 confirmed by chemist (Q-GAS-001); however, this is an unapproved gas-source change relative to the batch air atmosphere and requires oxygen-service review and laboratory safety confirmation before use. The answer sets the gas identity but does not establish approval for oxygen service."
+    },
+    {
+      "question_id": "Q-GAS-003",
+      "effect": "Oxygen introduction at Stage 2 inlet only is implemented in C1 (and all candidates). The unprotected liquid-branch reverse path means this constraint cannot be guaranteed without branch-specific non-return protection; this remains unresolved."
+    },
+    {
+      "question_id": "Q-HIST-001",
+      "effect": "The KHU qualitative backflow observation (15 Sep 2026) is the only measured operability evidence. It directly motivates the unresolved reverse-path finding and confirms that reducing gas flow alone does not resolve the topology risk. It does not quantify backflow rate or conditions."
+    },
+    {
+      "question_id": "Q-HYP-001",
+      "effect": "Stage 1 oxygen exclusion depends on resolving the liquid-branch reverse path before execution. Stage 2 oxygen availability is determined by BPR (7 bar in C1 maximises O2 partial pressure) and inlet equivalents (2.01 equiv); gas-liquid mass transfer is uncharacterized. The hypothesis that Stage 1 sulfide formation limits Stage 2 oxidation cannot be tested until Stage 1 conversion data are available."
+    }
+  ],
+  "limitations": [
+    "No kinetic data exist for either stage; stage-hold ratios are exposure indices only, not conversion or yield predictors.",
+    "The unprotected liquid-branch reverse path is unresolved across all candidates; no candidate can be executed safely until branch-specific non-return protection is reviewed.",
+    "Pure O2 is unapproved as a gas source; chemist confirmation, O2-service review, and materials compatibility assessment are required before execution.",
+    "CV-3301 maximum pressure rating is unconfirmed; cracking pressure (1.0 bar) is not a pressure rating.",
+    "Physics tool (DrFluidics/DrSafety) results are conditional on illustrative unmeasured parameters; no reversal predicted does not establish safe operation.",
+    "Stage 2 inlet/STP apparent residence time (181.8 min) is not a measured liquid exposure; liquid τ in Stage 2 is 1000 min (unconstrained by gas index) and actual photon exposure time is also uncharacterized.",
+    "Stage 2 temperature is not batch-resolved; 25°C assignment is unverified.",
+    "Wavelength mismatch (450/448 nm vs 452 nm target) is unconfirmed as adequate for catalyst excitation.",
+    "FEP coil (Stage 2) max temperature 50°C limits future elevated-temperature Stage 2 exploration.",
+    "Candidates 3, 6, and 11 as-designed gas-first startup simulations did not reach BPR opening pressure; startup operability for those designs is unconfirmed."
+  ],
+  "next_measurements": [
+    "Verify and install branch-specific non-return protection on the liquid line between Stage 1 outlet and the Stage 2 gas-introduction junction; confirm device cracking pressure differential, maximum pressure rating, O2 compatibility, and low-flow seating before any execution.",
+    "Confirm CV-3301 maximum pressure rating independent of cracking pressure specification; verify O2 service compatibility.",
+    "Obtain chemist, inventory, and oxygen-service review approval for pure O2 use before laboratory execution.",
+    "Measure Stage 1 outlet conversion (Giese product) from C1 run to determine whether 100 min liquid τ is sufficient; this single data point determines whether longer-S1 candidates (C3, C6) are needed.",
+    "Measure Stage 2 sulfoxide yield from C1 run; compare to C7 (shorter S2) and C6 (longer S1, same S2) to resolve the stage-limiting factor.",
+    "Record startup pressure traces and startup sequence for the connected two-stage system to validate or falsify the unresolved reverse-path risk and simulation assumptions.",
+    "Confirm gas supply pressure and MFC inlet differential pressure under operating conditions (illustrative model assumed 12 bar supply, 1.0 bar ΔP required).",
+    "Verify Stage 2 operating temperature resolves to 25°C as assigned; the batch protocol does not explicitly state Stage 2 temperature.",
+    "Assess photon penetration adequacy at 450 nm and 448 nm relative to the protocol 452 nm lamp for the iridium photocatalyst absorption band.",
+    "Measure acrylonitrile solubility and stability in EtOH:pH 9 buffer at 0.2 M stock concentration to confirm no precipitation or phase separation at 0.02 mL/min flow."
+  ]
+}
+```

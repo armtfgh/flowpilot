@@ -14,6 +14,69 @@ LIQUID_ONLY_BASIS = "liquid_only"
 UNKNOWN_BASIS = "unknown"
 
 
+def requested_residence_time_basis(constraints: object) -> str:
+    """Read an explicit time-basis request, not a gas-metering instruction."""
+    import re
+    text = str(constraints or "").lower()
+    if re.search(r"(?:nominal\s+)?empty[- ]bed\s+(?:liquid\s+)?space time", text):
+        return LIQUID_ONLY_BASIS
+    if re.search(r"use liquid flow.{0,100}(?:residence|space) time|(?:residence|space) time.{0,60}(?:based on|using|from) (?:the )?liquid flow", text):
+        return LIQUID_ONLY_BASIS
+    return UNKNOWN_BASIS
+
+
+def gas_time_basis_consistent(proposal: object) -> bool:
+    """Gas is metered at STP; the declared reactor-time basis is independent."""
+    data = proposal if isinstance(proposal, dict) else proposal.model_dump()
+    gases = [s for s in data.get("streams", []) if s.get("phase") == "gas"]
+    if not gases:
+        return True
+    basis = normalize_residence_time_basis(data.get("residence_time_basis"))
+    if basis == UNKNOWN_BASIS:
+        return False
+    if data.get("stage_parameters"):
+        times = []
+        for stage in data["stage_parameters"]:
+            stage_basis = normalize_residence_time_basis(stage.get("residence_time_basis"))
+            flow = float(stage.get("Q_liquid_mL_min") or stage.get("flow_rate_mL_min") or 0)
+            if stage_basis == INLET_STP_BASIS:
+                flow += float(stage.get("Q_gas_sccm") or stage.get("gas_flow_sccm") or 0)
+            elif stage_basis == IN_CHANNEL_BASIS:
+                flow += float(stage.get("Q_gas_actual_mL_min") or stage.get("gas_flow_actual_mL_min") or 0)
+            elif stage_basis != LIQUID_ONLY_BASIS:
+                return False
+            volume = float(stage.get("reactor_volume_mL") or stage.get("V_R_mL") or 0)
+            tau = float(stage.get("residence_time_min") or 0)
+            if min(volume, flow, tau) <= 0 or abs(volume - flow*tau) > max(.02, .02*volume):
+                return False
+            times.append(tau)
+        return abs(sum(times) - float(data.get("residence_time_min") or 0)) <= max(1e-5, .02*sum(times))
+    q = float(data.get("flow_rate_mL_min") or 0)
+    v = float(data.get("reactor_volume_mL") or 0)
+    if basis == INLET_STP_BASIS:
+        q += sum(float(s.get("gas_flow_sccm") or 0) for s in gases)
+    elif basis == IN_CHANNEL_BASIS:
+        q += sum(float(s.get("gas_flow_actual_mL_min") or 0) for s in gases)
+    tau = float(data.get("residence_time_min") or 0)
+    return v > 0 and q > 0 and tau > 0 and abs(v - q * tau) <= max(1e-6, .02 * v)
+
+
+def gas_reagent_fraction(species: str, declared: float | None = None) -> float:
+    """Resolve the active fraction without treating named air as pure oxygen.
+
+    Custom mixtures must be identified as mixtures, not as ordinary air.
+    Their explicit fraction remains authoritative.
+    """
+    import math
+
+    if str(species).strip().lower() == "air":
+        return 0.21
+    value = 1.0 if declared is None else float(declared)
+    if not math.isfinite(value) or not 0 < value <= 1:
+        raise ValueError("Active gas mole fraction must be finite and in (0, 1].")
+    return value
+
+
 def normalize_residence_time_basis(value: object) -> str:
     """Normalize free-text residence-time basis labels."""
 
@@ -30,7 +93,7 @@ def normalize_residence_time_basis(value: object) -> str:
         return INLET_STP_BASIS
     if any(token in normalized for token in ("channel", "actual", "pressure_corrected", "reactor_total")):
         return IN_CHANNEL_BASIS
-    if "liquid" in normalized:
+    if "liquid" in normalized or "empty_bed" in normalized:
         return LIQUID_ONLY_BASIS
     return UNKNOWN_BASIS
 

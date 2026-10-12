@@ -10,7 +10,7 @@ Selection logic:
                 + 0.20*safety + 0.15*geometry_practicality
   3. Apply objective modifier (multiply domain score by 1.5 for user objective).
   4. Tiebreaker: safety → uncertainty → tau_literature proximity.
-  5. If no clear winner (all within 10%), return TOP-3 DESIGN ENVELOPE.
+  5. If scores are close, select one defensible first screen and retain alternatives.
 
 After selection: run DFMEA on winning candidate (Dr. Safety).
 """
@@ -58,6 +58,7 @@ from flora_translate.schemas import (
     AgentDeliberation, FieldProposal,
 )
 from flora_translate.engine.council_v4.execution_config import CouncilExecutionConfig
+from flora_translate.engine.council_v4.review_contract import REVIEW_POLICY, diverse_candidates, validated_model, candidate_fingerprint
 
 logger = logging.getLogger("flora.engine.council_v4.chief")
 
@@ -223,12 +224,7 @@ def _resolve_disqualify_ids(
     scoring: dict,
     audit: dict,
 ) -> tuple[set[int], set[int]]:
-    """Keep stochastic scoring blocks from erasing every audited option."""
-    candidate_ids = {
-        int(candidate.get("id") or 0)
-        for candidate in candidates
-        if int(candidate.get("id") or 0) > 0
-    }
+    """A numerical audit does not overturn a specialist's substantive block."""
     audit_disqualified = {
         int(candidate_id)
         for candidate_id in (audit.get("disqualify_ids") or [])
@@ -237,11 +233,24 @@ def _resolve_disqualify_ids(
         int(candidate_id)
         for candidate_id in (scoring.get("blocked_by_scoring") or [])
     }
-    audit_eligible = candidate_ids - audit_disqualified
-    scoring_eligible = audit_eligible - scoring_blocked
-    if audit_eligible and not scoring_eligible:
-        return audit_disqualified, scoring_blocked & audit_eligible
-    return audit_disqualified | scoring_blocked, set()
+    hard_disqualified = {int(c["id"]) for c in candidates if c.get("hard_gate_flags") or c.get("feasible") is False}
+    return audit_disqualified | scoring_blocked | hard_disqualified, set()
+
+
+def _select_winner_id(chief_data: dict, weighted_scores: list[dict], valid_ids: set):
+    """Preserve an explicit no-winner decision; recover only absent/invalid IDs."""
+    if "selected_candidate_id" in chief_data and chief_data["selected_candidate_id"] is None:
+        return None
+    try:
+        winner = int(chief_data.get("selected_candidate_id"))
+    except (TypeError, ValueError):
+        winner = None
+    if winner in valid_ids:
+        return winner
+    winner, reason = _deterministic_resolve([r for r in weighted_scores if r.get("candidate_id") in valid_ids])
+    chief_data["selected_candidate_id"] = winner
+    chief_data["selection_recovery_reason"] = reason
+    return winner
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -296,6 +305,10 @@ def run_dfmea(
         f"{json.dumps(safety_score_entry or {}, indent=2)[:600]}\n\n"
         "Identify top 3 failure modes. Output JSON only."
     )
+    if winner.get("inventory_realized"):
+        from .scoring import _slim_candidate
+        context += "\n\n## Authoritative realized hardware and feeds\n" + json.dumps(_slim_candidate(winner))
+        context += "\nResidence-time indices and hydraulic/conversion proxies are not measurements. Preserve the supplied hardware and identify unresolved commissioning data."
     dfmea: dict = {
         "selected_candidate_id": winner_id,
         "failure_modes": [],
@@ -336,12 +349,18 @@ from audited, scored, surviving candidates — and you explain your reasoning fu
 1. Disqualified candidates (hard gates + Skeptic CRITICAL errors) are off the table.
 2. You receive pre-computed weighted scores. The final combined score now includes
    domain adequacy, Process Value Score (PVS), and geometry. PVS asks whether the
-   candidate is actually better than batch, not merely feasible.
+   candidate has a plausible flow benefit; its proxies do not demonstrate improvement over batch.
 3. Walk through the top 3 candidates explicitly: what each scored, where they
    differ, and which domain drove the difference.
 4. If top two are within 5% combined: tiebreak by (a) safety score, (b) design
-   envelope width (call compute_design_envelope), (c) proximity to tau_lit.
-5. If ALL surviving within 10%: return TOP-3 DESIGN ENVELOPE rather than a pick.
+   fit to the researcher objective, (c) a defensible protocol-based starting exposure. Literature similarity alone does not validate kinetic transfer.
+5. If surviving candidates are within 10%, select ONE defensible starting
+   experiment using the researcher objective and retain alternatives in the design
+   envelope. Set selected_candidate_id to its ID and selection_flag to SCREEN.
+   Similar scores or unvalidated kinetics do not mean that no screen can be chosen.
+   Use selected_candidate_id=null only when no available candidate can be selected
+   because of an unresolved hard constraint; then state the actual constraint.
+   A selected SCREEN is not an experimentally validated optimum.
 6. If flow chemistry is not justified for this reaction, state explicitly:
    "Batch is currently the better engineering choice for this reaction."
 7. If you need clarification on a specific domain issue before deciding, set
@@ -356,7 +375,7 @@ from audited, scored, surviving candidates — and you explain your reasoning fu
 After selecting the winner, derive each pump's flowrate using:
   Q_i = (ṅ_limiting × eq_i) / C_feed_i
 where ṅ_limiting = P_batch / (Y × 60) in mmol/min (provided in chemistry brief).
-If ṅ_limiting is not provided, derive it from: Q_total_winner × C_reactor × Y
+If ṅ_limiting is not provided, derive it from the limiting-component feed: Q_liquid × C_limiting. Do not multiply substrate delivery by product yield.
 Show the derivation explicitly for each stream in `pump_flowrates`.
 
 ## What to write in selection_rationale
@@ -469,12 +488,12 @@ def _parse_chief(raw: str) -> dict:
     # was truncated, retain that explicit choice and let downstream candidate
     # validation plus deterministic rationale completion enforce the contract.
     match = re.search(
-        r'"(?:selected_candidate_id|selectedCandidateId|winner_id|selected_id)"\s*:\s*"?(\d+)"?',
+        r'"(?:selected_candidate_id|selectedCandidateId|winner_id|selected_id)"\s*:\s*(null|"?\d+"?)',
         s,
     )
     if match:
         return {
-            "selected_candidate_id": int(match.group(1)),
+            "selected_candidate_id": None if match.group(1) == "null" else int(match.group(1).strip('"')),
             "response_incomplete": True,
         }
     return {}
@@ -487,7 +506,7 @@ def _normalise_chief_selection(data: dict) -> dict:
     if isinstance(nested, dict):
         for key, value in nested.items():
             normalized.setdefault(key, value)
-    if normalized.get("selected_candidate_id") is None:
+    if "selected_candidate_id" not in normalized:
         for alias in ("selectedCandidateId", "winner_id", "selected_id"):
             if normalized.get(alias) is not None:
                 normalized["selected_candidate_id"] = normalized[alias]
@@ -530,6 +549,16 @@ def _run_chief_llm(
             f"P_batch = {P_batch_mmol_h:.2f} mmol/h\n"
             f"Use Q_i = (ṅ_limiting × eq_i) / C_feed_i for each pump.\n"
         )
+    if any(c.get("inventory_realized") for c in candidates):
+        from flora_translate.engine.council_v4.scoring import _slim_candidate
+        molar_flow_block = (
+            "\n## Inventory-realized candidates\n"
+            + json.dumps([_slim_candidate(c) for c in candidates], ensure_ascii=False)
+            + "\nThe candidate feed rates, concentrations and gas equivalents are jointly solved on the declared hardware. "
+            "Use these rates to derive molar delivery; do not replace them with a batch-productivity heuristic. "
+            "Generic design-envelope tools do not override fixed reactor geometry. "
+            "If no candidate is acceptable, return selected_candidate_id=null with the unresolved constraints.\n"
+        )
 
     expert_block = ""
     if expert_answer:
@@ -548,21 +577,45 @@ def _run_chief_llm(
         )
         + molar_flow_block
         + expert_block
-        + "\n\nSelect the winner and derive pump flowrates. Include a concrete selection_justification naming the flow advantage over batch. Output JSON only."
+        + "\n\nSelect the winner and derive pump flowrates. Include a concrete selection_justification tied to the researcher objective. Distinguish a proposed flow advantage from demonstrated performance. A chosen first screen must have its selected_candidate_id, even when alternatives are equally plausible. Output JSON only."
     )
 
+    decision, tc = {}, []
     try:
         raw, tc = call_llm_with_tools(
-            _CHIEF_SYSTEM_V4, context,
+            _CHIEF_SYSTEM_V4 + REVIEW_POLICY, context,
             tools=CHIEF_TOOLS,
             tool_executor=execute_tool,
             max_tokens=_CHIEF_MAX_TOKENS,
             max_tool_turns=4,
         )
-        return _parse_chief(raw), tc
+        decision = _parse_chief(raw)
+        screen_id = decision.get("first_screen_candidate_id")
+        eligible = {c["id"] for c in candidates if c["id"] not in disqualify_ids}
+        if ("selected_candidate_id" in decision and decision["selected_candidate_id"] is None
+                and screen_id in eligible and str(decision.get("selection_flag", "")).upper() == "SCREEN"):
+            # Resolve contradictory output once. This never turns a rejection
+            # into acceptance without a new explicit model decision.
+            clarification = (
+                context + "\n\nYour previous decision was internally ambiguous:\n" + raw
+                + "\nClarify the decision once. selected_candidate_id=null means no design may be "
+                "delivered, but first_screen_candidate_id names a screen. If you choose that "
+                "candidate for a first screen, put its ID in selected_candidate_id and keep "
+                "selection_flag=SCREEN. You may reject all candidates by keeping null and "
+                "stating the unresolved hard constraint. Do not claim experimental validation "
+                "or change any candidate. Return one complete decision JSON."
+            )
+            revised_raw, revised_calls = call_llm_with_tools(
+                _CHIEF_SYSTEM_V4 + REVIEW_POLICY, clarification, tools=CHIEF_TOOLS,
+                tool_executor=execute_tool, max_tokens=_CHIEF_MAX_TOKENS, max_tool_turns=1)
+            decision = _parse_chief(revised_raw)
+            if decision.get("selected_candidate_id") not in eligible:
+                decision["selected_candidate_id"] = None
+            tc.extend(revised_calls)
+        return decision, tc
     except Exception as e:
         logger.warning("Chief v4 LLM call failed: %s", e)
-        return {}, []
+        return decision, tc
 
 
 def _run_expert_askback(
@@ -627,31 +680,22 @@ def _ensure_selection_justification(
 ) -> None:
     if winner_id is None or not winner:
         return
-    text = str(chief_data.get("selection_justification") or "").strip()
+    text = str(chief_data.get("selection_justification") or chief_data.get("selection_rationale") or "").strip()
     weak = not text or text.lower() in {
         "selected because it scored highest overall.",
         "selected because it is the best candidate.",
     }
-    w_score = next((r for r in weighted_scores if r.get("candidate_id") == winner_id), {})
-    batch_time = float(winner.get("batch_time_min") or 0.0)
-    tau = float(winner.get("tau_min") or 0.0)
-    reduction = batch_time / tau if batch_time > 0 and tau > 0 else float(w_score.get("PVS", 0.0))
-    advantage = str(intensification_mandate.get("minimum_flow_advantage") or "process value")
     if weak:
         text = (
-            f"Selected because it best balances {advantage} over batch, achieving "
-            f"{reduction:.1f}x residence-time reduction with PVS={float(w_score.get('PVS', 0.0)):.2f}, "
-            f"while keeping pressure, geometry, and safety risks acceptable."
+            f"Candidate {winner_id} was selected for an initial experimental screen. "
+            "The reviewed operating point is recorded below; its yield and "
+            "performance relative to batch require experimental measurement."
         )
-        chief_data["selection_justification"] = text
-    if "advantage" not in text.lower() and "over batch" not in text.lower():
-        chief_data["selection_flag"] = "REQUIRES_HUMAN_REVIEW"
-        chief_data["selection_justification"] = (
-            text
-            + " Warning: no concrete flow advantage identified. This design may not justify flow over batch."
-        )
-    else:
-        chief_data.setdefault("selection_flag", "OK")
+    chief_data["selection_justification"] = text
+    # A starting design need not demonstrate an experimental advantage before
+    # it can be tested. Do not infer approval or an objective failure from a
+    # keyword in the rationale, or promote a SCREEN decision to OK.
+    chief_data.setdefault("selection_flag", "SCREEN")
 
 
 def _refresh_selection_justification_from_winner(
@@ -662,23 +706,25 @@ def _refresh_selection_justification_from_winner(
     weighted_scores: list[dict],
     intensification_mandate: dict,
 ) -> None:
+    _ensure_selection_justification(
+        chief_data, winner_id=winner_id, winner=winner,
+        weighted_scores=weighted_scores, intensification_mandate=intensification_mandate,
+    )
+    # The caller has obtained renewed approval of a changed operating point.
+    # Preserve that review and its flag; append arithmetic, not a fabricated
+    # chemical or safety justification based on a heuristic score.
     batch_time = _positive_float(winner.get("batch_time_min"))
     tau = _positive_float(winner.get("tau_min"))
-    reduction = batch_time / tau if batch_time > 0 and tau > 0 else 0.0
-    advantage = str(intensification_mandate.get("minimum_flow_advantage") or "process value")
-    w_score = next((r for r in weighted_scores if r.get("candidate_id") == winner_id), {})
-    pvs = _positive_float(w_score.get("PVS"))
-    chief_data["selection_justification"] = (
-        f"Selected because it provides {advantage} over batch with "
-        f"{reduction:.1f}x residence-time reduction "
-        f"(tau={tau:.2f} min vs batch={batch_time:.2f} min), "
+    time_note = f"nominal exposure={tau:.2f} min"
+    if batch_time > 0:
+        time_note += f", recorded batch duration={batch_time:.2f} min"
+    chief_data["selection_justification"] += (
+        f" Reviewed operating point: {time_note}, "
         f"d={_positive_float(winner.get('d_mm')):.2f} mm, "
         f"Q={_positive_float(winner.get('Q_mL_min')):.3f} mL/min, "
-        f"L={_positive_float(winner.get('L_m')):.2f} m, "
-        f"delta_P={_positive_float(winner.get('delta_P_bar')):.3f} bar, "
-        f"and PVS={pvs:.2f}."
+        f"L={_positive_float(winner.get('L_m')):.2f} m. "
+        "These design quantities do not establish conversion, yield or an experimental advantage."
     )
-    chief_data["selection_flag"] = "OK" if reduction >= 1.0 else "REQUIRES_HUMAN_REVIEW"
 
 
 def _intensification_feasibility_precheck(
@@ -951,6 +997,7 @@ def _downgrade_uncertain_kinetic_hard_gates(candidates: list[dict]) -> None:
 
 _COMMERCIAL_D_MM = [0.50, 0.75, 1.00, 1.60, 2.00, 3.00]
 _FIELD_OWNER = {
+    "component_placements": "chemistry",
     "tau_min": "kinetics",
     "d_mm": "fluidics",
     "BPR_bar": "safety",
@@ -1029,6 +1076,11 @@ def _extract_explicit_patch(
 
     for field, value in raw.items():
         if _FIELD_OWNER.get(field) != domain:
+            continue
+        if field == "component_placements":
+            if candidate and candidate.get("inventory_realized") and isinstance(value, list) and value:
+                patch[field] = value
+                rationale[field] = "Explicit structural repair; validate against chemistry and inventory, then re-review."
             continue
         if field == "d_mm":
             try:
@@ -1348,6 +1400,16 @@ def _materialize_revised_candidate(
     gas_liquid_max_bpr_bar: float,
     pump_max_flow_mL_min: Optional[float],
 ) -> dict:
+    if candidate.get("inventory_realized"):
+        from flora_translate.engine.council_v4.inventory_candidates import materialize
+        try:
+            revised = materialize(candidate["_realization_context"], patch=patch, candidate_id=new_id)
+        except ValueError as exc:
+            return {**candidate, "feasible": False, "violations": [str(exc)]}
+        revised.update(parent_id=parent_id, variant_mode=variant_mode,
+            revision_applied_preselection=True, revision_domains_preselection=revision_domains,
+            revision_rationale_preselection=rationale, revision_changes_preselection=patch)
+        return revised
     new_tau = _positive_float(
         patch.get("tau_min"),
         _positive_float(candidate.get("tau_min"), 1.0),
@@ -1618,6 +1680,7 @@ def _run_candidate_refinement_loop(
             dropped_candidate_ids = [int(r.get("id", 0)) for r in dropped]
             revised_candidates = retained
 
+    revised_candidates, diversity = diverse_candidates(revised_candidates, candidates, max_total_revised_candidates)
     for revised in revised_candidates:
         _apply_v4_hard_gates(
             [revised],
@@ -1632,6 +1695,7 @@ def _run_candidate_refinement_loop(
 
     changed = len(changed_ids)
     summary = {
+        "diversity": diversity,
         "changed_candidate_ids": sorted(changed_ids),
         "changed_count": changed,
         "candidate_changes": change_rows,
@@ -1672,6 +1736,24 @@ def _apply_winner(
     extra_changes: dict,
     chief_data: Optional[dict] = None,
 ) -> tuple[FlowProposal, dict]:
+    if winner.get("inventory_realized"):
+        chosen = FlowProposal.model_validate(winner["realized_proposal"])
+        chosen.inventory_constraints["council_reviewed_parameters"] = {
+            key: getattr(chosen, key) for key in ["flow_rate_mL_min", "reactor_volume_mL", "tubing_ID_mm", "temperature_C", "BPR_bar", "concentration_M"]
+        }
+        chosen.inventory_constraints["council_reviewed_validation"] = winner["realization_validation"]
+        from flora_translate.design_evidence import execution_state, REASONING_FIELDS, reasoning_snapshot
+        chosen.inventory_constraints["council_reviewed_execution_state"] = execution_state(chosen)
+        if chief_data:
+            for key, destination in (("selection_rationale", "council_selection"),
+                                     ("selection_justification", "council_selection_justification")):
+                if chief_data.get(key):
+                    chosen.decision_rationale[destination] = {
+                        "text": chief_data[key], "source": "council_selection",
+                        "parameter_snapshot": reasoning_snapshot(chosen.model_dump()),
+                        "dependencies": list(REASONING_FIELDS), "status": "conditions_preserved",
+                    }
+        return chosen, {"inventory_candidate_id": winner["id"], "source": "exact inventory-realized candidate reviewed by council"}
     changes: dict = {
         "residence_time_min": str(round(winner["tau_min"], 2)),
         "flow_rate_mL_min":   str(round(winner["Q_mL_min"], 4)),
@@ -2762,6 +2844,7 @@ class CouncilV4:
         execution_config: Optional[CouncilExecutionConfig | dict] = None,
         council_backflow_review: bool = True,
         council_physics_profile: Optional[dict] = None,
+        hard_constraints: object = None,
     ) -> tuple[DesignCandidate, DesignCalculations]:
         """Run the full council pipeline.
 
@@ -2890,9 +2973,9 @@ class CouncilV4:
                     has_photocatalyst = True
 
         solvent = (
-            chemistry_plan.stages[0].solvent
-            if chemistry_plan and chemistry_plan.stages
-            else (current.streams[0].solvent if current.streams else "EtOH")
+            (chemistry_plan.stages[0].solvent if chemistry_plan and chemistry_plan.stages else "")
+            or batch_record.solvent
+            or next((s.solvent for s in current.streams if s.solvent), "")
         )
 
         tau_center = calc.residence_time_min or current.residence_time_min or 30.0
@@ -2983,6 +3066,10 @@ class CouncilV4:
             solvent=solvent, temperature_C=current.temperature_C,
             concentration_M=current.concentration_M,
             objectives=objectives,
+            batch_time_min=batch_time_min,
+            protocol=batch_record.raw_text or batch_record.reaction_description or "",
+            intake_context=intake_block,
+            inventory=inventory.model_dump() if inventory else {},
         )
         logger.info(
             "    Problem framing: reaction_class=%s | flags=%s | flow_justified=%s",
@@ -3087,6 +3174,15 @@ class CouncilV4:
                 "problem_statement":          problem_statement,
                 "pool_metadata":              {"pool_quality": "FIXED", "candidates_generated": len(survivors)},
             }
+        elif inventory and inventory.reactors and (not chemistry_plan or len(chemistry_plan.stages or []) <= 1):
+            from flora_translate.engine.council_v4.inventory_candidates import generate_inventory_candidates
+            designer_result = generate_inventory_candidates(
+                current, batch_record, chemistry_plan, inventory, hard_constraints,
+                count=candidate_budget, tau_kinetics_min=tau_kinetics, assumed_MW=assumed_MW,
+                IF_used=IF_used, pump_max_bar=pump_max, is_photochem=is_photochem,
+                batch_time_min=batch_time_min,
+            )
+            designer_result["problem_statement"] = problem_statement
         else:
             logger.info("  Council v4 — Stage 1: Designer candidate matrix")
             designer_result = run_designer_v4(
@@ -3181,6 +3277,10 @@ class CouncilV4:
             status="completed" if survivors else "empty",
         )
         if not survivors:
+            if designer_result.get("pool_metadata", {}).get("pool_quality") == "INVENTORY_BOUND":
+                current.inventory_constraints["council_selection_block"] = "No candidate passed inventory realization; inspect the saved rejected candidates."
+                return self._fallback(current, chemistry_plan, calc, log, designer_result,
+                    reason="no inventory-feasible candidate", batch_record=batch_record, inventory=inventory, analogies=analogies)
             # FALLBACK: Council Designer's own sampling found 0 feasible
             # candidates. Before skipping the council entirely (which loses all
             # domain-agent input), try seeding from the upstream Design Space
@@ -3666,8 +3766,7 @@ class CouncilV4:
             },
         )
 
-        # Collect disqualified IDs — hard-gate flags are NOT removals; only scoring
-        # blocks and Skeptic CRITICAL/HIGH disqualifications actually remove a candidate.
+        # Retain both hard-gate failures and explicit specialist/audit rejections.
         disqualify_ids, scoring_block_overrides = _resolve_disqualify_ids(
             survivors_for_selection,
             final_scoring,
@@ -3698,6 +3797,7 @@ class CouncilV4:
             if cid and cid not in disqualify_ids
         }
         if survivors_for_selection and not valid_candidate_ids:
+            current.inventory_constraints["council_selection_block"] = "All candidates were disqualified by specialist review or the deterministic audit."
             logger.warning(
                 "Council v4: all %d candidates were disqualified before Chief selection — "
                 "requiring experimental screen",
@@ -3804,22 +3904,14 @@ class CouncilV4:
                 chief_tc = chief_tc + chief_tc2
                 logger.info("  Chief re-ran after ask-back — updated decision applied")
 
-        winner_id = chief_data.get("selected_candidate_id")
-        try:
-            winner_id = int(winner_id) if winner_id is not None else None
-        except (TypeError, ValueError):
-            winner_id = None
-
-        # Validate winner_id is in survivors and not disqualified
         valid_survivor_ids = {
             c.get("id") for c in survivors_for_selection if c.get("id") not in disqualify_ids
         }
-        if winner_id not in valid_survivor_ids:
-            winner_id, fallback_reason = _deterministic_resolve(weighted_scores)
-            logger.info("  Chief LLM invalid/failed — deterministic: %s", fallback_reason)
-            chief_data.setdefault("selection_rationale", fallback_reason)
+        winner_id = _select_winner_id(chief_data, weighted_scores, valid_survivor_ids)
 
         if winner_id is None:
+            current.inventory_constraints["council_selection_block"] = chief_data.get("selection_justification") or chief_data.get("selection_rationale") or "The council did not approve a candidate."
+            _bench_snapshot(benchmark_recorder, "stage4_chief_rejection", chief_data)
             screen_payload = _build_screen_required_payload(
                 current=current,
                 calc=calc,
@@ -3898,21 +3990,80 @@ class CouncilV4:
             gas_liquid_max_bpr_bar = gas_liquid_max_bpr,
         ) if execution.enable_winner_revision else None
         if revision_result is not None:
+            if winner.get("inventory_realized"):
+                from flora_translate.engine.council_v4.inventory_candidates import materialize
+                patch = {k: revision_result[k] for k in ["tau_min", "Q_mL_min", "d_mm", "V_R_mL", "BPR_bar", "temperature_C", "concentration_M", "tubing_material"] if k in revision_result and revision_result[k] != winner.get(k)}
+                try:
+                    revision_result = materialize(winner["_realization_context"], patch=patch, candidate_id=winner_id)
+                except ValueError as exc:
+                    _bench_snapshot(benchmark_recorder, "stage5_inventory_revision_rejected", {"patch": patch, "reason": str(exc)})
+                    revision_result = None
+        if revision_result is not None and candidate_fingerprint(revision_result) != candidate_fingerprint(winner):
+            # A post-selection edit is a new operating point. It cannot inherit
+            # the old review or be called approved merely because arithmetic closes.
+            _apply_v4_hard_gates([revision_result], pump_max_bar=pump_max,
+                is_photochem=is_photochem, is_gas_liquid=is_gas_liquid,
+                BPR_bar=revision_result.get("BPR_bar", 0), X_minimum=kinetic_x_minimum,
+                tubing_material=revision_result.get("tubing_material", "FEP"))
+            review_scoring = run_domain_scoring(candidates=[revision_result],
+                table_markdown=format_candidate_table([revision_result]), chemistry_brief=chem_brief,
+                objectives=objectives, is_photochem=is_photochem, pump_max_bar=pump_max,
+                strict_coverage=True, intensification_mandate=intensification_mandate,
+                enabled_agents=execution.enabled_scoring_agents)
+            review_audit = run_skeptic_audit(candidates=[revision_result],
+                chemistry_scores=review_scoring["chemistry_scores"], kinetics_scores=review_scoring["kinetics_scores"],
+                fluidics_scores=review_scoring["fluidics_scores"], safety_scores=review_scoring["safety_scores"],
+                is_gas_liquid=is_gas_liquid, concentration_M=revision_result.get("concentration_M", current.concentration_M),
+                pump_max_bar=pump_max, batch_time_min=batch_time_min, solvent_name=solvent,
+                translation_policy=translation_policy, intensification_mandate=intensification_mandate,
+                has_photocatalyst=has_photocatalyst) if execution.enable_skeptic else _bypassed_skeptic_audit([revision_result])
+            rejected, _ = _resolve_disqualify_ids([revision_result], review_scoring, review_audit)
+            review_weights = compute_weighted_scores(candidates=[revision_result], scoring=review_scoring,
+                objectives=objectives, disqualify_ids=rejected, batch_time_min=batch_time_min,
+                translation_policy=translation_policy)
+            review_chief, review_calls = ({"selected_candidate_id": None}, [])
+            if not rejected:
+                if execution.enable_chief_llm:
+                    review_chief, review_calls = _run_chief_llm(candidates=[revision_result],
+                        weighted_scores=review_weights, scoring=review_scoring, chemistry_brief=chem_brief,
+                        objectives=objectives, audit=review_audit, disqualify_ids=rejected,
+                        table_markdown=format_candidate_table([revision_result]))
+                else:
+                    review_chief = {"selected_candidate_id": winner_id, "selection_rationale": "Revised candidate passed the configured deterministic selection and domain review."}
+            _bench_snapshot(benchmark_recorder, "stage5_revision_review", {
+                "scoring": review_scoring, "audit": review_audit, "chief": review_chief,
+                "disqualified_ids": sorted(rejected)})
+            # Renewed approval must be explicit; an absent/malformed Chief reply
+            # cannot be replaced by the original selection's weighted ranking.
+            if rejected or review_chief.get("selected_candidate_id") != winner_id:
+                current.inventory_constraints["council_selection_block"] = "Post-selection revision did not receive renewed approval."
+                return self._fallback(current, chemistry_plan, calc, log, designer_result,
+                    reason="screen required: revised candidate rejected on renewed review",
+                    batch_record=batch_record, inventory=inventory, analogies=analogies)
+            chief_tc.extend(review_calls)
+            chief_data = review_chief
+            for domain in ("chemistry", "kinetics", "fluidics", "safety"):
+                key = domain + "_scores"
+                final_scoring[key] = [e for e in final_scoring[key] if e.get("candidate_id") != winner_id] + review_scoring[key]
+            final_audit = review_audit
+            weighted_scores = [r for r in weighted_scores if r.get("candidate_id") != winner_id] + review_weights
+            survivors_for_selection = [revision_result if c.get("id") == winner_id else c
+                                       for c in survivors_for_selection]
+        if revision_result is not None:
             winner_before_revision = winner
             winner = revision_result
             for key in ("batch_time_min", "temperature_C", "concentration_M"):
                 if winner.get(key) is None and winner_before_revision.get(key) is not None:
                     winner[key] = winner_before_revision[key]
-            if uncertain_kinetics_screen:
+            if uncertain_kinetics_screen and not winner.get("inventory_realized"):
                 tau_ceiling = _positive_float(
                     (feasibility_diagnostic or {}).get("tau_intensification_ceiling_min")
                 )
                 if tau_ceiling > 0 and _positive_float(winner.get("tau_min")) > tau_ceiling:
                     winner["screen_repair_note"] = (
                         f"Revision tau {_positive_float(winner.get('tau_min')):.3g} min exceeded "
-                        f"uncertain-kinetics screen ceiling {tau_ceiling:.3g} min; clamped to ceiling."
+                        f"uncertain-kinetics screen ceiling {tau_ceiling:.3g} min; the reviewed setting is retained without a post-review mutation."
                     )
-                    winner["tau_min"] = tau_ceiling
             logger.info(
                 "  Stage 3.5 applied revisions to winner id=%d: τ→%.1f min, d→%.2f mm, BPR→%.2f bar",
                 winner_id, winner.get("tau_min", 0), winner.get("d_mm", 0), winner.get("BPR_bar", 0),
@@ -4002,7 +4153,8 @@ class CouncilV4:
             target_tubing_ID_mm=current.tubing_ID_mm or None,
             target_residence_time_min=current.residence_time_min or None,
         )
-        current = DesignCalculator.annotate_proposal_with_calculations(current, calc)
+        if not winner.get("inventory_realized"):
+            current = DesignCalculator.annotate_proposal_with_calculations(current, calc)
         _bench_stage_end(
             benchmark_recorder,
             "council_stage_7_apply_winner",
@@ -4079,7 +4231,7 @@ class CouncilV4:
             for d in rnd
         ]
 
-        uncertain_kinetics = bool(uncertain_kinetics_screen) or (
+        uncertain_kinetics = not validated_model(winner, "kinetics") or bool(uncertain_kinetics_screen) or (
             (designer_result.get("feasibility_diagnostic") or {}).get("status")
             == "KINETIC_ANCHOR_UNCERTAIN_SCREEN_REQUIRED"
         )
@@ -4089,7 +4241,7 @@ class CouncilV4:
             current.safety_flags.append("SCREEN_REQUIRED: kinetic anchor uncertain; selected point is a screening hypothesis")
             current.chemistry_notes = (
                 (current.chemistry_notes or "").rstrip()
-                + "\nSelected point is not engine-validated because the kinetic anchor was repaired/floored; run the screen experimentally before treating it as a final design."
+                + "\nSelected point is a screening hypothesis because the kinetic model is unvalidated at these conditions; measure conversion and transport before claiming process performance."
             ).strip()
 
         return DesignCandidate(

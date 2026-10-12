@@ -882,9 +882,15 @@ def _build_singlestep_topology(
     ops.append(UnitOperation(op_id="reactor_1", op_type=reactor_op_type,
         label=reactor_label, parameters={
             "material": mat, "ID_mm": id_mm, "volume_mL": vol,
-            "Q_inlet_mL_min": round(Q_reactor_inlet, 4),
+            "Q_inlet_mL_min": Q_reactor_inlet,
+            "Q_liquid_mL_min": Q_reactor_inlet,
+            "Q_gas_sccm": sum(float(s.gas_flow_sccm or 0.0) for s in reactor_feeds if _stream_is_gas(s)),
+            "Q_gas_actual_mL_min": sum(float(s.gas_flow_actual_mL_min or 0.0) for s in reactor_feeds if _stream_is_gas(s)),
             "temperature_C": proposal.temperature_C, "wavelength_nm": proposal.wavelength_nm,
             "residence_time_min": proposal.residence_time_min,
+            "residence_time_basis": proposal.residence_time_basis,
+            "residence_time_inlet_min": proposal.residence_time_inlet_min,
+            "residence_time_in_channel_min": proposal.residence_time_in_channel_min,
             "reactor_type": proposal.reactor_type,
         }, required=True, rationale="Flow reactor"))
     _connect(ops, streams, sc, prev, "reactor_1")
@@ -1009,7 +1015,7 @@ def _build_singlestep_topology(
     pid_parts = [o.label for o in ops if o.op_type != "led_module"]
     return ProcessTopology(
         topology_id="translate", unit_operations=ops, streams=streams,
-        total_flow_rate_mL_min=round(final_outlet_Q, 4),
+        total_flow_rate_mL_min=final_outlet_Q,
         residence_time_min=proposal.residence_time_min,
         reactor_volume_mL=proposal.reactor_volume_mL,
         pid_description=" → ".join(pid_parts),
@@ -2231,6 +2237,7 @@ def translate(
         execution_config=runtime.council_execution,
         council_backflow_review=runtime.council_backflow_review,
         council_physics_profile=runtime.council_physics_profile,
+        hard_constraints=merged_hard_constraints(runtime.hard_constraints, intake.operating_limits if intake else None),
     )
 
     # 6. Format output
@@ -2264,7 +2271,8 @@ def translate(
     result["design_calculations"] = asdict(calculations)
     # Scientific candidates are already jointly realized before council review.
     # Legacy lumped recalculations cannot rewrite that frozen selection.
-    if not scientific:
+    inventory_reviewed = bool(design_candidate.proposal.inventory_constraints.get("council_reviewed_parameters"))
+    if not scientific and not inventory_reviewed:
         _reconcile_final_bpr(result, design_candidate, inventory)
         _sync_final_stream_flowrates(result, design_candidate)
 
@@ -2316,6 +2324,9 @@ def translate(
             selected = next(c for c in inventory_proposal.scientific_design["candidates"]
                             if c["candidate_id"] == inventory_proposal.scientific_design["selected_candidate_id"])
             final_validation = deepcopy(selected["validation"])
+        elif inventory_reviewed:
+            inventory_proposal = design_candidate.proposal
+            final_validation = deepcopy(inventory_proposal.inventory_constraints["council_reviewed_validation"])
         else:
             inventory_proposal, calculations, final_validation = finalize_design(
                 design_candidate.proposal,
@@ -2341,7 +2352,7 @@ def translate(
             "Step 6c: Final engineering validation %s",
             final_validation["status"],
         )
-        if not scientific:
+        if not scientific and not inventory_reviewed:
             _reconcile_final_bpr(result, design_candidate, inventory)
             _sync_final_stream_flowrates(result, design_candidate)
     except Exception as exc:

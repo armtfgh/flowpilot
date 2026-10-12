@@ -27,6 +27,7 @@ from flora_translate.residence_time_basis import (
     INLET_STP_BASIS,
     UNKNOWN_BASIS,
     normalize_residence_time_basis,
+    gas_time_basis_consistent,
 )
 from flora_translate.topology_semantics import topology_semantic_issues
 
@@ -135,20 +136,13 @@ def artifact_semantic_issues(
         for stream in (result.get("proposal") or {}).get("streams") or []
         if str(stream.get("phase") or "").lower() == "gas"
     ]
-    if gas_streams and (
-        parameters.get("residence_time_basis_code") != INLET_STP_BASIS
-        or abs(
-            float(parameters.get("residence_time_min") or 0.0)
-            - float(parameters.get("residence_time_inlet_min") or 0.0)
-        ) > 1e-6
-    ):
+    if gas_streams and not gas_time_basis_consistent(result.get("proposal") or {}):
         issues.append(
             {
-                "code": "FINAL-GAS-BASIS-NOT-INLET-STP",
+                "code": "FINAL-GAS-TIME-BASIS-INCONSISTENT",
                 "message": (
-                    "A reagent-gas design must use inlet/STP as the primary "
-                    "gas-flow, equivalence, reactor-sizing, and apparent "
-                    "residence-time basis."
+                    "The declared reactor-time basis must close with its corresponding "
+                    "flow and volume. STP gas metering does not require an STP time basis."
                 ),
             }
         )
@@ -425,6 +419,14 @@ def _stream_components(
             normalized = _normalize_name(name)
             role_entry = _matching_role(normalized, roles)
             role = str((role_entry or {}).get("role") or "unknown").lower()
+            if (role == "unknown" and str(stream.get("phase") or "").lower() == "gas"
+                    and len(contents) == 1 and normalized == "air"
+                    and stream.get("gas_active_species")
+                    and 0 < float(stream.get("gas_reagent_mole_fraction") or 0) < 1):
+                active_name = _normalize_name(stream["gas_active_species"])
+                active_entry = _matching_role(active_name, roles)
+                if active_entry and active_entry.get("role"):
+                    role = f"gas mixture delivering {stream['gas_active_species']}; declared active-species role: {active_entry['role']}".lower()
             if _is_explicit_solvent(source, name, solvent, role):
                 role = "solvent"
             concentration = _parse_concentration(source)
@@ -751,14 +753,15 @@ def _operating_procedure(
         )
     steps.append(_step("START-FEEDS", "startup", start_instruction, equipment_ids=[item.equipment_id for item in process_graph.feeds], parameter_bindings=feed_settings))
     tau = float(parameters.get("residence_time_min") or process_graph.total_residence_time_min)
-    steps.append(_step("STEADY-STATE", "steady_state", f"Run for at least three canonical residence-time intervals ({3*tau:.3g} min) before product collection and document pressure, temperature, and flow stability.", equipment_ids=process_equipment, parameter_bindings={"residence_time_min": tau, "minimum_steady_state_time_min": 3*tau, "residence_time_basis": parameters.get("residence_time_basis_detail") or parameters.get("residence_time_basis")}))
+    timing_reference = max(tau, sum(s.reactor_volume_mL for s in process_graph.stages) / process_graph.total_liquid_flow_mL_min)
+    steps.append(_step("STEADY-STATE", "steady_state", f"Allow an initial commissioning interval of at least {3*timing_reference:.3g} min, based on three nominal liquid-volume turnovers. Confirm steady outlet composition and stable flow, pressure and temperature before collection; elapsed time alone does not establish steady state. Measure phase holdup or tracer response when gas or a packed bed is present.", equipment_ids=process_equipment, parameter_bindings={"residence_time_min": tau, "minimum_initial_stabilization_time_min": 3*timing_reference, "timing_reference_min": timing_reference, "steady_state_requires_measurement": True, "residence_time_basis": parameters.get("residence_time_basis_detail") or parameters.get("residence_time_basis")}))
     collection_ids = [
         str(item.inventory_item_id)
         for item in process_graph.topology.unit_operations
         if item.inventory_item_id
         and item.op_type.lower() in {"collector", "collection_vessel", "phase_separator", "separator"}
     ]
-    steps.append(_step("COLLECT-PRODUCT", "collection", f"After steady state, collect product for at least one canonical residence-time interval ({tau:.3g} min); record exact start/end times and collected mass or volume.", equipment_ids=collection_ids, parameter_bindings={"minimum_collection_time_min": tau}))
+    steps.append(_step("COLLECT-PRODUCT", "collection", f"After measured steady state, collect a timed fraction over at least {timing_reference:.3g} min as an initial sampling interval; record exact start/end times and collected mass or volume. Extend collection if needed for the analytical method.", equipment_ids=collection_ids, parameter_bindings={"minimum_initial_collection_time_min": timing_reference}))
     steps.append(
         _step(
             "COLLECT-ANALYZE-WORKUP",
@@ -844,10 +847,13 @@ def _validation_experiments(
         ),
         ExecutableValidationExperiment(
             experiment_id="VAL-RTD",
-            purpose="Measure actual residence-time distribution against the canonical calculated basis.",
+            purpose="Measure the residence-time distribution and phase holdup at the operating point.",
             procedure=(
                 f"Introduce a compatible nonreactive tracer at Q={q:g} mL/min and "
-                f"compare measured mean residence time with {tau:g} min."
+                "measure its outlet response after correcting for external tubing delay. "
+                "Report the measured mean, dispersion and liquid holdup separately from "
+                f"the calculated {tau:g} min index ({parameters.get('residence_time_basis')}); "
+                "do not require agreement with an STP turnover index."
             ),
             equipment_ids=equipment,
             parameter_bindings={"flow_rate_mL_min": q, "calculated_residence_time_min": tau, "residence_time_basis": parameters.get("residence_time_basis_detail") or parameters.get("residence_time_basis")},
@@ -1026,11 +1032,32 @@ def _parse_equiv_or_loading(text: str) -> tuple[float | None, float | None]:
 def _matching_role(name: str, roles: dict[str, dict]) -> dict | None:
     if name in roles:
         return roles[name]
-    return next((value for key, value in roles.items() if key in name or name in key), None)
+    # A formula and an explicit molecular name identify the same pure gas.
+    # Recover only a role actually declared in the chemistry plan; do not
+    # infer a reaction role from the gas name or equate air with pure oxygen.
+    gas_aliases = (
+        {"h2", "hydrogen", "molecular hydrogen", "dihydrogen"},
+        {"o2", "oxygen", "molecular oxygen", "dioxygen"},
+        {"n2", "nitrogen", "molecular nitrogen", "dinitrogen"},
+        {"co2", "carbon dioxide"},
+        {"co", "carbon monoxide"},
+        {"d2", "deuterium", "molecular deuterium"},
+    )
+    for group in gas_aliases:
+        if name in group:
+            matches = [value for key, value in roles.items() if key in group]
+            if len(matches) == 1:
+                return matches[0]
+            # Ambiguous declarations require review. Substring matching must
+            # not mistake H2O2 for H2 or CO2 for CO.
+            return None
+    pure_gas_names = set().union(*gas_aliases)
+    return next((value for key, value in roles.items()
+                 if key not in pure_gas_names and (key in name or name in key)), None)
 
 
 def _normalize_name(value: Any) -> str:
-    text = component_name(str(value or "")).lower()
+    text = component_name(str(value or "")).lower().translate(str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789"))
     return re.sub(r"[^a-z0-9]+", " ", text).strip()
 
 

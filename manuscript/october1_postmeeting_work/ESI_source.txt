@@ -1,0 +1,1161 @@
+[body 0 | p 0 | p] FlowPilot: An Agentic Research Assistant for End-to-End Flow Process Design
+
+[body 1 | p 1 | p] Amirreza Mottafegha,†, Mincheol Parkb,†, Jun-young Job, Jin Suk Myunga, Boyoung Y. Parkb,*, and Gwang-Noh Ahna,*
+
+[body 2 | p 2 | p] a Digital Chemical Research Center, Korea Research Institute of Chemical Technology, 141 Gajeong-ro, Yuseong-gu, Daejeon 34114, Republic of Korea
+
+[body 3 | p 3 | p] b Department of Biomedical and Pharmaceutical Sciences, Kyung Hee University, Seoul 02447, South Korea
+
+[body 4 | p 4 | p] *Boyoung Y. Park, E-mail: boyoungy.park@khu.ac.kr
+
+[body 5 | p 5 | p] *Gwang-Noh Ahn, E-mail: gnahn@krict.re.kr
+
+[body 6 | p 6 | p] †Amirreza Mottafegh and Mincheol Park contributed equally to this work.
+
+[body 7 | p 7 | p] 
+
+[body 8 | p 8 | p] 
+
+[body 9 | p 9 | p] 
+
+[body 10 | p 10 | p] 
+
+[body 11 | p 11 | p] 
+
+[body 12 | p 12 | p] 
+
+[body 13 | p 13 | p] 
+
+[body 14 | p 14 | p] 
+
+[body 15 | p 15 | p] 
+
+[body 16 | p 16 | p] 
+
+[body 17 | p 17 | p] 
+
+[body 18 | p 18 | p] 
+
+[body 19 | p None | sdt] Table of contents:1Related flow-chemistry and process-design agents42FlowPilot workflow, data contracts, and run provenance52.1System architecture and decision authority52.2Typed contracts and numerical closure52.3Reproducible standardized intake72.4GUI execution and single-source result rendering82.5Run-level provenance and reconstruction93Literature corpus, rule base, and retrieval103.1Frozen literature-corpus composition113.2Engineering rule-base construction and use133.3Plan-aware retrieval and tier transitions163.4Retrieval benchmark and leakage controls174Ablation test and architecture comparison195Deterministic engineering, inventory realization, and refinement345.1Residence-time and gas-flow conventions345.2Multistage calculation and stream introduction356GUI operation, inventory management, and auditable examples376.1Batch entry, follow-up questions, and saved answers376.2Inventory input, normalization, and laboratory constraints396.3Examples of critical findings and evaluator limitations417Connected-process case studies supporting main-text Figures 5 and 6427.1Photoredox Giese addition followed by sulfoxidation (main-text Figure 5)427.2Telescoped DPDTC-mediated amidation (main-text Figure 6)458Laboratory implementation, experimental procedures, and analytical data478.1General materials, instrumentation, and analytical methods478.2Irradiation sources and recorded specifications488.3Photoredox Giese addition and oxidation: preparation and operation508.4DPDTC-mediated amidation: preparation and operation538.5Product characterization and supplied spectra568.6Implementation reconciliation and calculation basis618.7Outstanding experimental metadata639References64
+
+[body 20 | p 19 | p] Related flow-chemistry and process-design agents
+
+[body 21 | p 20 | p] Table S1 summarizes the tasks, outputs and reported validation of six related flow-chemistry or process-design agents [1-6]. Journal articles, a conference paper and preprints are distinguished. Different published evaluations are not treated as a common performance benchmark.
+
+[body 22 | p 21 | p] Table S1. Scope of FlowPilot and related flow-chemistry/process-design agents. This comparison summarizes reported tasks and validation; it is not a performance ranking. Source numbers refer to the ESI bibliography.
+
+[body 23 | p None | tbl] StudyDesign task and outputReported scope and validationChat-microreactor [1]Flow-pattern prediction and microreactor guidance.Local hydrodynamics and a piperacillin design application.LLM-RDF [2]Synthesis development, reactor design and experimental workflows.Experimental execution, kinetic analysis, optimization and purification.SapoMind [3]Condition recommendation for continuous-flow saponification.Experimental optimization of the selected microreactor reaction.Text-to-Simulation [4]Process topology and parameter generation for simulation.Executable flowsheets and simulator feedback.CeProAgents [5]PreprintHierarchical conceptual and parameter design for chemical processes.Industrial-process case studies and simulation.CAAF [6]PreprintDeterministic validation and bounded candidate revision.Constructed reactor-design constraints; not a laboratory-inventory trial.FlowPilotPresent workReaction-level input to feed, stage and equipment assignments.Matched architecture comparison; two connected-stage laboratory implementations.
+
+Study | Design task and output | Reported scope and validation
+
+Chat-microreactor [1] | Flow-pattern prediction and microreactor guidance. | Local hydrodynamics and a piperacillin design application.
+
+LLM-RDF [2] | Synthesis development, reactor design and experimental workflows. | Experimental execution, kinetic analysis, optimization and purification.
+
+SapoMind [3] | Condition recommendation for continuous-flow saponification. | Experimental optimization of the selected microreactor reaction.
+
+Text-to-Simulation [4] | Process topology and parameter generation for simulation. | Executable flowsheets and simulator feedback.
+
+CeProAgents [5]Preprint | Hierarchical conceptual and parameter design for chemical processes. | Industrial-process case studies and simulation.
+
+CAAF [6]Preprint | Deterministic validation and bounded candidate revision. | Constructed reactor-design constraints; not a laboratory-inventory trial.
+
+FlowPilotPresent work | Reaction-level input to feed, stage and equipment assignments. | Matched architecture comparison; two connected-stage laboratory implementations.
+
+[body 24 | p 22 | p] The scope comparison distinguishes design tasks rather than ranking systems evaluated under different conditions. FlowPilot assists researchers through a laboratory-constrained, end-to-end flow-process design workflow: defining the brief, interpreting chemistry, retrieving evidence, reviewing candidate configurations, calculating operating conditions and assigning equipment. Batch protocols provide the reaction information for this workflow. The contribution is the coordinated development of a connected process, not text conversion alone. The matched architecture test compares the recorded one-shot and FlowPilot configurations, not the external systems in Table S1.
+
+[body 25 | p 23 | p] FlowPilot workflow, data contracts, and run provenance
+
+[body 26 | p 24 | p] FlowPilot supports researcher-led process design by coordinating chemical interpretation, engineering calculation, equipment realization and review of alternative configurations. The workflow begins with standardized intake of a batch protocol, design objectives and laboratory constraints, and returns an inventory-assigned design or explicit unresolved requirements. Here, end-to-end describes the design workflow, not autonomous laboratory execution or proof of optimized reaction performance. Interpretation follows an information-authority order: measured evidence, hard safety and inventory constraints, confirmed protocol facts, chemist hypotheses and model inference. Hypotheses remain ideas to test rather than observations. Earlier experimental success outside a declared operating limit does not authorize a new proposal to override that limit.
+
+[body 27 | p 25 | p] System architecture and decision authority
+
+[body 28 | p 26 | p] A FlowPilot run passes through standardized intake, batch parsing, upstream chemistry analysis, plan-aware retrieval, deterministic calculation and design-space exploration, downstream proposal generation, multi-agent council review, inventory reconciliation, final validation, and artifact publication (Figure S1a). The upstream chemistry layer identifies the transformation, mechanistic features, stage structure, stream incompatibilities, phase behavior, and candidate process bottlenecks. The retrieval layer supplies literature analogies and engineering rules relevant to that plan. These model-derived interpretations inform design, but they cannot supersede confirmed protocol facts, measurements, or hard operating limits. Deterministic components calculate and reconcile dependent quantities such as flow rate, reactor volume, residence-time basis, gas delivery, pressure settings, and inventory assignments. The council can criticize a candidate and propose bounded revisions, but a council response is not an executable output. Revised fields are recalculated and checked before publication. The final disposition therefore depends on deterministic closure rather than model confidence. Three user-facing outcomes are distinguished. An executable screening design contains canonical parameters and a fully assigned process topology. An inventory-confirmation state identifies the missing capability required before numerical execution. A blocked state records the failed requirements and diagnostic topology but withholds executable run instructions.
+
+[body 29 | p 27 | p] Typed contracts and numerical closure
+
+[body 30 | p 28 | p] Major pipeline boundaries are represented by validated data objects rather than prose alone (Figure S1b). The principal chain is DesignInputPackage > BatchRecord > ChemistryPlan > FlowProposal > DesignCalculations > inventory-assigned ProcessTopology > FinalDesignContract. Natural-language rationales may accompany these objects, but downstream code consumes typed fields and performs boundary validation.
+
+[body 31 | p 29 | p] The FinalDesignContract is rebuilt after engineering realization and inventory reconciliation. A publishable screening result contains canonical parameters, stage definitions, streams, instrument assignments, a process graph, chemistry identity, and the available operating and validation instructions. The implemented gates check consistency among these records, including arithmetic, declared time basis, equipment allocation, and topology. An unresolved blocking check prevents publication of executable parameters and retains intermediate values as diagnostics. Passing these checks establishes compliance with the implemented contract; it does not establish chemical completeness, physical safety under all transients, or experimental yield.
+
+[body 32 | p 30 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/image1.png
+
+[body 33 | p 31 | p] Figure S1. FlowPilot architecture, authority boundaries, and typed data contracts. (a) The workflow separates standardized intake, chemistry interpretation, retrieval, deterministic engineering, council review, inventory reconciliation, and artifact publication. Measured evidence and hard safety or inventory constraints outrank confirmed protocol facts, chemist hypotheses, and model inference. (b) Typed contracts and closure checks ensure that only a validated FinalDesignContract can publish executable parameters.
+
+[body 34 | p 32 | p] 
+
+[body 35 | p 33 | p] Table S2. FlowPilot components, data contracts, and decision responsibilities.
+
+[body 36 | p None | tbl] ComponentComputational classPrincipal inputPrincipal outputDecision responsibilityStandardized intakeLLM extraction + deterministic state rulesFree-text protocol and chemist answersDesignInputPackageStructures user information; fixed IDs and readiness rules remain deterministic.Batch protocol parserStructured parser + schema validationFrozen protocol factsBatchRecordNormalizes batch conditions; cannot outrank the original confirmed protocol.Chemistry analysisUpstream LLM + retrieved fundamentalsBatchRecord, intake contextChemistryPlanInterprets mechanism, stages, sensitivities, and stream logic; does not publish hardware settings.Plan-aware retrievalDeterministic filtering and rankingChemistryPlan and retrieval queryRanked analogies and rulesSupplies supporting precedents; retrieved analogies do not override measured evidence or constraints.Engineering calculator and design-space searchDeterministicBatchRecord, ChemistryPlan, inventory limitsDesignCalculations and feasible seedsOwns arithmetic closure, candidate feasibility calculations, and bounded search outputs.Flow-proposal agentDownstream LLMChemistry, calculations, retrieval, inventory contextFlowProposalProposes a complete candidate and rationale; proposal remains non-executable until validation.Multi-agent councilSpecialist LLMs + deterministic gatesCandidate proposals and evidenceSelected or revised candidateCritiques chemistry, engineering, safety, and practicality; revisions are bounded and recalculated.Inventory reconciliation and topology compilerDeterministicSelected candidate and LabInventoryInventory allocation and ProcessTopologyBinds required operations to declared equipment and rejects unresolved assignments.Final validation and artifact compilerDeterministicReconciled proposal, calculations, topology, safety contextFinalDesignContractOwns executable/blocked disposition and canonical operating parameters.GUI renderer and autosaveDeterministic presentation and serializationFinalDesignContract plus diagnostic tracesResult views and stored artifactsPublishes canonical outputs; diagnostic information is labelled and kept separate from run instructions.
+
+Component | Computational class | Principal input | Principal output | Decision responsibility
+
+Standardized intake | LLM extraction + deterministic state rules | Free-text protocol and chemist answers | DesignInputPackage | Structures user information; fixed IDs and readiness rules remain deterministic.
+
+Batch protocol parser | Structured parser + schema validation | Frozen protocol facts | BatchRecord | Normalizes batch conditions; cannot outrank the original confirmed protocol.
+
+Chemistry analysis | Upstream LLM + retrieved fundamentals | BatchRecord, intake context | ChemistryPlan | Interprets mechanism, stages, sensitivities, and stream logic; does not publish hardware settings.
+
+Plan-aware retrieval | Deterministic filtering and ranking | ChemistryPlan and retrieval query | Ranked analogies and rules | Supplies supporting precedents; retrieved analogies do not override measured evidence or constraints.
+
+Engineering calculator and design-space search | Deterministic | BatchRecord, ChemistryPlan, inventory limits | DesignCalculations and feasible seeds | Owns arithmetic closure, candidate feasibility calculations, and bounded search outputs.
+
+Flow-proposal agent | Downstream LLM | Chemistry, calculations, retrieval, inventory context | FlowProposal | Proposes a complete candidate and rationale; proposal remains non-executable until validation.
+
+Multi-agent council | Specialist LLMs + deterministic gates | Candidate proposals and evidence | Selected or revised candidate | Critiques chemistry, engineering, safety, and practicality; revisions are bounded and recalculated.
+
+Inventory reconciliation and topology compiler | Deterministic | Selected candidate and LabInventory | Inventory allocation and ProcessTopology | Binds required operations to declared equipment and rejects unresolved assignments.
+
+Final validation and artifact compiler | Deterministic | Reconciled proposal, calculations, topology, safety context | FinalDesignContract | Owns executable/blocked disposition and canonical operating parameters.
+
+GUI renderer and autosave | Deterministic presentation and serialization | FinalDesignContract plus diagnostic traces | Result views and stored artifacts | Publishes canonical outputs; diagnostic information is labelled and kept separate from run instructions.
+
+[body 37 | p 34 | p] 
+
+[body 38 | p 35 | p] Reproducible standardized intake
+
+[body 39 | p 36 | p] The intake layer converts an initial free-text protocol and follow-up answers into a frozen DesignInputPackage. The LLM may extract batch fields and conversationally present missing questions, but it selects from a fixed bank of stable identifiers. It cannot invent a new question identifier or mark an incomplete package as ready. The current question bank is listed in Table S3. The batch protocol, design objective, and chemistry identity must be answered. Historical data, inventory, operating limits, and hypotheses must either be answered or explicitly marked unavailable. Output preference is optional. Readiness and the ordered list of pending identifiers are calculated from package state. The frozen package records the raw protocol, extracted batch fields, objective, historical evidence, inventory constraints, operating limits, hypotheses, output preferences, chemistry confirmation, question log, answers, readiness state, and authority order. This design makes the intake boundary reproducible without claiming that every generative phrase is identical across model calls. Reproducibility applies to the allowed question identifiers, resolution rules, serialized chemist responses, readiness decision, and frozen context delivered to downstream modules. Where exact computational replay is required, the frozen package must be combined with model, decoding, software-revision, and environment records.
+
+[body 40 | p 37 | p] 
+
+[body 41 | p 38 | p] 
+
+[body 42 | p 39 | p] Table S3. Fixed standardized-intake question bank and readiness rules.
+
+[body 43 | p None | tbl] Information categoryReadiness rolePermitted resolutionDownstream useBatch protocolRequiredAnswered onlyEstablishes confirmed protocol facts and batch conditions.Design objectiveRequiredAnswered onlyDefines how candidates are ranked and what the first design should achieve.Chemistry identityRequiredAnswered onlyConfirms transformation family, substrate/product identity, and bond changes.Historical experimentsRequired resolutionAnswered or unavailableProvides measured evidence for closed-loop calibration and trend constraints.Laboratory inventoryRequired resolutionAnswered or unavailableSupplies hard equipment capabilities and discrete hardware options.Operating limitsRequired resolutionAnswered or unavailableDefines pressure, temperature, flow, material, and safety boundaries.Chemist hypothesesRequired resolutionAnswered or unavailableGuides candidate screening but is explicitly treated below measured evidence and confirmed facts.Output preferenceOptionalAnswered or omittedControls presentation and requested screening format without changing physical feasibility rules.
+
+Information category | Readiness role | Permitted resolution | Downstream use
+
+Batch protocol | Required | Answered only | Establishes confirmed protocol facts and batch conditions.
+
+Design objective | Required | Answered only | Defines how candidates are ranked and what the first design should achieve.
+
+Chemistry identity | Required | Answered only | Confirms transformation family, substrate/product identity, and bond changes.
+
+Historical experiments | Required resolution | Answered or unavailable | Provides measured evidence for closed-loop calibration and trend constraints.
+
+Laboratory inventory | Required resolution | Answered or unavailable | Supplies hard equipment capabilities and discrete hardware options.
+
+Operating limits | Required resolution | Answered or unavailable | Defines pressure, temperature, flow, material, and safety boundaries.
+
+Chemist hypotheses | Required resolution | Answered or unavailable | Guides candidate screening but is explicitly treated below measured evidence and confirmed facts.
+
+Output preference | Optional | Answered or omitted | Controls presentation and requested screening format without changing physical feasibility rules.
+
+[body 44 | p 40 | p] 
+
+[body 45 | p 41 | p] GUI execution and single-source result rendering
+
+[body 46 | p 42 | p] In the standardized-intake GUI, the user submits a protocol, resolves the fixed intake questions, and imports or selects a laboratory-inventory profile before initiating design. The run action is enabled only when the package is ready. The finalized package is passed to the same translation pipeline used by programmatic execution, and the resulting package is attached to the result. After final validation, executable numerical views are constructed from the post-realization FinalDesignContract. These include the summary, engineering design, stream assignments, equipment allocation, process graph, safety controls, and canonical operating procedure. Chemistry-plan, retrieval, council, and experiment-loop records remain available as supporting context or audit traces. They are not independently promoted as authoritative run parameters. For a blocked run, the GUI displays the failure reasons and a requirements or diagnostic topology while withholding an executable procedure.
+
+[body 47 | p 43 | p] Run-level provenance and reconstruction
+
+[body 48 | p 44 | p] Completed GUI runs are automatically written to a uniquely timestamped directory. The artifact set preserves the standardized input, complete result, canonical final contract, concise summary, compiled topology, equipment allocation, instrument manifest, and available rendered diagrams. Diagnostic topology and rendering artifacts are stored separately when the run is blocked or requires inventory confirmation. The render manifest can associate diagram files with topology-hash metadata, allowing a stored diagram to be checked against the corresponding graph where that metadata is available. The autosave package supports inspection of what was entered, calculated, validated, displayed, and assigned to hardware. It should not, by itself, be described as a complete computational-replay bundle because separate prompt logs, exact model snapshots, decoding parameters, dependency versions, and software revision identifiers are not guaranteed by the GUI autosave function.
+
+[body 49 | p 45 | p] 
+
+[body 50 | p 46 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/image2.png
+
+[body 51 | p 47 | p] Figure S2. Standardized intake, GUI execution, synchronized results, and run provenance. (a) The chemist supplies a protocol, resolves context-dependent questions with stable identifiers, and selects inventory. The completed input package is frozen for the current run, while earlier answers remain in history. (b) The schematic GUI supports model selection, progress monitoring, and review, routing consistent designs to results and unresolved requirements to revision. (c) Overview, process tables, and equipment topology derive from one Final Design Contract; supporting diagnostics remain separately inspectable. Parameter symbols and the oxygen inlet arrangement are illustrative. (d) Timestamped folders preserve inputs, designs, equipment assignments, topology, and visual artifacts. Measured experimental feedback initiates a new design cycle while earlier records are retained. Computational consistency checks do not constitute experimental validation, and traceable input handling does not guarantee identical model responses.
+
+[body 52 | p 48 | p] Literature corpus, rule base, and retrieval 
+
+[body 53 | p 49 | p] FlowPilot uses two complementary knowledge resources. A structured literature corpus provides empirical batch-to-flow precedents and process metadata, whereas a handbook-derived rule base provides general engineering principles. Plan-aware retrieval selects a small set of literature analogies for the chemistry under consideration, and the upstream chemistry layer receives a prioritized subset of relevant handbook rules. These resources provide evidence and context; they do not replace deterministic calculations, laboratory inventory constraints, or experimental validation.
+
+[body 54 | p 50 | p] Frozen literature-corpus composition
+
+[body 55 | p 51 | p] The frozen manuscript export contains 464 classified flow-chemistry literature records. The classification spans thermal synthesis, photoredox and heterogeneous photocatalysis, cross-coupling, oxidation and reduction, electrochemistry, biocatalysis, polymer synthesis, crystallization, and other continuous-flow applications. For each record, available information was normalized into fields describing reaction class, reactor type, reactor material, bond or transformation label, operating conditions, number of inlet streams, and reported batch and flow outcomes. The primary categorical exports each contain 464 classified entries, but field completeness is not uniform. Explicit inlet-stream counts are available for 154 processes, batch yields for 135 records, and optimized-flow yields for 285 records (Table S4). Unknown, other, multiple, and long-tail classifications are retained rather than being excluded from denominators. This avoids inflating apparent coverage and makes the limitations of the extracted metadata visible.
+
+[body 56 | p 52 | p] The available yield distributions are descriptive. They should not be interpreted as a paired estimate of the causal benefit of flow because batch and flow values are missing for different subsets, publication and optimization selection can affect the distributions, and individual records differ in chemistry and objective. Figure S3 therefore reports field-specific denominators directly in each panel.
+
+[body 57 | p 53 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/image3.png
+
+[body 58 | p 54 | p] Figure S3. Composition of the flow-chemistry literature corpus. (a-d) Reaction class, reactor type, reactor material, and bond or transformation labels (n = 464 records in each panel). (e) Number of inlet streams among records with stream-count annotation (n = 154). (f) Available batch-yield (n = 135) and optimized-flow-yield (n = 285) distributions. Categories are descriptive and non-exclusive where the source record contains more than one label.
+
+[body 59 | p 55 | p] 
+
+[body 60 | p 56 | p] 
+
+[body 61 | p 57 | p] 
+
+[body 62 | p 58 | p] 
+
+[body 63 | p 59 | p] Table S4. Available literature-corpus fields and available denominators.
+
+[body 64 | p None | tbl] Metadata fieldAvailable nCoverageLeading categories or summaryInterpretation noteReaction class464100% classified exportThermal Synthesis 96 (20.7%); Photoredox Catalysis 85 (18.3%); Other 66 (14.2%); Heterogeneous Photocatalysis 35 (7.5%); Cross-Coupling 32 (6.9%)Other and long-tail classes retained.Reactor type464100% classified exportCapillary / Coil Reactor 122 (26.3%); Microreactor / Chip 121 (26.1%); Continuous-Flow Reactor 71 (15.3%); Photoreactor 47 (10.1%); Packed-Bed Reactor 27 (5.8%)Long-tail hardware labels retained.Reactor material464100% classified exportFluoropolymer (PTFE / PFA / FEP) 272 (58.6%); Glass / Quartz 61 (13.1%); Stainless Steel 58 (12.5%); PDMS / Silicon 28 (6.0%)Classification granularity varies across records.Bond/transformation label464100% classified exportC–C 123 (26.5%); Other / Multiple 84 (18.1%); C–N 70 (15.1%); C–O 62 (13.4%); C–S 22 (4.7%)Other/multiple is an explicit category.Explicit inlet-stream count15433.2% of 4641 streams: 22 (14.3%); 2 streams: 91 (59.1%); 3 streams: 30 (19.5%); 4 streams: 5 (3.2%); 5 streams: 3 (1.9%)Percentages use n = 154, not the full corpus.Reported batch yield13529.1% of 464Median 80%; IQR 56-93%Available numeric values only.Reported optimized-flow yield28561.4% of 464Median 89%; IQR 75-96%Not a paired causal comparison with batch yield.
+
+Metadata field | Available n | Coverage | Leading categories or summary | Interpretation note
+
+Reaction class | 464 | 100% classified export | Thermal Synthesis 96 (20.7%); Photoredox Catalysis 85 (18.3%); Other 66 (14.2%); Heterogeneous Photocatalysis 35 (7.5%); Cross-Coupling 32 (6.9%) | Other and long-tail classes retained.
+
+Reactor type | 464 | 100% classified export | Capillary / Coil Reactor 122 (26.3%); Microreactor / Chip 121 (26.1%); Continuous-Flow Reactor 71 (15.3%); Photoreactor 47 (10.1%); Packed-Bed Reactor 27 (5.8%) | Long-tail hardware labels retained.
+
+Reactor material | 464 | 100% classified export | Fluoropolymer (PTFE / PFA / FEP) 272 (58.6%); Glass / Quartz 61 (13.1%); Stainless Steel 58 (12.5%); PDMS / Silicon 28 (6.0%) | Classification granularity varies across records.
+
+Bond/transformation label | 464 | 100% classified export | C–C 123 (26.5%); Other / Multiple 84 (18.1%); C–N 70 (15.1%); C–O 62 (13.4%); C–S 22 (4.7%) | Other/multiple is an explicit category.
+
+Explicit inlet-stream count | 154 | 33.2% of 464 | 1 streams: 22 (14.3%); 2 streams: 91 (59.1%); 3 streams: 30 (19.5%); 4 streams: 5 (3.2%); 5 streams: 3 (1.9%) | Percentages use n = 154, not the full corpus.
+
+Reported batch yield | 135 | 29.1% of 464 | Median 80%; IQR 56-93% | Available numeric values only.
+
+Reported optimized-flow yield | 285 | 61.4% of 464 | Median 89%; IQR 75-96% | Not a paired causal comparison with batch yield.
+
+[body 65 | p 60 | p] 
+
+[body 66 | p 61 | p] Engineering rule-base construction and use
+
+[body 67 | p 62 | p] The engineering knowledge store contains 2,537 structured rules extracted from six handbook, guide, and literature sources. Each stored rule includes a rule identifier, category, triggering condition, recommendation, reasoning, optional quantitative expression, exceptions, severity, confidence, source document, source page, and source context when available. The complete export contains 29 rule categories; the 14 largest are summarized in Table S5. Across the complete store, 1,772 rules are labelled guideline, 717 hard_rule, 47 tip, and 1 safety severity. Category and severity are distinct labels. For example, most entries in the Safety category are encoded as hard_rule rather than with the separate safety severity label. Figure S4 therefore displays both dimensions rather than treating the Safety category as a severity class. At run time, the knowledge store selects broad engineering categories from the reaction context and adds keyword matches from the mechanism, catalyst, solvent, phase regime, and operating conditions. Duplicate rule identifiers are removed, hard rules are prioritized, and a compact subset is formatted for the upstream chemistry prompt. The downstream pipeline receives the resulting ChemistryPlan, while executable numerical requirements remain the responsibility of deterministic calculators and validation gates. The rule-base labels should not be overinterpreted. A machine-detected quantitative expression indicates that a rule contains formula-like content; it does not demonstrate independent equation verification. Similarly, a hard_rule label controls prompt prioritization but is not automatically equivalent to an executable coded constraint. A rule becomes a deterministic gate only when the corresponding calculation or validation check is implemented in code.
+
+[body 68 | p 63 | p] Table S5. Largest engineering rule categories and severity composition.
+
+[body 69 | p None | tbl] CategoryTotalHard ruleGuidelineTipSafetyReactor Design40398295100General34710024070Heat Transfer2274817540Catalyst2263319030Residence Time2045015220Photochemistry1752115220Materials165629760Scale-Up1573112150Pressure134577601Mixing133488410Safety122932900Solvent72264420Mass Transfer59183920Temperature38172100
+
+Category | Total | Hard rule | Guideline | Tip | Safety
+
+Reactor Design | 403 | 98 | 295 | 10 | 0
+
+General | 347 | 100 | 240 | 7 | 0
+
+Heat Transfer | 227 | 48 | 175 | 4 | 0
+
+Catalyst | 226 | 33 | 190 | 3 | 0
+
+Residence Time | 204 | 50 | 152 | 2 | 0
+
+Photochemistry | 175 | 21 | 152 | 2 | 0
+
+Materials | 165 | 62 | 97 | 6 | 0
+
+Scale-Up | 157 | 31 | 121 | 5 | 0
+
+Pressure | 134 | 57 | 76 | 0 | 1
+
+Mixing | 133 | 48 | 84 | 1 | 0
+
+Safety | 122 | 93 | 29 | 0 | 0
+
+Solvent | 72 | 26 | 44 | 2 | 0
+
+Mass Transfer | 59 | 18 | 39 | 2 | 0
+
+Temperature | 38 | 17 | 21 | 0 | 0
+
+[body 70 | p 64 | p] 
+
+[body 71 | p 65 | p] 
+
+[body 72 | p 66 | p] 
+
+[body 73 | p 67 | p] 
+
+[body 74 | p 68 | p] 
+
+[body 75 | p 69 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/image4.png
+
+[body 76 | p 70 | p] Figure S4. Engineering rule-base structure. (a) Counts by category and severity for the 14 largest categories. (b) Fraction of rules containing a machine-detected quantitative expression; this is expression coverage, not independent equation verification. (c) Non-exclusive rule-category associations across chemistry classes. (d) Computed concept co-occurrence network using the 12 most frequent concepts and 22 highest-weight links. Node area is 35 + 420 sqrt(f_i/f_max) points squared, where f_i is concept frequency; node color is the dominant rule category. Edge width is 0.25 + 2.4(w_ij/w_max) points, where w_ij is the rule-level co-occurrence count. The circular layout is for legibility.
+
+[body 77 | p 71 | p] Plan-aware retrieval and tier transitions
+
+[body 78 | p 72 | p] The retrieval query is constructed from the ChemistryPlan rather than from protocol keywords alone. Reaction class, mechanism, catalyst or photocatalyst, solvent, phase regime, wavelength, temperature, and concentration are used when available. Retrieval begins with mechanism and phase filters over paired batch-flow records. If fewer than three candidates are found, the metadata filters are relaxed; if no paired records remain, the search expands to the complete corpus. Candidate records are reranked using 0.60 semantic similarity and 0.40 field similarity. The field score combines photocatalyst, solvent, wavelength, temperature, and concentration terms with weights of 0.30, 0.20, 0.20, 0.15, and 0.15, respectively (Figure S5).
+
+[body 79 | p 73 | p] Table S6. Frozen plan-aware retrieval tiers and reranking weights.
+
+[body 80 | p None | tbl] ComponentSettingScope or transitionTier 1Paired records; mechanism + phase filtersRelax when fewer than three hits remainTier 2Paired records; filters relaxedExpand when no hits remainTier 3All records; no metadata filterReturn ranked available recordsSemantic similarity0.60Contribution to final reranking scoreField similarity0.40Contribution to final reranking scorePhotocatalyst0.30Contribution within field similaritySolvent / wavelength0.20 / 0.20Contributions within field similarityTemperature / concentration0.15 / 0.15Contributions within field similarity
+
+Component | Setting | Scope or transition
+
+Tier 1 | Paired records; mechanism + phase filters | Relax when fewer than three hits remain
+
+Tier 2 | Paired records; filters relaxed | Expand when no hits remain
+
+Tier 3 | All records; no metadata filter | Return ranked available records
+
+Semantic similarity | 0.60 | Contribution to final reranking score
+
+Field similarity | 0.40 | Contribution to final reranking score
+
+Photocatalyst | 0.30 | Contribution within field similarity
+
+Solvent / wavelength | 0.20 / 0.20 | Contributions within field similarity
+
+Temperature / concentration | 0.15 / 0.15 | Contributions within field similarity
+
+[body 81 | p 74 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/image5.png
+
+[body 82 | p 75 | p] Figure S5. Plan-aware retrieval workflow. (a) ChemistryPlan fields enrich the query before semantic retrieval; an embedding-provider failure invokes the deterministic lexical fallback without changing the query or metadata filters. (b) Tiered retrieval starts with paired records and strict mechanism/phase filters, relaxes filters when fewer than three results remain, and expands to all records only when no paired result remains; hidden source identifiers are excluded. (c) Reranking combines 0.60 semantic similarity with 0.40 field similarity before descending top-k selection.
+
+[body 83 | p 76 | p] Retrieval benchmark and leakage controls
+
+[body 84 | p 77 | p] The retrospective rank analysis used the archived implementation in visualization/fig3c_score_decomposition.py. Eighty corpus records were sampled without replacement with seed 42. Each query was compared with its 20 nearest non-self records, giving 1,600 query–result pairs. Embedding similarity was 1/(1 + d), where d is Euclidean distance. The offline final score was 0.60 times embedding similarity plus 0.40 times a reduced field score containing photocatalyst, solvent, and wavelength terms weighted 0.30, 0.20, and 0.20. Temperature and concentration terms were not included, and the reduced weights were not renormalized. The source export records 401 changed ranks (25.1%) and no exact query-ID self-hit. This is an offline reranking analysis, not a run of the complete operational query-enrichment and tier-filtering pipeline in Table S6.
+
+[body 85 | p 78 | p] The separate family-alignment analysis used visualization/fig3d_rag_quality.py, with seed 42 and up to 15 queries per family: iridium (8), organic dyes (15), ruthenium (15), TiO2 (14), and ZnO (4). For each query, the metric was the fraction of five retrieved records with the same name-pattern-derived family label; reported rates are means over queries. The rank and family scripts both used photocatalyst, solvent, and wavelength terms, but their family classifiers and wavelength functions were not identical. In the rank script, wavelength similarity is 1 within 30 nm and decreases linearly to 0 at 100 nm; the family script uses max(0, 1 − |Δλ|/100). Matching nonempty family labels score 1, nonmatching labels score 0.3, and absent labels score 0. The rank script groups unrecognized nonempty catalyst names as other_pc, whereas the family script leaves unrecognized names unassigned. Solvent scoring uses normalized exact-name matches. Because family labels enter both ranking and evaluation, these rates describe metadata alignment rather than independent validation of chemical analogy quality.
+
+[body 86 | p 79 | p] Source-exclusion controls in the architecture campaigns remove the designated held-out source identifiers before final retrieval selection. The offline rank-pair CSV independently confirms no exact query self-hit. The family-analysis helper sets the self semantic similarity to zero but does not explicitly mask the self record after adding the metadata score. The archived family aggregates alone therefore do not certify strict self-exclusion for every query. The illustrative ranking contains no exact query self-hit, but is not a substitute for the missing complete family-query rankings. None of these controls establishes that the source publications were absent from model pretraining.
+
+[body 87 | p 80 | p] 
+
+[body 88 | p 81 | p] Table S7. Retrospective retrieval-analysis summary. Rank changes summarize 80 queries with 20 neighbors each. Family-match rates summarize a separate 56-query sample over five families. The offline scripts use the reduced three-field score described in Section 3.4, not the full operational score in Table S6.
+
+[body 89 | p None | tbl] Metric or familySemantic retrievalPlan-aware rerankingEvaluation nQuery-result pairs reranked-25.1% changed rank1,600 pairsIridium family match40.0%95.0%8 queriesOrganic-dye family match42.7%90.7%15 queriesRuthenium family match77.3%94.7%15 queriesTiO2 family match87.1%98.6%14 queriesZnO family match45.0%60.0%4 queries
+
+Metric or family | Semantic retrieval | Plan-aware reranking | Evaluation n
+
+Query-result pairs reranked | - | 25.1% changed rank | 1,600 pairs
+
+Iridium family match | 40.0% | 95.0% | 8 queries
+
+Organic-dye family match | 42.7% | 90.7% | 15 queries
+
+Ruthenium family match | 77.3% | 94.7% | 15 queries
+
+TiO2 family match | 87.1% | 98.6% | 14 queries
+
+ZnO family match | 45.0% | 60.0% | 4 queries
+
+[body 90 | p 82 | p] 
+
+[body 91 | p 83 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/image6.png
+
+[body 92 | p 84 | p] Figure S6. Retrospective metadata alignment and source-exclusion controls. (a) Mean top-five same-family fractions, with query counts. (b) Rank changes among 1,600 query–result pairs: 401 (25.1%) change rank; positive values indicate promotion. (c) Weighted component scores and nonzero fractions among pairs with the query field available. (d) Recorded family labels for an illustrative iridium query; ? denotes unassigned metadata. (e) Source-exclusion procedure used in the architecture campaigns. Panels (a–d) derive from separate offline analyses; Section 3.4 specifies their scoring functions and self-exclusion limitations. The figure does not independently establish reaction relevance or absence from model pretraining.
+
+[body 93 | p 85 | p] Ablation test and architecture comparison
+
+[body 94 | p 86 | p] Purpose and scope
+
+[body 95 | p 87 | p] The fixed-criteria multi-LLM evaluation was designed to compare the quality of final inventory-constrained flow-process designs produced by a direct one-shot large language model and by the complete FlowPilot architecture under matched inputs. The comparison was architecture-neutral at the evaluation stage: both methods received the same frozen chemistry, objective, laboratory inventory, and operating constraints, and both were required to return the same normalized final-design contract. The assessed object was the delivered design, not the internal reasoning trace or the number of intermediate agent calls. Two related experiments are reported in this section. The architecture comparison tested one-shot generation against full FlowPilot using five retained generator models, three chemistry cases, and three independent generation repeats. The internal module-ablation screen fixed the generator to Qwen3.8-27B and selectively removed or altered FlowPilot components to examine their contribution to outcome quality and executability. 
+
+[body 96 | p 88 | p] The benchmark measures outcome quality and repeatability for the frozen cases and inventory. It does not establish universal superiority across all reaction classes and does not replace prospective wet-lab validation.
+
+[body 97 | p 89 | p] 
+
+[body 98 | p 90 | p] Paired architecture-comparison design
+
+[body 99 | p 91 | p] The retained manuscript comparison included the following generator models:
+
+[body 100 | p 92 | p] Qwen3.6-27B
+
+[body 101 | p 93 | p] Qwen3.8-27B
+
+[body 102 | p 94 | p] GPT-4o
+
+[body 103 | p 95 | p] Claude Sonnet 4.6
+
+[body 104 | p 96 | p] Claude Opus 4.6
+
+[body 105 | p 97 | p] For every model, each of the three frozen chemistry cases was generated using both architectures in three independent calls. This produced:
+
+[body 106 | p 98 | p] 5 models x 2 architectures x 3 cases x 3 repeats = 90 candidate outcomes
+
+[body 107 | p 99 | p] The paired unit was the same generator model, chemistry case, and repeat under the two architectures. The temperature was 0.2, calls were independently recorded, and the stopping rule was fixed before evaluation. The held-out source record for each case was excluded from FlowPilot retrieval. This exclusion prevents direct RAG leakage but does not prove that the underlying publication was absent from a model's pretraining data.
+
+[body 108 | p 100 | p] Compared architectures
+
+[body 109 | p 101 | p] One-shot. A single model call received the complete frozen design input and a fixed output contract. No FlowPilot specialist agents, council deliberation, deterministic candidate selection, or post-generation correction operated inside this architecture.
+
+[body 110 | p 102 | p] Full FlowPilot. The same frozen design input entered the complete FlowPilot workflow, including chemistry interpretation, engineering calculations, specialist-agent assessment, council selection and revision, safety analysis, deterministic closure checks, and final schema enforcement. The internal workflow could use several LLM calls, but only the final normalized design was scored.
+
+[body 111 | p 103 | p] 
+
+[body 112 | p 104 | p] Common one-shot wrapper
+
+[body 113 | p 105 | p] The one-shot system instruction was:
+
+[body 114 | p 106 | p] You are a general chemistry assistant. Translate a batch chemistry protocol into a practical continuous-flow experiment.
+
+[body 115 | p 107 | p] For each chemistry, the frozen design input reproduced in the three case-study subsections below was inserted after FROZEN DESIGN INPUT:, followed by the common response contract.
+
+[body 116 | p 108 | p] Exact one-shot response contract
+
+[body 117 | p 109 | p] Propose one complete flow design with numeric operating conditions, stream assignments, safety controls, and a brief rationale. Return one JSON object and no markdown with exactly these top-level fields: recommended_disposition, disposition_rationale, and proposal. The proposal value must be a JSON object, not a JSON-encoded string.  The proposal object uses these fields:  residence_time_min, flow_rate_mL_min, temperature_C, concentration_M, BPR_bar, reactor_type, tubing_material, tubing_ID_mm, reactor_volume_mL, residence_time_basis, residence_time_inlet_min, residence_time_in_channel_min, light_setup, wavelength_nm, streams, mixer_type, mixing_order_reasoning, pre_reactor_steps, post_reactor_steps, chemistry_notes, stage_parameters, reasoning_per_field, literature_analogies, engine_validated, safety_flags, confidence.  Each stream is an object with stream_label, pump_role, contents, solvent, phase, flow_rate_mL_min, concentration_M, molar_equiv, gas_flow_sccm, and gas_flow_actual_mL_min where applicable. Distinguish inlet/STP gas flow from pressure-corrected in-channel gas flow. Ensure reactor_volume_mL is consistent with flow and residence time. State assumptions rather than inventing missing facts.  recommended_disposition must be exactly EXECUTE, SCREEN, or BLOCK. Use BLOCK when the hard constraints make a safe design physically or operationally impossible. Use SCREEN for a feasible first experiment that still requires experimental validation. Use EXECUTE only for a directly executable design supported by sufficient evidence.
+
+[body 118 | p 110 | p] FlowPilot did not use one monolithic system prompt. It accepted the same frozen design input at its architecture boundary and distributed the information across its intake, chemistry, engineering, council, and validation stages. All internal prompts and stage events were retained in the archived run directories.
+
+[body 119 | p 111 | p] Identity-masked evaluation
+
+[body 120 | p 112 | p] Each final outcome was converted to a standardized candidate packet. Generator identity and architecture labels were removed before judging. Complete architectural blinding is not claimed because formatting or output style could reveal provenance. Every judge received the same protocol, objective, inventory, normalized final outcome, held-out reference facts, deterministic verification sheet, and fixed rubric.
+
+[body 121 | p 113 | p] Three separate evaluator model families assessed each candidate:
+
+[body 122 | p 114 | p] The archived judge configuration for the matched example was Qwen /models/Qwen3.6-27B, OpenAI gpt-5.4-2026-03-05 and Anthropic claude-sonnet-4-6, at temperature 0.0. These evaluator calls were separate from candidate generation. GPT-5.4 is not one of the five generators pooled in the primary aggregate, although an archived additional GPT-5.4 generator comparison remains displayed in main-text Figure 4b–c. Exact prompt schemas, seeds, responses and telemetry are retained in the companion source records. A recorded seed does not guarantee that a provider honors deterministic sampling.
+
+[body 123 | p 115 | p] Qwen
+
+[body 124 | p 116 | p] OpenAI
+
+[body 125 | p 117 | p] Claude
+
+[body 126 | p 118 | p] The deterministic sheet exposed machine-checkable evidence for schema validity, numerical closure, inventory compliance, reactor and residence-time consistency, gas bookkeeping where applicable, topology coverage, and safety requirements. Deterministic evidence informed the judges but did not itself add an architecture-specific score bonus.
+
+[body 127 | p 119 | p] Benchmark scoring method
+
+[body 128 | p 120 | p] The same 14 criteria were applied to every candidate. Each applicable criterion received an integer rating from 0 to 4. All criteria and all judges had equal weight; no architecture bonus or hand-tuned criterion weighting was used.
+
+[body 129 | p 121 | p] Table S8. Fixed 0–4 rating anchors applied by each LLM judge.
+
+[body 130 | p None | tbl] ScoreAnchor0Fundamentally wrong, unsafe, chemically invalid, or physically impossible.1Major deficiencies, multiple material defects, or poor reproducibility; substantial redesign is required.2Partially correct with one material but recoverable defect requiring revision before execution.3Correct overall with a minor defect that is unlikely to change execution or interpretation.4Correct, complete, executable, and supported; no material defect.
+
+Score | Anchor
+
+0 | Fundamentally wrong, unsafe, chemically invalid, or physically impossible.
+
+1 | Major deficiencies, multiple material defects, or poor reproducibility; substantial redesign is required.
+
+2 | Partially correct with one material but recoverable defect requiring revision before execution.
+
+3 | Correct overall with a minor defect that is unlikely to change execution or interpretation.
+
+4 | Correct, complete, executable, and supported; no material defect.
+
+[body 131 | p 122 | p] 
+
+[body 132 | p 123 | p] Table S9. Complete frozen outcome questions, critical-error triggers and applicability rules. Gas use denotes a gas reagent or gas-liquid process; multi-stage denotes more than one reactive stage.
+
+[body 133 | p None | tbl] CriterionExact evaluation questionCritical-error conditionsAppliesUO-01Transformation fidelityDoes the final design preserve the intended substrate, product, transformation, catalyst strategy, reaction modality, and phase regime without unsupported substitution?Wrong product or transformation; Chemically incompatible catalyst or modality substitutionAlwaysUO-02Required materialsAre all required reagents, catalysts, solvents, additives, gases, and reactive components present and correctly assigned?Required reactive component omitted; Unsafe or transformation-changing material introducedAlwaysUO-03Stoichiometry and feed chemistryAre concentrations, equivalents, feed compositions, dilution, and chemical compatibility explicit and coherent?Stoichiometry prevents intended reaction; Feed combination creates an unmitigated incompatibilityAlwaysUO-04Condition and stage mappingAre temperature, pressure, atmosphere, irradiation, addition order, stage boundaries, and chemistry-critical batch operations translated faithfully?Chemistry-critical operation or stage omitted; Condition change makes the intended chemistry implausible or unsafeAlwaysUO-05Executable topologyAre feeds, pumps or MFCs, mixers, reactors, controls, separators, quench, collection, and waste connected in the correct executable order?Required unit operation absent; Topology cannot physically execute the proposed chemistryAlwaysUO-06Liquid material balanceDo liquid concentrations and flow rates reproduce component molar flows, equivalents, total flow, dilution, and throughput?Material balance is dimensionally invalid; Reported feeds cannot produce the stated stoichiometryAlwaysUO-07Residence-time and geometry closureDo reactor volume, cumulative flow, geometry, holdup basis, per-stage residence time, and total residence time close numerically?Residence time is physically impossible; Reactor geometry or volume contradicts the executable designAlwaysUO-08Gas bookkeepingFor gas-using designs, do gas identity, STP definition, inlet flow, molar flow, equivalents, absolute pressure, channel flow, holdup, and gas-sensitive residence-time bases close and remain distinct?Gas identity or pressure basis is unsafe; Gas molar flow, equivalents, or residence time is physically inconsistentGas useUO-09Multistage closureFor multistage designs, are stream-introduction stages, cumulative flows, individual reactor volumes and times, interstage operations, and total process residence time consistent?Stage sequence changes the chemistry; Stage flow or residence-time closure is physically impossibleMulti-stageUO-10Inventory feasibilityDoes every selected equipment item exist, and are flow, volume, material, ID, temperature, pressure, wavelength, and connectivity within declared limits?Invented or unavailable essential equipment; Operating point exceeds a hard equipment limitAlwaysUO-11Physical and transport plausibilityAre phase behavior, mixing, pressure drop, heat transfer, mass transfer, and transport assumptions physically plausible and supported at the proposed operating point?Unmitigated boiling, precipitation, plugging, runaway, or pressure failure; Transport assumption makes the design physically impossibleAlwaysUO-12Hazards and controlsAre chemistry-specific thermal, pressure, gas, peroxide, azide, catalyst, solvent, and incompatibility hazards recognized and converted into concrete controls?Major hazard omitted; Proposed execution lacks a necessary containment, purge, interlock, relief, or compatibility controlAlwaysUO-13Operating procedure and work-upAre feed preparation, leak testing, priming, startup, steady-state qualification, collection, normal and emergency shutdown, depressurization, quench, separation, work-up, and waste handling reproducible where required?Missing procedure creates an immediate execution hazard; The experiment cannot be reconstructed from the delivered instructionsAlwaysUO-14Evidence and uncertainty calibrationAre source facts, calculations, assumptions, analogies, performance predictions, uncertainty, validation needs, confidence, and SCREEN/BLOCK/EXECUTE disposition represented honestly and proportionately?Invented evidence or unsupported performance guarantee; Execution recommended despite an acknowledged unresolved critical defectAlways
+
+Criterion | Exact evaluation question | Critical-error conditions | Applies
+
+UO-01Transformation fidelity | Does the final design preserve the intended substrate, product, transformation, catalyst strategy, reaction modality, and phase regime without unsupported substitution? | Wrong product or transformation; Chemically incompatible catalyst or modality substitution | Always
+
+UO-02Required materials | Are all required reagents, catalysts, solvents, additives, gases, and reactive components present and correctly assigned? | Required reactive component omitted; Unsafe or transformation-changing material introduced | Always
+
+UO-03Stoichiometry and feed chemistry | Are concentrations, equivalents, feed compositions, dilution, and chemical compatibility explicit and coherent? | Stoichiometry prevents intended reaction; Feed combination creates an unmitigated incompatibility | Always
+
+UO-04Condition and stage mapping | Are temperature, pressure, atmosphere, irradiation, addition order, stage boundaries, and chemistry-critical batch operations translated faithfully? | Chemistry-critical operation or stage omitted; Condition change makes the intended chemistry implausible or unsafe | Always
+
+UO-05Executable topology | Are feeds, pumps or MFCs, mixers, reactors, controls, separators, quench, collection, and waste connected in the correct executable order? | Required unit operation absent; Topology cannot physically execute the proposed chemistry | Always
+
+UO-06Liquid material balance | Do liquid concentrations and flow rates reproduce component molar flows, equivalents, total flow, dilution, and throughput? | Material balance is dimensionally invalid; Reported feeds cannot produce the stated stoichiometry | Always
+
+UO-07Residence-time and geometry closure | Do reactor volume, cumulative flow, geometry, holdup basis, per-stage residence time, and total residence time close numerically? | Residence time is physically impossible; Reactor geometry or volume contradicts the executable design | Always
+
+UO-08Gas bookkeeping | For gas-using designs, do gas identity, STP definition, inlet flow, molar flow, equivalents, absolute pressure, channel flow, holdup, and gas-sensitive residence-time bases close and remain distinct? | Gas identity or pressure basis is unsafe; Gas molar flow, equivalents, or residence time is physically inconsistent | Gas use
+
+UO-09Multistage closure | For multistage designs, are stream-introduction stages, cumulative flows, individual reactor volumes and times, interstage operations, and total process residence time consistent? | Stage sequence changes the chemistry; Stage flow or residence-time closure is physically impossible | Multi-stage
+
+UO-10Inventory feasibility | Does every selected equipment item exist, and are flow, volume, material, ID, temperature, pressure, wavelength, and connectivity within declared limits? | Invented or unavailable essential equipment; Operating point exceeds a hard equipment limit | Always
+
+UO-11Physical and transport plausibility | Are phase behavior, mixing, pressure drop, heat transfer, mass transfer, and transport assumptions physically plausible and supported at the proposed operating point? | Unmitigated boiling, precipitation, plugging, runaway, or pressure failure; Transport assumption makes the design physically impossible | Always
+
+UO-12Hazards and controls | Are chemistry-specific thermal, pressure, gas, peroxide, azide, catalyst, solvent, and incompatibility hazards recognized and converted into concrete controls? | Major hazard omitted; Proposed execution lacks a necessary containment, purge, interlock, relief, or compatibility control | Always
+
+UO-13Operating procedure and work-up | Are feed preparation, leak testing, priming, startup, steady-state qualification, collection, normal and emergency shutdown, depressurization, quench, separation, work-up, and waste handling reproducible where required? | Missing procedure creates an immediate execution hazard; The experiment cannot be reconstructed from the delivered instructions | Always
+
+UO-14Evidence and uncertainty calibration | Are source facts, calculations, assumptions, analogies, performance predictions, uncertainty, validation needs, confidence, and SCREEN/BLOCK/EXECUTE disposition represented honestly and proportionately? | Invented evidence or unsupported performance guarantee; Execution recommended despite an acknowledged unresolved critical defect | Always
+
+[body 134 | p 124 | p] 
+
+[body 135 | p 125 | p] NOT_APPLICABLE was permitted only when the criterion's applicability rule was false. Missing required information was rated 0 or 1 rather than excluded. In the frozen rubric, gas bookkeeping (UO-08) and multistage closure (UO-09) were the only criteria that could routinely become non-applicable. Critical-error flags were recorded separately and did not impose an arbitrary cap on the numerical score.
+
+[body 136 | p 126 | p] For candidate i, criterion k, and judge j, the criterion consensus was:
+
+[body 137 | p 127 | p] 
+
+[body 138 | p 128 | p] where s(i,k,j) is the judge's integer rating from 0 to 4. If A(i) is the set of applicable criteria, the candidate score was:
+
+[body 139 | p 129 | p] 
+
+[body 140 | p 130 | p] The resulting candidate score ranged from 0 to 1. For each model, architecture, and repeat, the three chemistry candidate scores were first averaged to obtain a repeat-level campaign score:
+
+[body 141 | p 131 | p] 
+
+[body 142 | p 132 | p] The reported model-architecture value was the mean of the three repeat-level scores, and the error bar was their sample standard deviation (n = 3, ddof = 1). It was not a confidence interval. The matched architecture effect was calculated before aggregation:
+
+[body 143 | p 133 | p] 
+
+[body 144 | p 134 | p] A positive value therefore favored FlowPilot for that matched case-repeat pair. Judge disagreement was retained separately and was not used as a substitute for generation-repeat variability.
+
+[body 145 | p 135 | p] 
+
+[body 146 | p 136 | p] Case study 1: Hydrogenolysis
+
+[body 147 | p 137 | p] Benchmark title: Three-phase N-diphenylmethyl hydrogenolysis
+
+[body 148 | p 138 | p] Source of the hydrogenolysis benchmark case: Tu et al., reference 7. Source exclusion is a retrieval control, not proof of absence from pretraining.
+
+[body 149 | p 139 | p] RAW BATCH PROTOCOL:
+
+[body 150 | p 140 | p] N-Diphenylmethylazetidin-3-ol (DMAOL; MW 239.32 g/mol) was prepared as a 3.8 wt% solution in methanol. For molarity conversion, explicitly use and label an assumed solution density of 0.792 g/mL, giving approximately 0.126 M DMAOL. A 200 mL charge was contacted with hydrogen over 0.5 g of 7 wt% Pd(OH)2/Al2O3 catalyst in a stirred batch reactor at 60 °C and 21 bar for 5 h. Conversion to 3-azetidinol was 38.1%. Translate this into one conservative continuous-flow packed-bed screening design. Acetic acid is optional and must not be introduced unless explicitly justified as a screening variable. Report feed preparation, gas-liquid mixing, packed-bed operation, temperature, pressure basis, liquid flow, hydrogen inlet/STP flow, pressure-corrected in-channel hydrogen flow, hydrogen equivalents, nominal empty-bed space time, liquid-holdup/contact residence-time basis, separation, collection, startup, shutdown, nitrogen purge, and hydrogen/methanol/pressure safety controls.
+
+[body 151 | p 141 | p] OBJECTIVE:
+
+[body 152 | p 142 | p] Produce one executable, inventory-constrained first gas-liquid-solid flow screen without using the held-out source answer.
+
+[body 153 | p 143 | p] HARD CONSTRAINTS:
+
+[body 154 | p 144 | p] - Use only the authoritative inventory supplied below.
+
+[body 155 | p 145 | p] - Hydrogen is the required reducing reagent and must be delivered through the certified H2 MFC.
+
+[body 156 | p 146 | p] - Use a single DMAOL/methanol liquid feed and the declared gas-liquid mixer before the Pd(OH)2/Al2O3 packed bed.
+
+[body 157 | p 147 | p] - Operate at 60 °C and the available 21 bar BPR setpoint; explicitly state whether gas compression uses 21 bar absolute or 21 bar gauge.
+
+[body 158 | p 148 | p] - Report hydrogen flow at inlet/STP and pressure-corrected in-channel conditions, with the conversion calculation.
+
+[body 159 | p 149 | p] - Report H2 equivalents from gas molar flow divided by DMAOL molar flow.
+
+[body 160 | p 150 | p] - Distinguish nominal empty-bed space time from liquid-holdup/contact residence time; do not silently use total gas-plus-liquid flow as liquid reaction time.
+
+[body 161 | p 151 | p] - Use the nitrogen line for startup leak/purge verification and shutdown displacement of residual hydrogen.
+
+[body 162 | p 152 | p] - Return SCREEN unless the inventory cannot support a safe design.
+
+[body 163 | p 153 | p] CHEMIST-CONFIRMED CHEMISTRY IDENTITY:
+
+[body 164 | p 154 | p] {"confirmed":true,"mechanism_type":"heterogeneous catalytic hydrogenolysis","reaction_class":"hydrogenolysis","reaction_name":"N-diphenylmethyl hydrogenolysis"}
+
+[body 165 | p 155 | p] 
+
+[body 166 | p 156 | p] Case study 2: Photochemical oxidation
+
+[body 167 | p 157 | p] Benchmark title: Photocatalytic aerobic oxidation of Fmoc-L-methionine
+
+[body 168 | p 158 | p] Source of the photochemical benchmark case: Thomson et al., reference 8. Its supporting information includes Fmoc-L-methionine oxidation. The benchmark uses the frozen extracted input reproduced below; internally inconsistent reference-flow fields were excluded from numerical scoring.
+
+[body 169 | p 159 | p] RAW BATCH PROTOCOL:
+
+[body 170 | p 160 | p] Fmoc-L-methionine (3.7 mmol, 1.0 equiv) and 4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%) were dissolved in acetonitrile at 0.10 M in a round-bottom flask. The solution was exposed to air and irradiated with a 1.5 W LED centered near 420 nm at 21 C for 5 min. Fmoc-methionine sulfoxide was formed in 99% yield. Translate this into one conservative continuous-flow photochemical screening design. Report feed preparation, air delivery and oxygen-equivalent basis, gas-liquid mixing, pressure basis, photoreactor assignment, wavelength, temperature, liquid flow, inlet/STP and pressure-corrected in-channel gas flow, liquid contact residence time, reactor volume, separation, collection, startup, shutdown, and oxygen/acetonitrile/light safety controls.
+
+[body 171 | p 161 | p] OBJECTIVE:
+
+[body 172 | p 162 | p] Produce one executable, inventory-constrained first gas-liquid photochemical flow screen without using the held-out source answer.
+
+[body 173 | p 163 | p] HARD CONSTRAINTS:
+
+[body 174 | p 164 | p] - Use only the authoritative inventory supplied below.
+
+[body 175 | p 165 | p] - Use one premixed Fmoc-L-methionine/photocatalyst/acetonitrile liquid feed and the declared air MFC.
+
+[body 176 | p 166 | p] - Use the declared gas-liquid mixer before the 420 nm photoreactor.
+
+[body 177 | p 167 | p] - Operate at the available 3 bar BPR setpoint and state whether pressure is absolute or gauge.
+
+[body 178 | p 168 | p] - Report air at inlet/STP and pressure-corrected in-channel conditions and calculate oxygen equivalents from 21 mol% oxygen.
+
+[body 179 | p 169 | p] - Use liquid flow and the 1.0 mL reactor volume to define liquid contact residence time; do not use total gas-plus-liquid volumetric flow as reaction time.
+
+[body 180 | p 170 | p] - No inline degasser is available or required because air is a reagent.
+
+[body 181 | p 171 | p] - All selected equipment must be named by its inventory equipment_id.
+
+[body 182 | p 172 | p] - Return SCREEN unless the inventory cannot support a safe design.
+
+[body 183 | p 173 | p] CHEMIST-CONFIRMED CHEMISTRY IDENTITY:
+
+[body 184 | p 174 | p] {"confirmed":true,"mechanism_type":"photocatalytic aerobic oxidation","reaction_class":"oxidation","reaction_name":"photocatalytic aerobic oxidation of Fmoc-L-methionine"}
+
+[body 185 | p 175 | p] 
+
+[body 186 | p 176 | p] Case study 3: CuAAC
+
+[body 187 | p 177 | p] Benchmark title: Cu/C-catalyzed azide-alkyne cycloaddition
+
+[body 188 | p 178 | p] Source of the CuAAC benchmark case: Fuchs et al., reference 9. Frozen case inputs and inventory constraints are retained unchanged.
+
+[body 189 | p 179 | p] RAW BATCH PROTOCOL:
+
+[body 190 | p 180 | p] Benzyl azide (0.50 mmol, 1.0 equiv) and phenylacetylene (0.55 mmol, 1.1 equiv) were combined with Cu/C catalyst (10 mol% Cu) in acetone (2.0 mL; benzyl azide concentration 0.25 M). The homogeneous liquid reaction mixture was heated under microwave batch conditions at 150 °C for 3 min. The corresponding 1,4-disubstituted 1,2,3-triazole was isolated in 94% yield. Translate this batch procedure into one conservative continuous-flow screening design. Preserve the Cu/C catalyst strategy and explicitly report feed preparation, reactor topology, temperature, liquid flow, pressure, reactor/contact volume, residence-time basis, collection, work-up, and azide/pressure safety controls.
+
+[body 191 | p 181 | p] OBJECTIVE:
+
+[body 192 | p 182 | p] Produce one executable, inventory-constrained first flow screen without using the held-out source answer.
+
+[body 193 | p 183 | p] HARD CONSTRAINTS:
+
+[body 194 | p 184 | p] - Use only the authoritative inventory supplied below.
+
+[body 195 | p 185 | p] - Use a single premixed liquid feed through the Cu/C packed-bed cartridge.
+
+[body 196 | p 186 | p] - Do not invent a gas stream, photochemical equipment, or unlisted hardware.
+
+[body 197 | p 187 | p] - Report catalyst-contact residence time and make reactor volume, liquid flow, and residence time mathematically consistent.
+
+[body 198 | p 188 | p] - Return SCREEN unless the inventory cannot support a safe design.
+
+[body 199 | p 189 | p] 
+
+[body 200 | p 190 | p] CHEMIST-CONFIRMED CHEMISTRY IDENTITY:
+
+[body 201 | p 191 | p] {"confirmed":true,"mechanism_type":"copper-catalyzed cycloaddition","reaction_class":"cuaac","reaction_name":"copper-catalyzed azide-alkyne cycloaddition"}
+
+[body 202 | p 192 | p] Internal FlowPilot module-ablation screen
+
+[body 203 | p 193 | p] The internal screen used Qwen3.8-27B as the fixed generator and the same three chemistry cases. Fifteen architecture conditions were tested, giving 45 condition-case outcomes. Each cell was generated once; SD therefore describes between-case variation, not generation-repeat uncertainty. Disabled specialists received no LLM call or default-score penalty, and active council weights were renormalized. Table S10 now lists all 15 conditions from the archived module summary. Main-text Figure 4d displays a selected subset. The archive's executable-outcome fraction is retained as metadata and should not be interpreted as independent experimental implementability or as a fair cross-architecture safety rating.
+
+[body 204 | p 194 | p] Table S10. All 15 internal module-ablation conditions, restored from the archived 45-outcome summary. Mean score and sample SD summarize three chemistries with one generation per cell. Exec. is the archive's executable-status fraction, not experimental success or a safety verdict. LLM calls are means per outcome; flags are totals over the three cases.
+
+[body 205 | p None | tbl] ConditionMeanSDExec.CallsFlagsWithout preselection refinement0.9350.028100%11.00One-pass council0.9320.019100%9.70Full FlowPilot0.9280.027100%13.30Without winner revision0.9260.042100%13.00Without DFMEA0.9260.042100%12.70Without Kinetics agent0.9240.057100%12.00Deterministic selection0.9200.041100%12.70Candidate budget 40.9150.049100%18.70Without Safety agent0.9150.060100%12.30Without Fluidics agent0.9130.042100%10.70Candidate budget 10.9070.048100%12.30Without Skeptic audit0.9040.039100%13.30Without Chemistry agent0.9020.054100%12.00One-shot0.7430.1670%1.014No council0.6700.1370%3.019
+
+Condition | Mean | SD | Exec. | Calls | Flags
+
+Without preselection refinement | 0.935 | 0.028 | 100% | 11.0 | 0
+
+One-pass council | 0.932 | 0.019 | 100% | 9.7 | 0
+
+Full FlowPilot | 0.928 | 0.027 | 100% | 13.3 | 0
+
+Without winner revision | 0.926 | 0.042 | 100% | 13.0 | 0
+
+Without DFMEA | 0.926 | 0.042 | 100% | 12.7 | 0
+
+Without Kinetics agent | 0.924 | 0.057 | 100% | 12.0 | 0
+
+Deterministic selection | 0.920 | 0.041 | 100% | 12.7 | 0
+
+Candidate budget 4 | 0.915 | 0.049 | 100% | 18.7 | 0
+
+Without Safety agent | 0.915 | 0.060 | 100% | 12.3 | 0
+
+Without Fluidics agent | 0.913 | 0.042 | 100% | 10.7 | 0
+
+Candidate budget 1 | 0.907 | 0.048 | 100% | 12.3 | 0
+
+Without Skeptic audit | 0.904 | 0.039 | 100% | 13.3 | 0
+
+Without Chemistry agent | 0.902 | 0.054 | 100% | 12.0 | 0
+
+One-shot | 0.743 | 0.167 | 0% | 1.0 | 14
+
+No council | 0.670 | 0.137 | 0% | 3.0 | 19
+
+[body 206 | p 195 | p] The screen supports descriptive module attribution. It should not be interpreted as a statistically powered ranking of every internal configuration. Notably, removal of an individual specialist did not necessarily reduce the aggregate score for this small case set, whereas eliminating the complete council caused a substantial loss of executable design quality.
+
+[body 207 | p 196 | p] Table S11. Matched one-shot and FlowPilot architecture scores by generator model.
+
+[body 208 | p None | tbl] Generator modelOne-shotFlowPilotMean differenceQwen3.6-27B0.765 +/- 0.0140.904 +/- 0.029+0.139Qwen3.8-27B0.747 +/- 0.0190.915 +/- 0.011+0.168GPT-4o0.684 +/- 0.0110.910 +/- 0.002+0.226Claude Sonnet 4.60.890 +/- 0.0140.924 +/- 0.024+0.034Claude Opus 4.60.883 +/- 0.0150.932 +/- 0.010+0.049
+
+Generator model | One-shot | FlowPilot | Mean difference
+
+Qwen3.6-27B | 0.765 +/- 0.014 | 0.904 +/- 0.029 | +0.139
+
+Qwen3.8-27B | 0.747 +/- 0.019 | 0.915 +/- 0.011 | +0.168
+
+GPT-4o | 0.684 +/- 0.011 | 0.910 +/- 0.002 | +0.226
+
+Claude Sonnet 4.6 | 0.890 +/- 0.014 | 0.924 +/- 0.024 | +0.034
+
+Claude Opus 4.6 | 0.883 +/- 0.015 | 0.932 +/- 0.010 | +0.049
+
+[body 209 | p 197 | p] 
+
+[body 210 | p 198 | p] Values are mean +/- sample SD across three repeat-level campaign means. The difference column is FlowPilot minus one-shot.
+
+[body 211 | p 199 | p] Across the 45 retained outcomes per architecture:
+
+[body 212 | p 200 | p] Table S12. Aggregate architecture-level score and critical-error summary.
+
+[body 213 | p None | tbl] ArchitectureMean candidate scoreCampaigns without critical flagsRaw judge critical flagsOne-shot0.79418/4598FlowPilot0.91743/454
+
+Architecture | Mean candidate score | Campaigns without critical flags | Raw judge critical flags
+
+One-shot | 0.794 | 18/45 | 98
+
+FlowPilot | 0.917 | 43/45 | 4
+
+[body 214 | p 201 | p] 
+
+[body 215 | p 202 | p]   
+
+[body 216 | p 203 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/image7.png
+
+[body 217 | p 204 | p] Figure S7. Case-specific benchmark scores for (a) CuAAC, (b) photochemical oxidation and (c) hydrogenolysis. Points and horizontal error bars show means and sample SDs across three generation repeats. Red denotes one-shot (OS); teal denotes FlowPilot (FP). Both Qwen models have 27B parameters. All 30 SDs are nonzero; small whiskers may be obscured by markers. Values beside the plots are rounded means.
+
+[body 218 | p 205 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/image8.png
+
+[body 219 | p 206 | p] Figure S8. Mean paired FlowPilot-minus-one-shot score difference for each applicable universal criterion, separated by chemistry. Positive values favor FlowPilot. UO-08 and UO-09 are omitted because their applicability is not uniform across the three chemistries.
+
+[body 220 | p 207 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/image9.png
+
+[body 221 | p 208 | p] Figure S9. Critical flags for (a) CuAAC, (b) photochemical oxidation and (c) hydrogenolysis. Each model has adjacent one-shot (OS) and FlowPilot (FP) blocks with repeats 1-3. Rows identify criteria. Cell numbers count judges flagging a critical issue, not distinct physical errors. Pale cells have no flag; gray cells with a dash are not applicable. All 90 campaigns and 990 campaign-criterion cells are retained. No critical flag does not establish experimental success.
+
+[body 222 | p 209 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/image10.png
+
+[body 223 | p 210 | p] Figure S10. FlowPilot resource use and quality per generation cost. (a) Tokens, (b) estimated generation cost from the stored token-price schedule and (c) observed runtime: mean +/- sample SD across nine campaigns per model. (d-f) Mean benchmark-score/ USD ratios for CuAAC, photochemical oxidation and hydrogenolysis, respectively, with sample SDs across three repeats, on logarithmic axes. Ratios are calculated per campaign before averaging. Judge-model costs are excluded. Runtime is environment-dependent; token pricing is not a measurement of total local deployment cost.
+
+[body 224 | p 211 | p] 
+
+[body 225 | p 212 | p] Deterministic engineering, inventory realization, and refinement
+
+[body 226 | p 213 | p] FlowPilot separates model-proposed independent variables from quantities that can be recomputed. Flow rates, gas compression, molar equivalents, reactor volumes, stage times, pressure-drop indicators, heat-transfer indicators, and equipment assignments are recalculated after candidate selection and again after inventory realization. A numerical value becomes a run instruction only if the recomputed proposal, stage table, stream table, inventory allocation, process graph, and final contract agree within the implemented tolerances.
+
+[body 227 | p 214 | p] Residence-time and gas-flow conventions
+
+[body 228 | p 215 | p] Liquid molar flow is obtained from liquid concentration and volumetric flow. For a single liquid phase, nominal residence time closes as tau = V/Q. Gas feeds are stored as MFC setpoints at the declared inlet/STP reference. The corresponding in-channel volumetric flow is calculated by ideal-gas scaling, Qg,ch = Qg,STP(Tch/TSTP)(PSTP/Pabs). FlowPilot reports both the inlet/STP apparent time, V/(QL + Qg,STP), and the pressure-corrected in-channel apparent time, V/(QL + Qg,ch), when those definitions are applicable. Gas equivalents are calculated from gas molar flow and limiting-liquid molar flow; they are not inferred from a gas-to-liquid volumetric ratio. In packed beds or poorly characterized multiphase systems, contact time is not equated automatically with empty-bed space time: measured phase holdup or residence-time-distribution data are requested where required.
+
+[body 229 | p 216 | p] Table S13. Deterministic quantities, definitions, and closure checks.
+
+[body 230 | p None | tbl] QuantityImplemented definition or basisRequired closureLimiting molar flowMolar feed = C × Q; M × mL min−1 = mmol min−1Concentration, liquid flow, and stream composition agreeLiquid residence timetau_L = V_L/QLReactor liquid volume equals QL tau_LIn-channel gas flowQg,ch = Qg,STP(Tch/TSTP)(PSTP/Pabs)Temperature and absolute-pressure bases are explicitGas equivalentsn_gas/n_lim from standard gas molar volumeGas identity and gas fraction are includedGas holdup estimateepsilon_g = Qg,ch/(QL + Qg,ch)Used only with the declared two-phase approximationMultistage totaltau_total = sum(tau_i)Each stage uses cumulative local inlet flow and assigned volumePressure dropSingle- or two-phase model selected by phase regimeCalculated drop remains within pump, tubing, reactor, and BPR limitsThermal conductanceUA = U A_wall; Da_th = Qgen/QremAssumptions, geometry, and thermal margin are reported
+
+Quantity | Implemented definition or basis | Required closure
+
+Limiting molar flow | Molar feed = C × Q; M × mL min−1 = mmol min−1 | Concentration, liquid flow, and stream composition agree
+
+Liquid residence time | tau_L = V_L/QL | Reactor liquid volume equals QL tau_L
+
+In-channel gas flow | Qg,ch = Qg,STP(Tch/TSTP)(PSTP/Pabs) | Temperature and absolute-pressure bases are explicit
+
+Gas equivalents | n_gas/n_lim from standard gas molar volume | Gas identity and gas fraction are included
+
+Gas holdup estimate | epsilon_g = Qg,ch/(QL + Qg,ch) | Used only with the declared two-phase approximation
+
+Multistage total | tau_total = sum(tau_i) | Each stage uses cumulative local inlet flow and assigned volume
+
+Pressure drop | Single- or two-phase model selected by phase regime | Calculated drop remains within pump, tubing, reactor, and BPR limits
+
+Thermal conductance | UA = U A_wall; Da_th = Qgen/Qrem | Assumptions, geometry, and thermal margin are reported
+
+[body 231 | p 217 | p] 
+
+[body 232 | p 218 | p] Multistage calculation and stream introduction
+
+[body 233 | p 219 | p] Each reactive stage receives a separate stage identifier, inlet composition, cumulative liquid and gas flow, assigned reactor volume, temperature, pressure, and residence-time basis. A feed introduced between reactors contributes only to downstream cumulative flow. Quench and work-up operations are represented in topology but are not counted as reactive stages. If only a total target time is available, allocation uses declared stage times or stage batch-time weights and otherwise applies an explicit equal-allocation fallback. Final validation checks both the stage sum and each local volume-flow-time identity.
+
+[body 234 | p 220 | p] Heat-transfer screening
+
+[body 235 | p 221 | p] The heat-transfer module reports wall area, surface-to-volume ratio, overall thermal conductance UA, estimated heat generation and removal rates, a thermal Damkohler-like ratio, and a screening margin. The implemented relations are , , and . Reaction enthalpy, overall heat-transfer coefficient, and driving-temperature difference can be estimated from reaction and reactor classes when measurements are unavailable. These values are screening assumptions rather than calorimetric evidence; an apparently favorable estimate does not replace reaction calorimetry for scale-up or strongly exothermic chemistry.
+
+[body 236 | p 222 | p] Inventory normalization and executable topology
+
+[body 237 | p 223 | p] Laboratory inventories may be entered as structured JSON or extracted from PDF, Word, PowerPoint, spreadsheet, and text sources. Extracted content is normalized into typed equipment classes and reviewed before use. Each item carries a stable equipment_id and available capability fields. Free-text statements such as 'no inline degasser' become explicit unavailable capabilities or hard constraints rather than prompt-only notes. During design realization, every required operation is assigned to an inventory item. The allocator checks type, material, inner diameter, volume, flow range, temperature, pressure, wavelength, phase compatibility, and connectivity where declared. Under strict assignment, absent or invented hardware cannot be published in the executable topology.
+
+[body 238 | p 224 | p] A process diagram is generated from the same inventory-assigned topology stored in the final contract. If assignment or numerical closure fails, FlowPilot may render a requirements topology for diagnosis, but it does not label that diagram executable and does not publish numerical run instructions. This distinction prevents a polished intermediate graph from being mistaken for a laboratory-ready process.
+
+[body 239 | p 225 | p] Incremental experimental refinement
+
+[body 240 | p 226 | p] Closed-loop refinement accepts one or more ExperimentRecord objects containing actual operating conditions, measured response, and operational observations. Measured evidence has higher authority than model inference. The module diagnoses underconversion, selectivity loss, solubility or fouling, pressure instability, and gas-liquid instability; it then proposes bounded changes to residence time, liquid and gas flow, temperature, concentration, pressure, tubing, filtration, or safety controls. For multiple experiments, the campaign preserves every observation, identifies the best observed anchor, and may fit a simple apparent response-versus-residence-time model. Extrapolated targets are reported as screening estimates with acceptance criteria, not guaranteed yields. Every cycle creates a new version while retaining the preceding design and measurements.
+
+[body 241 | p 227 | p] Model routing and run records
+
+[body 242 | p 228 | p] The user interface exposes separate model routes for upstream chemistry interpretation and downstream proposal/council execution. The selected provider, model identifier, and local OpenAI-compatible endpoint mapping are applied for the duration of one serialized run and restored afterward. Model routing is written to pipeline-runtime provenance. Because hosted model aliases and local checkpoints can change, a reproducible report should retain the exact model identifier, endpoint or provider, generation parameters, software revision, dependency environment, frozen DesignInputPackage, inventory profile, raw model events, deterministic audit, and canonical final result.
+
+[body 243 | p 229 | p] Computational reconstruction requires the frozen inputs and inventory, exact model identifiers, generation parameters, software revision, raw model events, deterministic audit and final record. Historical liquid-volume, inlet-reference and pressure-corrected times retain their recorded definitions; later GUI defaults do not alter archived scores. Complete case inventories and the long worked-run transcripts are supplied in the companion archive.
+
+[body 244 | p 230 | p] GUI operation, inventory management, and auditable examples
+
+[body 245 | p 231 | p] Actual browser captures made on 1 October 2026 document protocol entry, fixed-ID questions, form-based inventory editing and JSON export. These interface demonstrations do not constitute new benchmark outcomes or chemical experiments. Full-screen captures, structured input/output records and the browser trace are retained in the companion archive.
+
+[body 246 | p 232 | p] The GUI example uses the two-stage DPDTC-mediated amidation of 3-methyl-4-nitrobenzoic acid with benzylamine, with a thioester intermediate. Its input specifies 30 min at 95 C for activation, 5-10 min cooling, and another 30 min at 95 C after amine addition. This example is separate from the three benchmark chemistries in Section 4 and is used here only to demonstrate the input and inventory workflow.
+
+[body 247 | p 233 | p] Batch entry, follow-up questions, and saved answers
+
+[body 248 | p 234 | p] Figure S11 combines the input, follow-up and completion states of one intake demonstration. The chemist enters the batch protocol, binds a laboratory profile and answers questions selected from the versioned question bank. LLM-assisted extraction was switched off for the capture, so the question-selection check did not require a provider call. This demonstrates repeatability of this input mode, not reproducibility of model-generated chemistry or design performance.
+
+[body 249 | p 235 | p] Three fresh requests with the same protocol, profile and extraction mode returned identical pending question IDs and question-set hashes. The pending IDs were Q-OBJ-001, Q-CHEM-001, Q-HIST-001, Q-HYP-001. The user supplied the archived objective and chemistry confirmation, supplied the archived hypotheses, and marked absent experimental history unavailable. The answer-saving endpoint returned ready_for_design = true. Complete questions, answers and intermediate packages are retained in the companion evidence, including items not simultaneously visible inside the scrolling GUI panel.
+
+[body 250 | p 236 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/revision_53_figureS12_intake_workflow.png
+
+[body 251 | p 237 | p] Figure S11. Reproducible intake in the live FlowPilot webapp. (a) Batch-protocol entry; the textarea contains the full protocol although only its opening is visible. (b) A fixed-ID objective question and the entered response, with question-bank version and hash. (c) Completion after saving the required answers. The panels are cropped views from different moments in one session; complete questions and answers are retained in the accompanying JSON. The frozen state denotes submission-ready input, not chemical validation.
+
+[body 252 | p 238 | p] Inventory input, normalization, and laboratory constraints
+
+[body 253 | p 239 | p] The inventory workspace supports direct entry in categorized forms as well as import from documents or an existing JSON profile (Figure S12). Its 15 categories cover pumps, reactors, tubing, light sources, gas hardware, mixers, pressure controllers, temperature controllers, degassers, filters, separators, connectors, collectors, reactor trains and safety accessories. Prepared fields are derived from the same typed equipment models used by the pipeline. Equipment can be added, edited or deleted without rebuilding the remaining inventory.
+
+[body 254 | p 240 | p] Forms retain equipment identifiers, quantities, system membership and compatibility, together with operating limits and notes. For pumps, the minimum supported flow and the setting increment are separate fields. Unknown optional ratings remain unspecified rather than becoming zero or false. The Constraints section records unavailable functions, permitted alternatives and additional operating limits. The KHU version-4 profile is used here to match the archived example, not to redefine the later laboratory configuration. Table S14 retains the corresponding source values.
+
+[body 255 | p 241 | p] Any committed edit invalidates the previous validation state. The current draft must pass profile validation before Export JSON, Save profile or Use in design is enabled. Export produces the complete InventoryProfile, including equipment, constraints and source provenance; importing this file restores the same structured data. Save profile writes a new version, while Use in design binds the profile and its interpreted operating limits to the intake package. A valid profile can still contain warnings and does not certify hardware compatibility or laboratory safety; design-specific checks are performed separately.
+
+[body 256 | p 242 | p] In the browser check, opening and applying the prepared pump form, validating, exporting and re-importing the KHU profile retained all seven reactor and three pump records, compatibility fields, operating constraints and source provenance. The saved laboratory profile was not overwritten. Dedicated JSON import bypasses LLM extraction. Separate desktop and mobile tests also created a new profile using the equipment forms and confirmed that invalid or unvalidated edits could not be exported or used for design.
+
+[body 257 | p 243 | p] Table S14. Examples of the KHU version-4 inventory data and their interpretation.
+
+[body 258 | p None | tbl] Inventory itemStored informationDesign implicationDegassingNo inline degasser; offline pre-degassing is allowed.Omit the device, not the oxygen-exclusion requirement.ReactorsPFA: 2, 5 and 10 mL; two 5 mL/1.016 mm units and one 5 mL/0.762 mm unit. FEP: 10 and 20 mL.Use declared volume, material and ID combinations.TemperatureProfile limits: PFA 80 °C; FEP 50 °C.Equipment-specific limits, not universal material limits.PumpsThree Chemyx Fusion 100 units; Vapourtec SF-10 and R2C+.Check the selected pump and syringe range.Pressure controlConfirmed BPR settings: 2, 8 and 9 bar; maximum 10 bar.Check the full flow path and pressure basis.MixingOne connector; no dedicated mixer.Generic T-mixer requires verification; a two-port union cannot merge feeds.Source caveatsConflicting tubing units, missing radiant power and original BPR omission.Retain uncertainty; a missing-value sentinel is not measured zero.
+
+Inventory item | Stored information | Design implication
+
+Degassing | No inline degasser; offline pre-degassing is allowed. | Omit the device, not the oxygen-exclusion requirement.
+
+Reactors | PFA: 2, 5 and 10 mL; two 5 mL/1.016 mm units and one 5 mL/0.762 mm unit. FEP: 10 and 20 mL. | Use declared volume, material and ID combinations.
+
+Temperature | Profile limits: PFA 80 °C; FEP 50 °C. | Equipment-specific limits, not universal material limits.
+
+Pumps | Three Chemyx Fusion 100 units; Vapourtec SF-10 and R2C+. | Check the selected pump and syringe range.
+
+Pressure control | Confirmed BPR settings: 2, 8 and 9 bar; maximum 10 bar. | Check the full flow path and pressure basis.
+
+Mixing | One connector; no dedicated mixer. | Generic T-mixer requires verification; a two-port union cannot merge feeds.
+
+Source caveats | Conflicting tubing units, missing radiant power and original BPR omission. | Retain uncertainty; a missing-value sentinel is not measured zero.
+
+[body 259 | p 244 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/revision_54_figureS13_inventory_forms.png
+
+[body 260 | p 245 | p] Figure S12. Form-based inventory management in the live webapp. (a) Equipment-category navigation and a pump record. (b) Prepared pump fields distinguish flow limits from the setting increment; a blank increment remains unknown. (c) Declared unavailability of an inline degasser, permitted alternatives and other constraints. (d) Profile validation and the JSON export, versioned-save and design-binding controls. Cropped excerpts use the archived KHU version-4 profile. Warnings remain accessible in the collapsed validation details; schema validity is not laboratory approval. Full views and the exported JSON accompany the figure.
+
+[body 261 | p 246 | p] Examples of critical findings and evaluator limitations
+
+[body 262 | p 247 | p] Table S15 gives traceable examples from retained one-shot and FlowPilot outcomes. They were selected to illustrate different failure mechanisms, not sampled to estimate a failure rate. A judge flag, a source-supported design inconsistency, and a deterministic software block are different observations. Multiple criteria can flag the same underlying defect. The archived benchmark scores and Figure S9 flag counts are unchanged; the arithmetic recheck below is an explicit post hoc audit, not a silent rescore.
+
+[body 263 | p 248 | p] Table S15. Concrete archived issues and one checked evaluator false positive.
+
+[body 264 | p None | tbl] Record / criterionObserved issueInterpretationOne-shot Opus 4.6; hydrogenolysis repeat 01; N2-D1FC65D8; UO-05The procedure places a vented gas-liquid separator before the sole pressure-defining BPR while describing a pressurized reactor. The original post-reactor instructions confirm this order.One judge flagged UO-05. The stated pressure-control and venting arrangement is incomplete as written; component pressure ratings alone do not resolve the topology.One-shot Opus 4.6; hydrogenolysis repeat 02; N2-B6923FF7; UO-07The main parameter reports 20.27 min, while its own basis text gives 3.0 mL / 0.1 mL/min = 30.0 min empty-bed time and a different holdup time.Two judges flagged UO-07. The claimed basis and serialized value disagree. Distinct time definitions must not be collapsed into one unlabeled value.FlowPilot Qwen3.6-27B; CuAAC repeat 03; N2-110E4388; UO-02/03/11The final preparation instruction charges 0.25 mmol Cu/C into a 10 mL feed even though the catalyst is also assigned to a packed-bed cartridge. The saved operating_procedure confirms the instruction.One judge raised three criterion flags for one solids-assignment defect. The feed-preparation compiler and heterogeneous-catalyst placement must agree; passing geometry checks is insufficient.FlowPilot Opus 4.6; oxidation repeat 01; archived worked-run transcriptThe archived council summary reports no usable candidates and a calculator center-point fallback. The raw narrative and final structured conditions then differ (companion archive).Operational fallback and artifact synchronization are separate limitations. A completed pipeline does not establish successful council selection or consistency of every report artifact.FlowPilot GPT-4o; oxidation repeat 03; N2-E85D424E; UO-08One Qwen judge called 3.3158 sccm versus 3.3158 mL/min at STP a factor-of-1000 defect.This specific allegation is incorrect. These volumetric units are equal at the same standard conditions. The arithmetic gives approximately 1 O2 equivalent, not 0.001. The historical flag remains disclosed as a judge false positive.
+
+Record / criterion | Observed issue | Interpretation
+
+One-shot Opus 4.6; hydrogenolysis repeat 01; N2-D1FC65D8; UO-05 | The procedure places a vented gas-liquid separator before the sole pressure-defining BPR while describing a pressurized reactor. The original post-reactor instructions confirm this order. | One judge flagged UO-05. The stated pressure-control and venting arrangement is incomplete as written; component pressure ratings alone do not resolve the topology.
+
+One-shot Opus 4.6; hydrogenolysis repeat 02; N2-B6923FF7; UO-07 | The main parameter reports 20.27 min, while its own basis text gives 3.0 mL / 0.1 mL/min = 30.0 min empty-bed time and a different holdup time. | Two judges flagged UO-07. The claimed basis and serialized value disagree. Distinct time definitions must not be collapsed into one unlabeled value.
+
+FlowPilot Qwen3.6-27B; CuAAC repeat 03; N2-110E4388; UO-02/03/11 | The final preparation instruction charges 0.25 mmol Cu/C into a 10 mL feed even though the catalyst is also assigned to a packed-bed cartridge. The saved operating_procedure confirms the instruction. | One judge raised three criterion flags for one solids-assignment defect. The feed-preparation compiler and heterogeneous-catalyst placement must agree; passing geometry checks is insufficient.
+
+FlowPilot Opus 4.6; oxidation repeat 01; archived worked-run transcript | The archived council summary reports no usable candidates and a calculator center-point fallback. The raw narrative and final structured conditions then differ (companion archive). | Operational fallback and artifact synchronization are separate limitations. A completed pipeline does not establish successful council selection or consistency of every report artifact.
+
+FlowPilot GPT-4o; oxidation repeat 03; N2-E85D424E; UO-08 | One Qwen judge called 3.3158 sccm versus 3.3158 mL/min at STP a factor-of-1000 defect. | This specific allegation is incorrect. These volumetric units are equal at the same standard conditions. The arithmetic gives approximately 1 O2 equivalent, not 0.001. The historical flag remains disclosed as a judge false positive.
+
+[body 265 | p 249 | p] Unit audit for N2-E85D424E: oxygen feed = (3.3158 mL/min air x 0.21) / (22.414 mL/mmol) = 0.0310662 mmol/min O2. Dividing by the recorded substrate flow of 0.031068 mmol/min gives 0.99994 equivalent. The same reference temperature and pressure must be used for both volume units. This checks the stated thousand-fold allegation only; it does not validate all other aspects of that design. It also explains why the heatmap should be described as judge-reported critical flags rather than confirmed error counts.
+
+[body 266 | p 250 | p] Connected-process case studies supporting main-text Figures 5 and 6
+
+[body 267 | p 251 | p] These two laboratory-design cases test how FlowPilot supports a researcher in specifying a connected process under real equipment constraints. They are separate from the three architecture-benchmark cases in Section 4. For each chemistry, the same batch protocol and laboratory inventory were supplied with three standardized response sets: Set 1 emphasizes integrated final yield without unnecessary reaction time; Set 2 emphasizes conversion with the shortest reasonably justified initial exposure; and Set 3 places greater emphasis on throughput, compactness and overall operating balance. The corresponding hypotheses explain the stage interactions to be considered; they are not measured kinetic evidence. These sets are alternative design briefs, not a factorial experiment or independent replicates. The implemented conditions converge to two reported operating points per chemistry. Full run packages and all six archived topologies remain in the companion records; Section 8 gives the actual configurations, procedures and yields.
+
+[body 268 | p 252 | p] Photoredox Giese addition followed by sulfoxidation (main-text Figure 5)
+
+[body 269 | p 253 | p] The target sequence converts the alpha-silyl sulfide and acrylonitrile to a sulfide, then to sulfoxide 4a. The chemistry source is Park et al. [10]. Stage 1 is oxygen-free; pure oxygen is introduced only at the Stage 2 inlet in the revised flow proposal. The original batch protocol uses ambient air in the second step. The change to pure oxygen is a researcher-specified constraint in the September 18 reruns, not an autonomous discovery attributed to the model.
+
+[body 270 | p 254 | p] Supplied batch protocol (verbatim supplied transcription).
+
+[body 271 | p 255 | p] Step 1: Giese reaction A re-sealable pressure tube (13 × 100 mm) equipped with a magnetic stir bar was charged with (((4-methoxyphenyl)thio)methyl)trimethylsilane (1, 0.2 mmol, 1.0 equiv), acrylonitrile (2, 0.4 mmol, 2.0 equiv), and [Ir(dF(CF3)ppy)2(dtbpy)]PF6 (0.001 mmol, 0.5 mol %) under an argon atmosphere. A degassed solvent mixture (2.0 mL, 0.1 M with respect to 1) of EtOH:pH 9 buffer (5:1, v/v) was added, and the resulting light greenish-yellow mixture, under vigorous magnetic stirring, was positioned 3 cm from a pair of 5 W blue LEDs (λmax = 452 nm) and irradiated at room temperature (25 °C, maintained with a cooling fan to counteract heating from the LEDs) for 4 h
+
+[body 272 | p 256 | p] Step 2: Oxidation reaction After 4 h, the cap of the tube was removed to expose the reaction mixture to ambient air, providing atmospheric oxygen as the terminal oxidant, and stirring was continued under otherwise identical irradiation conditions for an additional 6 h.
+
+[body 273 | p 257 | p] 
+
+[body 274 | p 258 | p] Fixed-ID responses (verbatim; hypotheses are not measured facts).
+
+[body 275 | p 259 | p] Response Set 1
+
+[body 276 | p 260 | p] Respones to Q-OBJ-001: Please enter here —> Develop a safe, reproducible, and inventory-compatible two-stage flow process that maximizes the final yield of sulfoxide 4a while avoiding unnecessarily long residence times. Design the two stages as one connected process, because Stage 1 determines the composition entering Stage 2.
+
+[body 277 | p 261 | p] Respones to Q-HYP-001: Please enter here —> Stage 1 performance may depend on effective oxygen exclusion and photon delivery. Incomplete sulfide formation will limit the material available for subsequent oxidation. Stage 2 may depend on oxygen availability and gas–liquid transport. Use the batch reaction time as a reference rather than a fixed target, and determine the residence time based on flow performance. Balance photon delivery, oxygen feed, pressure, and stage-specific residence times based on the final sulfoxide yield and selectivity.
+
+[body 278 | p 262 | p] Respones to Q-GAS-002: Please enter here —> Use at least 2.0 equiv of oxygen relative to the limiting substrate; higher oxygen equivalents may be used if justified by the reaction and operating conditions.
+
+[body 279 | p 263 | p] Respones to Q-GAS-003: Please enter here —> Introduce oxygen only at the Stage 2 inlet. Stage 1 must remain oxygen-free.
+
+[body 280 | p 264 | p] Response Set 2
+
+[body 281 | p 265 | p] Respones to Q-OBJ-001: Please enter here Prioritize high conversion through both stages and a high final yield of sulfoxide 4a. Choose the shortest residence times reasonably justified for this conversion-focused starting design rather than adding a large time excess by default. Keep reactor volumes and flow rates practical for flow screening.
+
+[body 282 | p 266 | p] Respones to Q-HYP-001: Please enter here —> Stage 1 requires sufficient photon delivery and residence time to generate enough sulfide for Stage 2. Use the batch reaction time as a reference rather than a fixed target, and determine the residence time based on flow performance. Stage 2 requires adequate oxygen delivery, but oxygen feed, pressure, gas fraction, and residence time are coupled. Residence time should be optimized based on the final sulfoxide yield and selectivity rather than increased by default.
+
+[body 283 | p 267 | p] Respones to Q-GAS-002: Please enter here —> Use at least 2.0 equiv of oxygen relative to the limiting substrate; higher oxygen equivalents may be used if justified by the reaction and operating conditions.
+
+[body 284 | p 268 | p] Respones to Q-GAS-003: Please enter here —> Introduce oxygen only at the Stage 2 inlet. Stage 1 must remain oxygen-free.
+
+[body 285 | p 269 | p] Response Set 3
+
+[body 286 | p 270 | p] Respones to Q-OBJ-001: Please enter here —> Identify a practical two-stage flow design that balances final sulfoxide yield and selectivity with substrate throughput, total processing time, oxygen delivery, and stable operation. Prefer a compact, higher-throughput starting design where chemically justified.
+
+[body 287 | p 271 | p] Respones to Q-HYP-001: Please enter here —> Stage 1 may maintain sufficient sulfide formation at higher liquid throughput if photon delivery remains effective. Use the batch reaction time as a reference rather than a fixed target, and determine the residence time based on flow performance. In Stage 2, pressure and oxygen feed can alter oxygen availability, gas fraction, and contact time simultaneously. Evaluate the overall process based on substrate throughput, stage-specific residence times, and the final sulfoxide yield and selectivity. Shorter residence times may be explored, but should be validated experimentally.
+
+[body 288 | p 272 | p] Respones to Q-GAS-002: Please enter here —> Use at least 2.0 equiv of oxygen relative to the limiting substrate; higher oxygen equivalents may be used if justified by the reaction and operating conditions.
+
+[body 289 | p 273 | p] Respones to Q-GAS-003: Please enter here —> Introduce oxygen only at the Stage 2 inlet. Stage 1 must remain oxygen-free..
+
+[body 290 | p 274 | p] Design records: outputs/figure5_pure_oxygen_physics_20260918, attempt_01 for each set. The routing was Claude Opus 4.6 upstream and Claude Sonnet 4.6 downstream, scientific_v2 policy, with 12 candidates. The source response sets specify integrated process performance, conversion and throughput, respectively; all require oxygen introduction only at Stage 2.
+
+[body 291 | p 275 | p] Equipment interpretation: Stage 1 uses an inventory-confirmed UV-150-compatible PFA coil and the UV-150 light; Stage 2 uses the Manual 2 module and its own 448 nm strip light. The UV-150 light is not detached for use with an unrelated manual module. The liquid pump is a Vapourtec E-series channel with BLUE tubing; gas delivery uses the FF-C00 MFC, a CV3301 gas-line check valve and the P713 mixing junction. No inline degasser is assigned. Offline deoxygenation and protection of the Stage 1 feed remain required by the oxygen-free protocol.
+
+[body 292 | p 276 | p] Unresolved experimental checks: the gas-line check valve addresses liquid entry into the gas branch, not gas migration into the upstream liquid reactor. The earlier experimental backflow observation is therefore not declared solved by its presence. Confirm valve orientation and pressure rating, liquid-branch isolation/protection, actual junction pressures, oxygen-compatible hardware, and startup/shutdown procedures before testing the archived 7 bar(g) proposal. The optional transient tool used illustrative dynamics and a 12 bar(g) simulated gas-source pressure; that value is not a laboratory setpoint and exceeds the recorded MFC inlet rating. Its outputs must not be treated as a calibrated incident prediction or safety clearance. Gas pressure traces and equipment response data were unavailable.
+
+[body 293 | p 277 | p] Telescoped DPDTC-mediated amidation (main-text Figure 6)
+
+[body 294 | p 278 | p] The supplied protocol forms N-benzyl-3-methyl-4-nitrobenzamide through a 2-pyridyl thioester; the chemistry source is Saunders et al. [11]. Batch timing, nominal concentrations and stage order are protocol facts. Flow residence times, the omission of interstage cooling, and the use of a premixed activation feed are proposed choices requiring validation.
+
+[body 295 | p 279 | p] Supplied batch protocol (verbatim supplied transcription).
+
+[body 296 | p 280 | p] A 4.0 mL vial equipped with a PTFE stir bar was charged with 3-methyl-4-nitrobenzoic acid (1 equiv, 0.5 mmol), N,N-dimethylpyridin-4-amine (DMAP) (6.1 mg, 0.1 equiv, 0.05 mmol), and DPDTC (130. mg, 1.05 equiv, 0.525 mmol) under ambient atmosphere without argon or nitrogen purging.  2-MeTHF (1.0 mL, 0.5 M) was added, and the vial was capped and sealed with Teflon tape. The reaction vial was placed in a pre-heated oil bath maintained at 95 °C and stirred at 500–600 rpm for 30 min. The vial was removed from the oil bath and allowed to cool at room temperature for 5–10 min. Once cooled, the cap was removed and benzylamine (1.05 equiv, 0.525 mmol) and 2-MeTHF (0.25 mL, 0.4 M) were quickly added. The vial was capped, sealed with Teflon tape, and returned to the oil bath at 95 °C, and stirred at 500–600 rpm for another 30 min before workup.
+
+[body 297 | p 281 | p] 
+
+[body 298 | p 282 | p] Fixed-ID responses (verbatim).
+
+[body 299 | p 283 | p] Response Set 1
+
+[body 300 | p 284 | p] Respones to Q-OBJ-001: Please enter here —> Develop a safe, reproducible, and inventory-compatible two-stage telescoped flow process that maximizes the final amide yield while avoiding unnecessarily long residence times. Design the two stages as one connected process, because Stage 1 determines the composition entering Stage 2.
+
+[body 301 | p 285 | p] Respones to Q-CHEM-001: Please enter here —> This is a two-stage DPDTC-mediated amide formation through a thioester intermediate. In Stage 1, 3-methyl-4-nitrobenzoic acid is converted to the corresponding 2-pyridyl thioester using DPDTC and DMAP, without isolating the intermediate. In Stage 2, benzylamine is added to the Stage 1 effluent to form N-benzyl-3-methyl-4-nitrobenzamide. The amide C(O)–N bond is formed and the thioester C(O)–S bond is cleaved during Stage 2.
+
+[body 302 | p 286 | p] Respones to Q-HYP-001: Please enter here —> Stage 1 conversion will directly affect the amount of thioester available for Stage 2 amidation. The cooling step before benzylamine addition may be a batch-handling step rather than an essential reaction step and should be evaluated in flow. Use the batch temperature and reaction times as reference conditions rather than fixed targets, and determine the operating conditions based on flow performance. The Stream A/Stream B molar ratio should match the intended stoichiometry, taking both concentration and flow rate into account.
+
+[body 303 | p 287 | p] Response Set 2
+
+[body 304 | p 288 | p] Respones to Q-OBJ-001: Please enter here —> Prioritize high conversion through both stages and a high final amide yield. Choose the shortest residence times reasonably justified for this conversion-focused starting design rather than adding a large time excess by default. Keep reactor volumes and flow rates practical for flow screening.
+
+[body 305 | p 289 | p] Respones to Q-CHEM-001: Please enter here —> This is a two-stage DPDTC-mediated amide formation through a thioester intermediate. In Stage 1, 3-methyl-4-nitrobenzoic acid is converted to the corresponding 2-pyridyl thioester using DPDTC and DMAP, without isolating the intermediate. In Stage 2, benzylamine is added to the Stage 1 effluent to form N-benzyl-3-methyl-4-nitrobenzamide. The amide C(O)–N bond is formed and the thioester C(O)–S bond is cleaved during Stage 2.
+
+[body 306 | p 290 | p] Respones to Q-HYP-001: Please enter here —> Stage 1 requires sufficient conversion to generate enough thioester for Stage 2. Stage 2 requires sufficient reaction time for conversion to the final amide. Use the batch temperature and reaction times as reference conditions rather than fixed targets, and determine the operating conditions based on flow performance. Evaluate the overall process based on the final amide yield rather than either stage alone. The Stream A/Stream B molar ratio should reflect the intended stoichiometry based on both concentration and flow rate.
+
+[body 307 | p 291 | p] Response Set 3
+
+[body 308 | p 292 | p] Respones to Q-OBJ-001: Please enter here —> Identify a practical two-stage flow design that balances final amide yield with substrate throughput, total processing time, and stable operation. Prefer a compact, higher-throughput starting design where chemically justified.
+
+[body 309 | p 293 | p] Respones to Q-CHEM-001: Please enter here —> This is a two-stage DPDTC-mediated amide formation through a thioester intermediate. In Stage 1, 3-methyl-4-nitrobenzoic acid is converted to the corresponding 2-pyridyl thioester using DPDTC and DMAP, without isolating the intermediate. In Stage 2, benzylamine is added to the Stage 1 effluent to form N-benzyl-3-methyl-4-nitrobenzamide. The amide C(O)–N bond is formed and the thioester C(O)–S bond is cleaved during Stage 2.
+
+[body 310 | p 294 | p] Respones to Q-HYP-001: Please enter here —> Stage 1 must maintain sufficient thioester formation as throughput is increased. Direct transfer from Stage 1 to benzylamine addition may avoid the batch cooling step if chemically and operationally acceptable. Use the batch temperature and reaction times as reference conditions rather than fixed targets. Evaluate the overall process based on substrate throughput, stage-specific residence times, and the final amide yield. Shorter residence times may be explored, but should be validated experimentally. The Stream A/Stream B molar ratio should match the intended stoichiometry based on both concentration and flow rate.
+
+[body 311 | p 295 | p] Design records: outputs/khu_revised_six_20260915/presentation/figure6_set1 through figure6_set3; collaborator export 20260915_163845. The routing was Claude Opus 4.6 upstream and Claude Sonnet 4.6 downstream, scientific_v2 policy, with 12 candidates. The response sets prioritize integrated performance, conversion and throughput, respectively.
+
+[body 312 | p 296 | p] Laboratory implementation, experimental procedures, and analytical data
+
+[body 313 | p 297 | p] This section documents the KHU implementation of the photoredox Giese addition/oxidation and DPDTC-mediated amidation cases. Tables S16–S17 report the measured outcomes, and Tables S18–S19 connect the implemented equipment and nominal feeds to the design proposals. The photographs, spectra, experimental procedures, and grouped response-set entries are retained from the laboratory record. Grouped sets are not treated as independent measurements.
+
+[body 314 | p 298 | p] General materials, instrumentation, and analytical methods
+
+[body 315 | p 299 | p] All reagents were purchased from commercial suppliers (Acros Organics, Alfa Aesar, Tokyo Chemical Industry, and Sigma-Aldrich) and used without further purification unless otherwise noted. Selected compounds were purified by flash column chromatography on silica gel 60 (0.040–0.063 mm) prior to use. Analytical thin-layer chromatography (TLC) was performed on silica gel 60 F254 glass plates (Merck/Supelco, 20 × 20 cm). Visualization was achieved by UV irradiation (254 or 365 nm) or staining (anisaldehyde, ninhydrin, or KMnO4) followed by heating when appropriate.
+
+[body 316 | p 300 | p] Flow reactions were performed using a Vapourtec E-series system (part no. 50-1319) equipped with a Blue V3 pump tube (part no. 50-1301). For the photochemical reaction (Figure 5), the system was fitted with an organometallic reagent kit (part no. 50-1311). Reactor 1 was a UV–150 photochemical reactor equipped with an LED power supply (part no. 50-1453) and irradiated with a 450 nm LED (part no. 50-1448). The effluent then passed through a second coil reactor irradiated with a blue LED strip. Reactor 1 was maintained at 25 °C using an E-Series cooling module (part no. 50-1314), while reactor 2 was maintained at 25 °C using a water bath and fan cooling. O2 gas was delivered via a Bronkhorst FLEXI-FLOW compact mass flow controller (FF-C00). For the amide coupling reaction (Figure 6), both reactor coils were held at 95 °C using a water bath. Both setups were fitted with a 7 bar cartridge back-pressure regulator.
+
+[body 317 | p 301 | p] All isolated products were characterized by 1H and 13C NMR spectroscopy and LRMS. Known products were identified by comparison with published NMR data. Copies of all 1H, 13C NMR spectra are provided in the Supporting Information. NMR spectra were recorded at ambient temperature on a JEOL JNM-ECZ500R FT-NMR spectrometer (1H, 500 MHz; 13C{1H}, 126 MHz). Chemical shifts are reported relative to residual solvent peaks (CDCl3 δ = 7.26 ppm for 1H, 77.16 ppm for 13C{1H}; DMSO-d6, δ = 2.50 ppm for 1H, 39.52 ppm for 13C{1H}). All 13C NMR spectra were broadband 1H-decoupled. Coupling constants (J) are given in Hertz (Hz). Signal multiplicities: br (broad), s (singlet), d (doublet), t (triplet), q (quartet), p (quintet), m (multiplet). Low-resolution mass spectra (LRMS) were recorded on an Advion expressionS CMS spectrometer using electrospray ionization (ESI) in positive-ion mode.
+
+[body 318 | p 302 | p] The 7 bar values identify the installed BPR cartridge, not the measured system pressure. Tables S16–S17 report the laboratory pressure ranges separately. The pressure reference (gauge or absolute), sensor position, and calibration were not specified. The reported 95 °C water-bath arrangement is retained pending laboratory confirmation.
+
+[body 319 | p 303 | p] Irradiation sources and recorded specifications
+
+[body 320 | p 304 | p] The batch source comprised two MR16 blue LEDs; flow R1 used the UV-150 450 nm LED and R2 a separate blue strip. Figure S13 combines the supplied photographs and emission spectra. The caption records electrical-input and radiant-power specifications separately; neither is a measured photon flux at the fluid.
+
+[body 321 | p 305 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/revision_52_figureS17_irradiation_sources.png
+
+[body 322 | p 306 | p] Figure S13. Irradiation sources supplied by KHU: (a) two MR16 5 W batch lamps; (b) Vapourtec 450 nm LED for R1; (c) blue strip LED for R2. The original photographs and emission traces are retained. Reported peak wavelengths are 452.4, 450.32 and 447.50 nm, respectively. Electrical inputs are 5 W per MR16 lamp, 60 W for the Vapourtec source, and 10 W for the strip. The Vapourtec radiant-power specification is 24 W; none of these values establishes irradiance at the reacting fluid.
+
+[body 323 | p 307 | p] Photoredox Giese addition and oxidation: preparation and operation
+
+[body 324 | p 308 | p] The sequence converts (((4-methoxyphenyl)thio)methyl)trimethylsilane (1a) and acrylonitrile (2a) through sulfide 3a to sulfoxide 4a, following Park et al. [10]. Main-text Figure 5 shows the connected configuration; Figure S14 shows KHU’s apparatus.
+
+[body 325 | p 309 | p] A Vapourtec E-Series flow system (part no. 50-1319) equipped with a Blue V3 pump tube (part no. 50-1301) was used. Reactor 1 was a UV–150 photochemical reactor fitted with a 2 or 5 mL coil of PFA tubing (0.04 in. i.d.) and irradiated with a 450 nm LED (part no. 50-1448; rated electrical input, 60 W). The reactor temperature was maintained at 25 ± 1 °C. Reactor 2 comprised a 20 mL coil of FEP tubing (0.04 in. i.d.) maintained at 25 ± 1 °C using a water bath and fan cooling and irradiated with a blue LED strip.
+
+[body 326 | p 310 | p] A solution of 1a (0.2 mmol, 1.0 equiv), 2a (0.4 mmol, 2.0 equiv), and Ir(dF(CF3)ppy)2(dtbpy)PF6 (0.001 mmol, 0.5 mol%) in EtOH/pH 9.00 buffer (bicarbonate-based buffer, 5:1, v/v; 1a, 0.10 M) was loaded into a 2.0 mL sample loop and injected into a carrier stream of the same solvent mixture. The liquid flow rate was 0.020 mL min–1. Oxygen was introduced through a T-mixer between the two reactors using a mass-flow controller set to 0.090 mL min–1. A 7 bar cartridge back-pressure regulator was installed downstream of reactor 2, and the recorded system pressure was 5.1–5.6 bar.
+
+[body 327 | p 311 | p] The Stage 1 liquid feed therefore contains nominal concentrations of 0.100 M 1a, 0.200 M acrylonitrile, and 0.000500 M iridium photocatalyst. The 2.0 mL sample loop contains 0.200 mmol 1a and corresponds to a nominal injection duration of 100 min at 0.020 mL min−1. This is a finite sample-loop experiment in a continuously flowing carrier, not evidence of indefinitely sustained reagent-fed operation. Exact leading/trailing collection windows and the degassing/argon-handling procedure used during the implemented runs were not specified in the new methods. The frozen design input retains an oxygen-free, argon-prepared first stage; oxygen is introduced only at the interstage T-mixer.
+
+[body 328 | p 312 | p] At the stated settings, nominal Stage 1 times are 2/0.020 = 100 min and 5/0.020 = 250 min. The supplied artwork labels Stage 2 as “181 min”; recalculation from the stated settings gives the nominal inlet-reference index 20/(0.020 + 0.090) = 181.82 min. On the proposal's STP convention (273.15 K, 1 atm), 0.090 mL min−1 of pure O2 corresponds to 0.004015 mmol min−1, or 2.008 equivalents relative to 0.00200 mmol min−1 of 1a. These are calculated proposal-basis values; the actual MFC reference temperature/pressure must be confirmed. Gas compression, dissolution, consumption, and phase holdup prevent this index from being identified with physical gas or liquid residence time. No tracer or residence-time-distribution measurement was supplied.
+
+[body 329 | p 313 | p] An aliquot of the collected reactor effluent was analyzed by 1H NMR spectroscopy using 1,3-benzodioxole as an internal standard to determine the NMR yield of 4a. The remaining effluent was concentrated under reduced pressure and purified by flash column chromatography on silica gel. KHU reports 97% NMR yield for the grouped Sets 1/3 entry (2 mL R1), and 98% NMR yield for Set 2 (5 mL R1). The recorded system pressures are 5.1–5.4 and 5.2–5.6 bar, respectively. Replicate counts and quantitative-NMR integration/calibration records were not supplied.
+
+[body 330 | p 314 | p] Table S16. Giese addition/oxidation operating points and yield. Yield is determined by 1H NMR. Sets 1/3 share one supplied entry; no independent replicate count is inferred. Stage 2 is a nominal inlet/STP time index.
+
+[body 331 | p None | tbl] ParameterKHU sets 1 / 3KHU set 2Yield (%)9798R1 / R2 volume (mL)2 / 205 / 20Liquid flow (mL/min)0.0200.020O2 controller setting (mL/min)0.0900.090R1 time / R2 index (min)100 / 181.82250 / 181.82Temperature (both stages)25 ± 1 °C25 ± 1 °CRecorded pressure (bar)5.1–5.45.2–5.6BPR cartridge7 bar7 bar
+
+Parameter | KHU sets 1 / 3 | KHU set 2
+
+Yield (%) | 97 | 98
+
+R1 / R2 volume (mL) | 2 / 20 | 5 / 20
+
+Liquid flow (mL/min) | 0.020 | 0.020
+
+O2 controller setting (mL/min) | 0.090 | 0.090
+
+R1 time / R2 index (min) | 100 / 181.82 | 250 / 181.82
+
+Temperature (both stages) | 25 ± 1 °C | 25 ± 1 °C
+
+Recorded pressure (bar) | 5.1–5.4 | 5.2–5.6
+
+BPR cartridge | 7 bar | 7 bar
+
+[body 332 | p 315 | p] The literature flow reference in main-text Figure 5 is 90% NMR yield (Park et al. [10], Table 4 entry 5). Literature and KHU configurations differ in gas delivery, irradiation and other operating conditions; the reference provides context rather than a matched experimental control.
+
+[body 333 | p 316 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/revision_43_image11.png
+
+[body 334 | p 317 | p] Figure S14. Actual KHU photochemical flow apparatus, as supplied. The labeled photograph identifies the E-series system, UV-150 reactor, downstream coil, MFC, T-mixer, check valve, BPR, cooling module, carrier solvent, and sample loop. The image is not a pressure calibration or a record of startup dynamics; exact check-valve location/orientation and a pressure trace remain to be confirmed.
+
+[body 335 | p 318 | p] DPDTC-mediated amidation: preparation and operation
+
+[body 336 | p 319 | p] The sequence converts 3-methyl-4-nitrobenzoic acid (1b) through a 2-pyridyl thioester to N-benzyl-3-methyl-4-nitrobenzamide (3b), following Saunders et al. [11]. The intermediate is not isolated. Main-text Figure 6 shows the connected configuration; Figure S15 shows KHU’s apparatus.
+
+[body 337 | p 320 | p] A Vapourtec E-Series flow system (part no. 50-1319) equipped with a Blue V3 pump tube (part no. 50-1301) was used with two pump channels. Reactor 1 comprised a 5 or 10 mL coil of ETFE tubing (0.093 in. i.d.), and reactor 2 comprised a 5 mL coil of ETFE tubing (0.093 in. i.d.). Both reactors were maintained at 95 °C in a water bath.
+
+[body 338 | p 321 | p] A solution of 1b (1.0 mmol, 1.0 equiv), DPDTC (1.05 mmol, 1.05 equiv), and DMAP (0.1 mmol, 0.10 equiv) in 2-MeTHF (1b, 0.50 M) was loaded into a 2.0 mL sample loop and injected into a carrier stream of 2-MeTHF. The liquid flow rate through reactor 1 was 0.160 or 0.280 mL min–1. At a T-mixer downstream of reactor 1, this stream was combined with a solution of 2b (1.05 mmol, 1.05 equiv) in 2-MeTHF (2b, 2.10 M), delivered through the second pump channel at 0.040 or 0.070 mL min–1, respectively. The combined stream then passed through reactor 2. A 7 bar cartridge back-pressure regulator was installed downstream of reactor 2, and the recorded system pressure was 5.2–5.8 bar.
+
+[body 339 | p 322 | p] Nominal stock concentrations in Feed A are 0.500 M acid, 0.525 M DPDTC, and 0.0500 M DMAP. A 2.0 mL loop contains 1.00 mmol acid and is displaced in 12.50 or 7.14 min at the two stated flow rates. The benzylamine stock has a nominal concentration of 2.10 M; the specified 1.05 mmol quantity corresponds to 0.500 mL of that stock. The required total feed volume for priming, overlap with the dispersed sample plug, and collection cannot be reconstructed from this nominal reagent amount alone. The new methods do not specify the second-feed start/stop timing or collection window, which are important for interpreting finite-loop stoichiometry.
+
+[body 340 | p 323 | p] At Set 1 flows, the acid and benzylamine nominal molar feeds are 0.0800 and 0.0840 mmol min−1. At Sets 2/3 flows, they are 0.140 and 0.147 mmol min−1. Both give 1.05 equivalents of benzylamine. The combined stream has acid-equivalent concentration 0.400 M and amine-feed-equivalent concentration 0.420 M before allowing for reaction; these are mixing calculations, not measured thioester or product concentrations. R1 times are 31.25 and 35.7143 min; R2 times are 25.00 and 14.2857 min. Actual intermediate conversion was not measured in the supplied data.
+
+[body 341 | p 324 | p] An aliquot of the collected effluent was analyzed by 1H NMR spectroscopy using 1,3-benzodioxole as an internal standard. The remaining effluent was concentrated by rotary evaporation and purified by flash column chromatography on silica gel. Set 1 gave 86% NMR yield; Sets 2/3 share a reported NMR yield of 68%. The recorded system pressures were 5.2–5.3 and 5.5–5.8 bar, respectively. Both coils were described as operating at 95 °C without an intervening cooling operation. Individual-run identifiers and repeat statistics were not supplied.
+
+[body 342 | p 325 | p] Table S17. DPDTC-mediated amidation operating points and yield. Yield is determined by 1H NMR. Sets 2/3 share one supplied entry. Stage times are nominal liquid-volume/flow calculations.
+
+[body 343 | p None | tbl] ParameterKHU set 1KHU sets 2 / 3Yield (%)8668R1 / R2 volume (mL)5 / 510 / 5Feed A / B (mL/min)0.160 / 0.0400.280 / 0.070R1 / R2 time (min)31.25 / 25.0035.71 / 14.29Temperature (both stages)95 °C95 °CRecorded pressure (bar)5.2–5.35.5–5.8BPR cartridge7 bar7 bar
+
+Parameter | KHU set 1 | KHU sets 2 / 3
+
+Yield (%) | 86 | 68
+
+R1 / R2 volume (mL) | 5 / 5 | 10 / 5
+
+Feed A / B (mL/min) | 0.160 / 0.040 | 0.280 / 0.070
+
+R1 / R2 time (min) | 31.25 / 25.00 | 35.71 / 14.29
+
+Temperature (both stages) | 95 °C | 95 °C
+
+Recorded pressure (bar) | 5.2–5.3 | 5.5–5.8
+
+BPR cartridge | 7 bar | 7 bar
+
+[body 344 | p 326 | p] The literature reference in main-text Figure 6 is 98% NMR yield in batch (Saunders et al. [11], Table 1 entry 5). This measurement basis matches the KHU yield determinations, but the operating mode and conditions differ; the comparison does not isolate the effect of batch-to-flow translation.
+
+[body 345 | p 327 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/revision_45_image13.png
+
+[body 346 | p 328 | p] Figure S15. Actual KHU two-stage amidation apparatus, as supplied. Two E-series pump channels deliver the sample-loop/carrier stream and the benzylamine stream. The photograph identifies the sample loop, T-mixer, two reactor coils, BPR, and solution containers. It documents the assembled apparatus, not a complete time-resolved collection or calibration record.
+
+[body 347 | p 329 | p] Product characterization and supplied spectra
+
+[body 348 | p 330 | p] The characterization below is transcribed from KHU's supplied records with punctuation and section-reference corrections only. Reported masses, yields, shifts, couplings, and observed LRMS values are retained. Figures S16–S19 are product-characterization spectra; they are not presented as the missing raw quantitative-NMR yield calculations or as independent repeat measurements.
+
+[body 349 | p 331 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/revision_46_image14.png
+
+[body 350 | p 332 | p] 4-((4-methoxyphenyl)sulfinyl)butanenitrile (4a) was synthesized according to the standard flow procedure for Figure 5 (Section 8.3) and purified by flash column chromatography on silica gel (n-hexane:EtOAc = 1:4) to afford 4a as a colourless oil (42.0 mg, 94% isolated yield). Rf = 0.20 (n-hexane:EtOAc = 1:4). 1H NMR (500 MHz, CDCl3) δ 7.56–7.53 (m, 2H), 7.05–7.02 (m, 2H), 3.85 (s, 3H), 2.95–2.90 (m, 2H), 2.58–2.46 (m, 2H), 2.19–1.94 (m, 2H); 13C{1H} NMR (126 MHz, CDCl3) δ 162.32, 133.66, 125.93, 118.60, 115.11, 55.70, 54.90, 18.67, 16.66; LRMS (ESI) m/z: calcd for C11H14NO2S [M+H]+: 224.1; found: 224.4; calcd for C11H13NO2SK [M+K]+: 262.0, found: 261.8. [10]
+
+[body 351 | p 333 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/revision_47_image15.png
+
+[body 352 | p 334 | p] N-Benzyl-3-methyl-4-nitrobenzamide (3b) was synthesized according to the standard flow procedure for Figure 6 (Section 8.4) and purified by flash column chromatography on silica gel (n-hexane:EtOAc = 1:3) to afford 3b as a pale-yellow solid (227.0 mg, 84% isolated yield). Rf = 0.36 (n-hexane:EtOAc = 1:3). 1H NMR (500 MHz, CDCl3) δ 7.95 (d, J = 8.4 Hz, 1H), 7.77 (s, 1H), 7.68 (dd, J = 8.4, 2.0 Hz, 1H), 7.38–7.29 (m, 5H), 6.67–6.60 (br s, 1H), 4.62 (d, J = 5.4 Hz, 2H), 2.60 (br s, 3H); 13C{1H} NMR (126 MHz, CDCl3) δ 165.64, 150.89, 138.33, 137.66, 134.16, 131.85, 129.02, 128.08, 128.01, 125.46, 125.03, 44.49, 20.44; LRMS (ESI): calcd for C15H15N2O3 [M+H]+: 271.1, found: 271.4; calcd for C15H14N2O3Na [M+Na]+: 293.1, found: 293.1. [11-12]
+
+[body 353 | p 335 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/revision_48_khu_image17.png
+
+[body 354 | p 336 | p] Figure S16. 4a: 1H NMR (500 MHz, CDCl3). Supplied KHU product-characterization spectrum, reproduced without peak reassignment, baseline correction, or deletion of signals.
+
+[body 355 | p 337 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/revision_49_khu_image18.png
+
+[body 356 | p 338 | p] Figure S17. 4a: 13C{1H} NMR (126 MHz, CDCl3). Supplied KHU product-characterization spectrum, reproduced without peak reassignment, baseline correction, or deletion of signals.
+
+[body 357 | p 339 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/revision_50_khu_image19.png
+
+[body 358 | p 340 | p] Figure S18. 3b: 1H NMR (500 MHz, CDCl3). Supplied KHU product-characterization spectrum, reproduced without peak reassignment, baseline correction, or deletion of signals.
+
+[body 359 | p 341 | p] 
+
+IMAGES: manuscript/october1_postmeeting_work/source_media/ESI/revision_51_khu_image20.png
+
+[body 360 | p 342 | p] Figure S19. 3b: 13C{1H} NMR (126 MHz, CDCl3). Supplied KHU product-characterization spectrum, reproduced without peak reassignment, baseline correction, or deletion of signals.
+
+[body 361 | p 343 | p] Implementation reconciliation and calculation basis
+
+[body 362 | p 344 | p] Table S18. Proposal-to-implementation reconciliation. Agreement of selected settings does not imply that unreported operational details were verified.
+
+[body 363 | p None | tbl] FeatureFlowPilot proposal / inputKHU implementation / remaining distinctionPump configurationUse compatible channels, avoid unnecessary mixing of automated systems.Both cases used E-series pumps; Figure 6 used two channels of the same system.Photochemical reactor/light pairingUV-150-compatible PFA first coil; separately illuminated FEP second coil.PFA 2/5 mL with Vapourtec 450 nm LED; FEP 20 mL with blue strip.Oxygen placement and quantityPure O2 only after Stage 1; 0.090 mL/min at proposal STP convention.O2 introduced at the interstage T-mixer; same controller setpoint. MFC reference conditions/calibration not supplied.Backflow protectionGas-branch check valve included in revised proposal.Photo labels a check valve; exact branch, orientation, and startup pressure trace need confirmation. No empirical failure probability is claimed.Pressure7 bar(g) design/BPR target.7 bar cartridge installed; reported pressure 5.1–5.6 bar (Figure 5), 5.2–5.8 bar (Figure 6). Sensor basis/location unreported.Feed introductionNominal component concentrations and pump settings.Finite 2.0 mL sample-loop injection. Pump rates do not establish a constant concentration throughout the dispersed plug.Amidation interstage operationDirect amine addition, no intermediate isolation.Two heated coils and interstage T-mixer, both at 95 °C. Water bath reported; no cooling operation described.Tubing dimensionsNominal inventory IDs: 1.00 mm and 2.40 mm.Specified 0.04 in = 1.016 mm and 0.093 in = 2.3622 mm. Use actual tubing dimensions for future hydraulic calculations.Performance assessmentThree response sets per chemistry, some identical conditions.Two distinct implemented settings per chemistry. Shared-set rows are not documented independent repeats.
+
+Feature | FlowPilot proposal / input | KHU implementation / remaining distinction
+
+Pump configuration | Use compatible channels, avoid unnecessary mixing of automated systems. | Both cases used E-series pumps; Figure 6 used two channels of the same system.
+
+Photochemical reactor/light pairing | UV-150-compatible PFA first coil; separately illuminated FEP second coil. | PFA 2/5 mL with Vapourtec 450 nm LED; FEP 20 mL with blue strip.
+
+Oxygen placement and quantity | Pure O2 only after Stage 1; 0.090 mL/min at proposal STP convention. | O2 introduced at the interstage T-mixer; same controller setpoint. MFC reference conditions/calibration not supplied.
+
+Backflow protection | Gas-branch check valve included in revised proposal. | Photo labels a check valve; exact branch, orientation, and startup pressure trace need confirmation. No empirical failure probability is claimed.
+
+Pressure | 7 bar(g) design/BPR target. | 7 bar cartridge installed; reported pressure 5.1–5.6 bar (Figure 5), 5.2–5.8 bar (Figure 6). Sensor basis/location unreported.
+
+Feed introduction | Nominal component concentrations and pump settings. | Finite 2.0 mL sample-loop injection. Pump rates do not establish a constant concentration throughout the dispersed plug.
+
+Amidation interstage operation | Direct amine addition, no intermediate isolation. | Two heated coils and interstage T-mixer, both at 95 °C. Water bath reported; no cooling operation described.
+
+Tubing dimensions | Nominal inventory IDs: 1.00 mm and 2.40 mm. | Specified 0.04 in = 1.016 mm and 0.093 in = 2.3622 mm. Use actual tubing dimensions for future hydraulic calculations.
+
+Performance assessment | Three response sets per chemistry, some identical conditions. | Two distinct implemented settings per chemistry. Shared-set rows are not documented independent repeats.
+
+[body 364 | p 345 | p] Table S19. Nominal component feeds from reported stock concentrations and pump settings. Molar feed is C × Q (M × mL/min = mmol/min). Values describe a stock-filled portion of the sample plug; no constant concentration or intermediate conversion is assumed outside that interval.
+
+[body 365 | p None | tbl] Case / setFeed componentC (M)Q (mL/min)Molar feed (mmol/min)Figure 5, allSubstrate 1a0.1000.0200.00200Figure 5, allAcrylonitrile 2a0.2000.0200.00400Figure 5, allIr photocatalyst0.0005000.0200.0000100Figure 5, allO2 (STP calculation)Gas0.0900.004015Figure 6, 1Acid 1b0.5000.1600.0800Figure 6, 1DPDTC0.5250.1600.0840Figure 6, 1DMAP0.05000.1600.00800Figure 6, 1Benzylamine 2b2.100.0400.0840Figure 6, 2/3Acid 1b0.5000.2800.140Figure 6, 2/3DPDTC0.5250.2800.147Figure 6, 2/3DMAP0.05000.2800.0140Figure 6, 2/3Benzylamine 2b2.100.0700.147
+
+Case / set | Feed component | C (M) | Q (mL/min) | Molar feed (mmol/min)
+
+Figure 5, all | Substrate 1a | 0.100 | 0.020 | 0.00200
+
+Figure 5, all | Acrylonitrile 2a | 0.200 | 0.020 | 0.00400
+
+Figure 5, all | Ir photocatalyst | 0.000500 | 0.020 | 0.0000100
+
+Figure 5, all | O2 (STP calculation) | Gas | 0.090 | 0.004015
+
+Figure 6, 1 | Acid 1b | 0.500 | 0.160 | 0.0800
+
+Figure 6, 1 | DPDTC | 0.525 | 0.160 | 0.0840
+
+Figure 6, 1 | DMAP | 0.0500 | 0.160 | 0.00800
+
+Figure 6, 1 | Benzylamine 2b | 2.10 | 0.040 | 0.0840
+
+Figure 6, 2/3 | Acid 1b | 0.500 | 0.280 | 0.140
+
+Figure 6, 2/3 | DPDTC | 0.525 | 0.280 | 0.147
+
+Figure 6, 2/3 | DMAP | 0.0500 | 0.280 | 0.0140
+
+Figure 6, 2/3 | Benzylamine 2b | 2.10 | 0.070 | 0.147
+
+[body 366 | p 346 | p] The literature benchmarks in main-text Figures 5 and 6 use verified NMR yields. They provide context rather than controlled comparisons: feed concentrations, irradiation, reactor size, reagent addition and gas delivery differ. No causal yield advantage or intensification factor is inferred. For the gas–liquid stage, the inlet-reference index is not a measurement of operating-pressure residence time or phase holdup.
+
+[body 367 | p 347 | p] The earlier KHU backflow report concerned pure oxygen at 0.43 mL min−1 and liquid at 0.020 mL min−1, despite the original proposal’s air-based feed calculation. The revised point retained pure oxygen at a reduced controller setting of 0.090 mL min−1. A gas-branch check valve resists reverse liquid entry toward the MFC; it does not necessarily prevent gas entering the upstream liquid branch. The assembled photograph identifies a check valve, but the exact branch, orientation, and startup-pressure history remain unconfirmed. No backflow probability or verified hydraulic protection is inferred from the reduced gas setting.
+
+[body 368 | p 348 | p] Outstanding experimental metadata
+
+[body 369 | p 349 | p] The available record does not include raw quantitative-NMR files and yield-calculation worksheets (including internal-standard amount and purity), independent repeat identifiers, exact collection windows, or second-feed timing. Gas-controller reference conditions and calibration, pressure-sensor reference and location, the implemented oxygen-free feed preparation, and check-valve branch and orientation remain to be confirmed. Original NMR and LRMS instrument exports, the specified tubing dimensions, and the reported 95 °C bath arrangement also require final laboratory confirmation. These gaps are retained explicitly; no measurement or uncertainty has been inferred to fill them.
+
+[body 370 | p 350 | p] References
+
+[body 371 | p 351 | p] 1. Pan, Y.; Xiao, Q.; Zhao, F.; Li, Z.; Liu, J.; Ullah, S.; Lim, K. H.; Huang, T.; Yu, Z.; Li, C.; Zhang, D.; Xue, Q.; Chen, Q.; Kawi, S.; Wang, Y.; Luo, G. Chat-microreactor: A large-language-model-based assistant for designing continuous flow systems. Chemical Engineering Science 2025, 311, 121567. https://doi.org/10.1016/j.ces.2025.121567.
+
+[body 372 | p 352 | p] 2. Ruan, Y.; Lu, C.; Xu, N.; He, Y.; Chen, Y.; Zhang, J.; Xuan, J.; Pan, J.; Fang, Q.; Gao, H.; Shen, X.; Ye, N.; Zhang, Q.; Mo, Y. An automatic end-to-end chemical synthesis development platform powered by large language models. Nature Communications 2024, 15 (1), 10160. https://doi.org/10.1038/s41467-024-54457-x.
+
+[body 373 | p 353 | p] 3. Wang, Q.; Wang, Y.; Gong, X. An LLM-Based Intelligent Agent and Its Application in Making the Lanolin Saponification Process Greener. Pharmaceuticals 2026, 19 (2), 264. https://doi.org/10.3390/ph19020264.
+
+[body 374 | p 354 | p] 4. Tian, X.; Du, W.; Yang, S.; Hu, H.; Xin, H.; Qu, S.; Ye, K. From Text to Simulation: A Multi-Agent LLM Workflow for Automated Chemical Process Design. Proceedings of the AAAI Conference on Artificial Intelligence 2026, 40 (35), 29705-29713. https://doi.org/10.1609/aaai.v40i35.40215.
+
+[body 375 | p 355 | p] 5. Yang, Y.; Li, R.; Ma, J.; Zhang, K.; Liu, Q.; Han, J.; Bu, Y.; Zhou, J.; Lian, D.; Li, X.; Chen, E. CeProAgents: A Hierarchical Agents System for Automated Chemical Process Development. arXiv 2026, 2603.01654v1. Preprint. https://arxiv.org/abs/2603.01654v1.
+
+[body 376 | p 356 | p] 6. Zhang, T. Harness as an Asset: Enforcing Determinism via the Convergent AI Agent Framework (CAAF). arXiv 2026, 2604.17025v3. Preprint. https://arxiv.org/abs/2604.17025v3.
+
+[body 377 | p 357 | p] 7. Tu, J.; Sang, L.; Cheng, H.; Ai, N.; Zhang, J. Continuous Hydrogenolysis of N-Diphenylmethyl Groups in a Micropacked-Bed Reactor. Organic Process Research & Development 2020, 24, 59-66. https://doi.org/10.1021/acs.oprd.9b00416
+
+[body 378 | p 358 | p] 8. Thomson, C. G.; Banks, C.; Allen, M.; Barker, G.; Coxon, C. R.; Lee, A.-L.; Vilela, F. Expanding the Tool Kit of Automated Flow Synthesis: Development of In-line Flash Chromatography Purification. Journal of Organic Chemistry 2021, 86, 14079-14094. https://doi.org/10.1021/acs.joc.1c01151
+
+[body 379 | p 359 | p] 9. Fuchs, M.; Goessler, W.; Pilger, C.; Kappe, C. O. Mechanistic Insights into Copper(I)-Catalyzed Azide-Alkyne Cycloadditions using Continuous Flow Conditions. Advanced Synthesis & Catalysis 2010, 352, 323-328. https://doi.org/10.1002/adsc.200900726
+
+[body 380 | p 360 | p] 10. Park, J.; Kim, S. H.; Cho, J.-Y.; Atriardi, S. R.; Kim, J.-Y.; Mardhiyah, H.; Park, B. Y.; Woo, S. K. Batch and Flow Synthesis of Sulfides and Sulfoxides Using Green Solvents and Oxidant through Visible-Light Photocatalysis. Green Chemistry 2025, 27, 3284-3292. https://doi.org/10.1039/D4GC05769D.
+
+[body 381 | p 361 | p] 11. Saunders, J. M.; Oceguera Nava, E.; Li, J.; Wong, M. J.; Freiberg, K. M.; Lipshutz, B. H. Flow-to-Flow Technology: Amide Formation in the Absence of Traditional Coupling Reagents Using DPDTC. ACS Sustainable Chemistry & Engineering 2025, 13, 6646-6655. https://doi.org/10.1021/acssuschemeng.5c00914.
+
+[body 382 | p 362 | p] 12. Wang, A.; Xie, Y.; Wang, J.; Shi, D.; Yu, H. Atom-economic amide synthesis by using an iron-substituted polyoxometalate catalyst. Chemical Communications 2022, 58, 1127–1130. https://doi.org/10.1039/D1CC05417A.
+
+[body 383 | p None | sectPr] 

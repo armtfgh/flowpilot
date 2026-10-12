@@ -9,6 +9,7 @@ validation evidence.  No model call occurs after this pass.
 from __future__ import annotations
 
 import itertools
+import math
 import re
 from fractions import Fraction
 from collections import Counter
@@ -17,7 +18,7 @@ from flora_translate.pump_settings import select_scale, setting_supported, strea
 from flora_translate.gas_settings import maximum_gas_setting, gas_setting_at_least, gas_setting_supported
 
 from flora_translate.component_identity import (
-    component_key, component_name, is_solvent_component, unique_components,
+    component_key, component_name, has_stationary_catalytic_role, is_solvent_component, unique_components,
 )
 
 from flora_translate.inventory_constraints import (
@@ -26,6 +27,8 @@ from flora_translate.inventory_constraints import (
 )
 from flora_translate.multistage_inventory import reconcile_multistage_inventory
 from flora_translate.residence_time_basis import (
+    STP_MOLAR_VOLUME_ML_PER_MMOL,
+    gas_reagent_fraction,
     INLET_STP_BASIS,
     IN_CHANNEL_BASIS,
     actual_gas_flow_from_stp,
@@ -65,6 +68,8 @@ def realize_executable_design(
     """
 
     current = proposal.model_copy(deep=True)
+    from flora_translate.design_evidence import capture_reasoning, reconcile_reasoning, refresh_derived_metadata
+    capture_reasoning(current)
     constraint_text = _flatten_text(hard_constraints)
     chemistry_text = "\n".join(
         value
@@ -79,6 +84,9 @@ def realize_executable_design(
     )
     issues: list[dict[str, Any]] = []
     decisions: list[dict[str, Any]] = []
+    council_block = (current.inventory_constraints or {}).get("council_selection_block")
+    if council_block:
+        issues.append({"code": "COUNCIL-NO-APPROVED-CANDIDATE", "message": str(council_block)})
 
     _reconcile_candidate_operations(current, chemistry_plan, decisions)
     _repair_stage_feed_map(chemistry_plan, protocol_text, decisions)
@@ -199,7 +207,8 @@ def realize_executable_design(
     else:
         current.stage_parameters = []
         _bind_single_reactor(current, inventory, decisions, issues)
-        _close_single_stage_time(current, decisions)
+        from flora_translate.residence_time_basis import requested_residence_time_basis
+        _close_single_stage_time(current, decisions, requested_basis=requested_residence_time_basis(constraint_text))
 
     safety_contract = _derive_safety_contract(
         "\n".join(
@@ -215,8 +224,20 @@ def realize_executable_design(
         current,
         inventory,
     )
+    reviewed = current.inventory_constraints.get("council_reviewed_parameters", {})
+    for field, expected in reviewed.items():
+        actual = getattr(current, field)
+        if abs(float(actual) - float(expected)) > max(1e-6, .005 * abs(float(expected))):
+            issues.append({"code": "COUNCIL-DELIVERY-PARAMETER-DRIFT", "message": f"Reviewed {field}={expected} changed to {actual}; renewed review is required."})
+    reviewed_state = current.inventory_constraints.get("council_reviewed_execution_state")
+    if reviewed_state:
+        from flora_translate.design_evidence import execution_state, execution_states_match
+        if not execution_states_match(reviewed_state, execution_state(current)):
+            issues.append({"code": "COUNCIL-DELIVERY-STATE-DRIFT", "message": "Reviewed feed, gas, stage or apparatus assignments changed during finalization; renewed review is required."})
     _compile_canonical_operating_summary(current)
     _replace_stale_reasoning(current, decisions, safety_contract)
+    reconcile_reasoning(current)
+    refresh_derived_metadata(current)
 
     realization = {
         "schema_version": "flowpilot_design_realization_v1.0",
@@ -600,14 +621,10 @@ def _enforce_stationary_component_placement(
 ) -> None:
     """Remove fixed-bed catalyst material from pumped stream contents."""
 
-    reactor_identity = " ".join(
-        [
-            str(proposal.reactor_type or ""),
-            *(
-                f"{item.name} {item.type} {item.configuration}"
-                for item in (inventory.reactors if inventory else [])
-            ),
-        ]
+    selected = select_reactor_for_proposal(proposal, inventory) if inventory else None
+    reactor_identity = (
+        f"{selected.name} {selected.type} {selected.configuration}"
+        if selected else str(proposal.reactor_type or "")
     ).lower()
     if "packed" not in reactor_identity and "catcart" not in reactor_identity:
         return
@@ -619,9 +636,16 @@ def _enforce_stationary_component_placement(
             role=item.role,
             notes=item.notes,
             source=item.name,
+            declared_loading=item.equiv_or_loading,
         )
     }
-    stationary: list[dict[str, Any]] = []
+    stationary: list[dict[str, Any]] = list(proposal.inventory_constraints.get("stationary_components") or [])
+    # A declared bed component remains part of the apparatus even when the
+    # chemistry model correctly omitted it from every pumped feed.
+    for reagent in (plan.reagents if plan else []):
+        if _normalized(reagent.name) in stationary_names:
+            stationary.append({"name": reagent.name, "source_text": reagent.name,
+                               "placement": "stationary_reactor_phase", "reactor_type": proposal.reactor_type})
     for stream in proposal.streams:
         retained: list[str] = []
         for content in stream.contents:
@@ -660,7 +684,7 @@ def _enforce_stationary_component_placement(
 
     if stationary:
         constraints = dict(proposal.inventory_constraints or {})
-        constraints["stationary_components"] = stationary
+        constraints["stationary_components"] = list({component_key(item["name"]): item for item in stationary}.values())
         proposal.inventory_constraints = constraints
 
 
@@ -669,31 +693,12 @@ def _is_stationary_catalyst(
     role: Any = "",
     notes: Any = "",
     source: Any = "",
+    declared_loading: Any = "",
 ) -> bool:
     """Classify an immobilized catalyst without relying on one exact phrase."""
 
     text = " ".join(str(value or "") for value in (role, notes, source)).lower()
-    normalized = " ".join(re.findall(r"[a-z0-9]+", text))
-    is_catalyst = any(token in normalized.split() for token in ("catalyst", "catalytic"))
-    is_stationary = any(
-        marker in normalized
-        for marker in (
-            "heterogeneous",
-            "immobilized",
-            "supported catalyst",
-            "pre packed",
-            "prepacked",
-            "packed bed",
-            "packed in cartridge",
-            "fixed bed",
-            "fixed packed bed",
-            "stationary phase",
-            "not in solution",
-            "not in feed",
-            "dissolved loading not applicable",
-        )
-    )
-    return is_catalyst and is_stationary
+    return has_stationary_catalytic_role(text, declared_loading=str(declared_loading or ""))
 
 
 def _explicit_stream_reference(
@@ -1151,10 +1156,16 @@ def _solve_gas_stream_rates(
         # excess is an explicit design decision, not an implicit H2 policy.
         # A declared MFC minimum may still raise the delivered equivalents;
         # that physical excess is calculated and reported below.
-        fraction = float(
-            stream.gas_reagent_mole_fraction
-            or (0.21 if gas_identity.lower() == "air" else 1.0)
-        )
+        fraction = gas_reagent_fraction(gas_identity, stream.gas_reagent_mole_fraction)
+        if stream.gas_reagent_mole_fraction is not None and abs(stream.gas_reagent_mole_fraction - fraction) > 1e-9:
+            decisions.append({
+                "decision": "reconcile_gas_composition",
+                "stream_label": stream.stream_label,
+                "gas_species": gas_identity,
+                "previous_fraction": stream.gas_reagent_mole_fraction,
+                "resolved_fraction": fraction,
+                "basis": "Named air contains 21 mol% oxygen; recompute the feed from the accepted gas identity.",
+            })
         limiting_flow, concentration = _limiting_liquid_basis(proposal)
         sccm = stp_gas_flow_for_equiv(
             limiting_flow,
@@ -1257,13 +1268,20 @@ def _solve_gas_stream_rates(
         stream.gas_reagent_mole_fraction = fraction
         stream.flow_rate_mL_min = round(actual, 6)
         stream.molar_equiv = round(supplied, 4)
-        stream.molar_equiv_basis = "deterministic STP molar-flow calculation"
+        active_species = "O2" if gas_identity.lower() in {"air", "oxygen", "o2"} else gas_identity
+        stream.gas_active_species = active_species
+        stream.gas_total_molar_flow_mmol_min = sccm / STP_MOLAR_VOLUME_ML_PER_MMOL
+        stream.gas_active_molar_flow_mmol_min = stream.gas_total_molar_flow_mmol_min * fraction
+        stream.gas_active_equivalents = round(supplied, 4)
+        stream.molar_equiv_basis = f"mol {active_species} / mol limiting substrate; active gas mole fraction={fraction:g}, from STP molar flow"
         stream.contents = [gas_identity]
         stream.reasoning = (
             f"MFC inlet/STP flow={sccm:.6g} sccm at 273.15 K and 1.01325 bar "
-            f"(22.414 L/mol); pressure-corrected in-channel "
+            f"({STP_MOLAR_VOLUME_ML_PER_MMOL:.8g} L/mol); pressure-corrected in-channel "
             f"flow={actual:.6g} mL/min at {gas_temperature_C:g} deg C and "
-            f"{pressure_absolute:g} bar absolute; supplied={supplied:.3g} equiv."
+            f"{pressure_absolute:g} bar absolute; total gas={stream.gas_total_molar_flow_mmol_min:.8g} mmol/min, "
+            f"active {active_species}={stream.gas_active_molar_flow_mmol_min:.8g} mmol/min "
+            f"(mole fraction {fraction:g}); supplied={supplied:.3g} equiv {active_species} relative to limiting substrate."
         )
         stream_metrics = {
             "stream_label": stream.stream_label,
@@ -1276,7 +1294,7 @@ def _solve_gas_stream_rates(
             "limiting_reagent_concentration_M": round(concentration, 8),
             "stp_temperature_K": 273.15,
             "stp_pressure_bar": 1.01325,
-            "stp_molar_volume_L_mol": 22.414,
+            "stp_molar_volume_L_mol": STP_MOLAR_VOLUME_ML_PER_MMOL,
             "gas_reagent_mole_fraction": fraction,
             "gas_introduction_temperature_C": gas_temperature_C,
             "pressure_basis": (
@@ -1287,6 +1305,12 @@ def _solve_gas_stream_rates(
         gas_reports.append(stream_metrics)
         if len(gas_reports) == 1:
             proposal.multiphase_metrics.update(stream_metrics)
+            oxygen_fraction = fraction if gas_identity.lower() in {"air", "o2", "oxygen"} else 0.0
+            proposal.multiphase_metrics.update({
+                "gas_oxygen_fraction": oxygen_fraction,
+                "o2_supply_mmol_min": round(sccm / STP_MOLAR_VOLUME_ML_PER_MMOL * oxygen_fraction, 8),
+                "o2_equiv_supplied": round(supplied, 4) if oxygen_fraction else 0.0,
+            })
         decisions.append(
             {
                 "decision": "gas_flow_solution",
@@ -1705,6 +1729,7 @@ def _apply_reactor(proposal: FlowProposal, reactor: ReactorSpec) -> None:
 def _close_single_stage_time(
     proposal: FlowProposal,
     decisions: list[dict[str, Any]],
+    *, requested_basis: str = "unknown",
 ) -> None:
     volume = float(proposal.reactor_volume_mL or 0.0)
     liquid = float(proposal.flow_rate_mL_min or 0.0)
@@ -1719,7 +1744,7 @@ def _close_single_stage_time(
     # fluid contact time in a packed bed or gas-liquid reactor, which requires
     # a holdup/RTD measurement.
     packed_bed = "packed" in str(proposal.reactor_type or "").lower()
-    if gas_sccm > 0:
+    if gas_sccm > 0 and requested_basis != "liquid_only":
         proposal.residence_time_min = round(tau_inlet, 6)
         proposal.residence_time_basis = "inlet/STP apparent residence time"
     elif packed_bed:
@@ -1772,8 +1797,8 @@ def _close_single_stage_time(
             "volume_mL": volume,
             "liquid_flow_mL_min": liquid,
             "tau_liquid_min": round(tau_liquid, 6),
-            "tau_inlet_min": None if packed_bed else round(tau_inlet, 6),
-            "tau_in_channel_min": None if packed_bed else round(tau_channel, 6),
+            "tau_inlet_min": round(tau_inlet, 6) if gas_sccm > 0 or not packed_bed else None,
+            "tau_in_channel_min": round(tau_channel, 6) if gas_sccm > 0 or not packed_bed else None,
             "authoritative_basis": proposal.residence_time_basis,
             "gas_calculation_authority": (
                 "inlet_stp" if gas_sccm > 0 else "not_applicable"
@@ -1898,14 +1923,68 @@ def _replace_stale_reasoning(
             f"Selected from declared pressure hardware only: {proposal.BPR_bar:g} bar gauge; "
             f"absolute pressure for gas calculations is {float(proposal.pressure_absolute_bar or 1.01325):g} bar."
         ),
-        "temperature_C": f"Temperature is constrained by the assigned reactor/controller inventory: {proposal.temperature_C:g} deg C.",
+        "temperature_C": (
+            f"Final temperature {proposal.temperature_C:g} deg C is within the assigned reactor/controller limits. "
+            "Hardware feasibility does not establish reaction rate or yield; validate the chemical operating point experimentally."
+        ),
         "safety_contract": f"Deterministic hazard controls complete={safety_contract.get('complete')}.",
     }
+    velocity_rows = _superficial_velocity_estimates(proposal)
+    proposal.multiphase_metrics["superficial_velocity_estimates"] = velocity_rows
+    if velocity_rows:
+        values = []
+        for row in velocity_rows:
+            gas = (f"; gas {row['gas_mm_s']:.6g} mm/s" if row["gas_mm_s"] is not None
+                   else "; gas velocity unresolved")
+            values.append(f"Stage {row['stage_number']}: liquid {row['liquid_mm_s']:.6g} mm/s{gas}")
+        proposal.reasoning_per_field["superficial_velocity"] = (
+            ". ".join(values) + ". Calculated as u = Q/(pi*ID^2/4), using mL/min*1000/60 for mm3/s "
+            "and inlet gas volume at reactor temperature and pressure. These use the empty cross-section, "
+            "without porosity or slip correction; they do not establish bed wetting, flow regime or mass transfer."
+        )
+    if any(stream.phase == "gas" for stream in proposal.streams):
+        proposal.reasoning_per_field["gas_time_interpretation"] = (
+            "V/Q_liquid is nominal liquid space time (empty-bed space time for a packed bed). "
+            "V/(Q_liquid+Q_gas_STP) is a mixed-reference volume index, not a physical contact time. "
+            "V/(Q_liquid+Q_gas_at_reactor_conditions) is a geometric inlet turnover estimate; "
+            "phase holdup, slip, gas consumption and actual contact time remain unmeasured. "
+            "The selected primary basis is stated in residence_time_basis."
+        )
     proposal.chemistry_notes = (
         "Final numerical values are equipment-bound and deterministic. "
         "See inventory_constraints.design_realization for feed equations, device IDs, "
         "stage closure, gas basis, and safety controls."
     )
+
+
+def _superficial_velocity_estimates(proposal: FlowProposal) -> list[dict[str, Any]]:
+    """Report geometric inlet velocities; do not infer a multiphase regime."""
+    gases = [stream for stream in proposal.streams if stream.phase == "gas"]
+    known_gas = all(stream.gas_flow_actual_mL_min is not None for stream in gases)
+    rows = proposal.stage_parameters or [{
+        "stage_number": 1, "d_mm": proposal.tubing_ID_mm,
+        "Q_liquid_mL_min": proposal.flow_rate_mL_min,
+        "Q_gas_actual_mL_min": sum(stream.gas_flow_actual_mL_min for stream in gases) if known_gas else None,
+    }]
+    estimates = []
+    for index, row in enumerate(rows, 1):
+        diameter = row.get("d_mm", row.get("tubing_ID_mm"))
+        liquid = row.get("Q_liquid_mL_min", row.get("flow_rate_mL_min"))
+        gas = row.get("Q_gas_actual_mL_min", row.get("gas_flow_actual_mL_min"))
+        if diameter is None or liquid is None:
+            continue
+        diameter, liquid = float(diameter), float(liquid)
+        if not (math.isfinite(diameter) and math.isfinite(liquid) and diameter > 0 and liquid >= 0):
+            continue
+        area = math.pi * diameter**2 / 4
+        gas_velocity = None
+        if gas is not None and math.isfinite(float(gas)) and float(gas) >= 0:
+            gas_velocity = float(gas) * 1000 / 60 / area
+        estimates.append({"stage_number": row.get("stage_number", index), "ID_mm": diameter,
+                          "empty_cross_section_mm2": area, "liquid_mm_s": liquid * 1000 / 60 / area,
+                          "gas_mm_s": gas_velocity,
+                          "basis": "geometric inlet superficial velocity; not phase velocity or wetting validation"})
+    return estimates
 
 
 def _compile_canonical_operating_summary(proposal: FlowProposal) -> None:
@@ -1968,7 +2047,7 @@ def _compile_canonical_operating_summary(proposal: FlowProposal) -> None:
             f"Set gas Stream {stream.stream_label} ({_gas_identity(stream)}) to "
             f"{float(stream.gas_flow_sccm or 0):g} sccm at inlet/STP "
             f"({float(stream.gas_flow_actual_mL_min or 0):g} mL/min in-channel; "
-            f"{float(stream.molar_equiv or 0):g} equiv supplied)."
+            f"{float(stream.molar_equiv or 0):g} equiv {stream.gas_active_species or _gas_identity(stream)} relative to limiting substrate)."
         )
     proposal.pre_reactor_steps = [
         *preparation,
@@ -2011,7 +2090,7 @@ def _validation_report(
         "geometry_closure": _geometry_closed(proposal),
         "calculation_matches_serialized_design": _geometry_closed(proposal),
         "gas_bookkeeping_complete": _gas_bookkeeping_complete(proposal),
-        "gas_primary_basis_inlet_stp": _gas_primary_basis_is_inlet_stp(proposal),
+        "gas_time_basis_consistent": _gas_primary_basis_is_inlet_stp(proposal),
         "safety_contract_complete": bool(realization["safety_contract"].get("complete")),
     }
     if multistage.get("applied"):
@@ -2177,16 +2256,9 @@ def _gas_bookkeeping_complete(proposal: FlowProposal) -> bool:
 
 
 def _gas_primary_basis_is_inlet_stp(proposal: FlowProposal) -> bool:
-    if not any(stream.phase == "gas" for stream in proposal.streams):
-        return True
-    return (
-        normalize_residence_time_basis(proposal.residence_time_basis)
-        == INLET_STP_BASIS
-        and abs(
-            float(proposal.residence_time_min or 0.0)
-            - float(proposal.residence_time_inlet_min or 0.0)
-        ) <= 1e-6
-    )
+    # Retain the private name for older callers; validate the declared basis.
+    from flora_translate.residence_time_basis import gas_time_basis_consistent
+    return gas_time_basis_consistent(proposal)
 
 
 def _supported_temperature(value: float, reactor: ReactorSpec) -> float:

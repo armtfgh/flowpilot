@@ -261,6 +261,15 @@ class VectorRetriever:
                     "semantic_score": round(semantic_score, 4),
                     "field_score": round(field_score, 4),
                     "final_score": round(final_score, 4),
+                    "retrieval_method": "semantic" if query_vector is not None else "lexical",
+                    "quantitative_transfer": {
+                        "eligible": bool(query_vector is not None and chemistry_plan
+                            and chemistry_plan.reaction_class
+                            and str(metadatas[i].get("chemistry_class") or metadatas[i].get("reaction_class") or "").strip().casefold() == chemistry_plan.reaction_class.strip().casefold()
+                            and chemistry_plan.mechanism_type
+                            and str(metadatas[i].get("mechanism_type") or "").strip().casefold() == chemistry_plan.mechanism_type.strip().casefold()),
+                        "basis": "Quantitative screening priors require matched class and mechanism plus semantic relevance; lexical or broader analogies are qualitative only. No retrieval score validates kinetics.",
+                    },
                 }
             )
 

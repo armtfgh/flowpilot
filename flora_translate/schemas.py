@@ -775,6 +775,10 @@ class StreamAssignment(BaseModel):
     gas_flow_sccm: Optional[float] = None # MFC set point at STP for gas streams
     gas_flow_actual_mL_min: Optional[float] = None # gas volume flow at reactor T/P
     gas_reagent_mole_fraction: Optional[float] = Field(default=None, gt=0, le=1)
+    gas_active_species: str = ""
+    gas_total_molar_flow_mmol_min: Optional[float] = None
+    gas_active_molar_flow_mmol_min: Optional[float] = None
+    gas_active_equivalents: Optional[float] = None
     molar_equiv: float = 1.0            # stoichiometric equivalents relative to limiting reagent (substrate=1.0)
     molar_equiv_basis: str = ""          # protocol_fact | chemistry_plan | screening_assumption
     pump_equipment_id: Optional[str] = None  # deterministic inventory assignment
@@ -862,6 +866,7 @@ class FlowProposal(BaseModel):
 
     # Reasoning
     reasoning_per_field: dict[str, str] = Field(default_factory=dict)
+    decision_rationale: dict = Field(default_factory=dict)
     literature_analogies: list[str] = Field(default_factory=list)
 
     # Status
@@ -961,6 +966,7 @@ class ProcessTopology(BaseModel):
     unit_operations: list[UnitOperation] = Field(default_factory=list)
     streams: list[StreamConnection] = Field(default_factory=list)
     total_flow_rate_mL_min: float = 0
+    total_flow_rate_basis: str = "sum of liquid feeds at the outlet; reagent gas is reported separately"
     residence_time_min: float = 0
     reactor_volume_mL: float = 0
     pid_description: str = ""

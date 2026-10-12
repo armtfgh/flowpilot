@@ -80,12 +80,28 @@ def freeze(output, cases):
         encoding="utf-8",
     )
     for source in (Path(__file__), ROOT / "flora_translate/tests/test_astra_provider.py",
-                   ROOT / "ablation_test/src/providers.py"):
+                   ROOT / "ablation_test/src/providers.py",
+                   ROOT / "flora_translate/design_calculator.py",
+                   ROOT / "flora_translate/residence_time_basis.py",
+                   ROOT / "flora_translate/component_identity.py",
+                   ROOT / "flora_translate/tests/test_gas_contract_roundtrip.py"):
         target = frozen / "source_code" / source.name
         if target.exists() and campaign.sha256_file(target) != campaign.sha256_file(source):
             raise RuntimeError(f"Frozen source changed: {source.name}")
         if not target.exists():
             shutil.copy2(source, target)
+    scope = frozen / "CONFIGURATION_SCOPE.md"
+    if not scope.exists():
+        scope.write_text(
+            "# Configuration Scope\n\n"
+            "Production translate pipeline with legacy design policy, candidate budget 2, "
+            "and lexical held-out-source retrieval, matching the original Astra campaign. "
+            "This is not the scientific_v2 twelve-candidate GUI configuration.\n\n"
+            "Both architectures use GPT-6 Astra, medium reasoning, and identical authoritative "
+            "case inputs. The rubric and delivered-output evaluation adapter are unchanged. "
+            "Frozen source copies identify the tested software version. No low-score retries "
+            "or exclusions are permitted. Blocked and failed outcomes remain in the report.\n"
+        )
     campaign.write_json(frozen / "astra_source_checksums.json", {
         p.name: campaign.sha256_file(p) for p in sorted((frozen / "source_code").glob("*.py"))
     })

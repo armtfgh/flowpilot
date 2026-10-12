@@ -1194,10 +1194,11 @@ class DesignCalculator:
                 "o2-free", "o₂-free",
             ):
                 o2_text = o2_text.replace(term, "")
-            if any(k in o2_text for k in ("oxygen", "o2", "o₂")):
-                return "O2", 1.0
+            # "Oxygen in air" names a mixture, not a pure O2 source.
             if has_any(r"\bair\b"):
                 return "air", 0.21
+            if any(k in o2_text for k in ("oxygen", "o2", "o₂")):
+                return "O2", 1.0
             return None
 
         # The finalized stream assignment has higher authority than narrative
@@ -1215,9 +1216,10 @@ class DesignCalculator:
                 proposal_texts.extend(str(c) for c in stream.contents or [])
         proposal_species = identify(" ".join(proposal_texts))
         if proposal_species is not None:
-            if explicit_fraction is not None:
-                return proposal_species[0], explicit_fraction
-            return proposal_species
+            from flora_translate.residence_time_basis import gas_reagent_fraction
+            return proposal_species[0], gas_reagent_fraction(
+                proposal_species[0], explicit_fraction if explicit_fraction is not None else proposal_species[1]
+            )
 
         if chemistry_plan:
             for feed in chemistry_plan.stream_logic or []:
@@ -1226,7 +1228,8 @@ class DesignCalculator:
                 species = identify(" ".join(str(item) for item in feed.reagents or []))
                 fraction = getattr(feed, "gas_reagent_mole_fraction", None)
                 if species is not None and fraction is not None:
-                    return species[0], float(fraction)
+                    from flora_translate.residence_time_basis import gas_reagent_fraction
+                    return species[0], gas_reagent_fraction(species[0], fraction)
 
         texts: list[str] = []
         if batch_record:
@@ -1544,7 +1547,9 @@ class DesignCalculator:
             return []
         pairs: list[tuple[float, float]] = []
         for a in analogies:
-            score = float(a.get("score", 0.0) or 0.0)
+            if a.get("retrieval_method") == "lexical" or (a.get("quantitative_transfer") or {}).get("eligible") is False:
+                continue
+            score = float(a.get("score", a.get("final_score", 0.0)) or 0.0)
             full = a.get("full_record") or {}
             if isinstance(full, list):
                 full = full[0] if full else {}
@@ -1663,7 +1668,9 @@ class DesignCalculator:
         if IF_analogy_weighted is not None and analogy_confidence > 0:
             IF_analogy = IF_analogy_weighted
         else:
-            IF_analogy = IF_analogy_median
+            IF_analogy = None
+            if IF_analogy_median is not None:
+                warnings.append("Retrieved examples do not support a quantitative kinetic prior; their time ratios remain diagnostic only.")
         if IF_analogy is not None:
             calc.if_analogy = round(IF_analogy, 1)
 

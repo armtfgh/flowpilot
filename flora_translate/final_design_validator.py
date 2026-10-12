@@ -145,7 +145,7 @@ def _validation_report(
         "geometry_closure": geometry_closure,
         "calculation_matches_serialized_design": calculation_match,
         "gas_bookkeeping_complete": gas_complete,
-        "gas_primary_basis_inlet_stp": _gas_primary_basis_is_inlet_stp(
+        "gas_time_basis_consistent": _gas_primary_basis_is_inlet_stp(
             proposal
         ),
     }
@@ -293,21 +293,9 @@ def _gas_bookkeeping_complete(proposal: FlowProposal) -> bool:
 
 
 def _gas_primary_basis_is_inlet_stp(proposal: FlowProposal) -> bool:
-    gas_streams = [
-        stream
-        for stream in proposal.streams or []
-        if str(stream.phase or "").lower() == "gas"
-    ]
-    if not gas_streams:
-        return True
-    return (
-        normalize_residence_time_basis(proposal.residence_time_basis)
-        == INLET_STP_BASIS
-        and abs(
-            float(proposal.residence_time_min or 0.0)
-            - float(proposal.residence_time_inlet_min or 0.0)
-        ) <= 1e-6
-    )
+    # Compatibility name; time basis is independent of STP gas metering.
+    from flora_translate.residence_time_basis import gas_time_basis_consistent
+    return gas_time_basis_consistent(proposal)
 
 
 def calculations_payload(calculations: DesignCalculations) -> dict[str, Any]:

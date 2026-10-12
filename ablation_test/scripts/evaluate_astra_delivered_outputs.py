@@ -20,8 +20,8 @@ from ablation_test.src.newgen_2_outcome import build_outcome_packet
 from ablation_test.src.newgen_2_outcome import judge_prompt
 
 
-def exact_local_context(system, messages, *, max_tokens, audit_path):
-    """Never silently trim a judge's evidence using a character-count heuristic."""
+def _local_context_tokens(system, messages):
+    """Count the complete input with the server's actual chat template."""
     from ablation_test.scripts.run_newgen_2_0_benchmark import JUDGES
     bundle = JUDGES["qwen"]
     routed = copy.deepcopy(messages)
@@ -37,14 +37,40 @@ def exact_local_context(system, messages, *, max_tokens, audit_path):
         tokenized = json.load(response)
     count = tokenized["count"]
     limit = tokenized.get("max_model_len", 32768)
-    allowed = count + max_tokens + 2048 <= limit
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    return count, limit, digest
+
+
+def local_judge_output_budget(system, messages, *, audit_path, requested=12000, minimum=4096):
+    """Reserve output space after counting all evidence; never trim the input."""
+    count, limit, digest = _local_context_tokens(system, messages)
+    allowance = min(requested, limit - count - 512)
+    with audit_path.open("a") as handle:
+        handle.write(json.dumps({"input_tokens": count, "requested_output_allowance": requested,
+            "output_allowance": allowance, "minimum_output_allowance": minimum,
+            "context_limit": limit, "safety_margin": 512, "truncated": False,
+            "request_sha256": digest}) + "\n")
+    if allowance < minimum:
+        raise RuntimeError(f"Complete judge prompt leaves only {allowance} output tokens, "
+                           f"below the {minimum}-token minimum; evidence was not truncated")
+    return allowance
+
+
+def exact_local_context(system, messages, *, max_tokens, audit_path):
+    """Never silently trim a judge's evidence using a character-count heuristic."""
+    count, limit, digest = _local_context_tokens(system, messages)
+    # The server counts the complete chat template with thinking disabled.
+    # Retain a margin for backend framing without reserving an additional
+    # 2,048 tokens on top of the already explicit output allowance.
+    safety_margin = 512
+    allowed = count + max_tokens + safety_margin <= limit
     with audit_path.open("a") as handle:
         handle.write(json.dumps({"input_tokens": count, "output_allowance": max_tokens,
-                                 "context_limit": limit, "safety_margin": 2048,
+                                 "context_limit": limit, "safety_margin": safety_margin,
                                  "full_prompt_fits": allowed, "truncated": False,
-                                 "request_sha256": hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()}) + "\n")
+                                 "request_sha256": digest}) + "\n")
     if not allowed:
-        raise RuntimeError(f"Complete judge prompt cannot fit: {count} input + {max_tokens} output + 2048 margin > {limit}; evidence was not truncated")
+        raise RuntimeError(f"Complete judge prompt cannot fit: {count} input + {max_tokens} output + {safety_margin} margin > {limit}; evidence was not truncated")
     return system, messages
 
 
@@ -92,7 +118,10 @@ def prepare(output):
     rubric = campaign.read_json(output / "frozen/outcome_rubric.json")
     for path in sorted((output / "packets").glob("*.json")):
         system, user = judge_prompt(rubric, campaign.read_json(path))
-        exact_local_context(system, [{"role": "user", "content": user}], max_tokens=12000,
+        messages = [{"role": "user", "content": user}]
+        allowance = local_judge_output_budget(system, messages,
+                            audit_path=output / "judge_output_budget_preflight.jsonl")
+        exact_local_context(system, messages, max_tokens=allowance,
                             audit_path=output / "judge_context_preflight.jsonl")
     amendments = output / "frozen/amendments"
     amendments.mkdir(parents=True, exist_ok=True)

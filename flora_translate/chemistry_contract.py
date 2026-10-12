@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from flora_translate.component_identity import (
     component_key, component_name, declared_solvent_member,
-    protocol_component_quantity, unique_components,
+    protocol_component_quantity, unique_components, has_output_only_role,
 )
 
 import hashlib
@@ -503,6 +503,7 @@ def _initial_liquid_species(
     candidates = [
         (str(reagent.name or "").strip(), str(reagent.role or "").lower())
         for reagent in plan.reagents
+        if not has_output_only_role(reagent.role)
     ]
     if stages:
         first_stage_number = min(int(stage.stage_number or 1) for stage in stages)
@@ -512,6 +513,8 @@ def _initial_liquid_species(
             if int(stage.stage_number or 1) == first_stage_number
             for feed in stage.feed_streams
             if feed.delivery_mode != "carried_from_previous"
+            and feed.accepted_requirement
+            and normalized_stream_phase(feed.phase, feed.reagents) != "solid"
             for name in feed.reagents
         )
     for name, role in candidates:

@@ -1,0 +1,215 @@
+```json
+{
+  "shared_assessment": {
+    "common_issues": [
+      "ALL candidates: The liquid branch (st2_mixer → st1_reactor) carries NO forward-oriented non-return protection. This unprotected reverse path is an unresolved credible risk for oxygen intrusion into Stage 1 across all candidates. The CV-3301 check valve on the MFC gas branch does not protect the liquid branch. This finding is unresolved and requires engineering review before any execution.",
+      "ALL candidates: Pure O2 was introduced in the prior experiment without approval (air was specified); this gas-source change is unapproved and requires laboratory review before use.",
+      "ALL candidates: CV-3301 maximum pressure rating is unconfirmed. Cracking pressure (1.0 bar) is not a pressure rating.",
+      "ALL candidates: Physics tool results are conditional on unmeasured parameters (viscosity, compliance, gas plenum, MFC ΔP, pump dynamics). No reversal predicted in these finite-window simulations does not establish safe operation or exclude backflow. Liquid displacement is the reported metric, not oxygen reaching Stage 1.",
+      "ALL candidates: Kinetics are uncharacterized; stage hold ratios are experimental exposure indices only—not yield predictors. Inlet/STP apparent residence time for Stage 2 is V/(Q_liquid + Q_gas_STP), not measured liquid residence or photon exposure time.",
+      "ALL candidates: Stage 2 batch temperature is not stage-resolved; 25 °C is applied by analogy with Stage 1. No validated rate correction exists.",
+      "ALL candidates: No inline degasser available; offline Ar sparge of feed is the only deoxygenation method; effectiveness is unconfirmed.",
+      "ALL candidates: Gas equivalents (2.0078 equiv) are proposed delivered molar ratios at inlet/STP, not established stoichiometric uptake.",
+      "ALL candidates: Light wavelength—UV-150/450 nm (actual 450 nm) vs. protocol 452 nm; Manual 2/448 nm vs. 452 nm. Neither deviation is proven adequate; photon-dose adequacy is unproven.",
+      "ALL candidates: Stage 1 ETFE coil (coil_row11, ID 2.4 mm) used in candidates 3, 9, 11 is listed as compatible with UV-150 (uv150 module). However, the UV-150 max reactor volume is 10 mL and the ETFE 5 mL coil is within that limit; no hard inventory violation identified, but photon penetration through ETFE 2.4 mm ID at this scale is uncharacterized.",
+      "ALL candidates: Feed: Stream A — (((4-methoxyphenyl)thio)methyl)trimethylsilane 0.1 M (1.0 equiv), acrylonitrile 0.2 M (2.0 equiv), [Ir(dF(CF3)ppy)2(dtbpy)]PF6 0.0005 M (0.5 mol%), in EtOH:pH 9 buffer (5:1 v/v), Ar-sparged, 0.02 mL/min via pump_e_series_blue; molar feed rate of limiting substrate = 0.002 mmol/min. Stream B — O2 (pure), 0.09 mL/min at inlet/STP via mfc_ffc00, 2.0078 equiv.",
+      "ALL candidates: Acrylonitrile is on the excluded_chemicals list for RED pump tubing; all candidates correctly use BLUE pump tubing (pump_e_series_blue) — no violation.",
+      "Candidates 3, 6, 9, 11 (ETFE coil_row11 Stage 1): Large-bore 2.4 mm ID coil gives very low Re (~0.18), laminar, potentially poor radial mixing and light distribution. This is an unresolved experimental uncertainty, not a hard violation.",
+      "Candidates 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12: Mixer type at Stage 2 junction is not explicitly identified in designs; must be a T- or Y-mixer from inventory (P-632/P-713/P-513), not a union. Confirm before assembly.",
+      "All gas stages: Q_gas_sccm and Q_gas_STP mean mL/min at STP (273.15 K, 1.01325 bar). In-channel actual mL/min differs by pressure ratio and is not the liquid residence basis."
+    ]
+  },
+  "reviews": [
+    {
+      "candidate_id": 1,
+      "recommendation": "acceptable",
+      "hard_violation": false,
+      "justification": "Stage 1: 2 mL PFA, τ_liq = 100 min (ratio 0.42 vs. 240 min batch). Stage 2: 20 mL FEP, τ_inlet = 181.8 min (ratio 0.51 vs. 360 min batch), BPR 7 bar. Balanced sub-batch screen for both stages. No BPR violations; pressure headroom confirmed within model assumptions. Unprotected liquid reverse path unresolved (shared). Adequate balanced exploratory baseline.",
+      "uncertainties": [
+        "Unprotected liquid branch reverse path to Stage 1 unresolved.",
+        "Stage 1 τ_liq 100 min is 42% of batch; photocatalytic conversion unknown.",
+        "Stage 2 photon adequacy at 448 nm (vs. 452 nm) unconfirmed.",
+        "BPR opening pressure reached in simulation but under illustrative, not measured, parameters."
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "recommendation": "acceptable",
+      "hard_violation": false,
+      "justification": "Identical reactor geometry to Candidate 1 but BPR 2.5 bar. Stage 2 in-channel gas volume is larger (0.028 mL/min vs. 0.012 mL/min), increasing gas fraction and potential slug flow. τ_inlet identical (181.8 min). Lower BPR reduces dissolved O2 driving force—this is an unconfirmed trade-off, not a hard violation. Acceptable screening point at lower pressure.",
+      "uncertainties": [
+        "Lower BPR (2.5 bar) reduces dissolved O2 potential; impact on oxidation yield unknown.",
+        "Larger in-channel gas volume fraction at lower pressure; slug/flow regime uncharacterized.",
+        "Unprotected liquid branch reverse path unresolved.",
+        "Stage 1 τ_liq 100 min may be insufficient; unknown without kinetic data."
+      ]
+    },
+    {
+      "candidate_id": 3,
+      "recommendation": "acceptable",
+      "hard_violation": false,
+      "justification": "Stage 1: 5 mL ETFE (ID 2.4 mm), τ_liq = 250 min (ratio 1.04, at-batch). Stage 2: 20 mL FEP, τ_inlet = 181.8 min, BPR 7 bar. Near-batch Stage 1 exposure with the 2.4 mm ID coil; photon penetration and mixing at this bore are uncharacterized uncertainties. Startup simulation only reached early transient (BPR not opened in that window); steady-state behaviour with liquid check valve showed no predicted reversal. Operability at startup warrants care.",
+      "uncertainties": [
+        "ETFE 2.4 mm ID: photon penetration and lateral mixing in Stage 1 uncharacterized.",
+        "Startup simulation did not reach BPR opening pressure; full steady-state behaviour conditional.",
+        "Unprotected liquid branch reverse path unresolved.",
+        "Stage 2 τ_inlet still sub-batch (0.51 ratio); adequacy for oxidation unknown."
+      ]
+    },
+    {
+      "candidate_id": 4,
+      "recommendation": "acceptable",
+      "hard_violation": false,
+      "justification": "Stage 1: 2 mL PFA, τ_liq = 100 min (ratio 0.42). Stage 2: 20 mL FEP, τ_inlet = 181.8 min, BPR 1.5 bar. Lowest BPR of the 20 mL Stage 2 group; further reduces dissolved O2 driving force. At 1.5 bar, gas compression is minimal; largest in-channel gas volume fraction (0.040 mL/min). Acceptable as a low-pressure exploratory point but lowest dissolved O2 potential.",
+      "uncertainties": [
+        "BPR 1.5 bar: lowest dissolved O2 driving force of all candidates; oxidation adequacy most uncertain here.",
+        "Highest in-channel gas volume fraction; two-phase flow regime uncharacterized.",
+        "Stage 1 τ_liq 100 min may be insufficient.",
+        "Unprotected liquid branch reverse path unresolved."
+      ]
+    },
+    {
+      "candidate_id": 5,
+      "recommendation": "acceptable",
+      "hard_violation": false,
+      "justification": "Stage 1: 2 mL PFA, τ_liq = 100 min (ratio 0.42). Stage 2: 10 mL ETFE (ID 2.4 mm), τ_inlet = 90.9 min (ratio 0.25, well below batch). BPR 7 bar. Sub-batch both stages; shortest Stage 2 exploration among 7-bar candidates. ETFE 2.4 mm in Stage 2 with gas introduces uncharacterized two-phase flow and photon distribution. Acceptable as a short-exposure exploratory point.",
+      "uncertainties": [
+        "Stage 2 τ_inlet 90.9 min is 25% of batch; oxidation completeness most uncertain.",
+        "ETFE 2.4 mm ID Stage 2 two-phase photon distribution uncharacterized.",
+        "Stage 1 τ_liq 100 min may be insufficient.",
+        "Unprotected liquid branch reverse path unresolved."
+      ]
+    },
+    {
+      "candidate_id": 6,
+      "recommendation": "acceptable",
+      "hard_violation": false,
+      "justification": "Stage 1: 5 mL PFA (ID 1 mm), τ_liq = 250 min (ratio 1.04, at-batch). Stage 2: 20 mL FEP, τ_inlet = 181.8 min, BPR 7 bar. Near-batch Stage 1 in narrow-bore PFA is better-characterised optically than ETFE 2.4 mm. Startup simulation reached only early transient (BPR not opened); steady-state with liquid check showed no predicted reversal. Good balanced candidate for near-batch Stage 1 screen.",
+      "uncertainties": [
+        "Startup simulation did not reach BPR opening pressure in finite window.",
+        "Stage 2 τ_inlet still sub-batch (0.51); oxidation adequacy unknown.",
+        "Unprotected liquid branch reverse path unresolved.",
+        "Photon dose adequacy at 448 nm unconfirmed."
+      ]
+    },
+    {
+      "candidate_id": 7,
+      "recommendation": "acceptable",
+      "hard_violation": false,
+      "justification": "Stage 1: 2 mL PFA, τ_liq = 100 min (ratio 0.42). Stage 2: 10 mL PFA (ID 1 mm), τ_inlet = 90.9 min (ratio 0.25), BPR 7 bar. Both stages sub-batch. PFA narrow-bore in both stages is well-defined optically. Short Stage 2 is a legitimate short-exposure screen point. Acceptable exploratory candidate.",
+      "uncertainties": [
+        "Stage 2 τ_inlet 90.9 min is 25% of batch; oxidation likely incomplete.",
+        "Stage 1 τ_liq 100 min sub-batch; Giese step completeness unknown.",
+        "Unprotected liquid branch reverse path unresolved.",
+        "No kinetic data; cannot predict whether short Stage 2 is adequate."
+      ]
+    },
+    {
+      "candidate_id": 8,
+      "recommendation": "acceptable",
+      "hard_violation": false,
+      "justification": "Stage 1: 2 mL PFA, τ_liq = 100 min (ratio 0.42). Stage 2: 10 mL FEP (ID 1 mm), τ_inlet = 90.9 min (ratio 0.25), BPR 7 bar. Functionally identical exposure profile to Candidate 7; FEP vs. PFA for Stage 2 are both 1 mm ID, max 50 °C vs. 100 °C for FEP. At 25 °C operation, FEP temperature limit is not a constraint. Acceptable; minor material difference from Candidate 7.",
+      "uncertainties": [
+        "FEP max temperature 50 °C; adequate at 25 °C but limits future temperature exploration.",
+        "Stage 2 τ_inlet 90.9 min is 25% of batch; oxidation likely incomplete.",
+        "Unprotected liquid branch reverse path unresolved.",
+        "Stage 1 τ_liq sub-batch; Giese completeness unknown."
+      ]
+    },
+    {
+      "candidate_id": 9,
+      "recommendation": "acceptable",
+      "hard_violation": false,
+      "justification": "Stage 1: 5 mL ETFE (ID 2.4 mm), τ_liq = 250 min (ratio 1.04). Stage 2: 10 mL ETFE (ID 2.4 mm), τ_inlet = 90.9 min (ratio 0.25), BPR 7 bar. Near-batch Stage 1 with large-bore ETFE in both stages. Photon penetration and two-phase mixing are doubly uncharacterized. Pump interruption scenario predicted negligible displacement in simulation (conditional). Acceptable but carries the most geometric uncertainty of the long-Stage-1 group.",
+      "uncertainties": [
+        "Both stages use ETFE 2.4 mm ID; photon penetration and mixing uncharacterized in both.",
+        "Stage 2 τ_inlet 90.9 min is 25% of batch; oxidation adequacy most uncertain.",
+        "Unprotected liquid branch reverse path unresolved.",
+        "Pump interruption simulation conditional on illustrative parameters only."
+      ]
+    },
+    {
+      "candidate_id": 10,
+      "recommendation": "acceptable",
+      "hard_violation": false,
+      "justification": "Stage 1: 2 mL PFA, τ_liq = 100 min (ratio 0.42). Stage 2: 10 mL ETFE (ID 2.4 mm), τ_inlet = 90.9 min (ratio 0.25), BPR 2.5 bar. Lower BPR reduces dissolved O2 driving force; ETFE 2.4 mm Stage 2 adds two-phase flow uncertainty. Short Stage 2 with reduced pressure is the most limiting O2-delivery condition of the short-Stage-2 group. Acceptable as a bracketing low end.",
+      "uncertainties": [
+        "BPR 2.5 bar reduces dissolved O2; ETFE 2.4 mm two-phase flow uncharacterized.",
+        "Stage 2 τ_inlet 90.9 min at lowest O2 driving force: oxidation likely most limited.",
+        "Unprotected liquid branch reverse path unresolved.",
+        "Stage 1 τ_liq sub-batch; Giese completeness unknown."
+      ]
+    },
+    {
+      "candidate_id": 11,
+      "recommendation": "acceptable",
+      "hard_violation": false,
+      "justification": "Stage 1: 5 mL ETFE (ID 2.4 mm), τ_liq = 250 min (ratio 1.04). Stage 2: 10 mL PFA (ID 1 mm), τ_inlet = 90.9 min (ratio 0.25), BPR 7 bar. Near-batch Stage 1 in large-bore ETFE; Stage 2 in narrow-bore PFA is better-characterized optically. Startup simulation did not reach BPR opening pressure (finite window); steady-state conditional. Acceptable near-batch Stage 1 / short Stage 2 screen.",
+      "uncertainties": [
+        "Stage 1 ETFE 2.4 mm ID photon penetration and mixing uncharacterized.",
+        "Startup simulation did not reach steady state in finite window.",
+        "Stage 2 τ_inlet 90.9 min is 25% of batch; oxidation adequacy unknown.",
+        "Unprotected liquid branch reverse path unresolved."
+      ]
+    },
+    {
+      "candidate_id": 12,
+      "recommendation": "acceptable",
+      "hard_violation": false,
+      "justification": "Stage 1: 2 mL PFA, τ_liq = 100 min (ratio 0.42). Stage 2: 10 mL PFA (ID 1 mm), τ_inlet = 90.9 min (ratio 0.25), BPR 2.5 bar. Short sub-batch both stages with lower BPR. Functionally similar to Candidate 7 but with reduced dissolved O2 driving force. Acceptable as the low-pressure, short-both-stages bracketing candidate.",
+      "uncertainties": [
+        "BPR 2.5 bar reduces dissolved O2 driving force; adequacy for oxidation unknown.",
+        "Both stages sub-batch; Giese and oxidation completeness both unknown.",
+        "Unprotected liquid branch reverse path unresolved.",
+        "Stage 2 τ_inlet 90.9 min is 25% of batch."
+      ]
+    }
+  ],
+  "physics_assessment": {
+    "tool_result_id": "528a4b483ec4da68740988da21792a042541bcba6304dd1e73e7bea6e98e0510",
+    "evidence_ids": [
+      "C1/as_designed/entered_profile/steady",
+      "C1/hypothetical_liquid_check/entered_profile/steady",
+      "C2/as_designed/entered_profile/steady",
+      "C2/hypothetical_liquid_check/entered_profile/steady",
+      "C3/as_designed/entered_profile/gas_first_start",
+      "C3/hypothetical_liquid_check/entered_profile/steady",
+      "C4/as_designed/entered_profile/steady",
+      "C4/hypothetical_liquid_check/entered_profile/steady",
+      "C5/as_designed/entered_profile/steady",
+      "C5/hypothetical_liquid_check/entered_profile/steady",
+      "C6/as_designed/entered_profile/gas_first_start",
+      "C6/hypothetical_liquid_check/entered_profile/steady",
+      "C7/as_designed/entered_profile/steady",
+      "C7/hypothetical_liquid_check/entered_profile/steady",
+      "C8/as_designed/entered_profile/steady",
+      "C8/hypothetical_liquid_check/entered_profile/steady",
+      "C9/as_designed/entered_profile/pump_interruption",
+      "C9/hypothetical_liquid_check/entered_profile/steady",
+      "C10/as_designed/entered_profile/steady",
+      "C10/hypothetical_liquid_check/entered_profile/steady",
+      "C11/as_designed/entered_profile/gas_first_start",
+      "C11/hypothetical_liquid_check/entered_profile/steady",
+      "C12/as_designed/entered_profile/steady",
+      "C12/hypothetical_liquid_check/entered_profile/steady"
+    ],
+    "proposed_alternatives": [
+      "Unapproved mitigation proposal (requires chemistry, inventory, and O2-service review before adoption): Install a forward-oriented non-return valve (e.g., CV-3301, service-verified) on the liquid branch between Stage 1 outlet and the Stage 2 gas-introduction junction, protecting Stage 1 from reverse gas intrusion. This valve's cracking pressure concerns the pressure difference across it, not BPR minus cracking pressure. Its maximum pressure rating, O2 compatibility, and low-flow behaviour must be confirmed before use.",
+      "Unapproved mitigation proposal: A pressure-decoupled arrangement (e.g., intermediate collection and re-pressurisation) could isolate Stage 1 from Stage 2 gas pressure; this is not a designed or approved element and requires full engineering review.",
+      "Reducing gas flow alone does not resolve the unprotected reverse path on the liquid branch, as confirmed by the measured backflow event in the prior experiment and the topology finding."
+    ],
+    "limitations": [
+      "Tool results are conditional on unmeasured parameters: illustrative viscosity (1.0 mPa·s), gas plenum (0.2 mL), MFC required ΔP (1.0 bar), pump response (1.0 s), liquid compliance (0.01 mL/bar), and multiphase resistance multiplier (3.0). These are not laboratory setpoints.",
+      "No reversal predicted in the finite simulation windows does not establish safe operation or exclude backflow under real startup, transient, or off-normal conditions.",
+      "Reported metric is predicted liquid displacement from the liquid branch at the junction, not oxygen reaching Stage 1 Reactor.",
+      "Candidates 3, 6, and 11 startup simulations did not reach BPR opening pressure; steady-state behaviour was only assessed with the hypothetical liquid check valve configuration, which is unassigned and service-unverified.",
+      "The CV-3301 check valve cracking pressure (1.0 bar) concerns the pressure difference across that valve; its maximum pressure rating is unconfirmed.",
+      "Isothermal ideal gas model; slug flow, gas dissolution, capillary effects, reaction, and gas-front dynamics are not modelled.",
+      "All alternative equipment and controls remain unapproved; no inventory or design is changed by the tool.",
+      "The prior experimental gas reverse flow observation (KHU, 15 Sep 2026) used unverified reference conditions and remains unresolved by these simulations.",
+      "BPR hysteresis, valve closing dynamics, and pressure-wave propagation are not resolved.",
+      "Pure O2 use is a gas-source change from the protocol (air); it is unapproved and requires laboratory review before use."
+    ]
+  }
+}
+```

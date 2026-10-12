@@ -152,11 +152,11 @@ def test_hydrogen_realization_reports_stp_actual_and_equivalents():
     assert gas_decision["supplied_equiv"] == pytest.approx(1.0, rel=1e-3)
     assert realized.residence_time_min == pytest.approx(
         realized.reactor_volume_mL
-        / (realized.flow_rate_mL_min + gas.gas_flow_sccm),
+        / realized.flow_rate_mL_min,
         rel=1e-5,
     )
-    assert realized.residence_time_min == realized.residence_time_inlet_min
-    assert realized.residence_time_basis == "inlet/STP apparent residence time"
+    assert realized.residence_time_inlet_min < realized.residence_time_min
+    assert "liquid" in realized.residence_time_basis
     assert "273.15 K" in gas.reasoning
     assert report["safety_contract"]["hardware_checks"]["nitrogen_purge_declared"]
 
@@ -393,10 +393,10 @@ def test_air_identity_binds_air_mfc_and_uses_liquid_contact_time():
     assert realized.pressure_absolute_bar == pytest.approx(4.01325)
     assert realized.residence_time_min == pytest.approx(
         realized.reactor_volume_mL
-        / (realized.flow_rate_mL_min + gas.gas_flow_sccm)
+        / realized.flow_rate_mL_min
     )
-    assert realized.residence_time_min == realized.residence_time_inlet_min
-    assert realized.residence_time_basis == "inlet/STP apparent residence time"
+    assert realized.residence_time_inlet_min < realized.residence_time_min
+    assert realized.residence_time_basis == "liquid-only reactor volume / liquid flow"
     assert "sccm" not in " ".join(gas.contents).lower()
 
 
@@ -760,7 +760,13 @@ def test_packed_bed_catalyst_and_negated_deoxygenation_compile_without_false_blo
     )
 
 
-def test_packed_bed_removes_stationary_catalyst_with_variable_role_wording():
+@pytest.mark.parametrize("role", [
+    "heterogeneous copper catalyst packed in cartridge",
+    "heterogeneous precatalyst",
+    "immobilized pre-catalyst",
+    "fixed-bed catalytic material",
+])
+def test_packed_bed_removes_stationary_catalyst_with_variable_role_wording(role):
     case = _case("cuaac")
     inventory = LabInventory.model_validate(case["inventory"])
     batch = BatchRecord(raw_text=case["protocol"], reaction_description=case["protocol"])
@@ -790,8 +796,8 @@ def test_packed_bed_removes_stationary_catalyst_with_variable_role_wording():
         reagents=[
             ReagentRole(
                 name="copper on carbon",
-                role="heterogeneous copper catalyst packed in cartridge",
-                notes="Use the installed Cu/C CatCart as the catalytic zone.",
+                role=role,
+                notes="Use the installed cartridge.",
             )
         ],
     )

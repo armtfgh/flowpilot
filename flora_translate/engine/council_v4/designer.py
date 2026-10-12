@@ -88,6 +88,10 @@ def run_problem_framing(
     concentration_M: float,
     objectives: str,
     is_O2_reagent: bool = False,
+    batch_time_min: Optional[float] = None,
+    protocol: str = "",
+    intake_context: str = "",
+    inventory: Optional[dict] = None,
 ) -> dict:
     """Stage 0: Confirm problem framing. Returns structured problem statement.
 
@@ -114,9 +118,15 @@ def run_problem_framing(
 
     user_msg = (
         f"reaction_class={reaction_class} | solvent={solvent} | T={temperature_C}°C\n"
-        f"C={concentration_M} M | tau_batch_equiv={tau_center_min:.1f} min | "
-        f"tau_lit={'%.1f' % tau_lit_min if tau_lit_min else 'unknown'} min\n"
+        f"C={concentration_M} M | estimated_flow_time_min={tau_center_min:.1f} | "
+        f"actual_batch_time_min={batch_time_min if batch_time_min is not None else 'unknown'} | "
+        f"analogy_flow_time_estimate_min={tau_lit_min if tau_lit_min else 'unknown'}\n"
         f"flags={flags}{o2_context} | objectives={objectives}\n\n"
+        f"Authoritative batch protocol:\n{protocol}\n\n"
+        f"Authoritative intake and constraints:\n{intake_context}\n\n"
+        f"Available inventory:\n{json.dumps(inventory or {}, ensure_ascii=False)}\n\n"
+        "Use the supplied protocol and inventory before declaring information missing. "
+        "Estimated flow times are hypotheses, never the measured batch duration.\n"
         "Confirm and output JSON."
     )
 
@@ -128,7 +138,7 @@ def run_problem_framing(
         "ambiguities": [],
     }
     try:
-        raw = call_llm(_FRAMING_SYSTEM, user_msg, max_tokens=800)
+        raw = call_llm(_FRAMING_SYSTEM, user_msg, max_tokens=1600)
         s = raw.strip()
         if "```" in s:
             for part in s.split("```")[1::2]:
@@ -313,6 +323,8 @@ def _apply_v4_hard_gates(
 
     for c in candidates:
         reasons: list[str] = []
+        from flora_translate.engine.council_v4.review_contract import validated_model
+        warnings = list(c.get("warnings") or [])
 
         def _f(key: str, default: float = 0.0) -> float:
             v = c.get(key)
@@ -322,7 +334,8 @@ def _apply_v4_hard_gates(
         Da_mass = _f("Da_mass")
         r_mix = _f("r_mix")
         if Da_mass > V4_DA_THRESHOLD and r_mix > V4_RMIX_THRESHOLD:
-            reasons.append(
+            destination = reasons if validated_model(c, "mixing") else warnings
+            destination.append(
                 f"dual-criterion mixing fail: Da_mass={Da_mass:.2f} > 1.0 "
                 f"AND r_mix={r_mix:.3f} > 0.20"
             )
@@ -360,7 +373,7 @@ def _apply_v4_hard_gates(
                 f"BPR_current={BPR_bar} bar < BPR_min={BPR_min:.2f} bar"
             )
         # Gas-liquid floor
-        if is_gas_liquid and BPR_bar < GAS_LIQUID_MIN_BPR_BAR:
+        if is_gas_liquid and not c.get("inventory_realized") and BPR_bar < GAS_LIQUID_MIN_BPR_BAR:
             reasons.append(
                 f"gas-liquid system: BPR={BPR_bar} bar < "
                 f"{GAS_LIQUID_MIN_BPR_BAR:.1f} bar mandatory floor"
@@ -382,7 +395,8 @@ def _apply_v4_hard_gates(
         # Conversion
         X = _f("expected_conversion", 1.0)
         if X < X_minimum:
-            reasons.append(
+            destination = reasons if validated_model(c, "kinetics") else warnings
+            destination.append(
                 f"X={X:.2f} < X_minimum={X_minimum:.2f} (insufficient conversion)"
             )
 
@@ -393,6 +407,7 @@ def _apply_v4_hard_gates(
                 f"material={mat} is opaque — photochemical reactor requires FEP/PFA"
             )
 
+        c["warnings"] = list(dict.fromkeys(warnings))
         if reasons:
             c["hard_gate_status"] = "FLAGGED: " + "; ".join(reasons)
             c["hard_gate_flags"] = reasons

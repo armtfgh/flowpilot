@@ -9,7 +9,10 @@ import flora_translate.config as cfg
 from flora_translate.engine.llm_agents import call_model_text
 from flora_translate.residence_time_basis import (
     INLET_STP_BASIS,
+    IN_CHANNEL_BASIS,
+    LIQUID_ONLY_BASIS,
     UNKNOWN_BASIS,
+    actual_gas_flow_from_stp,
     normalize_residence_time_basis,
     stp_gas_flow_from_actual,
 )
@@ -160,44 +163,61 @@ class TranslationLLM:
             except (TypeError, ValueError):
                 return 0.0
 
+        from flora_translate.design_evidence import capture_reasoning_data
+        capture_reasoning_data(data)
         vol = _as_float(data.get("reactor_volume_mL"))
         flow = _as_float(data.get("flow_rate_mL_min"))
         rt = _as_float(data.get("residence_time_min"))
         gas_actual = 0.0
         gas_stp = 0.0
+        gas_streams = []
+        gas_rates_complete = True
+        pressure_gauge = _as_float(data.get("BPR_bar"))
+        if str(data.get("BPR_basis") or "gauge").lower() == "absolute":
+            pressure_gauge -= 1.01325
         for stream in data.get("streams") or []:
-            if str(stream.get("phase", "")).lower() == "gas":
-                gas_actual = _as_float(stream.get("gas_flow_actual_mL_min") or stream.get("flow_rate_mL_min"))
-                gas_stp = _as_float(stream.get("gas_flow_sccm"))
-                break
+            phase = str(stream.get("phase") or "").lower()
+            explicit_gas_rate = any(_as_float(stream.get(key)) > 0
+                                    for key in ("gas_flow_sccm", "gas_flow_actual_mL_min"))
+            if not phase and explicit_gas_rate:
+                stream["phase"] = phase = "gas"
+            if phase not in {"gas", "gaseous", "vapor", "vapour"}:
+                continue
+            stream["phase"] = "gas"
+            gas_streams.append(stream)
+            actual = _as_float(stream.get("gas_flow_actual_mL_min") or stream.get("flow_rate_mL_min"))
+            stp = _as_float(stream.get("gas_flow_sccm"))
+            if stp <= 0 and actual > 0:
+                stp = stp_gas_flow_from_actual(actual, _as_float(data.get("temperature_C")), pressure_gauge)
+                stream["gas_flow_sccm"] = round(stp, 6)
+            elif actual <= 0 and stp > 0:
+                actual = actual_gas_flow_from_stp(stp, _as_float(data.get("temperature_C")), pressure_gauge)
+                stream["gas_flow_actual_mL_min"] = round(actual, 6)
+            gas_rates_complete = gas_rates_complete and stp > 0 and actual > 0
+            gas_actual += actual
+            gas_stp += stp
         basis = normalize_residence_time_basis(data.get("residence_time_basis"))
-        if gas_actual > 0 or gas_stp > 0:
-            basis = INLET_STP_BASIS
-            data["residence_time_basis"] = "inlet/STP apparent residence time"
-            if gas_stp <= 0 and gas_actual > 0:
-                gas_stp = stp_gas_flow_from_actual(
-                    gas_actual,
-                    _as_float(data.get("temperature_C")) or 25.0,
-                    _as_float(data.get("BPR_bar")),
-                )
-                for stream in data.get("streams") or []:
-                    if str(stream.get("phase", "")).lower() == "gas":
-                        stream["gas_flow_sccm"] = round(gas_stp, 6)
-                        break
         if vol > 0 and flow > 0 and rt > 0:
-            if basis == INLET_STP_BASIS and gas_stp > 0:
-                computed_rt = vol / (flow + gas_stp)
-                data["residence_time_inlet_min"] = round(computed_rt, 2)
-                if gas_actual > 0:
-                    data["residence_time_in_channel_min"] = round(vol / (flow + gas_actual), 2)
-            else:
+            computed_rt = None
+            if gas_streams and gas_rates_complete:
+                data["residence_time_inlet_min"] = round(vol / (flow + gas_stp), 6)
+                data["residence_time_in_channel_min"] = round(vol / (flow + gas_actual), 6)
+            if basis == LIQUID_ONLY_BASIS:
                 computed_rt = vol / flow
-            if abs(computed_rt - rt) / max(rt, 0.01) > 0.1:
+            elif gas_streams and gas_rates_complete and basis == INLET_STP_BASIS:
+                computed_rt = vol / (flow + gas_stp)
+            elif gas_streams and gas_rates_complete and basis == IN_CHANNEL_BASIS:
+                computed_rt = vol / (flow + gas_actual)
+            elif not gas_streams and basis == UNKNOWN_BASIS:
+                computed_rt = vol / flow
+            # An explicit gas-time basis with missing gas rates cannot be
+            # silently reinterpreted as a liquid-only time.
+            if computed_rt is not None and abs(computed_rt - rt) / max(rt, 0.01) > 0.1:
                 logger.warning(
                     f"Residence time inconsistency: stated={rt:.2f}, "
                     f"computed={computed_rt:.2f} on {basis}. Using computed."
                 )
-                data["residence_time_min"] = round(computed_rt, 2)
+                data["residence_time_min"] = round(computed_rt, 6)
         return data
 
     def generate(self, system_prompt: str, user_prompt: str) -> FlowProposal:

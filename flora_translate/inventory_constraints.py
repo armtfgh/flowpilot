@@ -349,6 +349,10 @@ def enforce_reactor_inventory(
     selected_payload = _reactor_payload(selected)
     data["inventory_selection"] = selected_payload
     data["inventory_constraints"] = {
+        # Hardware rebinding must not erase an independent review decision or
+        # convert stationary reactor components back into feed ingredients.
+        **{key: value for key, value in (data.get("inventory_constraints") or {}).items()
+           if key.startswith("council_") or key == "stationary_components"},
         "forced_reactor_inventory": True,
         "allowed_reactor_volumes_mL": sorted({float(r.volume_mL) for r in inventory.reactors}),
         "allowed_reactor_IDs_mm": sorted({float(r.ID_mm) for r in inventory.reactors}),

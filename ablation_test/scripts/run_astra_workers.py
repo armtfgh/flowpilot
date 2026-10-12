@@ -32,6 +32,23 @@ def progress(output, phase):
     print(json.dumps(value), flush=True)
 
 
+def check_billing_failure(output):
+    """A depleted API account is an interrupted experiment, not a design score."""
+    for path in (output / "generation").glob("*/*/repeat_*/error.json"):
+        summary = path.with_name("run_summary.json")
+        if summary.exists() and campaign.read_json(summary).get("status") == "completed":
+            continue
+        message = str(campaign.read_json(path).get("error", "")).lower()
+        if any(marker in message for marker in (
+            "no credits remaining", "insufficient_quota", "exceeded your current quota",
+        )):
+            progress(output, "interrupted_billing_exhausted")
+            raise RuntimeError(
+                f"Generation interrupted by exhausted API credits ({path}). "
+                "No comparative scores may be produced until generation is complete."
+            )
+
+
 def workers(output, mode, items):
     processes, handles = [], []
     try:
@@ -45,8 +62,12 @@ def workers(output, mode, items):
             ))
         while any(p.poll() is None for p in processes):
             progress(output, mode)
+            if mode == "generation":
+                check_billing_failure(output)
             time.sleep(60)
         progress(output, mode)
+        if mode == "generation":
+            check_billing_failure(output)
         return [p.returncode for p in processes]
     finally:
         for p in processes:

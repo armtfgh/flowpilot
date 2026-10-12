@@ -221,7 +221,7 @@ def call_judge(output: Path, judge: str, candidate: dict[str, Any], rubric: dict
                     "one observed value, and 25 words in each explanatory string per row. "
                     "Do not repeat the protocol, rubric, or reasoning."
                 )
-    schema = schema_for_provider(response_schema(), judge)
+    schema = schema_for_provider(response_schema(packet), judge)
     attempt = "base" if write_dir == call_dir else write_dir.name
     seed = stable_seed("newgen-2.0", judge, cid, attempt)
     write_json(write_dir / "prompt.json", {"system": system, "user": user, "json_schema": schema, "stable_seed": seed})
@@ -236,6 +236,10 @@ def call_judge(output: Path, judge: str, candidate: dict[str, Any], rubric: dict
             # serialize the same 14-row contract. A 7,500-token ceiling caused
             # otherwise valid judgments to be cut mid-JSON for larger packets.
             max_tokens = 12000 if bundle["provider"] == "ollama" else 7500
+            if bundle["provider"] == "ollama":
+                from ablation_test.scripts.evaluate_astra_delivered_outputs import local_judge_output_budget
+                max_tokens = local_judge_output_budget(system, [{"role": "user", "content": user}],
+                    audit_path=output / "judge_output_budgets.jsonl")
             response = call_model_text(model=bundle["model"], provider=bundle["provider"], api_name="newgen_2_0_judge", max_tokens=max_tokens, system=system, user_content=user)
         write_json(write_dir / "raw_response.json", {"provider": response.provider, "model": response.model, "usage": response.usage, "stop_reason": response.stop_reason, "finish_reason": response.finish_reason, "text": response.text})
         write_json(write_dir / "telemetry.json", events)
