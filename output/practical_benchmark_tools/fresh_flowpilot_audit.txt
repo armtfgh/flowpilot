@@ -1,0 +1,58 @@
+READ-ONLY AUDIT OF THREE FRESH FLOWPILOT OUTPUTS
+
+Scope: inspect the final delivered recipe, canonical parameters, streams, apparatus connections and retained rationale equally across the three chemistries. Independently recalculate stock quantities, molar gas delivery and volume/flow indices. No API calls, source edits, archive edits, judge feedback or score changes. This is a content audit, not an experimental validation. “No inconsistency found” below is confined to the checked items.
+
+CONFIRMED DELIVERED-OUTPUT DEFECTS
+
+1. Hydrogenolysis — duplicate substrate charge under an acronym and its full name.
+Evidence: $.final_design.operating_procedure[step_id=PREP-A].instruction and $.final_design.stream_components.
+The recipe says to charge DMAOL 1.26 mmol and N-diphenylmethylazetidin-3-ol (DMAOL) 1.26 mmol into a final 10 mL. The original supplied protocol explicitly defines these as the same compound. A literal execution therefore charges 2.52 mmol, giving 0.252 M, whereas $.final_design.parameters.concentration_M and Stream A are 0.126 M. At 0.5 mL/min, the literal recipe delivers 0.126 mmol/min substrate rather than 0.063 mmol/min. The otherwise correctly calculated H2 delivery of 0.063 mmol/min then supplies 0.5 equivalent rather than the claimed 1.0 equivalent. This is one alias-deduplication defect with downstream consequences, not several independent failures. It is present in the delivered judge packet. No change was applied in this frozen campaign.
+
+2. Hydrogenolysis — topology rationale contradicts the actual pressure-control order.
+Evidence: $.final_design.process_graph.topology.unit_operations[op_id=mixer_1].rationale versus $.final_design.process_graph.topology.streams.
+The rationale says “BPR bpr_h2_21 downstream of packed bed and gas-liquid separator maintains 21 bar system pressure.” The actual process edges correctly run reactor_1 -> bpr_1 -> separator_1 -> collector_1, and the separator is identified as vented. The apparatus graph is correct; its retained explanatory sentence describes a different order. This should be corrected as a cross-artifact instruction inconsistency, not reported as an actual canonical separator-before-BPR topology. The contradictory rationale remains inside the delivered topology and is judge-visible.
+
+3. Hydrogenolysis — arithmetic error in preserved selection rationale.
+Evidence: $.final_design.decision_rationale.council_selection_justification, status=conditions_preserved.
+The text calls 1.41 sccm “closer to the MFC minimum of 1.0 sccm” than 1.13 sccm. The distances are 0.41 and 0.13 sccm, respectively, so that statement is false. The selected 1.412002 sccm setpoint is within the declared 1–100 sccm inventory range. This is an erroneous selection explanation, not an infeasible MFC setpoint. It is retained in the judge packet because the rationale is marked conditions_preserved.
+
+RECONSTRUCTION DETAILS THAT SHOULD NOT BE OVERCOUNTED AS CONFIRMED DEFECTS
+
+Hydrogenolysis's final stock recipe is expressed on a 10 mL basis. Its commissioning interval is at least 18 min and collection interval at least 6 min, at 0.5 mL/min liquid flow. Those two intervals require at least 12 mL after reactive-feed startup, excluding line fill and flush. Thus one unscaled 10 mL stock preparation would be insufficient, but the explicit “basis” wording permits scaling. The missing campaign-total stock-volume instruction is a practical clarification, not proof that the design mandates an impossible run.
+
+Both packed-bed outputs list duplicate descriptive stationary-component names (Cu/C and Cu/C with a CatCart descriptor; Pd(OH)2/Al2O3 with and without its parenthetical descriptor). They do not issue two quantitative catalyst charges in the final preparation recipe. This is redundant labeling, distinct from the demonstrated substrate double-charge.
+
+PHOTOCHEMICAL OXIDATION — CHECKED QUANTITIES CLOSE
+
+The 10 mL stock recipe specifies 1.0 mmol Fmoc-L-methionine and 0.10 mmol photocatalyst, giving 0.100 M and 0.0100 M respectively, and preserving 10 mol% photocatalyst. At 0.500 mL/min the substrate feed is 0.0500 mmol/min. Air at 5.336362 sccm on the declared 273.15 K/1.01325 bar basis gives approximately 0.238095 mmol/min total air and 0.0500000 mmol/min O2 at mole fraction 0.21. The claimed 1.0 O2 equivalent is consistent.
+
+At 21 C and 3.0 bar gauge (4.01325 bar absolute), the ideal-gas volume conversion gives approximately 1.450886 mL/min actual air. The two documented indices are consistent with their stated definitions: 1/(0.5+5.336362)=0.1713396 min on the inlet/STP basis, and 1/(0.5+1.450886)=0.5125876 min on the in-channel-volume basis. They are not interchangeable measured residence times; the procedure explicitly calls for tracer/holdup measurement.
+
+The 1.0 mL, 1.0 mm ID PFA coil implies approximately 1.27324 m tubing, consistent with the rounded 1.273 m inventory length. The canonical temperature 21 C, 420 nm irradiation, 3 bar BPR and 5.336 sccm MFC setting match the supplied inventory. The pressure-control graph orders the BPR before the vented separator. Liquid and gas setpoints are explicit. No analogue of the hydrogenolysis duplicate charge or canonical gas-flow/time arithmetic error was found in these items.
+
+The older model rationale containing “5 sccm=0.0833 mL/min” is wrong, but it is explicitly marked requires_review_after_parameter_change in the archived final-design rationale and is excluded by the current packet normalizer. The canonical gas values are corrected. Do not count this discarded rationale as the final executable setpoint or silently relabel it as a judge-visible defect.
+
+CuAAC — CHECKED QUANTITIES CLOSE
+
+The 10 mL stock recipe gives 2.50 mmol benzyl azide and 2.75 mmol phenylacetylene, correctly producing 0.250 and 0.275 M and preserving 1.10 equivalents of alkyne. At 0.125 mL/min, nominal substrate and alkyne delivery are 0.03125 and 0.034375 mmol/min. The 0.300 mL cartridge gives a 2.40 min geometric empty-bed liquid space time. The contract explicitly labels that basis and does not assert a measured bed-void contact time. Cu/C is absent from the liquid recipe and assigned to the stationary reactor phase.
+
+The 0.125 mL/min pump setting lies within the 0.1–3.0 mL/min declared range. The topology is pump -> packed cartridge -> 20 bar BPR -> collector; canonical temperature is 150 C. These values match the selected inventory. No concrete canonical feed arithmetic, catalyst-in-liquid or apparatus-order inconsistency was found in the checked fields. The separate 0.06 m transfer-tubing inventory item should not be treated as the CatCart's packed-bed geometry.
+
+ADDITIONAL CALCULATOR METRIC DEFECTS OUTSIDE THE CURRENT JUDGE PACKET
+
+The top-level $.design_calculations.space_time_yield_mol_L_h does not close against its own productivity and reactor volume in the two gas cases. For hydrogenolysis the reported productivity is 1.440 mmol/h and reactor volume 3.000 mL, implying 0.480 mol/(L h), whereas the saved STY is 1.8346. For photochemical oxidation the reported productivity is 2.970 mmol/h and volume 1.000 mL, implying 2.970 mol/(L h), whereas the saved STY is 34.9412. These discrepancies persist regardless of whether the assumed yields prove correct experimentally, because the quantities must share the same normalization. The calculator appears to use an inlet/STP turnover index with liquid concentration when deriving STY. CuAAC gives 1.762 mmol/h / 0.300 mL = 5.8733 mol/(L h), consistent with its 5.875 value within saved rounding.
+
+These engineering metrics are outside the current delivered-outcome packet. They are real software follow-up issues, but must not be used to retroactively alter judgments about content the judges did not receive. No score or frozen output was edited.
+
+OVERALL FINDING
+
+The repaired identity/input boundary now delivers all three apparatus designs, and the primary canonical feed/gas/time arithmetic for photo-oxidation and CuAAC closes. Full contract acceptance does not catch every content defect: hydrogenolysis retains a genuine duplicate-charge instruction, plus two narrower explanatory inconsistencies. These findings should accompany any claim that the delivery fix has solved all issues. This audit does not imply a laboratory success rate or an independently validated yield prediction.
+
+SOURCE PROVENANCE
+hydrogenolysis: ablation_results/practical_input/claude_practical_repair_20261014/generation/hydrogenolysis/claude_repaired_flowpilot/repeat_01/result.json
+SHA256 48f6642fa69453f6755829ad3acc50c91c6d1bc186a58ba76ccba1c8b5e3fa3b
+photochemical_oxidation: ablation_results/practical_input/claude_practical_repair_20261014/generation/photochemical_oxidation/claude_repaired_flowpilot/repeat_01/result.json
+SHA256 e63fbab213870e2880c41ee96ddb6437085cd67147c65a11f1739f7377193728
+cuaac: ablation_results/practical_input/claude_practical_repair_20261014/generation/cuaac/claude_repaired_flowpilot/repeat_01/result.json
+SHA256 02ed7062de73f1918e3817cc6443f2b04fb05009732a78dcbd5a52e732003f8b
+All three source files were unchanged before and after this audit.

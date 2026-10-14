@@ -1,5 +1,7 @@
 """Preserve decision rationale without publishing superseded operating values."""
 from copy import deepcopy
+import hashlib
+import json
 import math
 from flora_translate.component_identity import component_key
 
@@ -7,7 +9,8 @@ from flora_translate.component_identity import component_key
 NUMERIC_FIELDS = ("temperature_C", "BPR_bar", "concentration_M", "flow_rate_mL_min",
                   "reactor_volume_mL", "tubing_ID_mm", "residence_time_min", "wavelength_nm")
 REASONING_FIELDS = NUMERIC_FIELDS + ("residence_time_basis", "residence_time_inlet_min",
-                                   "residence_time_in_channel_min", "BPR_basis")
+                                   "residence_time_in_channel_min", "BPR_basis",
+                                   "streams", "stage_parameters")
 DEPENDENCIES = {
     "temperature_C": ("temperature_C", "BPR_bar", "BPR_basis"),
     "BPR_bar": ("BPR_bar", "temperature_C", "BPR_basis"),
@@ -52,6 +55,21 @@ def reasoning_snapshot(data):
     from flora_translate.residence_time_basis import normalize_residence_time_basis, UNKNOWN_BASIS
     defaults = {"BPR_basis": "gauge", "residence_time_basis": ""}
     snapshot = {field: data.get(field, defaults.get(field)) for field in REASONING_FIELDS}
+    # A gas-flow/composition change can invalidate a time/equivalents explanation
+    # even when all top-level settings are unchanged. Exclude generated prose so
+    # repeated realization does not invalidate itself.
+    stream_state = [{key: deepcopy(stream.get(key)) for key in (
+        "stream_label", "phase", "contents", "solvent", "concentration_M",
+        "flow_rate_mL_min", "gas_flow_sccm", "gas_flow_actual_mL_min",
+        "gas_reagent_mole_fraction", "molar_equiv", "introduction_stage")}
+        for stream in data.get("streams") or []]
+    # Full source feeds/stages already accompany the proposal. A compact stable
+    # fingerprint detects changes without copying them into every explanation.
+    for field, state in (("streams", stream_state),
+                         ("stage_parameters", data.get("stage_parameters") or [])):
+        snapshot[field] = "sha256:" + hashlib.sha256(
+            json.dumps(state, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+        ).hexdigest()
     for field in NUMERIC_FIELDS + ("residence_time_inlet_min", "residence_time_in_channel_min"):
         if snapshot[field] is not None:
             try:
@@ -75,7 +93,8 @@ def capture_reasoning_data(data):
             records[field] = {
                 "text": text, "source": "model_proposed_scientific_rationale",
                 "parameter_snapshot": deepcopy(snapshot),
-                "dependencies": list(DEPENDENCIES.get(field, REASONING_FIELDS)),
+                "dependencies": list(dict.fromkeys(
+                    (*DEPENDENCIES.get(field, REASONING_FIELDS), "streams", "stage_parameters"))),
                 "status": "pending_realization",
             }
 
@@ -112,6 +131,8 @@ def reconcile_reasoning(proposal):
         record["changed_dependencies"] = changed
         record["status"] = "requires_review_after_parameter_change" if changed else "conditions_preserved"
         record["authority"] = "scientific rationale; not an independent validation of chemistry or safety"
+        record["verification_status"] = "not_independently_verified"
+        record["parameter_match_is_not_scientific_validation"] = True
         text = record.get("text", "")
         canonical = _without_saved_reasoning(proposal.reasoning_per_field.get(field, ""), text)
         if not changed:

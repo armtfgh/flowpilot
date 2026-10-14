@@ -1,0 +1,1602 @@
+{
+  "schema_version": "flowpilot_final_design_v2.0",
+  "status": "executable",
+  "parameters": {
+    "flow_rate_mL_min": 0.125,
+    "temperature_C": 150.0,
+    "concentration_M": 0.25,
+    "BPR_bar": 20.0,
+    "BPR_basis": "gauge",
+    "pressure_absolute_bar": 21.01325,
+    "reactor_type": "packed-bed",
+    "tubing_material": "stainless steel",
+    "tubing_ID_mm": 4.0,
+    "wavelength_nm": null,
+    "residence_time_basis_code": "liquid_only",
+    "residence_time_basis": "liquid-only reactor volume / liquid flow",
+    "residence_time_basis_detail": "nominal empty-bed liquid space time (geometric reactor volume / liquid flow)",
+    "reactor_volume_mL": 0.3,
+    "residence_time_min": 2.4,
+    "residence_time_inlet_min": 2.4,
+    "residence_time_in_channel_min": 2.4
+  },
+  "stages": [],
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Single liquid feed delivering both substrates through the Cu/C CatCart packed-bed reactor",
+      "contents": [
+        "benzyl azide (1.0 equiv, 0.25 M in acetone)",
+        "phenylacetylene (1.1 equiv, 0.275 M in acetone)",
+        "acetone"
+      ],
+      "solvent": "acetone",
+      "concentration_M": 0.25,
+      "concentration_basis": "reference component: benzyl azide",
+      "flow_rate_mL_min": 0.125,
+      "phase": "liquid",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "gas_reagent_mole_fraction": null,
+      "gas_active_species": "",
+      "gas_total_molar_flow_mmol_min": null,
+      "gas_active_molar_flow_mmol_min": null,
+      "gas_active_equivalents": null,
+      "molar_equiv": 1.0,
+      "molar_equiv_basis": "reference component: benzyl azide",
+      "pump_equipment_id": "pump_xcube_hplc",
+      "introduction_stage": 1,
+      "reasoning": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.125 mL/min; equiv=1, C=0.25 M; pump=pump_xcube_hplc; concentration_basis=reference component: benzyl azide; equiv_basis=reference component: benzyl azide.",
+      "requirement_authority": "protocol_fact",
+      "source_evidence": [
+        "All components are charged to the same batch reaction mixture.",
+        "The frozen batch protocol defines the initial reaction charge."
+      ],
+      "accepted_requirement": true,
+      "separate_feed_required": false,
+      "feed_group": "ST1-LIQ-1"
+    }
+  ],
+  "instrument_manifest": [
+    {
+      "equipment_id": "pump_xcube_hplc",
+      "name": "X-Cube HPLC pump",
+      "category": "pumps",
+      "quantity_used": 1,
+      "roles": [
+        "Pump A — Single liquid feed delivering both substrates through the Cu/C CatCart packed-bed reactor"
+      ],
+      "settings": [
+        {
+          "equipment_id": "pump_xcube_hplc",
+          "flow_rate_mL_min": 0.125
+        }
+      ]
+    },
+    {
+      "equipment_id": "reactor_cuc_cart_030",
+      "name": "Cu/C CatCart packed-bed cartridge",
+      "category": "reactors",
+      "quantity_used": 1,
+      "roles": [
+        "stainless steel Packed-Bed Reactor"
+      ],
+      "settings": [
+        {
+          "equipment_id": null,
+          "volume_mL": 0.3,
+          "ID_mm": 4.0,
+          "temperature_C": 150.0,
+          "integrated_flow_path": true
+        }
+      ]
+    },
+    {
+      "equipment_id": "heater_xcube",
+      "name": "X-Cube cartridge heater",
+      "category": "temperature_controllers",
+      "quantity_used": 1,
+      "roles": [
+        "Temperature Control 150 deg C"
+      ],
+      "settings": [
+        {
+          "temperature_C": 150.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "bpr_xcube_20",
+      "name": "X-Cube BPR",
+      "category": "pressure_controllers",
+      "quantity_used": 1,
+      "roles": [
+        "BPR"
+      ],
+      "settings": [
+        {
+          "pressure_bar": 20.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "collector_amber_100",
+      "name": "Vented collection vessel",
+      "category": "collectors",
+      "quantity_used": 1,
+      "roles": [
+        "Product Collection"
+      ],
+      "settings": [
+        {}
+      ]
+    },
+    {
+      "equipment_id": "safety_cuaac_shield",
+      "name": "Azide-service blast shield and secondary containment",
+      "category": "safety_accessories",
+      "quantity_used": 1,
+      "roles": [
+        "Safety control AZIDE-SHIELD-CONTAINMENT"
+      ],
+      "settings": []
+    }
+  ],
+  "process_graph": {
+    "schema_version": "flowpilot_executable_process_v1.0",
+    "topology": {
+      "topology_id": "translate",
+      "unit_operations": [
+        {
+          "op_id": "pump_a",
+          "op_type": "pump",
+          "label": "Pump A — Single liquid feed delivering both substrates through the Cu/C CatCart packed-bed reactor | X-Cube HPLC pump",
+          "parameters": {
+            "stream": "A",
+            "contents": [
+              "benzyl azide (0.25 M, 1 equiv)",
+              "phenylacetylene (0.275 M, 1.1 equiv)"
+            ],
+            "solvent": "acetone",
+            "flow_rate_mL_min": 0.125,
+            "phase": "liquid",
+            "gas_flow_sccm": null,
+            "gas_flow_actual_mL_min": null,
+            "molar_equiv": 1.0,
+            "inventory_equipment_id": "pump_xcube_hplc",
+            "concentration_M": 0.25,
+            "gas_reagent_mole_fraction": null,
+            "inventory_item_id": "pump_xcube_hplc",
+            "inventory_item_ids": [
+              "pump_xcube_hplc"
+            ],
+            "instrument_name": "X-Cube HPLC pump"
+          },
+          "required": true,
+          "rationale": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.125 mL/min; equiv=1, C=0.25 M; pump=pump_xcube_hplc; concentration_basis=reference component: benzyl azide; equiv_basis=reference component: benzyl azide.",
+          "inventory_item_id": "pump_xcube_hplc",
+          "inventory_item_ids": [
+            "pump_xcube_hplc"
+          ],
+          "instrument_name": "X-Cube HPLC pump",
+          "inventory_category": "pumps",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "reactor_1",
+          "op_type": "packed_bed_reactor",
+          "label": "stainless steel Packed-Bed Reactor | Cu/C CatCart packed-bed cartridge",
+          "parameters": {
+            "material": "stainless steel",
+            "ID_mm": 4.0,
+            "volume_mL": 0.3,
+            "Q_inlet_mL_min": 0.125,
+            "Q_liquid_mL_min": 0.125,
+            "Q_gas_sccm": 0,
+            "Q_gas_actual_mL_min": 0,
+            "temperature_C": 150.0,
+            "wavelength_nm": null,
+            "residence_time_min": 2.4,
+            "residence_time_basis": "nominal empty-bed liquid space time (geometric reactor volume / liquid flow)",
+            "residence_time_inlet_min": null,
+            "residence_time_in_channel_min": null,
+            "reactor_type": "packed-bed",
+            "inventory_item_id": "reactor_cuc_cart_030",
+            "inventory_item_ids": [
+              "reactor_cuc_cart_030"
+            ],
+            "instrument_name": "Cu/C CatCart packed-bed cartridge",
+            "temperature_controller_name": "X-Cube cartridge heater",
+            "temperature_controller_inventory_item_id": "heater_xcube"
+          },
+          "required": true,
+          "rationale": "Flow reactor",
+          "inventory_item_id": "reactor_cuc_cart_030",
+          "inventory_item_ids": [
+            "reactor_cuc_cart_030"
+          ],
+          "instrument_name": "Cu/C CatCart packed-bed cartridge",
+          "inventory_category": "reactors",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true,
+            "integrated_flow_path": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "heater_1",
+          "op_type": "heater",
+          "label": "Temperature Control 150 deg C | X-Cube cartridge heater",
+          "parameters": {
+            "temperature_C": 150.0,
+            "inventory_item_id": "heater_xcube",
+            "inventory_item_ids": [
+              "heater_xcube"
+            ],
+            "instrument_name": "X-Cube cartridge heater"
+          },
+          "required": true,
+          "rationale": "Active reactor temperature control",
+          "inventory_item_id": "heater_xcube",
+          "inventory_item_ids": [
+            "heater_xcube"
+          ],
+          "instrument_name": "X-Cube cartridge heater",
+          "inventory_category": "temperature_controllers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "bpr_1",
+          "op_type": "bpr",
+          "label": "BPR | X-Cube BPR",
+          "parameters": {
+            "pressure_bar": 20.0,
+            "inventory_item_id": "bpr_xcube_20",
+            "inventory_item_ids": [
+              "bpr_xcube_20"
+            ],
+            "instrument_name": "X-Cube BPR"
+          },
+          "required": true,
+          "rationale": "Maintain liquid phase",
+          "inventory_item_id": "bpr_xcube_20",
+          "inventory_item_ids": [
+            "bpr_xcube_20"
+          ],
+          "instrument_name": "X-Cube BPR",
+          "inventory_category": "pressure_controllers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "collector_1",
+          "op_type": "collector",
+          "label": "Product Collection | Vented collection vessel",
+          "parameters": {
+            "inventory_item_id": "collector_amber_100",
+            "inventory_item_ids": [
+              "collector_amber_100"
+            ],
+            "instrument_name": "Vented collection vessel"
+          },
+          "required": true,
+          "rationale": "Outlet",
+          "inventory_item_id": "collector_amber_100",
+          "inventory_item_ids": [
+            "collector_amber_100"
+          ],
+          "instrument_name": "Vented collection vessel",
+          "inventory_category": "collectors",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        }
+      ],
+      "streams": [
+        {
+          "stream_id": "s2",
+          "from_op": "pump_a",
+          "to_op": "reactor_1",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s3",
+          "from_op": "reactor_1",
+          "to_op": "bpr_1",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s4",
+          "from_op": "bpr_1",
+          "to_op": "collector_1",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        }
+      ],
+      "total_flow_rate_mL_min": 0.125,
+      "total_flow_rate_basis": "sum of liquid feeds at the outlet; reagent gas is reported separately",
+      "residence_time_min": 2.4,
+      "reactor_volume_mL": 0.3,
+      "pid_description": "Pump A — Single liquid feed delivering both substrates through the Cu/C CatCart packed-bed reactor | X-Cube HPLC pump -[liquid]-> stainless steel Packed-Bed Reactor | Cu/C CatCart packed-bed cartridge | stainless steel Packed-Bed Reactor | Cu/C CatCart packed-bed cartridge -[liquid]-> BPR | X-Cube BPR | BPR | X-Cube BPR -[liquid]-> Product Collection | Vented collection vessel",
+      "literature_support": [],
+      "topology_confidence": "LOW",
+      "compilation_status": "inventory_assigned",
+      "inventory_schema_version": "flowpilot_lab_inventory_v2.0",
+      "inventory_sha256": "5f90aef09e1f306da5ec2c410c9dbd0585a51dd23152371319d77331e1180a6b",
+      "instrument_manifest": [
+        {
+          "equipment_id": "pump_xcube_hplc",
+          "name": "X-Cube HPLC pump",
+          "category": "pumps",
+          "quantity_used": 1,
+          "roles": [
+            "Pump A — Single liquid feed delivering both substrates through the Cu/C CatCart packed-bed reactor"
+          ],
+          "settings": [
+            {
+              "equipment_id": "pump_xcube_hplc",
+              "flow_rate_mL_min": 0.125
+            }
+          ]
+        },
+        {
+          "equipment_id": "reactor_cuc_cart_030",
+          "name": "Cu/C CatCart packed-bed cartridge",
+          "category": "reactors",
+          "quantity_used": 1,
+          "roles": [
+            "stainless steel Packed-Bed Reactor"
+          ],
+          "settings": [
+            {
+              "equipment_id": null,
+              "volume_mL": 0.3,
+              "ID_mm": 4.0,
+              "temperature_C": 150.0,
+              "integrated_flow_path": true
+            }
+          ]
+        },
+        {
+          "equipment_id": "heater_xcube",
+          "name": "X-Cube cartridge heater",
+          "category": "temperature_controllers",
+          "quantity_used": 1,
+          "roles": [
+            "Temperature Control 150 deg C"
+          ],
+          "settings": [
+            {
+              "temperature_C": 150.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "bpr_xcube_20",
+          "name": "X-Cube BPR",
+          "category": "pressure_controllers",
+          "quantity_used": 1,
+          "roles": [
+            "BPR"
+          ],
+          "settings": [
+            {
+              "pressure_bar": 20.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "collector_amber_100",
+          "name": "Vented collection vessel",
+          "category": "collectors",
+          "quantity_used": 1,
+          "roles": [
+            "Product Collection"
+          ],
+          "settings": [
+            {}
+          ]
+        }
+      ]
+    },
+    "feeds": [
+      {
+        "operation_id": "pump_a",
+        "equipment_id": "pump_xcube_hplc",
+        "stream_label": "A",
+        "phase": "liquid",
+        "contents": [
+          "benzyl azide (0.25 M, 1 equiv)",
+          "phenylacetylene (0.275 M, 1.1 equiv)"
+        ],
+        "solvent": "acetone",
+        "flow_rate_mL_min": 0.125,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      }
+    ],
+    "stages": [
+      {
+        "stage_number": 1,
+        "reactor_operation_id": "reactor_1",
+        "reactor_equipment_id": "reactor_cuc_cart_030",
+        "mixer_operation_id": null,
+        "mixer_equipment_id": null,
+        "temperature_C": 150.0,
+        "reactor_volume_mL": 0.3,
+        "residence_flow_mL_min": 0.125,
+        "residence_time_min": 2.4,
+        "residence_time_basis": "nominal empty-bed liquid space time (geometric reactor volume / liquid flow)"
+      }
+    ],
+    "total_liquid_flow_mL_min": 0.125,
+    "total_reactor_volume_mL": 0.3,
+    "total_residence_time_min": 2.4
+  },
+  "chemistry_identity": {
+    "reaction_name": "CuAAC synthesis of 1-benzyl-4-phenyl-1,2,3-triazole",
+    "reaction_class": "1,3-Dipolar Cycloaddition (CuAAC)",
+    "transformation_family": "cuaac",
+    "protocol_transformation_family": "cuaac",
+    "bond_formed": "C–N (two new C–N bonds forming the 1,2,3-triazole ring)",
+    "bond_broken": "C≡C π-bond (partial), N=N π-bond (partial) during ring closure",
+    "protocol_sha256": "9bad6a0fff91a700f09d4e0fc3663411273d96d88f0b1f13be10759a8f675adf",
+    "chemistry_plan_sha256": "bbea77ebfc999dcfaac90a5798e4a80ee3ce11acf98c02b2878e29ae4306b1b7",
+    "authority_source": "protocol_evidence",
+    "confirmed": true,
+    "evidence_rule": "copper_azide_alkyne_to_triazole_v1",
+    "source_evidence": [
+      "Benzyl azide",
+      "phenylacetylene",
+      "Cu/C",
+      "The corresponding 1,4-disubstituted 1,2,3-triazole was isolated in 94% yield."
+    ],
+    "validation_issues": []
+  },
+  "stream_components": [
+    {
+      "stream_label": "A",
+      "name": "benzyl azide",
+      "role": "1,3-dipole (limiting substrate)",
+      "source_text": "benzyl azide (1.0 equiv, 0.25 M in acetone)",
+      "concentration_M": 0.25,
+      "molar_equiv": 1.0,
+      "loading_mol_pct": null,
+      "quantification_required": true,
+      "quantified": true,
+      "provenance": [
+        "component_text",
+        "chemistry_plan_or_component_text"
+      ]
+    },
+    {
+      "stream_label": "A",
+      "name": "phenylacetylene",
+      "role": "dipolarophile (alkyne substrate)",
+      "source_text": "phenylacetylene (1.1 equiv, 0.275 M in acetone)",
+      "concentration_M": 0.275,
+      "molar_equiv": 1.1,
+      "loading_mol_pct": null,
+      "quantification_required": true,
+      "quantified": true,
+      "provenance": [
+        "component_text",
+        "chemistry_plan_or_component_text"
+      ]
+    },
+    {
+      "stream_label": "A",
+      "name": "acetone",
+      "role": "solvent",
+      "source_text": "acetone",
+      "concentration_M": null,
+      "molar_equiv": null,
+      "loading_mol_pct": null,
+      "quantification_required": false,
+      "quantified": true,
+      "provenance": []
+    }
+  ],
+  "stationary_components": [
+    {
+      "name": "Cu/C catalyst (heterogeneous)",
+      "source_text": "Cu/C catalyst (heterogeneous)",
+      "placement": "stationary_reactor_phase",
+      "reactor_type": "packed-bed"
+    },
+    {
+      "name": "Cu/C catalyst",
+      "source_text": "Cu/C catalyst (heterogeneous)",
+      "placement": "stationary_reactor_phase",
+      "reactor_type": "packed-bed"
+    }
+  ],
+  "decision_rationale": {
+    "residence_time_min": {
+      "text": "Calculation (Step 2) estimated τ = 0.3 min for a 1 mm ID open tube, but this assumed a much smaller reactor. The available reactor is the 0.3 mL CatCart (inventory: reactor_cuc_cart_030). Using V/Q = 0.3 mL / 0.1 mL/min = 3.0 min, which exactly matches the batch microwave reaction time (3 min). Analogy 1 (similar [3+2] cycloaddition, 60°C, 20 min) and Analogy 2 (thermal, 195°C, 4 min) both support multi-minute residence times for thermally driven cycloadditions; our 3 min at 150°C is consistent. Analogy 1 difference: lower temperature (60°C vs 150°C) and different substrate class — longer τ needed at lower T; our higher T justifies shorter τ. Analogy 2 difference: Claisen rearrangement, not CuAAC — used as confirmation that 4 min at high T is feasible, not for direct parameter transfer.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "flow_rate_mL_min",
+        "residence_time_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "residence_time_basis": {
+      "text": "Single-phase liquid system (no gas reagents). Basis = reactor_volume / liquid_flow_rate = 0.3 mL / 0.1 mL/min = 3.0 min. inlet/STP basis not applicable (no gas feed).",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "flow_rate_mL_min",
+        "residence_time_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "temperature_C": {
+      "text": "Directly from batch protocol (150°C) and Chemistry Plan stage 1. Analogies 1 and 2 confirm elevated temperature operation is feasible in flow. No reason to deviate from batch-proven temperature for first flow experiment.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "BPR_basis"
+      ],
+      "status": "conditions_preserved",
+      "changed_dependencies": [],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "BPR_bar": {
+      "text": "Calculation Step 8: P_vap(acetone, 150°C) = 11.3 bar; BPR required. Only available BPR setpoint is 20.0 bar (bpr_xcube_20). 20 bar > 11.3 bar — adequate margin (~8.7 bar). Chemistry Plan incompatible_pairs explicitly flags acetone at 150°C without back-pressure. Analogy 2 also used BPR for high-temperature operation.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "BPR_bar",
+        "temperature_C",
+        "BPR_basis"
+      ],
+      "status": "conditions_preserved",
+      "changed_dependencies": [],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "flow_rate_mL_min": {
+      "text": "Set to 0.1 mL/min (minimum of pump_xcube_hplc range: 0.1–3.0 mL/min) to achieve 3.0 min residence time in the 0.3 mL CatCart. Q = V/τ = 0.3/3.0 = 0.1 mL/min. This is the minimum pump flow, which is appropriate for a first screening experiment. Analogy 1 used 0.165 mL/min — similar order of magnitude, supporting feasibility.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "flow_rate_mL_min",
+        "concentration_M",
+        "reactor_volume_mL"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "flow_rate_mL_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "concentration_M": {
+      "text": "Directly from batch protocol (0.25 M benzyl azide) and Chemistry Plan stream A. Analogy 1 concentration not reported. No adjustment needed for first flow experiment — maintain batch concentration to allow direct yield comparison.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "concentration_M"
+      ],
+      "status": "conditions_preserved",
+      "changed_dependencies": [],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "reactor_type": {
+      "text": "Inventory constraint: only available reactor is reactor_cuc_cart_030 (Cu/C CatCart packed-bed). Chemistry Plan specifies packed_bed reactor type for stage 1. Consistent with heterogeneous Cu/C catalysis.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "flow_rate_mL_min",
+        "residence_time_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "tubing_material": {
+      "text": "Inventory constraint: reactor_cuc_cart_030 is stainless steel, 4 mm ID. X-Cube system uses SS throughout. Analogy 2 also used stainless steel for high-temperature thermal reaction. No photochemistry involved, so FEP/PFA transparency not required.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "flow_rate_mL_min",
+        "residence_time_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "tubing_ID_mm": {
+      "text": "Inventory constraint: reactor_cuc_cart_030 has 4.0 mm ID (fixed by CatCart geometry). Engineering calculation assumed 1 mm ID for open tube — not applicable to packed-bed CatCart. Packed-bed Pe is governed by particle size, not tube ID alone.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "tubing_ID_mm",
+        "reactor_volume_mL"
+      ],
+      "status": "conditions_preserved",
+      "changed_dependencies": [],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "reactor_volume_mL": {
+      "text": "Inventory constraint: reactor_cuc_cart_030 is 0.3 mL (fixed). This is the only available reactor. Chemistry Plan and calculations are consistent with this volume.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "reactor_volume_mL",
+        "tubing_ID_mm"
+      ],
+      "status": "conditions_preserved",
+      "changed_dependencies": [],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "light_setup": {
+      "text": "No light required. CuAAC is a thermal catalytic reaction. Chemistry Plan: requires_light = false. Analogy 3 (photocyclization) is not applicable. wavelength_nm set to null.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "flow_rate_mL_min",
+        "residence_time_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "wavelength_nm": {
+      "text": "Not applicable — thermal CuAAC reaction. Set to null per rules.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "flow_rate_mL_min",
+        "residence_time_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "deoxygenation_method": {
+      "text": "Chemistry Plan: deoxygenation_required = false. CuAAC on heterogeneous Cu/C does not require inert atmosphere chemically. Inert atmosphere recommended as azide handling best practice but not implemented as a mandatory flow step given single-pump X-Cube setup. Set to null.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "flow_rate_mL_min",
+        "residence_time_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "mixer_type": {
+      "text": "Single-stream feed — no active mixer needed. Chemistry Plan mixing_order_reasoning confirms premixing in feed vial before pump is safe and sufficient for the single-pump X-Cube configuration.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "flow_rate_mL_min",
+        "residence_time_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "pre_reactor_steps": {
+      "text": "Chemistry Plan: deoxygenation_required = false; no quench required. Pre-steps focus on safety (blast shield), thermal equilibration, and BPR pressurization per incompatible_pairs constraint (acetone + 150°C without BPR).",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "flow_rate_mL_min",
+        "residence_time_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "post_reactor_steps": {
+      "text": "Chemistry Plan: quench_required = false; product is stable triazole; Cu/C retained in cartridge. Startup waste = 3 × τ × Q = 3 × 3.0 × 0.1 = 0.9 mL discarded before collection.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "flow_rate_mL_min",
+        "residence_time_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "chemistry_notes": {
+      "text": "CuAAC [3+2] cycloaddition of benzyl azide with phenylacetylene on heterogeneous Cu/C packed-bed CatCart. Key design decisions: (1) Single-stream feed is safe because no Cu catalyst is present in solution at room temperature — premixing benzyl azide and phenylacetylene in acetone does not initiate reaction. (2) 150 °C operation requires 20 bar BPR to keep acetone (bp 56 °C, P_vap ~11.3 bar at 150 °C) in liquid phase — the only available BPR setpoint (20 bar) is adequate. (3) Residence time of 3.0 min matches the batch microwave time exactly, using the full 0.3 mL CatCart volume at 0.1 mL/min (minimum pump flow). (4) The CatCart provides ~0.3 mmol Cu per cartridge; at 0.025 mmol/min limiting substrate throughput (0.25 M × 0.1 mL/min), effective Cu loading per pass is ~12 mol%, consistent with the 10 mol% batch loading. (5) Energetic azide safety: flow confines benzyl azide inventory at 150 °C to <0.3 mL at any instant — a major safety advantage over batch microwave. Blast shield (safety_cuaac_shield) mandatory throughout. (6) Analogies retrieved had low similarity scores (0.053–0.069) and different reaction classes; hardware parameters were derived primarily from the batch protocol and engineering calculations. (7) Axial dispersion warning from calculations (Pe ~4 for 1 mm ID tubing) is not applicable here — the packed-bed CatCart (4 mm ID, 0.3 mL) operates in a different flow regime; packed beds inherently reduce axial dispersion relative to open tubes. (8) No deoxygenation required per Chemistry Plan.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.1,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 3.0,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "flow_rate_mL_min",
+        "residence_time_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "council_selection_justification": {
+      "text": "Candidate 2 was selected for an initial experimental screen. The reviewed operating point is recorded below; its yield and performance relative to batch require experimental measurement.",
+      "source": "council_selection",
+      "parameter_snapshot": {
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "concentration_M": 0.25,
+        "flow_rate_mL_min": 0.125,
+        "reactor_volume_mL": 0.3,
+        "tubing_ID_mm": 4.0,
+        "residence_time_min": 2.4,
+        "wavelength_nm": null,
+        "residence_time_basis": "liquid_only",
+        "residence_time_inlet_min": null,
+        "residence_time_in_channel_min": null,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "conditions_preserved",
+      "changed_dependencies": [],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    }
+  },
+  "safety": {
+    "hazards": [
+      "energetic_azide",
+      "pressurized_operation"
+    ],
+    "controls": [
+      {
+        "control_id": "GENERAL-PPE-CONTAINMENT",
+        "category": "general",
+        "description": "Use the laboratory-approved PPE and containment for every declared reagent.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:GENERAL-PPE-CONTAINMENT"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "GENERAL-EMERGENCY-STOP",
+        "category": "emergency",
+        "description": "Define and rehearse the emergency feed-stop sequence.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:GENERAL-EMERGENCY-STOP"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "GENERAL-WASTE",
+        "category": "waste",
+        "description": "Segregate and label all process and flush waste by hazard class.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:GENERAL-WASTE"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "PRESSURE-LEAK-TEST",
+        "category": "pressure",
+        "description": "Leak- and pressure-test the assembled system before reagent introduction.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:PRESSURE-LEAK-TEST"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "PRESSURE-OVERPRESSURE-RESPONSE",
+        "category": "pressure",
+        "description": "Define blockage and overpressure response without opening a pressurized line.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:PRESSURE-OVERPRESSURE-RESPONSE"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "PRESSURE-DEPRESSURIZE",
+        "category": "pressure",
+        "description": "Cool and depressurize through the controlled outlet before opening the system.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:PRESSURE-DEPRESSURIZE"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "AZIDE-HOLDUP-LIMIT",
+        "category": "azide",
+        "description": "Minimize azide feed inventory and reactive holdup.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:AZIDE-HOLDUP-LIMIT"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "AZIDE-BLOCKAGE-RESPONSE",
+        "category": "azide",
+        "description": "Stop feeds and cool before responding to blockage; never open under pressure.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:AZIDE-BLOCKAGE-RESPONSE"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "AZIDE-METAL-COMPATIBILITY",
+        "category": "azide",
+        "description": "Prevent unassessed metal-azide accumulation and stagnant zones.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:AZIDE-METAL-COMPATIBILITY"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "AZIDE-SHIELD-CONTAINMENT",
+        "category": "azide",
+        "description": "Operate behind declared shielding or enclosed containment.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:AZIDE-SHIELD-CONTAINMENT",
+          "inventory:safety_cuaac_shield"
+        ],
+        "equipment_ids": [
+          "safety_cuaac_shield"
+        ]
+      }
+    ],
+    "complete": true,
+    "missing_control_ids": []
+  },
+  "operating_procedure": [
+    {
+      "step_id": "PREP-A",
+      "section": "preparation",
+      "instruction": "Prepare Stream A: on a 10 mL final-volume basis, charge benzyl azide: 2.5 mmol (0.25 M final); phenylacetylene: 2.75 mmol (0.275 M final); add acetone to 10 mL total. Convert mmol to weighed/dispensed amount using the verified reagent MW, assay, and density recorded at preparation.",
+      "required": true,
+      "equipment_ids": [
+        "pump_xcube_hplc"
+      ],
+      "parameter_bindings": {
+        "stream_label": "A",
+        "flow_rate_mL_min": 0.125,
+        "gas_flow_sccm": null
+      }
+    },
+    {
+      "step_id": "SETUP-VERIFY",
+      "section": "setup",
+      "instruction": "Assemble only the inventory-assigned process graph and verify every equipment ID and connection against the final diagram.",
+      "required": true,
+      "equipment_ids": [
+        "bpr_xcube_20",
+        "collector_amber_100",
+        "heater_xcube",
+        "pump_xcube_hplc",
+        "reactor_cuc_cart_030"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "SETUP-PRIME",
+      "section": "startup",
+      "instruction": "Prime each liquid line with its declared solvent using its assigned pump until the outlet is bubble-free; do not introduce reactive feeds during priming.",
+      "required": true,
+      "equipment_ids": [
+        "pump_xcube_hplc"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PRESSURE-LEAK-TEST",
+      "section": "startup",
+      "instruction": "Pressure-test with compatible inert fluid to the approved operating setpoint of 20 bar and verify stable pressure before reagents.",
+      "required": true,
+      "equipment_ids": [
+        "bpr_xcube_20",
+        "collector_amber_100",
+        "heater_xcube",
+        "pump_xcube_hplc",
+        "reactor_cuc_cart_030"
+      ],
+      "parameter_bindings": {
+        "BPR_bar": 20.0
+      }
+    },
+    {
+      "step_id": "GENERAL-PPE-CONTAINMENT",
+      "section": "setup",
+      "instruction": "Use the laboratory-approved PPE and containment for every declared reagent.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "GENERAL-EMERGENCY-STOP",
+      "section": "emergency",
+      "instruction": "Define and rehearse the emergency feed-stop sequence.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "GENERAL-WASTE",
+      "section": "waste",
+      "instruction": "Segregate and label all process and flush waste by hazard class.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PRESSURE-OVERPRESSURE-RESPONSE",
+      "section": "emergency",
+      "instruction": "Define blockage and overpressure response without opening a pressurized line.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PRESSURE-DEPRESSURIZE",
+      "section": "shutdown",
+      "instruction": "Cool and depressurize through the controlled outlet before opening the system.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "AZIDE-HOLDUP-LIMIT",
+      "section": "setup",
+      "instruction": "Minimize azide feed inventory and reactive holdup.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "AZIDE-BLOCKAGE-RESPONSE",
+      "section": "emergency",
+      "instruction": "Stop feeds and cool before responding to blockage; never open under pressure.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "AZIDE-METAL-COMPATIBILITY",
+      "section": "setup",
+      "instruction": "Prevent unassessed metal-azide accumulation and stagnant zones.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "AZIDE-SHIELD-CONTAINMENT",
+      "section": "setup",
+      "instruction": "Operate behind declared shielding or enclosed containment.",
+      "required": true,
+      "equipment_ids": [
+        "safety_cuaac_shield"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "START-FEEDS",
+      "section": "startup",
+      "instruction": "Start liquid feeds at the canonical setpoints.",
+      "required": true,
+      "equipment_ids": [
+        "pump_xcube_hplc"
+      ],
+      "parameter_bindings": {
+        "A": {
+          "equipment_id": "pump_xcube_hplc",
+          "flow_rate_mL_min": 0.125,
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null
+        }
+      }
+    },
+    {
+      "step_id": "STEADY-STATE",
+      "section": "steady_state",
+      "instruction": "Allow an initial commissioning interval of at least 7.2 min, based on three nominal liquid-volume turnovers. Confirm steady outlet composition and stable flow, pressure and temperature before collection; elapsed time alone does not establish steady state. Measure phase holdup or tracer response when gas or a packed bed is present.",
+      "required": true,
+      "equipment_ids": [
+        "bpr_xcube_20",
+        "collector_amber_100",
+        "heater_xcube",
+        "pump_xcube_hplc",
+        "reactor_cuc_cart_030"
+      ],
+      "parameter_bindings": {
+        "residence_time_min": 2.4,
+        "minimum_initial_stabilization_time_min": 7.199999999999999,
+        "timing_reference_min": 2.4,
+        "steady_state_requires_measurement": true,
+        "residence_time_basis": "nominal empty-bed liquid space time (geometric reactor volume / liquid flow)"
+      }
+    },
+    {
+      "step_id": "COLLECT-PRODUCT",
+      "section": "collection",
+      "instruction": "After measured steady state, collect a timed fraction over at least 2.4 min as an initial sampling interval; record exact start/end times and collected mass or volume. Extend collection if needed for the analytical method.",
+      "required": true,
+      "equipment_ids": [
+        "collector_amber_100"
+      ],
+      "parameter_bindings": {
+        "minimum_initial_collection_time_min": 2.4
+      }
+    },
+    {
+      "step_id": "COLLECT-ANALYZE-WORKUP",
+      "section": "collection",
+      "instruction": "Collect the crude outlet in the assigned vessel and retain a labeled aliquot for conversion, selectivity, and yield analysis. This first screen ends at crude collection; no isolation work-up is authorized unless the chemist adds a confirmed downstream procedure to the intake package.",
+      "required": true,
+      "equipment_ids": [
+        "collector_amber_100"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "NORMAL-SHUTDOWN",
+      "section": "shutdown",
+      "instruction": "Stop reactive feeds, flush each compatible line, cool the reactor to a safe handling temperature, and isolate energy sources.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    }
+  ],
+  "validation_experiments": [
+    {
+      "experiment_id": "VAL-HYDRAULIC-BASELINE",
+      "purpose": "Verify hydraulic stability at the final operating point before chemistry collection.",
+      "procedure": "Run compatible blank solvent at Q=0.125 mL/min, T=150.0 C, and BPR=20 bar for at least 10 min; record flow, temperature, pressure, leaks, and blockage indicators.",
+      "equipment_ids": [
+        "bpr_xcube_20",
+        "collector_amber_100",
+        "heater_xcube",
+        "pump_xcube_hplc",
+        "reactor_cuc_cart_030"
+      ],
+      "parameter_bindings": {
+        "flow_rate_mL_min": 0.125,
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "duration_min": 10
+      }
+    },
+    {
+      "experiment_id": "VAL-RTD",
+      "purpose": "Measure the residence-time distribution and phase holdup at the operating point.",
+      "procedure": "Introduce a compatible nonreactive tracer at Q=0.125 mL/min and measure its outlet response after correcting for external tubing delay. Report the measured mean, dispersion and liquid holdup separately from the calculated 2.4 min index (liquid-only reactor volume / liquid flow); do not require agreement with an STP turnover index.",
+      "equipment_ids": [
+        "bpr_xcube_20",
+        "collector_amber_100",
+        "heater_xcube",
+        "pump_xcube_hplc",
+        "reactor_cuc_cart_030"
+      ],
+      "parameter_bindings": {
+        "flow_rate_mL_min": 0.125,
+        "calculated_residence_time_min": 2.4,
+        "residence_time_basis": "nominal empty-bed liquid space time (geometric reactor volume / liquid flow)"
+      }
+    },
+    {
+      "experiment_id": "VAL-FIRST-SCREEN",
+      "purpose": "Generate the first wet-lab response at the exact canonical design point.",
+      "procedure": "Execute the canonical operating procedure once and report conversion, isolated yield, selectivity, pressure trace, temperature trace, and any phase or blockage observations.",
+      "equipment_ids": [
+        "bpr_xcube_20",
+        "collector_amber_100",
+        "heater_xcube",
+        "pump_xcube_hplc",
+        "reactor_cuc_cart_030"
+      ],
+      "parameter_bindings": {
+        "flow_rate_mL_min": 0.125,
+        "temperature_C": 150.0,
+        "BPR_bar": 20.0,
+        "residence_time_min": 2.4,
+        "reactor_volume_mL": 0.3
+      }
+    }
+  ],
+  "canonical_sha256": "20ffa8b23ad2e35bb5f4a285cc8b0c461434d1126f595ffc3ec980e1f6498e08",
+  "artifact_provenance": {
+    "authority": "deterministic_post_realization_compiler",
+    "intermediate_agent_text_is_executable": false,
+    "canonical_sha256": "20ffa8b23ad2e35bb5f4a285cc8b0c461434d1126f595ffc3ec980e1f6498e08"
+  },
+  "intensification": {
+    "policy": "evidence_first",
+    "target_factor": null,
+    "hypothesis_factor": 6.0,
+    "target_role": "not applied under evidence-first policy",
+    "realized_factor": 1.25,
+    "applied_as_hard_constraint": false,
+    "basis": "Predicted screening target: 6.0x residence-time reduction; this is a hypothesis unless the run explicitly selects the intensify policy. Identified batch limitations: kinetic. Primary flow advantage: hazardous_intermediate. Mechanisms: hazardous-intermediate holdup reduction, selectivity-sensitive stream logic."
+  },
+  "consistency": {
+    "passed": true,
+    "issues": [],
+    "validation_checks": {
+      "design_realization_complete": true,
+      "reactor_inventory_match": true,
+      "pump_flow_feasible": true,
+      "stream_flow_closure": true,
+      "stoichiometric_flow_closure": true,
+      "pressure_inventory_match": true,
+      "tubing_feasible": true,
+      "geometry_closure": true,
+      "calculation_matches_serialized_design": true,
+      "gas_bookkeeping_complete": true,
+      "gas_time_basis_consistent": true,
+      "safety_contract_complete": true,
+      "topology_matches_serialized_design": true,
+      "inventory_topology_assignment_complete": true
+    },
+    "semantic_checks": {
+      "chemistry_identity_preserved": true,
+      "component_stoichiometry_complete": true,
+      "topology_phase_consistent": true,
+      "control_edges_not_in_process_path": true,
+      "safety_controls_complete": true,
+      "procedure_complete": true,
+      "no_unsupported_operations": true,
+      "diagram_matches_canonical_topology": true,
+      "residence_time_basis_unambiguous": true,
+      "gas_time_basis_consistent": true,
+      "mixing_regime_matches_topology": true,
+      "stationary_components_not_in_feeds": true,
+      "reagent_gas_delivery_unique": true,
+      "gas_composition_and_equivalent_closure": true
+    }
+  },
+  "diagnostic": {
+    "preliminary_candidate": {
+      "residence_time_min": 2.4,
+      "residence_time_inlet_min": 0.0,
+      "residence_time_in_channel_min": 0.0,
+      "flow_rate_mL_min": 0.125,
+      "reactor_volume_mL": 0.3,
+      "source": "pre-final council/inventory candidate"
+    },
+    "stage_requirements": [],
+    "unresolved_inventory": [],
+    "message": "No executable final design exists. Values in this diagnostic section are unapproved intermediate calculations."
+  }
+}

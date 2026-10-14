@@ -570,32 +570,34 @@ def _production_full(
         capture_content=True,
     )
     try:
-        intake_package = None
+        intake_package = {
+            "schema_version": "flowpilot_intake_v1.0",
+            "raw_protocol": case.protocol,
+            "objective": case.objective,
+            "historical_data": None,
+            "inventory_constraints": case.inventory,
+            "hypotheses": [],
+            "operating_limits": list(case.hard_constraints),
+            "chemistry_identity_confirmation": case.chemistry_identity_confirmation,
+            "answers": [
+                {"question_id": "Q-BATCH-001", "answer": case.protocol, "status": "answered", "source": "frozen_benchmark"},
+                {"question_id": "Q-OBJ-001", "answer": case.objective, "status": "answered", "source": "frozen_benchmark"},
+                {"question_id": "Q-HIST-001", "status": "unavailable", "source": "frozen_benchmark"},
+                {"question_id": "Q-INV-001", "answer": case.inventory, "status": "answered", "source": "frozen_benchmark"},
+                {"question_id": "Q-CONSTR-001", "answer": list(case.hard_constraints), "status": "answered", "source": "frozen_benchmark"},
+                {"question_id": "Q-HYP-001", "status": "unavailable", "source": "frozen_benchmark"},
+                {"question_id": "Q-PREF-001", "status": "unavailable", "source": "frozen_benchmark"},
+            ],
+            "missing_question_ids": [],
+            "ready_for_design": True,
+        }
         if case.chemistry_identity_confirmation:
-            intake_package = {
-                "schema_version": "flowpilot_intake_v1.0",
-                "raw_protocol": case.protocol,
-                "objective": case.objective,
-                "historical_data": None,
-                "inventory_constraints": case.inventory,
-                "hypotheses": [],
-                "operating_limits": list(case.hard_constraints),
-                "chemistry_identity_confirmation": case.chemistry_identity_confirmation,
-                "answers": [
-                    {"question_id": "Q-BATCH-001", "answer": case.protocol, "status": "answered", "source": "frozen_benchmark"},
-                    {"question_id": "Q-OBJ-001", "answer": case.objective, "status": "answered", "source": "frozen_benchmark"},
-                    {"question_id": "Q-CHEM-001", "answer": case.chemistry_identity_confirmation, "status": "answered", "source": "frozen_benchmark"},
-                    {"question_id": "Q-HIST-001", "status": "unavailable", "source": "frozen_benchmark"},
-                    {"question_id": "Q-INV-001", "answer": case.inventory, "status": "answered", "source": "frozen_benchmark"},
-                    {"question_id": "Q-CONSTR-001", "answer": list(case.hard_constraints), "status": "answered", "source": "frozen_benchmark"},
-                    {"question_id": "Q-HYP-001", "status": "unavailable", "source": "frozen_benchmark"},
-                    {"question_id": "Q-PREF-001", "status": "unavailable", "source": "frozen_benchmark"},
-                ],
-                "missing_question_ids": [],
-                "ready_for_design": True,
-            }
+            intake_package["answers"].append({
+                "question_id": "Q-CHEM-001", "answer": case.chemistry_identity_confirmation,
+                "status": "answered", "source": "frozen_benchmark",
+            })
         result = production_translate(
-            case.design_input_text,
+            case.protocol,
             inventory_path=inventory_path,
             intake_package=intake_package,
             runtime_options=runtime,

@@ -1,0 +1,339 @@
+{
+  "candidate_id": "N2-7A0E8A18",
+  "criterion_scores": [
+    {
+      "criterion_id": "UO-01",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.chemistry_and_operations.chemistry_notes",
+        "$.delivered_final_outcome.parameters.reactor_type",
+        "$.case_context.protocol",
+        "$.case_context.held_out_source_fact_check.batch_reference"
+      ],
+      "observed_values": [
+        "Hydrogenolysis of N-diphenylmethylazetidin-3-ol over Pd(OH)2/Al2O3 in methanol under H2",
+        "Reactor type: packed-bed",
+        "Temperature 60 C, pressure 21 bar H2"
+      ],
+      "expected_or_correct": "Preserve substrate/product class, hydrogenolysis transformation, Pd(OH)2/Al2O3 catalyst strategy, methanol solvent, H2 gas-liquid packed-bed modality.",
+      "rationale": "The delivered design preserves the intended hydrogenolysis chemistry, catalyst family, solvent, and flow modality without unsupported substitution.",
+      "required_correction": "",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-02",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.streams[0]",
+        "$.delivered_final_outcome.streams[1]",
+        "$.delivered_final_outcome.chemistry_and_operations.pre_reactor_steps",
+        "$.case_context.authoritative_inventory.reactors[0]"
+      ],
+      "observed_values": [
+        "Liquid stream contains DMAOL in methanol at 0.126 M",
+        "Gas stream contains H2 at 10 sccm",
+        "Pre-reactor step loads 0.5 g Pd(OH)2/Al2O3 catalyst into packed tube"
+      ],
+      "expected_or_correct": "All required reactive components should be present and correctly assigned: DMAOL/methanol feed, H2 gas feed, Pd(OH)2/Al2O3 catalyst bed.",
+      "rationale": "All required materials are present. Minor defect: the catalyst identity/weight percent is described in prose and loading step rather than as a structured proposal field, but the chemistry remains reconstructable.",
+      "required_correction": "State catalyst specification explicitly in the proposal object as the installed bed catalyst and loading.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-03",
+      "applicability": "APPLICABLE",
+      "score": 2,
+      "critical_error": false,
+      "severity": "MAJOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.streams[0]",
+        "$.delivered_final_outcome.streams[1]",
+        "$.delivered_final_outcome.evidence_and_reasoning.reasoning_per_field.gas_flow_sccm",
+        "$.delivered_final_outcome.parameters.concentration_M",
+        "$.deterministic_verification_sheet.delivered_arithmetic.reference_substrate_mmol_min",
+        "$.deterministic_verification_sheet.delivered_arithmetic.conditional_nominal_gas_reference_examples[0].calculated_active_equivalents"
+      ],
+      "observed_values": [
+        "Substrate feed = 0.126 M at 0.1 mL/min = 0.0126 mmol/min",
+        "H2 feed = 10 sccm",
+        "Delivered gas molar_equiv = 1.0 in $.delivered_final_outcome.streams[1].molar_equiv",
+        "Narrative claims H2 provides 35:1 molar excess",
+        "Verification sheet example calculates ~35.41 active-species equivalents"
+      ],
+      "expected_or_correct": "Feed compositions and equivalents should be explicit and internally coherent; H2 equivalents should be reported consistently with the stated basis.",
+      "rationale": "Liquid stoichiometry is coherent, but the gas stream field reports molar_equiv = 1.0 while the narrative correctly describes ~35:1 H2 excess. This is a material but recoverable inconsistency in stoichiometric bookkeeping.",
+      "required_correction": "Set the H2 stream equivalent field to the actual basis-consistent value (~35.4 equiv on the worksheet's nominal STP basis, or clearly state an alternate meter reference and recalculate consistently).",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-04",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.parameters.temperature_C",
+        "$.delivered_final_outcome.parameters.BPR_bar",
+        "$.delivered_final_outcome.chemistry_and_operations.pre_reactor_steps",
+        "$.delivered_final_outcome.topology.mixing_order_reasoning",
+        "$.delivered_final_outcome.stages"
+      ],
+      "observed_values": [
+        "Temperature = 60 C",
+        "BPR = 21 bar",
+        "Order: liquid and H2 combine at T-mixer upstream of packed bed",
+        "Startup includes N2 purge, heat to 60 C, then switch to H2 and pressurize"
+      ],
+      "expected_or_correct": "Chemistry-critical conditions and stage order should be mapped faithfully: H2 co-feed, packed-bed hydrogenolysis at 60 C and 21 bar, with suitable startup/shutdown sequencing.",
+      "rationale": "Condition mapping is faithful overall. Minor defect: one pre-reactor step says 'allow BPR to pressurize the system to 21 bar before starting the liquid pump,' which is operationally ambiguous for a vented downstream separator train and should specify how liquid wetting/flow is established during pressurization.",
+      "required_correction": "Clarify startup sequence for establishing pressure and liquid flow across the packed bed and downstream separator/BPR without ambiguity.",
+      "confidence": "MEDIUM"
+    },
+    {
+      "criterion_id": "UO-05",
+      "applicability": "APPLICABLE",
+      "score": 2,
+      "critical_error": false,
+      "severity": "MAJOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.chemistry_and_operations.pre_reactor_steps[2]",
+        "$.delivered_final_outcome.topology.mixing_order_reasoning",
+        "$.case_context.authoritative_inventory.separators[0]",
+        "$.case_context.authoritative_inventory.safety_accessories[1]",
+        "$.case_context.authoritative_inventory.collectors[0]"
+      ],
+      "observed_values": [
+        "Assembled flow train: pump → T-mixer → packed-bed reactor → BPR (21 bar) → gas-liquid separator → safe vent / liquid collector",
+        "Available separator is vented gas-liquid separator",
+        "Available safe vent is dedicated hydrogen separator safe vent"
+      ],
+      "expected_or_correct": "Executable topology should connect feeds, mixer, reactor, pressure control, separator, vent, collection, and waste in a physically correct order.",
+      "rationale": "The proposed order places the BPR upstream of the vented gas-liquid separator. For a vented downstream separator, this is not an executable pressure-containing sequence as written: after the BPR the stream is depressurized, so a 'vented' separator is acceptable only as an atmospheric disengager, but the notation 'safe vent / liquid collector' is ambiguous and does not clearly specify the separator outlet connections. The topology is close but requires revision for unambiguous execution.",
+      "required_correction": "Specify the downstream connections explicitly, e.g. reactor → BPR → atmospheric vented gas-liquid separator, with separator gas outlet to safety_h2_vent and liquid outlet to collector_h2_250; or justify any alternate pressure-containing arrangement using only inventory-rated equipment.",
+      "confidence": "MEDIUM"
+    },
+    {
+      "criterion_id": "UO-06",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.parameters.flow_rate_mL_min",
+        "$.delivered_final_outcome.parameters.concentration_M",
+        "$.delivered_final_outcome.streams[0]",
+        "$.deterministic_verification_sheet.delivered_arithmetic.nominal_volume_over_liquid_flow_min",
+        "$.deterministic_verification_sheet.delivered_arithmetic.reference_substrate_mmol_min"
+      ],
+      "observed_values": [
+        "Liquid flow = 0.1 mL/min",
+        "Concentration = 0.126 M",
+        "Substrate molar flow = 0.0126 mmol/min",
+        "Nominal V/Q = 30 min"
+      ],
+      "expected_or_correct": "Liquid concentrations and flows should reproduce molar flows and throughput consistently.",
+      "rationale": "Liquid material balance closes numerically and is dimensionally valid. Minor defect: the stated concentration is rounded from the source assumption and no preparation mass is computed, but this does not prevent execution.",
+      "required_correction": "Optionally provide the exact DMAOL mass for the chosen prep volume to tighten reproducibility.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-07",
+      "applicability": "APPLICABLE",
+      "score": 2,
+      "critical_error": false,
+      "severity": "MAJOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.parameters.reactor_volume_mL",
+        "$.delivered_final_outcome.parameters.flow_rate_mL_min",
+        "$.delivered_final_outcome.parameters.residence_time_min",
+        "$.delivered_final_outcome.parameters.residence_time_inlet_min",
+        "$.delivered_final_outcome.parameters.residence_time_in_channel_min",
+        "$.delivered_final_outcome.parameters.residence_time_basis",
+        "$.deterministic_verification_sheet.delivered_arithmetic.nominal_volume_over_liquid_flow_min"
+      ],
+      "observed_values": [
+        "Reactor volume = 3.0 mL",
+        "Liquid flow = 0.1 mL/min",
+        "Nominal V/Q = 30 min",
+        "Reported residence_time_min = 30",
+        "Reported residence_time_inlet_min = 30",
+        "Reported residence_time_in_channel_min = 12",
+        "Basis text says 30 min assumes full 3 mL accessible to liquid; actual shorter if void fraction ~0.4"
+      ],
+      "expected_or_correct": "Residence-time basis should close numerically and distinguish geometric V/Q from in-channel/holdup-based residence time without contradiction.",
+      "rationale": "The candidate correctly computes nominal geometric V/Q = 30 min and flags uncertainty, but labels this as 'liquid-phase residence time' while separately giving 12 min as estimated true liquid residence time. Because the source interpretation says flow reaction time is liquid-holdup residence time, the design should not present 30 min as the main residence time without clearer qualification. This is a material but recoverable basis inconsistency, not a physical impossibility.",
+      "required_correction": "Rename 30 min as nominal empty-bed space time based on geometric volume/liquid flow, and report the primary chemistry time basis separately as estimated liquid holdup residence time with assumptions clearly stated.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-08",
+      "applicability": "APPLICABLE",
+      "score": 2,
+      "critical_error": false,
+      "severity": "MAJOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.streams[1]",
+        "$.delivered_final_outcome.parameters.BPR_bar",
+        "$.delivered_final_outcome.disposition_rationale",
+        "$.deterministic_verification_sheet.declared_time_index.reason",
+        "$.deterministic_verification_sheet.delivered_arithmetic.conditional_nominal_gas_reference_examples[0]"
+      ],
+      "observed_values": [
+        "Gas identity = H2",
+        "Gas flow = 10 sccm",
+        "Reported gas_flow_actual_mL_min = 0.561398",
+        "Pressure = 21 bar",
+        "No explicit absolute-vs-gauge basis field for pressure correction",
+        "Verification sheet states channel flow unassessable because no explicit numerical absolute pressure/gauge-basis field"
+      ],
+      "expected_or_correct": "For gas designs, inlet/STP flow, corrected in-channel flow, pressure basis, and gas-sensitive residence-time bases must remain distinct and close consistently.",
+      "rationale": "The candidate distinguishes sccm from corrected in-channel gas flow, which is good. However, the actual-flow correction lacks an explicit absolute/gauge pressure basis and corresponding temperature/reference basis, which the verification sheet identifies as unassessable. This is a material bookkeeping defect for a gas process.",
+      "required_correction": "State the exact gas meter reference and pressure basis used for the 0.561398 mL/min in-channel value (e.g. 21 bar absolute vs gauge plus temperature assumption) and recalculate if needed.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-09",
+      "applicability": "NOT_APPLICABLE",
+      "score": null,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.case_context.applicability.multistage_process"
+      ],
+      "observed_values": [
+        "multistage_process = false"
+      ],
+      "expected_or_correct": "N/A only when multistage_process=false.",
+      "rationale": "This is a single reactive stage process; multistage closure is not applicable under the rubric.",
+      "required_correction": "",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-10",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.case_context.authoritative_inventory",
+        "$.delivered_final_outcome.parameters",
+        "$.delivered_final_outcome.chemistry_and_operations.pre_reactor_steps",
+        "$.delivered_final_outcome.topology.mixer_type"
+      ],
+      "observed_values": [
+        "Pump flow 0.1 mL/min within 0.1-2.0 mL/min limit",
+        "MFC flow 10 sccm within 1-100 sccm limit",
+        "Mixer max total flow 5.0 mL/min; proposed combined flow well below limit",
+        "Reactor volume 3.0 mL, ID 4.35 mm, 60 C, 21 bar all within limits",
+        "BPR setpoint 21 bar matches available unit"
+      ],
+      "expected_or_correct": "All selected equipment must exist in inventory and proposed operating points must be within declared limits.",
+      "rationale": "The design uses only inventoried hardware and stays within stated pressure, flow, temperature, and connectivity limits.",
+      "required_correction": "",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-11",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.chemistry_and_operations.chemistry_notes",
+        "$.delivered_final_outcome.safety_controls",
+        "$.delivered_final_outcome.parameters.residence_time_basis",
+        "$.delivered_final_outcome.disposition_rationale"
+      ],
+      "observed_values": [
+        "Acknowledges void fraction unknown and mass-transfer uncertainty",
+        "States diphenylmethane byproduct expected soluble in methanol",
+        "Uses low liquid flow and modest gas flow in a 3 mL packed bed",
+        "Pressurized methanol/H2 system at 60 C, 21 bar"
+      ],
+      "expected_or_correct": "Phase behavior and transport assumptions should be physically plausible and supported at the proposed conditions.",
+      "rationale": "The proposed operating point is physically plausible for a first screening hydrogenation/hydrogenolysis run, and the candidate appropriately flags uncertainty. Minor defect: solubility and pressure-drop assumptions are qualitative rather than supported by data, but not obviously implausible at this scale.",
+      "required_correction": "Add a simple monitoring plan for pressure rise/plugging and note that byproduct solubility is an assumption to be confirmed during screening.",
+      "confidence": "MEDIUM"
+    },
+    {
+      "criterion_id": "UO-12",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.safety_controls",
+        "$.delivered_final_outcome.chemistry_and_operations.pre_reactor_steps",
+        "$.delivered_final_outcome.chemistry_and_operations.post_reactor_steps"
+      ],
+      "observed_values": [
+        "Hydrogen flammability recognized",
+        "Check valve specified",
+        "Safe vent specified",
+        "Grounded collector specified",
+        "N2 pressure test and purge specified",
+        "Pd(OH)2 catalyst pyrophoricity recognized",
+        "Slow depressurization and N2 purge before opening specified"
+      ],
+      "expected_or_correct": "Major chemistry- and equipment-specific hazards should be converted into concrete controls.",
+      "rationale": "The design identifies and operationalizes the key H2, methanol, pressure, and catalyst hazards with appropriate controls using available inventory.",
+      "required_correction": "",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-13",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.chemistry_and_operations.pre_reactor_steps",
+        "$.delivered_final_outcome.chemistry_and_operations.post_reactor_steps",
+        "$.delivered_final_outcome.disposition_rationale"
+      ],
+      "observed_values": [
+        "Includes feed prep, bed loading, assembly, pressure test, flush, heat-up, gas switch, sampling, wash, depressurization, N2 purge, and analysis",
+        "Steady-state defined as discarding 1.5 reactor volumes"
+      ],
+      "expected_or_correct": "Procedure and work-up should be reproducible, including startup, steady-state qualification, shutdown, quench/collection, and waste handling where required.",
+      "rationale": "The procedure is largely reconstructable and operationally useful. Minor defect: there is no explicit emergency shutdown sequence and waste handling is brief rather than fully specified.",
+      "required_correction": "Add an explicit emergency shutdown sequence and specify handling/disposal of catalyst-containing flushes and H2-saturated methanol waste.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-14",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.reported_disposition",
+        "$.delivered_final_outcome.disposition_rationale",
+        "$.delivered_final_outcome.parameters.engine_validated",
+        "$.delivered_final_outcome.evidence_and_reasoning.literature_analogies"
+      ],
+      "observed_values": [
+        "Disposition = SCREEN",
+        "Engine validated = false",
+        "Rationale acknowledges lower-than-batch residence time, unknown void fraction, mass-transfer uncertainty, and need for measurement",
+        "Literature analogies are presented as analogies rather than guarantees"
+      ],
+      "expected_or_correct": "Claims, assumptions, predictions, uncertainty, and disposition should be honest and proportionate; do not overclaim executability.",
+      "rationale": "The candidate calibrates uncertainty appropriately and does not overstate expected performance. SCREEN is an honest disposition for this evidence level.",
+      "required_correction": "",
+      "confidence": "HIGH"
+    }
+  ],
+  "overall_executability": "SCREEN_ONLY",
+  "cross_criterion_notes": [
+    "The design is broadly feasible with inventoried hardware and appropriate safety controls, but several bookkeeping and topology clarifications are needed before execution without supervision.",
+    "Most important revisions: correct the H2 equivalents field, make the gas-flow correction basis explicit, and relabel residence-time bases so nominal geometric V/Q is not conflated with liquid-holdup residence time.",
+    "Topology should be rewritten unambiguously for the vented separator and downstream vent/collection connections using only available inventory."
+  ]
+}

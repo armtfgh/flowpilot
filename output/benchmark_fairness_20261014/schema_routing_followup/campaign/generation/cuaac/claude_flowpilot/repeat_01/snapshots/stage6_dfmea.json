@@ -1,0 +1,42 @@
+{
+  "selected_candidate_id": 1,
+  "failure_modes": [
+    {
+      "rank": 1,
+      "mode": "Solvent flash / two-phase flow onset inside packed bed",
+      "cause": "Acetone vapour pressure at 150 °C is ~11.3 bar. If the 20 bar BPR partially blocks (fouling, particulate from Cu/C fines) or if the pressure drop across the packed bed is larger than the empty-tube proxy predicts (ΔP_model = 0.000 bar — an unresolved placeholder), local pressure upstream of the BPR could transiently drop below vapour pressure, causing flash vaporisation, two-phase slug flow, and loss of catalyst wetting.",
+      "severity": 9,
+      "likelihood": 5,
+      "RPN": 45,
+      "mitigation": "Install a 0–40 bar inline pressure transducer immediately upstream of the BPR. Set a software interlock to halt the pump if upstream pressure falls below 15 bar (≥3.7 bar margin above vapour pressure). Commission the packed bed with pure acetone at 150 °C before introducing azide; measure actual ΔP across the CatCart to replace the 0.000 bar placeholder."
+    },
+    {
+      "rank": 2,
+      "mode": "BPR blockage by Cu/C catalyst fines — single point of failure causing total flow stoppage",
+      "cause": "The Cu/C CatCart can shed fine carbon and copper particles. The only BPR in inventory (bpr_xcube_20, fixed 20 bar setpoint) has a narrow orifice susceptible to particulate plugging. A blocked BPR stops all downstream flow, causes pressure build-up to pump max (40 bar), and traps a stagnant hot benzyl azide solution in the reactor — a primary organic azide shock/thermal hazard.",
+      "severity": 9,
+      "likelihood": 5,
+      "RPN": 45,
+      "mitigation": "Install a 2 µm stainless steel inline frit between the CatCart outlet and the BPR inlet. Perform a pre-run blank solvent flush (pure acetone, 0.5 mL/min, 60 min, 150 °C, 20 bar) and collect effluent for gravimetric fines quantification before any azide is introduced. Establish a maximum allowable pressure alarm at 35 bar with automatic pump shutdown."
+    },
+    {
+      "rank": 3,
+      "mode": "Axial dispersion / CSTR-like behaviour causing incomplete conversion and azide breakthrough",
+      "cause": "The 4 mm ID CatCart gives an estimated Péclet number Pe ≈ 4 (significant axial dispersion; reactor behaves closer to a CSTR than a PFR). The expected conversion of 0.996 is computed from an unvalidated first-order kinetic proxy assuming plug flow. Under actual dispersed flow, effective conversion could be substantially lower, resulting in unreacted benzyl azide (a primary organic azide, shock-sensitive) in the product stream at concentrations that may exceed safe handling thresholds.",
+      "severity": 8,
+      "likelihood": 6,
+      "RPN": 48,
+      "mitigation": "Perform a residence time distribution (RTD) tracer experiment: inject a pulse of UV-active tracer (e.g., acetone/water with trace thiourea) at ambient temperature and 20 bar, measure outlet absorbance vs. time to determine actual mean residence time and Bodenstein number before any azide chemistry. If Bo < 10, extend τ by reducing Q to 0.2 mL/min (τ = 1.5 min) for the first reactive screen. Confirm conversion by inline or offline HPLC/TLC before declaring the run complete."
+    }
+  ],
+  "single_points_of_failure": [
+    "BPR valve (bpr_xcube_20) — the sole pressure-control device; blockage by Cu/C fines stops all flow and traps hot benzyl azide solution under stagnant conditions",
+    "pump_xcube_hplc — single pump; failure drops system pressure below acetone vapour pressure at 150 °C, causing immediate flash",
+    "Cu/C CatCart (reactor_cuc_cart_030) — no bypass or parallel reactor; catalyst deactivation or bed collapse terminates the experiment with no alternative flow path"
+  ],
+  "validation_experiments": [
+    "Pre-run hydraulic commissioning: flow pure acetone at Q = 0.5 mL/min through the Cu/C CatCart at 150 °C and 20 bar BPR for 60 min. Record upstream pressure every 30 s. Flag any drift > 5% from steady-state as evidence of fines migration or BPR partial blockage. Collect effluent; filter through 0.2 µm membrane and weigh retained solids to quantify fines shedding rate. This replaces the 0.000 bar ΔP placeholder with a measured value.",
+    "RTD tracer experiment at ambient temperature: inject a 10 µL pulse of 1 mM thiourea in acetone into the CatCart at Q = 0.5 mL/min, 20 bar, 25 °C. Monitor UV absorbance (at 270 nm) at the outlet to construct the E(t) curve. Calculate mean residence time (compare to nominal 0.6 min) and Bodenstein number. If Bo < 10, increase τ to ≥ 1.5 min (Q ≤ 0.2 mL/min) before reactive runs to ensure conversion is not dispersion-limited.",
+    "Low-concentration reactive screen with conversion verification: after passing experiments 1 and 2, run benzyl azide (0.25 M) + phenylacetylene (0.275 M) in acetone at Q = 0.5 mL/min, 150 °C, 20 bar for a minimum of 5 residence times (≥ 3 min) to reach steady state. Collect a 0.5 mL steady-state fraction; quench immediately by dilution into cold acetone (1:10). Analyse by HPLC or TLC for triazole product and residual azide. Simultaneously submit effluent to ICP-MS for Cu leaching quantification. Accept the run only if residual benzyl azide < 0.5 mol% (conversion > 99.5%) and Cu < 10 ppm in product stream."
+  ]
+}

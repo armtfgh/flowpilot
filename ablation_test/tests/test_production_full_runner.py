@@ -50,10 +50,16 @@ def test_full_variant_calls_shared_production_entry_point(monkeypatch, tmp_path)
         seed=20260813,
     )
 
-    assert captured["batch_input"] == case.design_input_text
+    assert captured["batch_input"] == case.protocol
     assert Path(captured["inventory_path"]).name == "input_inventory.json"
     assert captured["runtime"].candidate_budget == 3
-    assert captured["intake_package"] is None
+    package = captured["intake_package"]
+    assert package["raw_protocol"] == case.protocol
+    assert package["objective"] == case.objective
+    assert package["inventory_constraints"] == case.inventory
+    assert package["operating_limits"] == list(case.hard_constraints)
+    assert package["chemistry_identity_confirmation"] == {}
+    assert not any(answer["question_id"] == "Q-CHEM-001" for answer in package["answers"])
     assert captured["runtime"].retrieval_mode == "lexical"
     assert captured["runtime"].exclude_record_ids == {
         "held_out.pdf",

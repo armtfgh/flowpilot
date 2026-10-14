@@ -30,6 +30,11 @@ from flora_translate.residence_time_basis import (
     gas_time_basis_consistent,
 )
 from flora_translate.topology_semantics import topology_semantic_issues
+from flora_translate.source_component_aliases import collapse_source_alias_components, source_alias_conflicts
+from flora_translate.protocol_input import extract_protocol_text
+from flora_translate.protocol_identity import (
+    infer_protocol_identity, plan_identity_issues, protocol_label_text,
+)
 
 
 QUANTIFIED_ROLES = {
@@ -90,6 +95,10 @@ def artifact_semantic_issues(
 ) -> list[dict[str, str]]:
     issues: list[dict[str, str]] = []
     identity = bundle.chemistry_identity
+    for message in source_alias_conflicts(bundle.stream_components):
+        issues.append({"code": "FINAL-COMPONENT-DESCRIPTIONS-CONFLICT", "message": message})
+    for message in identity.validation_issues:
+        issues.append({"code": "FINAL-CHEMISTRY-IDENTITY-DRIFT", "message": message})
     if (
         identity.protocol_transformation_family != "unknown"
         and identity.transformation_family != "unknown"
@@ -113,9 +122,10 @@ def artifact_semantic_issues(
             {
                 "code": "FINAL-CHEMISTRY-IDENTITY-UNCONFIRMED",
                 "message": (
-                    "The protocol does not state a recognized transformation family "
-                    "and no chemist-confirmed chemistry identity was supplied. Model "
-                    "inference alone cannot authorize an executable design."
+                    "The original protocol does not provide an unambiguous named "
+                    "transformation or supported reactant-to-product evidence, and "
+                    "no applicable chemist confirmation was supplied. Clarify the "
+                    "starting material and intended product before executable release."
                 ),
             }
         )
@@ -288,8 +298,10 @@ def canonical_sha256(payload: dict[str, Any]) -> str:
 def _chemistry_identity(result: dict[str, Any]) -> ExecutableChemistryIdentity:
     batch = result.get("batch_record") or {}
     plan = result.get("chemistry_plan") or {}
-    raw_protocol = str(batch.get("raw_text") or "")
-    protocol = raw_protocol or str(batch.get("reaction_description") or "")
+    # Never accept model-written reaction_description or inventory names as
+    # protocol authority. Legacy composite inputs are split at their boundaries.
+    raw_protocol = extract_protocol_text(str(batch.get("raw_text") or ""))
+    protocol = raw_protocol
     intake = result.get("intake_package") or {}
     confirmation = dict(intake.get("chemistry_identity_confirmation") or {})
     chemist_description = str(confirmation.get("chemist_description") or "").strip()
@@ -307,7 +319,16 @@ def _chemistry_identity(result: dict[str, Any]) -> ExecutableChemistryIdentity:
             if part
         )
     )
-    protocol_family = transformation_family(raw_protocol)
+    protocol_family = transformation_family(protocol_label_text(raw_protocol))
+    evidence = infer_protocol_identity(raw_protocol)
+    identity_issues = plan_identity_issues(evidence, plan) if evidence else []
+    if evidence and protocol_family != "unknown" and not _compatible_transformation_families(
+        protocol_family, evidence.family
+    ):
+        identity_issues.append(
+            f"Protocol label {protocol_family!r} conflicts with its documented "
+            f"reactant-to-product evidence {evidence.family!r}; clarification is required."
+        )
     plan_text = " ".join(
         str(plan.get(key) or "")
         for key in ("reaction_name", "reaction_class", "mechanism_type")
@@ -319,7 +340,11 @@ def _chemistry_identity(result: dict[str, Any]) -> ExecutableChemistryIdentity:
             raw_protocol,
         )
     )
-    if protocol_family != "unknown" and (
+    if evidence and protocol_family == "unknown" and not multistep_protocol:
+        authority_source = "protocol_evidence"
+        authoritative_family = evidence.family
+        confirmed = True
+    elif protocol_family != "unknown" and (
         not multistep_protocol
         or plan_family == protocol_family
         or _compatible_transformation_families(protocol_family, plan_family)
@@ -359,6 +384,9 @@ def _chemistry_identity(result: dict[str, Any]) -> ExecutableChemistryIdentity:
         chemistry_plan_sha256=canonical_sha256(plan),
         authority_source=authority_source,
         confirmed=confirmed,
+        evidence_rule=evidence.rule if evidence else "",
+        source_evidence=list(evidence.source_evidence) if evidence else [],
+        validation_issues=identity_issues,
     )
 
 
@@ -473,6 +501,9 @@ def _stream_components(
                 )
             )
         _infer_component_concentrations(output[component_start:], stream)
+        output[component_start:] = collapse_source_alias_components(
+            output[component_start:], extract_protocol_text(str((result.get("batch_record") or {}).get("raw_text") or "")),
+        )
     return output
 
 
@@ -687,15 +718,22 @@ def _operating_procedure(
 ) -> list[ExecutableProcedureStep]:
     steps: list[ExecutableProcedureStep] = []
     inventory = result.get("inventory_snapshot") or {}
+    schedule = _initial_run_schedule(process_graph, parameters)
     feed_by_label = {item.stream_label: item for item in process_graph.feeds}
     for stream in streams:
         label = str(stream.get("stream_label") or "?")
         feed = feed_by_label.get(label)
         stream_components = [item for item in components if item.stream_label == label]
+        stock_requirement = (
+            _feed_stock_requirement(feed.flow_rate_mL_min, schedule)
+            if feed and feed.phase != "gas"
+            else None
+        )
         recipe = _stream_preparation_instruction(
             stream,
             stream_components,
             parameters=parameters,
+            stock_requirement=stock_requirement,
         )
         steps.append(
             _step(
@@ -705,8 +743,9 @@ def _operating_procedure(
                 equipment_ids=[feed.equipment_id] if feed else [],
                 parameter_bindings={
                     "stream_label": label,
-                    "flow_rate_mL_min": stream.get("flow_rate_mL_min"),
+                    "flow_rate_mL_min": feed.flow_rate_mL_min if feed else stream.get("flow_rate_mL_min"),
                     "gas_flow_sccm": stream.get("gas_flow_sccm"),
+                    **(stock_requirement or {}),
                 },
             )
         )
@@ -722,6 +761,13 @@ def _operating_procedure(
         steps.append(_step("H2-IGNITION-CONTROL", "setup", "Confirm grounded ventilation is active and ignition sources are excluded."))
     for requirement in requirements:
         control_id = requirement["control_id"]
+        # These controls have concrete, ordered instructions below. Inserting
+        # generic fallbacks here would cause deduplication to discard them.
+        if control_id in {
+            "H2-SHUTDOWN", "PRESSURE-DEPRESSURIZE",
+            "GENERAL-EMERGENCY-STOP", "GENERAL-WASTE",
+        }:
+            continue
         if any(item.step_id == control_id for item in steps):
             continue
         section = _control_section(control_id)
@@ -752,16 +798,18 @@ def _operating_procedure(
             "and vent checks are stable."
         )
     steps.append(_step("START-FEEDS", "startup", start_instruction, equipment_ids=[item.equipment_id for item in process_graph.feeds], parameter_bindings=feed_settings))
-    tau = float(parameters.get("residence_time_min") or process_graph.total_residence_time_min)
-    timing_reference = max(tau, sum(s.reactor_volume_mL for s in process_graph.stages) / process_graph.total_liquid_flow_mL_min)
-    steps.append(_step("STEADY-STATE", "steady_state", f"Allow an initial commissioning interval of at least {3*timing_reference:.3g} min, based on three nominal liquid-volume turnovers. Confirm steady outlet composition and stable flow, pressure and temperature before collection; elapsed time alone does not establish steady state. Measure phase holdup or tracer response when gas or a packed bed is present.", equipment_ids=process_equipment, parameter_bindings={"residence_time_min": tau, "minimum_initial_stabilization_time_min": 3*timing_reference, "timing_reference_min": timing_reference, "steady_state_requires_measurement": True, "residence_time_basis": parameters.get("residence_time_basis_detail") or parameters.get("residence_time_basis")}))
+    if "high_intensity_light" in hazards:
+        steps.append(_step("PHOTO-LIGHT-ON", "startup", "Once the declared liquid and gas feeds, temperature and pressure are stable, close and verify the light enclosure and enable the assigned irradiation source at the final design settings. Begin the commissioning interval only after irradiation is established.", equipment_ids=_light_equipment_ids(process_graph), parameter_bindings={"wavelength_nm": parameters.get("wavelength_nm")}))
+    tau = schedule["residence_time_min"]
+    timing_reference = schedule["timing_reference_min"]
+    steps.append(_step("STEADY-STATE", "steady_state", f"Allow an initial commissioning interval of at least {schedule['minimum_initial_stabilization_time_min']:.3g} min, using three times the larger of the declared total reactor-time index and the sum of stage volume divided by local liquid flow. Confirm steady outlet composition and stable flow, pressure and temperature before collection; elapsed time alone does not establish steady state. Measure phase holdup or tracer response when gas or a packed bed is present. Budget additional feed for any extension before starting the run.", equipment_ids=process_equipment, parameter_bindings={"residence_time_min": tau, "minimum_initial_stabilization_time_min": schedule["minimum_initial_stabilization_time_min"], "nominal_stage_liquid_volume_time_sum_min": schedule["nominal_stage_liquid_volume_time_sum_min"], "timing_reference_min": timing_reference, "steady_state_requires_measurement": True, "residence_time_basis": parameters.get("residence_time_basis_detail") or parameters.get("residence_time_basis")}))
     collection_ids = [
         str(item.inventory_item_id)
         for item in process_graph.topology.unit_operations
         if item.inventory_item_id
         and item.op_type.lower() in {"collector", "collection_vessel", "phase_separator", "separator"}
     ]
-    steps.append(_step("COLLECT-PRODUCT", "collection", f"After measured steady state, collect a timed fraction over at least {timing_reference:.3g} min as an initial sampling interval; record exact start/end times and collected mass or volume. Extend collection if needed for the analytical method.", equipment_ids=collection_ids, parameter_bindings={"minimum_initial_collection_time_min": timing_reference}))
+    steps.append(_step("COLLECT-PRODUCT", "collection", f"After measured steady state, collect a timed fraction over at least {schedule['minimum_initial_collection_time_min']:.3g} min as an initial sampling interval; record exact start/end times and collected mass or volume. Extend collection if needed for the analytical method, with feed stocks scaled to the revised duration.", equipment_ids=collection_ids, parameter_bindings={"minimum_initial_collection_time_min": schedule["minimum_initial_collection_time_min"]}))
     steps.append(
         _step(
             "COLLECT-ANALYZE-WORKUP",
@@ -770,14 +818,101 @@ def _operating_procedure(
             equipment_ids=collection_ids,
         )
     )
+    if "high_intensity_light" in hazards:
+        steps.append(_step("PHOTO-LIGHT-OFF", "shutdown", "Disable irradiation before flushing or opening the light enclosure; maintain the required cooling and containment during shutdown.", equipment_ids=_light_equipment_ids(process_graph)))
     if "flammable_hydrogen" in hazards:
-        steps.append(_step("H2-SHUTDOWN", "shutdown", "Stop hydrogen first, continue the declared inert purge to displace residual hydrogen, then stop liquid feeds and flush with compatible solvent."))
+        steps.append(_step("H2-SHUTDOWN", "shutdown", "Isolate hydrogen first, then re-establish the inventory-declared inert purge using the laboratory-approved switching and verification procedure to displace residual hydrogen. Stop reactive liquid feeds and flush with compatible solvent while maintaining the required purge and cooling."))
     steps.append(_step("NORMAL-SHUTDOWN", "shutdown", "Stop reactive feeds, flush each compatible line, cool the reactor to a safe handling temperature, and isolate energy sources."))
     if "pressurized_operation" in hazards:
         steps.append(_step("PRESSURE-DEPRESSURIZE", "shutdown", "Depressurize only through the controlled outlet while monitoring the pressure indicator; verify zero pressure before opening any fitting.", parameter_bindings={"BPR_bar": parameters.get("BPR_bar")}))
     steps.append(_step("GENERAL-EMERGENCY-STOP", "emergency", "On leak, blockage, pressure excursion, or temperature excursion: stop reactive feeds and energy input, maintain only the hazard-appropriate purge/cooling path, isolate sources, and follow the laboratory emergency plan."))
     steps.append(_step("GENERAL-WASTE", "waste", "Collect product, flush, quench, and vent-associated waste in separately labeled containers compatible with the declared hazards; do not combine incompatible waste streams."))
     return _deduplicate_steps(steps)
+
+
+def _initial_run_schedule(
+    process_graph: ExecutableProcessGraph, parameters: dict[str, Any]
+) -> dict[str, float]:
+    """One shared schedule for timing instructions and minimum feed inventories."""
+
+    tau = float(parameters.get("residence_time_min") or process_graph.total_residence_time_min)
+    liquid_time = sum(
+        stage.reactor_volume_mL / _stage_liquid_flow(process_graph, stage.reactor_operation_id)
+        for stage in process_graph.stages
+    )
+    timing_reference = max(tau, liquid_time)
+    return {
+        "residence_time_min": tau,
+        "nominal_stage_liquid_volume_time_sum_min": liquid_time,
+        "timing_reference_min": timing_reference,
+        "minimum_initial_stabilization_time_min": 3 * timing_reference,
+        "minimum_initial_collection_time_min": timing_reference,
+        "minimum_scheduled_feed_duration_min": 4 * timing_reference,
+    }
+
+
+def _stage_liquid_flow(process_graph: ExecutableProcessGraph, operation_id: str) -> float:
+    """Use the local stage flow; outlet flow can include later-added feeds."""
+
+    operations = {op.op_id: op for op in process_graph.topology.unit_operations}
+    explicit = operations[operation_id].parameters.get("Q_liquid_mL_min")
+    if explicit is not None:
+        value = float(explicit)
+        if math.isfinite(value) and value > 0:
+            return value
+        raise ValueError(f"Invalid local liquid flow for reactor {operation_id}")
+
+    # Older graphs may omit Q_liquid on the reactor. Recover it from connected
+    # feed edges only when no upstream split makes their allocation ambiguous.
+    incoming: dict[str, list[str]] = {}
+    outgoing: dict[str, list[str]] = {}
+    for edge in process_graph.topology.streams:
+        incoming.setdefault(edge.to_op, []).append(edge.from_op)
+        outgoing.setdefault(edge.from_op, []).append(edge.to_op)
+    ancestors: set[str] = set()
+    pending = list(incoming.get(operation_id, []))
+    while pending:
+        node = pending.pop()
+        if node in ancestors:
+            continue
+        ancestors.add(node)
+        pending.extend(incoming.get(node, []))
+    if any(len(set(outgoing.get(node, []))) > 1 for node in ancestors):
+        raise ValueError(f"Local liquid flow for reactor {operation_id} requires a resolved split allocation")
+    flow = sum(
+        feed.flow_rate_mL_min or 0
+        for feed in process_graph.feeds
+        if feed.phase != "gas" and feed.operation_id in ancestors
+    )
+    if flow <= 0:
+        raise ValueError(f"Local liquid flow for reactor {operation_id} is unresolved")
+    return flow
+
+
+def _feed_stock_requirement(
+    flow_mL_min: float, schedule: dict[str, float]
+) -> dict[str, Any]:
+    """A lower bound, not an assertion about available stock or dead volume."""
+
+    minimum_mL = flow_mL_min * schedule["minimum_scheduled_feed_duration_min"]
+    return {
+        "minimum_scheduled_feed_duration_min": schedule["minimum_scheduled_feed_duration_min"],
+        "minimum_feed_stock_volume_mL": minimum_mL,
+        "recipe_basis_volume_mL": minimum_mL,
+        "minimum_stock_basis": "continuous feed during commissioning plus initial collection",
+        "additional_feed_volume_mL": None,
+        "additional_feed_volume_requires_measurement": True,
+        "stock_availability_confirmed": False,
+    }
+
+
+def _light_equipment_ids(process_graph: ExecutableProcessGraph) -> list[str]:
+    return sorted({
+        str(item.inventory_item_id)
+        for item in process_graph.topology.unit_operations
+        if item.inventory_item_id
+        and any(token in item.op_type.lower() for token in ("light", "led", "irradiat", "photo"))
+    })
 
 
 def _safety_contract(
@@ -926,6 +1061,7 @@ def _stream_preparation_instruction(
     components: list[CanonicalStreamComponent],
     *,
     parameters: dict[str, Any],
+    stock_requirement: dict[str, Any] | None = None,
 ) -> str:
     """Create an exact-volume stock recipe without inventing MW or density."""
 
@@ -939,10 +1075,13 @@ def _stream_preparation_instruction(
             "STP basis (273.15 K, 1.01325 bar; 22.414 L/mol); no liquid stock is prepared."
         )
 
-    tau = float(parameters.get("residence_time_min") or 0.0)
-    flow = float(stream.get("flow_rate_mL_min") or 0.0)
-    needed = max(10.0, 4.5 * tau * flow)
-    basis_mL = math.ceil(needed / 5.0) * 5.0
+    # Production compilation supplies the final schedule. The standalone
+    # 10 mL basis remains an illustrative scalable recipe, never a run budget.
+    basis_mL = (
+        float(stock_requirement["recipe_basis_volume_mL"])
+        if stock_requirement is not None
+        else 10.0
+    )
     quantities = []
     pending = []
     for component in components:
@@ -965,6 +1104,22 @@ def _stream_preparation_instruction(
         f"to {basis_mL:g} mL total. Convert mmol to weighed/dispensed amount using "
         "the verified reagent MW, assay, and density recorded at preparation."
     )
+    if stock_requirement is not None:
+        instruction += (
+            f" The {basis_mL:g} mL basis is only the minimum consumed at the final "
+            f"feed rate during {stock_requirement['minimum_scheduled_feed_duration_min']:g} min "
+            "of commissioning and initial collection. Before preparation, add measured "
+            "feed-line displacement, pump/reservoir hold-up and any extra startup or "
+            "collection allowance. For an added duration, add this stream's flow rate "
+            "multiplied by the extra minutes. Scale every solute amount and final solvent "
+            "volume by the same factor to retain concentrations and reagent ratios. "
+            "Confirm sufficient reagent availability and container capacity; no dead-volume "
+            "allowance or available stock has been assumed. Provide priming and shutdown "
+            "solvent separately. This schedule assumes continuous feeding; a finite sample-loop "
+            "injection requires a separately specified loading and collection schedule."
+        )
+    else:
+        instruction += " This illustrative recipe basis must be scaled to a separately verified run schedule."
     if pending:
         instruction = (
             "DRAFT ONLY: confirm the identity, assay, and quantity of "

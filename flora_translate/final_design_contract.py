@@ -197,12 +197,32 @@ def build_final_design_contract(result: dict[str, Any]) -> dict[str, Any]:
         or allocation.get("instrument_manifest")
         or []
     )
-    artifacts = compile_executable_artifacts(
-        result,
-        process_graph=process_graph,
-        parameters=parameters,
-        streams=streams,
-    )
+    try:
+        artifacts = compile_executable_artifacts(
+            result,
+            process_graph=process_graph,
+            parameters=parameters,
+            streams=streams,
+        )
+    except (ValueError, TypeError) as exc:
+        # An unresolved procedure input must prevent release, not crash the
+        # workflow or acquire an invented numeric default.
+        issues.append({
+            "code": "FINAL-PROCEDURE-COMPILATION-FAILED",
+            "message": str(exc),
+        })
+        contract["status"] = "blocked"
+        contract["consistency"]["issues"] = _deduplicate_issues(issues)
+        contract["consistency"]["passed"] = False
+        contract["consistency"]["semantic_checks"] = _semantic_checks(issues)
+        contract["diagnostic"]["procedure_compilation_error"] = {
+            "type": type(exc).__name__, "message": str(exc),
+        }
+        contract["diagnostic"]["message"] = (
+            "The final procedure could not be compiled from the realized design. "
+            "Resolve the recorded input error before executable release."
+        )
+        return contract
     issues.extend(
         artifact_semantic_issues(
             result,
@@ -247,6 +267,18 @@ def build_final_design_contract(result: dict[str, Any]) -> dict[str, Any]:
             "operating_procedure": artifact_payload["operating_procedure"],
             "validation_experiments": artifact_payload["validation_experiments"],
         }
+    )
+    from flora_translate.final_rationale import build_final_rationale
+
+    current_rationale, rationale_history = build_final_rationale(
+        proposal, parameters, streams, stages,
+    )
+    contract["decision_rationale"] = current_rationale
+    contract["rationale_history"] = rationale_history
+    contract["artifact_provenance"]["rationale_authority"] = (
+        "Current arithmetic is independently recalculated from final settings; "
+        "original scientific statements and superseded calculations are retained "
+        "without treating parameter agreement as scientific validation."
     )
     contract["intensification"] = _intensification_summary(
         calculations=calculations,

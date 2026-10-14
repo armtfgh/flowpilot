@@ -18,6 +18,7 @@ import flora_translate.config as cfg
 from flora_translate.config import PROMPTS_DIR
 from flora_translate.engine.llm_agents import call_model_text
 from flora_translate.executable_artifacts import transformation_family
+from flora_translate.protocol_input import extract_protocol_text
 from flora_translate.schemas import (
     ChemistryPlan,
     DesignInputPackage,
@@ -363,11 +364,12 @@ def batch_input_from_package(package: DesignInputPackage | dict) -> str | dict:
     pkg = _coerce_package(package)
     fields = dict(pkg.extracted_batch_fields or {})
     if fields:
-        fields.setdefault("raw_text", pkg.raw_protocol)
+        # Extracted/model-produced text must not replace the supplied protocol.
+        fields["raw_text"] = extract_protocol_text(pkg.raw_protocol or fields)
         if pkg.raw_protocol and not fields.get("reaction_description"):
             fields["reaction_description"] = pkg.raw_protocol[:500]
         return fields
-    return pkg.raw_protocol
+    return extract_protocol_text(pkg.raw_protocol)
 
 
 def historical_text_from_package(package: DesignInputPackage | dict | None) -> str:

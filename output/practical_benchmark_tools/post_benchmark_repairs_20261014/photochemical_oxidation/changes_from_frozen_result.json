@@ -1,0 +1,3189 @@
+[
+  {
+    "path": "$.artifact_provenance.canonical_sha256",
+    "before": "0082fba501e7ef5889060fc1364f7a276b6e49c95f72a2080c188d8fb8f3ded9",
+    "after": "f061fba5d24a66fda7932e773780c9a29ead3fbd594f257b0037a51c75e5ffd7"
+  },
+  {
+    "path": "$.canonical_design_sha256",
+    "before": "0082fba501e7ef5889060fc1364f7a276b6e49c95f72a2080c188d8fb8f3ded9",
+    "after": "f061fba5d24a66fda7932e773780c9a29ead3fbd594f257b0037a51c75e5ffd7"
+  },
+  {
+    "path": "$.design_calculations.residence_time_range_min",
+    "before": [
+      0.14,
+      0.21
+    ],
+    "after": [
+      0.14,
+      0.21
+    ]
+  },
+  {
+    "path": "$.design_calculations.space_time_yield_mol_L_h",
+    "before": 34.9412,
+    "after": 2.97
+  },
+  {
+    "path": "$.design_calculations.steps",
+    "before": [
+      {
+        "step": 1,
+        "name": "Batch Conditions",
+        "status": "PASS",
+        "summary": "T = 21 °C, C₀ = 0.1 M, t_batch = 0.1 h (300 s), X = 0.99",
+        "values": {
+          "T_C": 21.0,
+          "T_K": 294.15,
+          "C_M": 0.1,
+          "t_batch_h": 0.0833,
+          "t_batch_s": 299.88,
+          "X": 0.99
+        },
+        "equations": [],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 2,
+        "name": "Kinetics & Residence Time",
+        "status": "PASS",
+        "summary": "τ = 0.2 min (council-approved — not re-derived from kinetics). Implied IF = 29× vs batch.",
+        "values": {
+          "tau_primary_min": 0.17134,
+          "method": "council-approved",
+          "IF_implied": 29.2,
+          "IF_class": 6.0,
+          "k_flow": 0.447956323293655
+        },
+        "equations": [],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "τ set by ENGINE council — kinetics estimation bypassed"
+        ]
+      },
+      {
+        "step": 3,
+        "name": "Reactor Sizing",
+        "status": "WARNING",
+        "summary": "V_R = 1.00 mL, d = 1.00 mm, L = 1.27 m, Pe = 2 (⚠ axial dispersion)",
+        "values": {
+          "V_R_mL": 1.0000023478058582,
+          "liquid_holdup_mL": 0.2562943744993503,
+          "gas_holdup": 0.7437,
+          "d_mm": 1.0,
+          "L_m": 1.2732425340544247,
+          "Q_mL_min": 0.5,
+          "v_m_s": 0.04139909223985109,
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_inlet_min": 0.1713,
+          "residence_time_in_channel_min": 0.5126,
+          "Pe": 2.0,
+          "Pe_adequate": false
+        },
+        "equations": [
+          "V_R = t_{inlet} \\times (Q_L + Q_{g,STP}) = 0.17 \\times (0.5000 + 5.3364) = 1.00\\;\\mathrm{mL}",
+          "Q_{g,actual} = Q_{g,STP}\\frac{T}{T_{STP}}\\frac{P_{STP}}{P} = 1.4509\\;\\mathrm{mL/min}",
+          "t_{in-channel} = \\frac{V_R}{Q_L + Q_{g,actual}} = 0.51\\;\\mathrm{min}",
+          "\\varepsilon_g = \\frac{Q_{g,actual}}{Q_{g,actual}+Q_L} = 0.744",
+          "L = \\frac{4\\,V_R}{\\pi\\,d^2} = 1.27\\;\\mathrm{m}",
+          "Pe = \\frac{192\\,\\tau\\,D_{\\mathrm{mol}}}{d^2} = \\frac{192 \\times 10.3 \\times 1e-09}{0.0010^2} = 2\\;\\mathbf{WARNING}"
+        ],
+        "warnings": [
+          "Pe = 2 < 100 — significant axial dispersion. Reactor behaves closer to CSTR than PFR. Reduce d (smaller d → higher Pe) or accept lower conversion efficiency."
+        ],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 4,
+        "name": "Fluid Dynamics",
+        "status": "PASS",
+        "summary": "Re = 22.5 (laminar), v = 0.0414 m/s",
+        "values": {
+          "Re": 22.539781129771125,
+          "regime": "laminar",
+          "v_m_s": 0.04139909223985109,
+          "mu_Pa_s": 0.00037,
+          "rho_kg_m3": 786.0,
+          "mu_cP": 0.37,
+          "rho_g_mL": 0.786
+        },
+        "equations": [
+          "v = \\frac{4\\,Q}{\\pi\\,d^2} = \\frac{4 \\times 8.333e-09}{\\pi \\times (0.0010)^2} = 0.0414\\;\\mathrm{m/s}",
+          "Re = \\frac{\\rho\\,v\\,d}{\\mu} = \\frac{786 \\times 0.0414 \\times 0.0010}{3.7000e-04} = 22.5"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 5,
+        "name": "Pressure Drop",
+        "status": "PASS",
+        "summary": "ΔP = 0.0192 bar (pump max = 10 bar, margin = 100 %)",
+        "values": {
+          "dP_bar": 0.019194330093659298,
+          "dP_Pa": 1919.4330093659296,
+          "pump_max_bar": 10.0,
+          "margin_pct": 99.80805669906341
+        },
+        "equations": [
+          "\\Delta P = \\frac{128\\,\\mu\\,L\\,Q}{\\pi\\,d^4} = \\frac{128 \\times 3.7000e-04 \\times 1.27 \\times 8.333e-09}{\\pi \\times (0.0010)^4} \\times \\phi^2_{2p} = 0.0192\\;\\mathrm{bar}",
+          "\\phi^2_{2p} = 1 + 12\\varepsilon_g + 25\\varepsilon_g^2 = 12.00"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 6,
+        "name": "Mass Transfer",
+        "status": "WARNING",
+        "summary": "t_mix = 101.3 s, Da = 447.956 — Mass-transfer limited — mixing is the bottleneck",
+        "values": {
+          "t_mix_s": 101.32118364233777,
+          "Da_mass": 447.9563232936549,
+          "D_m2_s": 1e-09,
+          "interpretation": "Mass-transfer limited — mixing is the bottleneck",
+          "gas_species": "air",
+          "gas_flow_sccm": 5.3364,
+          "gas_flow_actual_mL_min": 1.4509,
+          "gas_pressure_abs_bar": 4.0133,
+          "gas_liquid_ratio": 2.9018,
+          "gas_holdup": 0.7437,
+          "o2_supply_mmol_min": 0.05,
+          "o2_required_mmol_min": 0.05,
+          "gas_supply_mmol_min": 0.05,
+          "gas_required_mmol_min": 0.05,
+          "target_gas_equiv_inlet": 1.0,
+          "explicit_gas_equiv_inlet": 1.0,
+          "o2_equiv_supplied": 1.0,
+          "gas_equiv_supplied": 1.0,
+          "gas_flow_recomputed_from_equiv": false,
+          "dissolved_o2_mM": 5.2172,
+          "kLa_s": 0.2803,
+          "o2_transfer_capacity_mmol_min": 0.022312,
+          "o2_transfer_sufficiency": 0.4462
+        },
+        "equations": [
+          "t_{\\mathrm{mix}} \\approx \\frac{d^2}{D \\cdot \\pi^2} = \\frac{(0.0010)^2}{1.0e-09 \\times \\pi^2} = 101.3\\;\\mathrm{s}",
+          "Da = \\frac{k \\cdot d^2}{D} = \\frac{4.480e-01 \\times (0.0010)^2}{1.0e-09} = 447.956",
+          "Q_{g,\\mathrm{actual}} = Q_{g,\\mathrm{STP}}\\frac{T}{T_{STP}}\\frac{P_{STP}}{P} = 1.451\\;\\mathrm{mL/min}",
+          "C^*_{O2} \\approx 1.3\\;\\mathrm{mM}\\times\\frac{P_{O2}}{0.21\\;\\mathrm{bar}} = 5.22\\;\\mathrm{mM}",
+          "\\dot n_{O2,transfer} = k_La C^* V_L = 0.0223\\;\\mathrm{mmol/min}"
+        ],
+        "warnings": [
+          "Da = 448.0 ≫ 1: severely mass-transfer limited. Need micromixer, smaller d, or pre-mixed streams.",
+          "Estimated O2 transfer sufficiency = 0.45× reaction demand; increase gas pressure, gas/liquid interface, or residence time."
+        ],
+        "adjustments": [],
+        "assumptions": [
+          "D = 1e-09 m²/s (typical for small organic molecules in liquid)",
+          "Gas holdup estimated from actual reactor gas/liquid volumetric ratio.",
+          "O2 solubility uses a water/ethanol-scale Henry-law approximation; validate experimentally for final scale-up.",
+          "kLa is a conservative capillary slug-flow estimate tied to gas holdup."
+        ]
+      },
+      {
+        "step": 7,
+        "name": "Heat Transfer",
+        "status": "PASS",
+        "summary": "Q_gen = 0.5741 W, Q_rem = 11.9996 W, Da_th = 0.0478 — Thermally safe",
+        "values": {
+          "Q_gen_W": 0.5740560283008188,
+          "Q_rem_W": 11.999627299651577,
+          "Da_th": 0.047839488174560824,
+          "S_V_m_inv": 4000.0,
+          "U_W_m2K": 300,
+          "A_wall_m2": 0.003999875766550525,
+          "UA_W_K": 1.199963,
+          "heat_transfer_score": 1.0,
+          "dH_J_mol": -50000,
+          "dT_lm_C": 10.0,
+          "r_mol_m3_s": 44.795632329365496
+        },
+        "equations": [
+          "\\dot{Q}_{\\mathrm{rxn}} = |\\Delta H_r| \\cdot r \\cdot V_R = 50000 \\times 44.796 \\times 2.563e-07 = 0.5741\\;\\mathrm{W}",
+          "A_{\\mathrm{wall}} = \\pi\\,d\\,L = \\pi \\times 0.0010 \\times 1.27 = 0.00400\\;\\mathrm{m^2}",
+          "\\dot{Q}_{\\mathrm{rem}} = U \\cdot A \\cdot \\Delta T_{\\mathrm{lm}} = 300 \\times 0.00400 \\times 10 = 11.9996\\;\\mathrm{W}",
+          "Da_{\\mathrm{th}} = \\frac{\\dot{Q}_{\\mathrm{rxn}}}{\\dot{Q}_{\\mathrm{rem}}} = \\frac{0.5741}{11.9996} = 0.0478",
+          "\\frac{S}{V} = \\frac{4}{d} = \\frac{4}{0.0010} = 4000\\;\\mathrm{m^{-1}}"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "ΔH_r ≈ -50 kJ/mol (estimated for photoredox)",
+          "U ≈ 300 W/m²·K (coil in temperature-controlled bath)",
+          "ΔT_lm ≈ 10.0 °C (conservative estimate)"
+        ]
+      },
+      {
+        "step": 8,
+        "name": "Back-Pressure Regulator",
+        "status": "PASS",
+        "summary": "BPR REQUIRED: 3.0 bar (Gas-liquid system detected — BPR mandatory to maintain gas solubility (Henry's law: C_gas = H·P) and prevent uncontrolled degassing.)",
+        "values": {
+          "bpr_required": true,
+          "bpr_bar": 3.0,
+          "P_vapor_bar": 0.04228791242289945,
+          "dP_system_bar": 0.019194,
+          "solvent_bp_C": 82,
+          "gas_liquid": true,
+          "gas_species": "air",
+          "gas_pressure_abs_bar": 4.0133,
+          "gas_flow_sccm": 5.3364,
+          "dissolved_o2_mM": 5.2172
+        },
+        "equations": [
+          "C_{\\mathrm{gas}} = H \\cdot P_{\\mathrm{partial}}\\quad\\text{(higher BPR} \\Rightarrow \\text{more dissolved gas)}",
+          "P_{\\mathrm{BPR}} \\geq \\max\\left(P_{\\mathrm{vap}} + \\Delta P + 0.5,\\; 3\\right) = \\max(0.04 + 0.019 + 0.5,\\; 3) = 3.0\\;\\mathrm{bar}"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 9,
+        "name": "Process Metrics",
+        "status": "WARNING",
+        "summary": "STY = 34.9412 mol/(L·h), P = 2.970 mmol/h, ṅ_lim = 0.0500 mmol/min, startup waste = 0.3 mL, IF = 29×",
+        "values": {
+          "STY_mol_L_h": 34.94117647058823,
+          "productivity_mmol_h": 2.97,
+          "IF": 29.170071203455116,
+          "n_molar_flow_mmol_min": 0.05,
+          "P_batch_mmol_h": 43.974,
+          "P_flow_mmol_h": 2.97,
+          "C_reactor_M": 0.1,
+          "startup_waste_mL": 0.3,
+          "productivity_closure_ok": false,
+          "is_gas_liquid": true,
+          "liquid_flow_rate_mL_min": 0.5,
+          "gas_flow_sccm": 5.3364,
+          "gas_holdup": 0.7437,
+          "liquid_holdup_volume_mL": 0.2563,
+          "total_reactor_volume_mL": 1.0
+        },
+        "equations": [
+          "STY = \\frac{C_0 \\cdot X \\cdot 60}{\\tau} = \\frac{0.1 \\times 0.99 \\times 60}{0.2} = 34.9412\\;\\mathrm{mol/(L \\cdot h)}",
+          "P = Q \\cdot C_0 \\cdot X \\cdot 60 = 0.500 \\times 0.1 \\times 0.99 \\times 60 = 2.970\\;\\mathrm{mmol/h}",
+          "P_{\\mathrm{batch}} = \\frac{n_{\\mathrm{batch}} \\cdot Y}{t_{\\mathrm{batch}}} = \\frac{3.7 \\times 0.99}{0.08} = 43.97\\;\\mathrm{mmol/h}",
+          "\\dot{n}_{\\mathrm{lim,flow}} = Q_{\\mathrm{total}} \\cdot C_0 = 0.5000\\;\\mathrm{mL/min} \\times 0.100\\;\\mathrm{M} = 0.0500\\;\\mathrm{mmol/min}",
+          "C_{\\mathrm{reactor,inlet}} = C_0 = 0.1000\\;\\mathrm{M}\\quad (\\text{single-feed PFR; no dilution at inlet})",
+          "P_{\\mathrm{flow}} = \\dot{n}_{\\mathrm{lim,flow}} \\cdot Y \\cdot 60 = 0.0500 \\times 0.99 \\times 60 = 2.97\\;\\mathrm{mmol/h}",
+          "V_{\\mathrm{startup}} = 3 \\cdot \\tau \\cdot Q = 3 \\times 0.2 \\times 0.500 = 0.3\\;\\mathrm{mL}",
+          "IF = \\frac{t_{\\mathrm{batch}}}{\\tau_{\\mathrm{flow}}} = \\frac{300}{10.3} = 29.2\\times"
+        ],
+        "warnings": [
+          "Productivity closure FAIL: P_flow = 2.97 mmol/h < P_batch = 43.97 mmol/h. Increase C_feed or check yield assumptions."
+        ],
+        "adjustments": [],
+        "assumptions": []
+      }
+    ],
+    "after": [
+      {
+        "step": 1,
+        "name": "Batch Conditions",
+        "status": "PASS",
+        "summary": "T = 21 °C, C₀ = 0.1 M, t_batch = 0.1 h (300 s), X = 0.99",
+        "values": {
+          "T_C": 21.0,
+          "T_K": 294.15,
+          "C_M": 0.1,
+          "t_batch_h": 0.0833,
+          "t_batch_s": 299.88,
+          "X": 0.99
+        },
+        "equations": [],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 2,
+        "name": "Kinetics & Residence Time",
+        "status": "PASS",
+        "summary": "τ = 0.2 min (council-approved — not re-derived from kinetics). Implied IF = 29× vs batch.",
+        "values": {
+          "tau_primary_min": 0.17134,
+          "method": "council-approved",
+          "IF_implied": 29.2,
+          "IF_class": 6.0,
+          "k_flow": 0.447956323293655
+        },
+        "equations": [],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "τ set by ENGINE council — kinetics estimation bypassed"
+        ]
+      },
+      {
+        "step": 3,
+        "name": "Reactor Sizing",
+        "status": "WARNING",
+        "summary": "V_R = 1.00 mL, d = 1.00 mm, L = 1.27 m, Pe = 2 (⚠ axial dispersion)",
+        "values": {
+          "V_R_mL": 1.0000023478058582,
+          "liquid_holdup_mL": 0.2562943744993503,
+          "gas_holdup": 0.7437,
+          "d_mm": 1.0,
+          "L_m": 1.2732425340544247,
+          "Q_mL_min": 0.5,
+          "v_m_s": 0.04139909223985109,
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_inlet_min": 0.1713,
+          "residence_time_in_channel_min": 0.5126,
+          "Pe": 2.0,
+          "Pe_adequate": false
+        },
+        "equations": [
+          "V_R = t_{inlet} \\times (Q_L + Q_{g,STP}) = 0.17 \\times (0.5000 + 5.3364) = 1.00\\;\\mathrm{mL}",
+          "Q_{g,actual} = Q_{g,STP}\\frac{T}{T_{STP}}\\frac{P_{STP}}{P} = 1.4509\\;\\mathrm{mL/min}",
+          "t_{in-channel} = \\frac{V_R}{Q_L + Q_{g,actual}} = 0.51\\;\\mathrm{min}",
+          "\\varepsilon_g = \\frac{Q_{g,actual}}{Q_{g,actual}+Q_L} = 0.744",
+          "L = \\frac{4\\,V_R}{\\pi\\,d^2} = 1.27\\;\\mathrm{m}",
+          "Pe = \\frac{192\\,\\tau\\,D_{\\mathrm{mol}}}{d^2} = \\frac{192 \\times 10.3 \\times 1e-09}{0.0010^2} = 2\\;\\mathbf{WARNING}"
+        ],
+        "warnings": [
+          "Pe = 2 < 100 — significant axial dispersion. Reactor behaves closer to CSTR than PFR. Reduce d (smaller d → higher Pe) or accept lower conversion efficiency."
+        ],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 4,
+        "name": "Fluid Dynamics",
+        "status": "PASS",
+        "summary": "Re = 22.5 (laminar), v = 0.0414 m/s",
+        "values": {
+          "Re": 22.539781129771125,
+          "regime": "laminar",
+          "v_m_s": 0.04139909223985109,
+          "mu_Pa_s": 0.00037,
+          "rho_kg_m3": 786.0,
+          "mu_cP": 0.37,
+          "rho_g_mL": 0.786
+        },
+        "equations": [
+          "v = \\frac{4\\,Q}{\\pi\\,d^2} = \\frac{4 \\times 8.333e-09}{\\pi \\times (0.0010)^2} = 0.0414\\;\\mathrm{m/s}",
+          "Re = \\frac{\\rho\\,v\\,d}{\\mu} = \\frac{786 \\times 0.0414 \\times 0.0010}{3.7000e-04} = 22.5"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 5,
+        "name": "Pressure Drop",
+        "status": "PASS",
+        "summary": "ΔP = 0.0192 bar (pump max = 10 bar, margin = 100 %)",
+        "values": {
+          "dP_bar": 0.019194330093659298,
+          "dP_Pa": 1919.4330093659296,
+          "pump_max_bar": 10.0,
+          "margin_pct": 99.80805669906341
+        },
+        "equations": [
+          "\\Delta P = \\frac{128\\,\\mu\\,L\\,Q}{\\pi\\,d^4} = \\frac{128 \\times 3.7000e-04 \\times 1.27 \\times 8.333e-09}{\\pi \\times (0.0010)^4} \\times \\phi^2_{2p} = 0.0192\\;\\mathrm{bar}",
+          "\\phi^2_{2p} = 1 + 12\\varepsilon_g + 25\\varepsilon_g^2 = 12.00"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 6,
+        "name": "Mass Transfer",
+        "status": "WARNING",
+        "summary": "t_mix = 101.3 s, Da = 447.956 — Mass-transfer limited — mixing is the bottleneck",
+        "values": {
+          "t_mix_s": 101.32118364233777,
+          "Da_mass": 447.9563232936549,
+          "D_m2_s": 1e-09,
+          "interpretation": "Mass-transfer limited — mixing is the bottleneck",
+          "gas_species": "air",
+          "gas_flow_sccm": 5.3364,
+          "gas_flow_actual_mL_min": 1.4509,
+          "gas_pressure_abs_bar": 4.0133,
+          "gas_liquid_ratio": 2.9018,
+          "gas_holdup": 0.7437,
+          "o2_supply_mmol_min": 0.05,
+          "o2_required_mmol_min": 0.05,
+          "gas_supply_mmol_min": 0.05,
+          "gas_required_mmol_min": 0.05,
+          "target_gas_equiv_inlet": 1.0,
+          "explicit_gas_equiv_inlet": 1.0,
+          "o2_equiv_supplied": 1.0,
+          "gas_equiv_supplied": 1.0,
+          "gas_flow_recomputed_from_equiv": false,
+          "dissolved_o2_mM": 5.2172,
+          "kLa_s": 0.2803,
+          "o2_transfer_capacity_mmol_min": 0.022312,
+          "o2_transfer_sufficiency": 0.4462
+        },
+        "equations": [
+          "t_{\\mathrm{mix}} \\approx \\frac{d^2}{D \\cdot \\pi^2} = \\frac{(0.0010)^2}{1.0e-09 \\times \\pi^2} = 101.3\\;\\mathrm{s}",
+          "Da = \\frac{k \\cdot d^2}{D} = \\frac{4.480e-01 \\times (0.0010)^2}{1.0e-09} = 447.956",
+          "Q_{g,\\mathrm{actual}} = Q_{g,\\mathrm{STP}}\\frac{T}{T_{STP}}\\frac{P_{STP}}{P} = 1.451\\;\\mathrm{mL/min}",
+          "C^*_{O2} \\approx 1.3\\;\\mathrm{mM}\\times\\frac{P_{O2}}{0.21\\;\\mathrm{bar}} = 5.22\\;\\mathrm{mM}",
+          "\\dot n_{O2,transfer} = k_La C^* V_L = 0.0223\\;\\mathrm{mmol/min}"
+        ],
+        "warnings": [
+          "Da = 448.0 ≫ 1: severely mass-transfer limited. Need micromixer, smaller d, or pre-mixed streams.",
+          "Estimated O2 transfer sufficiency = 0.45× reaction demand; increase gas pressure, gas/liquid interface, or residence time."
+        ],
+        "adjustments": [],
+        "assumptions": [
+          "D = 1e-09 m²/s (typical for small organic molecules in liquid)",
+          "Gas holdup estimated from actual reactor gas/liquid volumetric ratio.",
+          "O2 solubility uses a water/ethanol-scale Henry-law approximation; validate experimentally for final scale-up.",
+          "kLa is a conservative capillary slug-flow estimate tied to gas holdup."
+        ]
+      },
+      {
+        "step": 7,
+        "name": "Heat Transfer",
+        "status": "PASS",
+        "summary": "Q_gen = 0.5741 W, Q_rem = 11.9996 W, Da_th = 0.0478 — Thermally safe",
+        "values": {
+          "Q_gen_W": 0.5740560283008188,
+          "Q_rem_W": 11.999627299651577,
+          "Da_th": 0.047839488174560824,
+          "S_V_m_inv": 4000.0,
+          "U_W_m2K": 300,
+          "A_wall_m2": 0.003999875766550525,
+          "UA_W_K": 1.199963,
+          "heat_transfer_score": 1.0,
+          "dH_J_mol": -50000,
+          "dT_lm_C": 10.0,
+          "r_mol_m3_s": 44.795632329365496
+        },
+        "equations": [
+          "\\dot{Q}_{\\mathrm{rxn}} = |\\Delta H_r| \\cdot r \\cdot V_R = 50000 \\times 44.796 \\times 2.563e-07 = 0.5741\\;\\mathrm{W}",
+          "A_{\\mathrm{wall}} = \\pi\\,d\\,L = \\pi \\times 0.0010 \\times 1.27 = 0.00400\\;\\mathrm{m^2}",
+          "\\dot{Q}_{\\mathrm{rem}} = U \\cdot A \\cdot \\Delta T_{\\mathrm{lm}} = 300 \\times 0.00400 \\times 10 = 11.9996\\;\\mathrm{W}",
+          "Da_{\\mathrm{th}} = \\frac{\\dot{Q}_{\\mathrm{rxn}}}{\\dot{Q}_{\\mathrm{rem}}} = \\frac{0.5741}{11.9996} = 0.0478",
+          "\\frac{S}{V} = \\frac{4}{d} = \\frac{4}{0.0010} = 4000\\;\\mathrm{m^{-1}}"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": [
+          "ΔH_r ≈ -50 kJ/mol (estimated for photoredox)",
+          "U ≈ 300 W/m²·K (coil in temperature-controlled bath)",
+          "ΔT_lm ≈ 10.0 °C (conservative estimate)"
+        ]
+      },
+      {
+        "step": 8,
+        "name": "Back-Pressure Regulator",
+        "status": "PASS",
+        "summary": "BPR REQUIRED: 3.0 bar (Gas-liquid system detected — BPR mandatory to maintain gas solubility (Henry's law: C_gas = H·P) and prevent uncontrolled degassing.)",
+        "values": {
+          "bpr_required": true,
+          "bpr_bar": 3.0,
+          "P_vapor_bar": 0.04228791242289945,
+          "dP_system_bar": 0.019194,
+          "solvent_bp_C": 82,
+          "gas_liquid": true,
+          "gas_species": "air",
+          "gas_pressure_abs_bar": 4.0133,
+          "gas_flow_sccm": 5.3364,
+          "dissolved_o2_mM": 5.2172
+        },
+        "equations": [
+          "C_{\\mathrm{gas}} = H \\cdot P_{\\mathrm{partial}}\\quad\\text{(higher BPR} \\Rightarrow \\text{more dissolved gas)}",
+          "P_{\\mathrm{BPR}} \\geq \\max\\left(P_{\\mathrm{vap}} + \\Delta P + 0.5,\\; 3\\right) = \\max(0.04 + 0.019 + 0.5,\\; 3) = 3.0\\;\\mathrm{bar}"
+        ],
+        "warnings": [],
+        "adjustments": [],
+        "assumptions": []
+      },
+      {
+        "step": 9,
+        "name": "Process Metrics",
+        "status": "WARNING",
+        "summary": "STY = 2.9700 mol/(L·h), P = 2.970 mmol/h, ṅ_lim = 0.0500 mmol/min, startup waste = 0.3 mL, IF = 29×",
+        "values": {
+          "STY_mol_L_h": 2.97,
+          "STY_volume_basis": "total nominal reactor volume",
+          "productivity_mmol_h": 2.97,
+          "conversion_basis": "assumed target_conversion",
+          "IF": 29.170071203455116,
+          "n_molar_flow_mmol_min": 0.05,
+          "P_batch_mmol_h": 43.974,
+          "P_flow_mmol_h": 2.97,
+          "C_reactor_M": 0.1,
+          "startup_waste_mL": 0.3,
+          "productivity_closure_ok": false,
+          "is_gas_liquid": true,
+          "liquid_flow_rate_mL_min": 0.5,
+          "gas_flow_sccm": 5.3364,
+          "gas_holdup": 0.7437,
+          "liquid_holdup_volume_mL": 0.2563,
+          "total_reactor_volume_mL": 1.0
+        },
+        "equations": [
+          "P = Q \\cdot C_0 \\cdot X \\cdot 60 = 0.500 \\times 0.1 \\times 0.99 \\times 60 = 2.970\\;\\mathrm{mmol/h}",
+          "STY = \\frac{P_{\\mathrm{conditional}}}{V_R} = \\frac{2.97}{1} = 2.9700\\;\\mathrm{mol/(L \\cdot h)}",
+          "P_{\\mathrm{batch}} = \\frac{n_{\\mathrm{batch}} \\cdot Y}{t_{\\mathrm{batch}}} = \\frac{3.7 \\times 0.99}{0.08} = 43.97\\;\\mathrm{mmol/h}",
+          "\\dot{n}_{\\mathrm{lim,flow}} = Q_{\\mathrm{total}} \\cdot C_0 = 0.5000\\;\\mathrm{mL/min} \\times 0.100\\;\\mathrm{M} = 0.0500\\;\\mathrm{mmol/min}",
+          "C_{\\mathrm{reactor,inlet}} = C_0 = 0.1000\\;\\mathrm{M}\\quad (\\text{single-feed PFR; no dilution at inlet})",
+          "P_{\\mathrm{flow}} = \\dot{n}_{\\mathrm{lim,flow}} \\cdot Y \\cdot 60 = 0.0500 \\times 0.99 \\times 60 = 2.97\\;\\mathrm{mmol/h}",
+          "V_{\\mathrm{startup}} = 3 \\cdot \\tau \\cdot Q = 3 \\times 0.2 \\times 0.500 = 0.3\\;\\mathrm{mL}",
+          "IF = \\frac{t_{\\mathrm{batch}}}{\\tau_{\\mathrm{flow}}} = \\frac{300}{10.3} = 29.2\\times"
+        ],
+        "warnings": [
+          "Productivity closure FAIL: P_flow = 2.97 mmol/h < P_batch = 43.97 mmol/h. Increase C_feed or check yield assumptions."
+        ],
+        "adjustments": [],
+        "assumptions": [
+          "Productivity and STY are conditional projections using target_conversion; no flow yield is established."
+        ]
+      }
+    ]
+  },
+  {
+    "path": "$.design_calculations.topology_total_reactor_volume_mL",
+    "before_present": true,
+    "after_present": false,
+    "before": 1.0,
+    "after": null
+  },
+  {
+    "path": "$.design_disposition.hard_failures",
+    "before": [],
+    "after": []
+  },
+  {
+    "path": "$.design_disposition.requirements.required_gases",
+    "before": [
+      "O2"
+    ],
+    "after": [
+      "O2"
+    ]
+  },
+  {
+    "path": "$.design_disposition.screen_reasons",
+    "before": [
+      "Council requires screening",
+      "Proposal is not engine-validated"
+    ],
+    "after": [
+      "Council requires screening",
+      "Proposal is not engine-validated"
+    ]
+  },
+  {
+    "path": "$.diagram_artifacts.manifest",
+    "before_present": false,
+    "after_present": true,
+    "before": null,
+    "after": {
+      "schema_version": "flowpilot_diagram_render_v1.0",
+      "run_id": "20261014T023025_833179Z_1cee7d9a",
+      "created_at": "2026-10-14T02:30:26.017798+00:00",
+      "status": "complete",
+      "renderer": "graphviz",
+      "topology_sha256": "4eb95749fab6a13acb0743cb7631f7ab534f50f63e94a345b0cdc8acd5b06e7a",
+      "topology_path": "/home/amirreza/Documents/codes/Flow Agent/output/practical_benchmark_tools/post_benchmark_repairs_20261014/photochemical_oxidation/diagrams/20261014T023025_833179Z_1cee7d9a/topology.json",
+      "svg_path": "/home/amirreza/Documents/codes/Flow Agent/output/practical_benchmark_tools/post_benchmark_repairs_20261014/photochemical_oxidation/diagrams/20261014T023025_833179Z_1cee7d9a/process.svg",
+      "png_path": "/home/amirreza/Documents/codes/Flow Agent/output/practical_benchmark_tools/post_benchmark_repairs_20261014/photochemical_oxidation/diagrams/20261014T023025_833179Z_1cee7d9a/process.png",
+      "warnings": []
+    }
+  },
+  {
+    "path": "$.diagram_artifacts.png_path",
+    "before": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T020816_416774Z_332f43d2/process.png",
+    "after": "/home/amirreza/Documents/codes/Flow Agent/output/practical_benchmark_tools/post_benchmark_repairs_20261014/photochemical_oxidation/diagrams/20261014T023025_833179Z_1cee7d9a/process.png"
+  },
+  {
+    "path": "$.diagram_artifacts.render_manifest_path",
+    "before": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T020816_416774Z_332f43d2/render_manifest.json",
+    "after": "/home/amirreza/Documents/codes/Flow Agent/output/practical_benchmark_tools/post_benchmark_repairs_20261014/photochemical_oxidation/diagrams/20261014T023025_833179Z_1cee7d9a/render_manifest.json"
+  },
+  {
+    "path": "$.diagram_artifacts.run_dir",
+    "before": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T020816_416774Z_332f43d2",
+    "after": "/home/amirreza/Documents/codes/Flow Agent/output/practical_benchmark_tools/post_benchmark_repairs_20261014/photochemical_oxidation/diagrams/20261014T023025_833179Z_1cee7d9a"
+  },
+  {
+    "path": "$.diagram_artifacts.run_id",
+    "before": "20261014T020816_416774Z_332f43d2",
+    "after": "20261014T023025_833179Z_1cee7d9a"
+  },
+  {
+    "path": "$.diagram_artifacts.svg_path",
+    "before": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T020816_416774Z_332f43d2/process.svg",
+    "after": "/home/amirreza/Documents/codes/Flow Agent/output/practical_benchmark_tools/post_benchmark_repairs_20261014/photochemical_oxidation/diagrams/20261014T023025_833179Z_1cee7d9a/process.svg"
+  },
+  {
+    "path": "$.diagram_artifacts.topology_path",
+    "before": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T020816_416774Z_332f43d2/topology.json",
+    "after": "/home/amirreza/Documents/codes/Flow Agent/output/practical_benchmark_tools/post_benchmark_repairs_20261014/photochemical_oxidation/diagrams/20261014T023025_833179Z_1cee7d9a/topology.json"
+  },
+  {
+    "path": "$.diagram_artifacts.topology_sha256",
+    "before": "0cde4af89bbb2a2bd7730369dfe951097258b680d75cd4d1193d8c0f2693c826",
+    "after": "4eb95749fab6a13acb0743cb7631f7ab534f50f63e94a345b0cdc8acd5b06e7a"
+  },
+  {
+    "path": "$.diagram_render_manifest.created_at",
+    "before": "2026-10-14T02:08:16.728259+00:00",
+    "after": "2026-10-14T02:30:26.017798+00:00"
+  },
+  {
+    "path": "$.diagram_render_manifest.png_path",
+    "before": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T020816_416774Z_332f43d2/process.png",
+    "after": "/home/amirreza/Documents/codes/Flow Agent/output/practical_benchmark_tools/post_benchmark_repairs_20261014/photochemical_oxidation/diagrams/20261014T023025_833179Z_1cee7d9a/process.png"
+  },
+  {
+    "path": "$.diagram_render_manifest.run_id",
+    "before": "20261014T020816_416774Z_332f43d2",
+    "after": "20261014T023025_833179Z_1cee7d9a"
+  },
+  {
+    "path": "$.diagram_render_manifest.svg_path",
+    "before": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T020816_416774Z_332f43d2/process.svg",
+    "after": "/home/amirreza/Documents/codes/Flow Agent/output/practical_benchmark_tools/post_benchmark_repairs_20261014/photochemical_oxidation/diagrams/20261014T023025_833179Z_1cee7d9a/process.svg"
+  },
+  {
+    "path": "$.diagram_render_manifest.topology_path",
+    "before": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T020816_416774Z_332f43d2/topology.json",
+    "after": "/home/amirreza/Documents/codes/Flow Agent/output/practical_benchmark_tools/post_benchmark_repairs_20261014/photochemical_oxidation/diagrams/20261014T023025_833179Z_1cee7d9a/topology.json"
+  },
+  {
+    "path": "$.diagram_render_manifest.topology_sha256",
+    "before": "0cde4af89bbb2a2bd7730369dfe951097258b680d75cd4d1193d8c0f2693c826",
+    "after": "4eb95749fab6a13acb0743cb7631f7ab534f50f63e94a345b0cdc8acd5b06e7a"
+  },
+  {
+    "path": "$.final_design.artifact_provenance.canonical_sha256",
+    "before": "0082fba501e7ef5889060fc1364f7a276b6e49c95f72a2080c188d8fb8f3ded9",
+    "after": "f061fba5d24a66fda7932e773780c9a29ead3fbd594f257b0037a51c75e5ffd7"
+  },
+  {
+    "path": "$.final_design.canonical_sha256",
+    "before": "0082fba501e7ef5889060fc1364f7a276b6e49c95f72a2080c188d8fb8f3ded9",
+    "after": "f061fba5d24a66fda7932e773780c9a29ead3fbd594f257b0037a51c75e5ffd7"
+  },
+  {
+    "path": "$.final_design.process_graph.topology.unit_operations",
+    "before": [
+      {
+        "op_id": "pump_a",
+        "op_type": "pump",
+        "label": "Pump A — Single liquid feed pump delivering premixed substrate and photocatalyst solution | Photochemistry HPLC pump",
+        "parameters": {
+          "stream": "A",
+          "contents": [
+            "Fmoc-L-methionine (0.1 M, 1 equiv)",
+            "4,7-diphenyl-2,1,3-benzothiadiazole (0.01 M, 10 mol%)"
+          ],
+          "solvent": "acetonitrile",
+          "flow_rate_mL_min": 0.5,
+          "phase": "liquid",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null,
+          "molar_equiv": 1.0,
+          "inventory_equipment_id": "pump_photo_liquid",
+          "concentration_M": 0.1,
+          "gas_reagent_mole_fraction": null,
+          "inventory_item_id": "pump_photo_liquid",
+          "inventory_item_ids": [
+            "pump_photo_liquid"
+          ],
+          "instrument_name": "Photochemistry HPLC pump"
+        },
+        "required": true,
+        "rationale": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.5 mL/min; equiv=1, C=0.1 M; pump=pump_photo_liquid; concentration_basis=reference component: Fmoc-L-methionine; equiv_basis=reference component: Fmoc-L-methionine.",
+        "inventory_item_id": "pump_photo_liquid",
+        "inventory_item_ids": [
+          "pump_photo_liquid"
+        ],
+        "instrument_name": "Photochemistry HPLC pump",
+        "inventory_category": "pumps",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "pump_b",
+        "op_type": "mfc",
+        "label": "MFC B — Air MFC delivering reagent gas for singlet-oxygen generation | Air mass-flow controller",
+        "parameters": {
+          "stream": "B",
+          "contents": [
+            "air"
+          ],
+          "solvent": "",
+          "flow_rate_mL_min": 1.450886,
+          "phase": "gas",
+          "gas_flow_sccm": 5.336362,
+          "gas_flow_actual_mL_min": 1.450886,
+          "molar_equiv": 1.0,
+          "inventory_equipment_id": "mfc_air_10",
+          "delivery_hardware": "MFC",
+          "concentration_M": null,
+          "gas_reagent_mole_fraction": 0.21,
+          "inventory_item_id": "mfc_air_10",
+          "inventory_item_ids": [
+            "mfc_air_10"
+          ],
+          "instrument_name": "Air mass-flow controller"
+        },
+        "required": true,
+        "rationale": "MFC inlet/STP flow=5.33636 sccm at 273.15 K and 1.01325 bar (22.412722 L/mol); pressure-corrected in-channel flow=1.45089 mL/min at 21 deg C and 4.01325 bar absolute; total gas=0.23809524 mmol/min, active O2=0.05 mmol/min (mole fraction 0.21); supplied=1 equiv O2 relative to limiting substrate.",
+        "inventory_item_id": "mfc_air_10",
+        "inventory_item_ids": [
+          "mfc_air_10"
+        ],
+        "instrument_name": "Air mass-flow controller",
+        "inventory_category": "gas_hardware",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "mixer_1",
+        "op_type": "mixer",
+        "label": "T-mixer (PFA gas-liquid T-mixer, mixer_photo_t) | PFA gas-liquid T-mixer",
+        "parameters": {
+          "type": "T-mixer (PFA gas-liquid T-mixer, mixer_photo_t)",
+          "material": "not specified",
+          "inventory_item_id": "mixer_photo_t",
+          "inventory_item_ids": [
+            "mixer_photo_t"
+          ],
+          "instrument_name": "PFA gas-liquid T-mixer"
+        },
+        "required": true,
+        "rationale": "Chemistry Plan: Stream A (liquid) premixed before reactor; Stream B (air) introduced via PFA T-mixer immediately upstream of photocoil to generate segmented Taylor flow. This ensures photocatalyst is uniformly distributed before gas contact, O2 is not present in feed lines (preventing premature oxidation), and segmented flow is established before the irradiated zone for maximum gas-liquid mass transfer.",
+        "inventory_item_id": "mixer_photo_t",
+        "inventory_item_ids": [
+          "mixer_photo_t"
+        ],
+        "instrument_name": "PFA gas-liquid T-mixer",
+        "inventory_category": "mixers",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "reactor_1",
+        "op_type": "photoreactor",
+        "label": "PFA Photoreactor Coil | One milliliter PFA photocoil",
+        "parameters": {
+          "material": "PFA",
+          "ID_mm": 1.0,
+          "volume_mL": 1.0,
+          "Q_inlet_mL_min": 0.5,
+          "Q_liquid_mL_min": 0.5,
+          "Q_gas_sccm": 5.336362,
+          "Q_gas_actual_mL_min": 1.450886,
+          "temperature_C": 21.0,
+          "wavelength_nm": 420.0,
+          "residence_time_min": 0.17134,
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_inlet_min": 0.17134,
+          "residence_time_in_channel_min": 0.512588,
+          "reactor_type": "photochemical coil",
+          "inventory_item_id": "reactor_photo_100",
+          "inventory_item_ids": [
+            "reactor_photo_100"
+          ],
+          "instrument_name": "One milliliter PFA photocoil",
+          "light_instrument_name": "420 nm photochemistry LED",
+          "light_inventory_item_id": "light_photo_420",
+          "temperature_controller_name": "Photoreactor thermostat",
+          "temperature_controller_inventory_item_id": "controller_photo_thermostat"
+        },
+        "required": true,
+        "rationale": "Flow reactor",
+        "inventory_item_id": "reactor_photo_100",
+        "inventory_item_ids": [
+          "reactor_photo_100"
+        ],
+        "instrument_name": "One milliliter PFA photocoil",
+        "inventory_category": "reactors",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "heater_1",
+        "op_type": "heater",
+        "label": "Temperature Control 21 deg C | Photoreactor thermostat",
+        "parameters": {
+          "temperature_C": 21.0,
+          "inventory_item_id": "controller_photo_thermostat",
+          "inventory_item_ids": [
+            "controller_photo_thermostat"
+          ],
+          "instrument_name": "Photoreactor thermostat"
+        },
+        "required": true,
+        "rationale": "Active reactor temperature control",
+        "inventory_item_id": "controller_photo_thermostat",
+        "inventory_item_ids": [
+          "controller_photo_thermostat"
+        ],
+        "instrument_name": "Photoreactor thermostat",
+        "inventory_category": "temperature_controllers",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "led_1",
+        "op_type": "led_module",
+        "label": "LED 420 nm | 420 nm photochemistry LED",
+        "parameters": {
+          "wavelength_nm": 420.0,
+          "inventory_item_id": "light_photo_420",
+          "inventory_item_ids": [
+            "light_photo_420"
+          ],
+          "instrument_name": "420 nm photochemistry LED"
+        },
+        "required": true,
+        "rationale": "Photoexcitation",
+        "inventory_item_id": "light_photo_420",
+        "inventory_item_ids": [
+          "light_photo_420"
+        ],
+        "instrument_name": "420 nm photochemistry LED",
+        "inventory_category": "light_sources",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "bpr_1",
+        "op_type": "bpr",
+        "label": "BPR | Photochemistry BPR",
+        "parameters": {
+          "pressure_bar": 3.0,
+          "inventory_item_id": "bpr_photo_3",
+          "inventory_item_ids": [
+            "bpr_photo_3"
+          ],
+          "instrument_name": "Photochemistry BPR"
+        },
+        "required": true,
+        "rationale": "Maintain liquid phase",
+        "inventory_item_id": "bpr_photo_3",
+        "inventory_item_ids": [
+          "bpr_photo_3"
+        ],
+        "instrument_name": "Photochemistry BPR",
+        "inventory_category": "pressure_controllers",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "separator_1",
+        "op_type": "phase_separator",
+        "label": "Phase Separator | Vented gas-liquid separator",
+        "parameters": {
+          "phases": [
+            "gas",
+            "liquid"
+          ],
+          "inventory_item_id": "separator_photo_gl",
+          "inventory_item_ids": [
+            "separator_photo_gl"
+          ],
+          "instrument_name": "Vented gas-liquid separator"
+        },
+        "required": true,
+        "rationale": "Separate gas from the product-containing liquid.",
+        "inventory_item_id": "separator_photo_gl",
+        "inventory_item_ids": [
+          "separator_photo_gl"
+        ],
+        "instrument_name": "Vented gas-liquid separator",
+        "inventory_category": "separators",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "collector_1",
+        "op_type": "collector",
+        "label": "Product Collection | Amber vented collection vessel",
+        "parameters": {
+          "inventory_item_id": "collector_photo_100",
+          "inventory_item_ids": [
+            "collector_photo_100"
+          ],
+          "instrument_name": "Amber vented collection vessel"
+        },
+        "required": true,
+        "rationale": "Outlet",
+        "inventory_item_id": "collector_photo_100",
+        "inventory_item_ids": [
+          "collector_photo_100"
+        ],
+        "instrument_name": "Amber vented collection vessel",
+        "inventory_category": "collectors",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      }
+    ],
+    "after": [
+      {
+        "op_id": "pump_a",
+        "op_type": "pump",
+        "label": "Pump A — Single liquid feed pump delivering premixed substrate and photocatalyst solution | Photochemistry HPLC pump",
+        "parameters": {
+          "stream": "A",
+          "contents": [
+            "Fmoc-L-methionine (0.1 M, 1 equiv)",
+            "4,7-diphenyl-2,1,3-benzothiadiazole (0.01 M, 10 mol%)"
+          ],
+          "solvent": "acetonitrile",
+          "flow_rate_mL_min": 0.5,
+          "phase": "liquid",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null,
+          "molar_equiv": 1.0,
+          "inventory_equipment_id": "pump_photo_liquid",
+          "concentration_M": 0.1,
+          "gas_reagent_mole_fraction": null,
+          "inventory_item_id": "pump_photo_liquid",
+          "inventory_item_ids": [
+            "pump_photo_liquid"
+          ],
+          "instrument_name": "Photochemistry HPLC pump"
+        },
+        "required": true,
+        "rationale": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.5 mL/min; equiv=1, C=0.1 M; pump=pump_photo_liquid; concentration_basis=reference component: Fmoc-L-methionine; equiv_basis=reference component: Fmoc-L-methionine.",
+        "inventory_item_id": "pump_photo_liquid",
+        "inventory_item_ids": [
+          "pump_photo_liquid"
+        ],
+        "instrument_name": "Photochemistry HPLC pump",
+        "inventory_category": "pumps",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "pump_b",
+        "op_type": "mfc",
+        "label": "MFC B — Air MFC delivering reagent gas for singlet-oxygen generation | Air mass-flow controller",
+        "parameters": {
+          "stream": "B",
+          "contents": [
+            "air"
+          ],
+          "solvent": "",
+          "flow_rate_mL_min": 1.450886,
+          "phase": "gas",
+          "gas_flow_sccm": 5.336362,
+          "gas_flow_actual_mL_min": 1.450886,
+          "molar_equiv": 1.0,
+          "inventory_equipment_id": "mfc_air_10",
+          "delivery_hardware": "MFC",
+          "concentration_M": null,
+          "gas_reagent_mole_fraction": 0.21,
+          "inventory_item_id": "mfc_air_10",
+          "inventory_item_ids": [
+            "mfc_air_10"
+          ],
+          "instrument_name": "Air mass-flow controller"
+        },
+        "required": true,
+        "rationale": "MFC inlet/STP flow=5.33636 sccm at 273.15 K and 1.01325 bar (22.412722 L/mol); pressure-corrected in-channel flow=1.45089 mL/min at 21 deg C and 4.01325 bar absolute; total gas=0.23809524 mmol/min, active O2=0.05 mmol/min (mole fraction 0.21); supplied=1 equiv O2 relative to limiting substrate.",
+        "inventory_item_id": "mfc_air_10",
+        "inventory_item_ids": [
+          "mfc_air_10"
+        ],
+        "instrument_name": "Air mass-flow controller",
+        "inventory_category": "gas_hardware",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "mixer_1",
+        "op_type": "mixer",
+        "label": "T-mixer (PFA gas-liquid T-mixer, mixer_photo_t) | PFA gas-liquid T-mixer",
+        "parameters": {
+          "type": "T-mixer (PFA gas-liquid T-mixer, mixer_photo_t)",
+          "material": "not specified",
+          "inventory_item_id": "mixer_photo_t",
+          "inventory_item_ids": [
+            "mixer_photo_t"
+          ],
+          "instrument_name": "PFA gas-liquid T-mixer"
+        },
+        "required": true,
+        "rationale": "Combine the reactor feed streams at this mixer. Follow the final process diagram for downstream equipment and pressure-control order.",
+        "inventory_item_id": "mixer_photo_t",
+        "inventory_item_ids": [
+          "mixer_photo_t"
+        ],
+        "instrument_name": "PFA gas-liquid T-mixer",
+        "inventory_category": "mixers",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "reactor_1",
+        "op_type": "photoreactor",
+        "label": "PFA Photoreactor Coil | One milliliter PFA photocoil",
+        "parameters": {
+          "material": "PFA",
+          "ID_mm": 1.0,
+          "volume_mL": 1.0,
+          "Q_inlet_mL_min": 0.5,
+          "Q_liquid_mL_min": 0.5,
+          "Q_gas_sccm": 5.336362,
+          "Q_gas_actual_mL_min": 1.450886,
+          "temperature_C": 21.0,
+          "wavelength_nm": 420.0,
+          "residence_time_min": 0.17134,
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_inlet_min": 0.17134,
+          "residence_time_in_channel_min": 0.512588,
+          "reactor_type": "photochemical coil",
+          "inventory_item_id": "reactor_photo_100",
+          "inventory_item_ids": [
+            "reactor_photo_100"
+          ],
+          "instrument_name": "One milliliter PFA photocoil",
+          "light_instrument_name": "420 nm photochemistry LED",
+          "light_inventory_item_id": "light_photo_420",
+          "temperature_controller_name": "Photoreactor thermostat",
+          "temperature_controller_inventory_item_id": "controller_photo_thermostat"
+        },
+        "required": true,
+        "rationale": "Flow reactor",
+        "inventory_item_id": "reactor_photo_100",
+        "inventory_item_ids": [
+          "reactor_photo_100"
+        ],
+        "instrument_name": "One milliliter PFA photocoil",
+        "inventory_category": "reactors",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "heater_1",
+        "op_type": "heater",
+        "label": "Temperature Control 21 deg C | Photoreactor thermostat",
+        "parameters": {
+          "temperature_C": 21.0,
+          "inventory_item_id": "controller_photo_thermostat",
+          "inventory_item_ids": [
+            "controller_photo_thermostat"
+          ],
+          "instrument_name": "Photoreactor thermostat"
+        },
+        "required": true,
+        "rationale": "Active reactor temperature control",
+        "inventory_item_id": "controller_photo_thermostat",
+        "inventory_item_ids": [
+          "controller_photo_thermostat"
+        ],
+        "instrument_name": "Photoreactor thermostat",
+        "inventory_category": "temperature_controllers",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "led_1",
+        "op_type": "led_module",
+        "label": "LED 420 nm | 420 nm photochemistry LED",
+        "parameters": {
+          "wavelength_nm": 420.0,
+          "inventory_item_id": "light_photo_420",
+          "inventory_item_ids": [
+            "light_photo_420"
+          ],
+          "instrument_name": "420 nm photochemistry LED"
+        },
+        "required": true,
+        "rationale": "Photoexcitation",
+        "inventory_item_id": "light_photo_420",
+        "inventory_item_ids": [
+          "light_photo_420"
+        ],
+        "instrument_name": "420 nm photochemistry LED",
+        "inventory_category": "light_sources",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "bpr_1",
+        "op_type": "bpr",
+        "label": "BPR | Photochemistry BPR",
+        "parameters": {
+          "pressure_bar": 3.0,
+          "inventory_item_id": "bpr_photo_3",
+          "inventory_item_ids": [
+            "bpr_photo_3"
+          ],
+          "instrument_name": "Photochemistry BPR"
+        },
+        "required": true,
+        "rationale": "Maintain liquid phase",
+        "inventory_item_id": "bpr_photo_3",
+        "inventory_item_ids": [
+          "bpr_photo_3"
+        ],
+        "instrument_name": "Photochemistry BPR",
+        "inventory_category": "pressure_controllers",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "separator_1",
+        "op_type": "phase_separator",
+        "label": "Phase Separator | Vented gas-liquid separator",
+        "parameters": {
+          "phases": [
+            "gas",
+            "liquid"
+          ],
+          "inventory_item_id": "separator_photo_gl",
+          "inventory_item_ids": [
+            "separator_photo_gl"
+          ],
+          "instrument_name": "Vented gas-liquid separator"
+        },
+        "required": true,
+        "rationale": "Separate gas from the product-containing liquid.",
+        "inventory_item_id": "separator_photo_gl",
+        "inventory_item_ids": [
+          "separator_photo_gl"
+        ],
+        "instrument_name": "Vented gas-liquid separator",
+        "inventory_category": "separators",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "collector_1",
+        "op_type": "collector",
+        "label": "Product Collection | Amber vented collection vessel",
+        "parameters": {
+          "inventory_item_id": "collector_photo_100",
+          "inventory_item_ids": [
+            "collector_photo_100"
+          ],
+          "instrument_name": "Amber vented collection vessel"
+        },
+        "required": true,
+        "rationale": "Outlet",
+        "inventory_item_id": "collector_photo_100",
+        "inventory_item_ids": [
+          "collector_photo_100"
+        ],
+        "instrument_name": "Amber vented collection vessel",
+        "inventory_category": "collectors",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      }
+    ]
+  },
+  {
+    "path": "$.final_stage_engineering.stages",
+    "before": [
+      {
+        "stage_number": 1,
+        "status": "calculated",
+        "source": "realized stage; frozen geometry",
+        "calculations": {
+          "steps": [
+            {
+              "step": 1,
+              "name": "Batch Conditions",
+              "status": "PASS",
+              "summary": "T = 21 °C, C₀ = 0.1 M, t_batch = 0.1 h (300 s), X = 0.99",
+              "values": {
+                "T_C": 21.0,
+                "T_K": 294.15,
+                "C_M": 0.1,
+                "t_batch_h": 0.0833,
+                "t_batch_s": 299.88,
+                "X": 0.99
+              },
+              "equations": [],
+              "warnings": [],
+              "adjustments": [],
+              "assumptions": []
+            },
+            {
+              "step": 2,
+              "name": "Kinetics & Residence Time",
+              "status": "PASS",
+              "summary": "τ = 0.2 min (council-approved — not re-derived from kinetics). Implied IF = 29× vs batch.",
+              "values": {
+                "tau_primary_min": 0.17134,
+                "method": "council-approved",
+                "IF_implied": 29.2,
+                "IF_class": 6.0,
+                "k_flow": 0.447956323293655
+              },
+              "equations": [],
+              "warnings": [],
+              "adjustments": [],
+              "assumptions": [
+                "τ set by ENGINE council — kinetics estimation bypassed"
+              ]
+            },
+            {
+              "step": 3,
+              "name": "Reactor Sizing",
+              "status": "WARNING",
+              "summary": "V_R = 1.00 mL, d = 1.00 mm, L = 1.27 m, Pe = 2 (⚠ axial dispersion)",
+              "values": {
+                "V_R_mL": 1.0,
+                "liquid_holdup_mL": 0.25629379001686514,
+                "gas_holdup": 0.7437,
+                "d_mm": 1.0,
+                "L_m": 1.2732395447351628,
+                "Q_mL_min": 0.5,
+                "v_m_s": 0.04139908945418259,
+                "residence_time_basis": "inlet/STP apparent residence time",
+                "residence_time_inlet_min": 0.1713,
+                "residence_time_in_channel_min": 0.5126,
+                "Pe": 2.0,
+                "Pe_adequate": false
+              },
+              "equations": [
+                "V_R = t_{inlet} \\times (Q_L + Q_{g,STP}) = 0.17 \\times (0.5000 + 5.3364) = 1.00\\;\\mathrm{mL}",
+                "Q_{g,actual} = Q_{g,STP}\\frac{T}{T_{STP}}\\frac{P_{STP}}{P} = 1.4509\\;\\mathrm{mL/min}",
+                "t_{in-channel} = \\frac{V_R}{Q_L + Q_{g,actual}} = 0.51\\;\\mathrm{min}",
+                "\\varepsilon_g = \\frac{Q_{g,actual}}{Q_{g,actual}+Q_L} = 0.744",
+                "L = \\frac{4\\,V_R}{\\pi\\,d^2} = 1.27\\;\\mathrm{m}",
+                "Pe = \\frac{192\\,\\tau\\,D_{\\mathrm{mol}}}{d^2} = \\frac{192 \\times 10.3 \\times 1e-09}{0.0010^2} = 2\\;\\mathbf{WARNING}"
+              ],
+              "warnings": [
+                "Pe = 2 < 100 — significant axial dispersion. Reactor behaves closer to CSTR than PFR. Reduce d (smaller d → higher Pe) or accept lower conversion efficiency."
+              ],
+              "adjustments": [],
+              "assumptions": []
+            },
+            {
+              "step": 4,
+              "name": "Fluid Dynamics",
+              "status": "PASS",
+              "summary": "Re = 22.5 (laminar), v = 0.0414 m/s",
+              "values": {
+                "Re": 22.539781129771125,
+                "regime": "laminar",
+                "v_m_s": 0.04139908945418259,
+                "mu_Pa_s": 0.00037,
+                "rho_kg_m3": 786.0,
+                "mu_cP": 0.37,
+                "rho_g_mL": 0.786
+              },
+              "equations": [
+                "v = \\frac{4\\,Q}{\\pi\\,d^2} = \\frac{4 \\times 8.333e-09}{\\pi \\times (0.0010)^2} = 0.0414\\;\\mathrm{m/s}",
+                "Re = \\frac{\\rho\\,v\\,d}{\\mu} = \\frac{786 \\times 0.0414 \\times 0.0010}{3.7000e-04} = 22.5"
+              ],
+              "warnings": [],
+              "adjustments": [],
+              "assumptions": []
+            },
+            {
+              "step": 5,
+              "name": "Pressure Drop",
+              "status": "PASS",
+              "summary": "ΔP = 0.0192 bar (pump max = 10 bar, margin = 100 %)",
+              "values": {
+                "dP_bar": 0.019194285029204467,
+                "dP_Pa": 1919.4285029204466,
+                "pump_max_bar": 10.0,
+                "margin_pct": 99.80805714970795
+              },
+              "equations": [
+                "\\Delta P = \\frac{128\\,\\mu\\,L\\,Q}{\\pi\\,d^4} = \\frac{128 \\times 3.7000e-04 \\times 1.27 \\times 8.333e-09}{\\pi \\times (0.0010)^4} \\times \\phi^2_{2p} = 0.0192\\;\\mathrm{bar}",
+                "\\phi^2_{2p} = 1 + 12\\varepsilon_g + 25\\varepsilon_g^2 = 12.00"
+              ],
+              "warnings": [],
+              "adjustments": [],
+              "assumptions": []
+            },
+            {
+              "step": 6,
+              "name": "Mass Transfer",
+              "status": "WARNING",
+              "summary": "t_mix = 101.3 s, Da = 447.956 — Mass-transfer limited — mixing is the bottleneck",
+              "values": {
+                "t_mix_s": 101.32118364233777,
+                "Da_mass": 447.9563232936549,
+                "D_m2_s": 1e-09,
+                "interpretation": "Mass-transfer limited — mixing is the bottleneck",
+                "gas_species": "air",
+                "gas_flow_sccm": 5.3364,
+                "gas_flow_actual_mL_min": 1.4509,
+                "gas_pressure_abs_bar": 4.0133,
+                "gas_liquid_ratio": 2.9018,
+                "gas_holdup": 0.7437,
+                "o2_supply_mmol_min": 0.05,
+                "o2_required_mmol_min": 0.05,
+                "gas_supply_mmol_min": 0.05,
+                "gas_required_mmol_min": 0.05,
+                "target_gas_equiv_inlet": 1.0,
+                "explicit_gas_equiv_inlet": 1.0,
+                "o2_equiv_supplied": 1.0,
+                "gas_equiv_supplied": 1.0,
+                "gas_flow_recomputed_from_equiv": false,
+                "dissolved_o2_mM": 5.2172,
+                "kLa_s": 0.2803,
+                "o2_transfer_capacity_mmol_min": 0.022488,
+                "o2_transfer_sufficiency": 0.4498
+              },
+              "equations": [
+                "t_{\\mathrm{mix}} \\approx \\frac{d^2}{D \\cdot \\pi^2} = \\frac{(0.0010)^2}{1.0e-09 \\times \\pi^2} = 101.3\\;\\mathrm{s}",
+                "Da = \\frac{k \\cdot d^2}{D} = \\frac{4.480e-01 \\times (0.0010)^2}{1.0e-09} = 447.956",
+                "Q_{g,\\mathrm{actual}} = Q_{g,\\mathrm{STP}}\\frac{T}{T_{STP}}\\frac{P_{STP}}{P} = 1.451\\;\\mathrm{mL/min}",
+                "C^*_{O2} \\approx 1.3\\;\\mathrm{mM}\\times\\frac{P_{O2}}{0.21\\;\\mathrm{bar}} = 5.22\\;\\mathrm{mM}",
+                "\\dot n_{O2,transfer} = k_La C^* V_L = 0.0225\\;\\mathrm{mmol/min}"
+              ],
+              "warnings": [
+                "Da = 448.0 ≫ 1: severely mass-transfer limited. Need micromixer, smaller d, or pre-mixed streams.",
+                "Estimated O2 transfer sufficiency = 0.45× reaction demand; increase gas pressure, gas/liquid interface, or residence time."
+              ],
+              "adjustments": [],
+              "assumptions": [
+                "D = 1e-09 m²/s (typical for small organic molecules in liquid)",
+                "Gas holdup estimated from actual reactor gas/liquid volumetric ratio.",
+                "O2 solubility uses a water/ethanol-scale Henry-law approximation; validate experimentally for final scale-up.",
+                "kLa is a conservative capillary slug-flow estimate tied to gas holdup."
+              ]
+            },
+            {
+              "step": 7,
+              "name": "Heat Transfer",
+              "status": "PASS",
+              "summary": "Q_gen = 0.5741 W, Q_rem = 11.9996 W, Da_th = 0.0478 — Thermally safe",
+              "values": {
+                "Q_gen_W": 0.5740560283008188,
+                "Q_rem_W": 11.999627299651577,
+                "Da_th": 0.047839488174560824,
+                "S_V_m_inv": 4000.0,
+                "U_W_m2K": 300,
+                "A_wall_m2": 0.003999875766550525,
+                "UA_W_K": 1.199963,
+                "heat_transfer_score": 1.0,
+                "dH_J_mol": -50000,
+                "dT_lm_C": 10.0,
+                "r_mol_m3_s": 44.795632329365496
+              },
+              "equations": [
+                "\\dot{Q}_{\\mathrm{rxn}} = |\\Delta H_r| \\cdot r \\cdot V_R = 50000 \\times 44.796 \\times 2.563e-07 = 0.5741\\;\\mathrm{W}",
+                "A_{\\mathrm{wall}} = \\pi\\,d\\,L = \\pi \\times 0.0010 \\times 1.27 = 0.00400\\;\\mathrm{m^2}",
+                "\\dot{Q}_{\\mathrm{rem}} = U \\cdot A \\cdot \\Delta T_{\\mathrm{lm}} = 300 \\times 0.00400 \\times 10 = 11.9996\\;\\mathrm{W}",
+                "Da_{\\mathrm{th}} = \\frac{\\dot{Q}_{\\mathrm{rxn}}}{\\dot{Q}_{\\mathrm{rem}}} = \\frac{0.5741}{11.9996} = 0.0478",
+                "\\frac{S}{V} = \\frac{4}{d} = \\frac{4}{0.0010} = 4000\\;\\mathrm{m^{-1}}"
+              ],
+              "warnings": [],
+              "adjustments": [],
+              "assumptions": [
+                "ΔH_r ≈ -50 kJ/mol (estimated for photoredox)",
+                "U ≈ 300 W/m²·K (coil in temperature-controlled bath)",
+                "ΔT_lm ≈ 10.0 °C (conservative estimate)"
+              ]
+            },
+            {
+              "step": 8,
+              "name": "Back-Pressure Regulator",
+              "status": "PASS",
+              "summary": "BPR REQUIRED: 3.0 bar (Gas-liquid system detected — BPR mandatory to maintain gas solubility (Henry's law: C_gas = H·P) and prevent uncontrolled degassing.)",
+              "values": {
+                "bpr_required": true,
+                "bpr_bar": 3.0,
+                "P_vapor_bar": 0.04228791242289945,
+                "dP_system_bar": 0.019194,
+                "solvent_bp_C": 82,
+                "gas_liquid": true,
+                "gas_species": "air",
+                "gas_pressure_abs_bar": 4.0133,
+                "gas_flow_sccm": 5.3364,
+                "dissolved_o2_mM": 5.2172
+              },
+              "equations": [
+                "C_{\\mathrm{gas}} = H \\cdot P_{\\mathrm{partial}}\\quad\\text{(higher BPR} \\Rightarrow \\text{more dissolved gas)}",
+                "P_{\\mathrm{BPR}} \\geq \\max\\left(P_{\\mathrm{vap}} + \\Delta P + 0.5,\\; 3\\right) = \\max(0.04 + 0.019 + 0.5,\\; 3) = 3.0\\;\\mathrm{bar}"
+              ],
+              "warnings": [],
+              "adjustments": [],
+              "assumptions": []
+            },
+            {
+              "step": 9,
+              "name": "Process Metrics",
+              "status": "WARNING",
+              "summary": "STY = 34.6679 mol/(L·h), P = 2.970 mmol/h, ṅ_lim = 0.0500 mmol/min, startup waste = 0.3 mL, IF = 29×",
+              "values": {
+                "STY_mol_L_h": 34.66791175440645,
+                "productivity_mmol_h": 2.97,
+                "IF": 29.170071203455116,
+                "n_molar_flow_mmol_min": 0.05,
+                "P_batch_mmol_h": 43.974,
+                "P_flow_mmol_h": 2.97,
+                "C_reactor_M": 0.1,
+                "startup_waste_mL": 0.3,
+                "productivity_closure_ok": false,
+                "is_gas_liquid": true,
+                "liquid_flow_rate_mL_min": 0.5,
+                "gas_flow_sccm": 5.3364,
+                "gas_holdup": 0.7437,
+                "liquid_holdup_volume_mL": 0.2563,
+                "total_reactor_volume_mL": 1.0
+              },
+              "equations": [
+                "STY = \\frac{C_0 \\cdot X \\cdot 60}{\\tau} = \\frac{0.1 \\times 0.99 \\times 60}{0.2} = 34.6679\\;\\mathrm{mol/(L \\cdot h)}",
+                "P = Q \\cdot C_0 \\cdot X \\cdot 60 = 0.500 \\times 0.1 \\times 0.99 \\times 60 = 2.970\\;\\mathrm{mmol/h}",
+                "P_{\\mathrm{batch}} = \\frac{n_{\\mathrm{batch}} \\cdot Y}{t_{\\mathrm{batch}}} = \\frac{3.7 \\times 0.99}{0.08} = 43.97\\;\\mathrm{mmol/h}",
+                "\\dot{n}_{\\mathrm{lim,flow}} = Q_{\\mathrm{total}} \\cdot C_0 = 0.5000\\;\\mathrm{mL/min} \\times 0.100\\;\\mathrm{M} = 0.0500\\;\\mathrm{mmol/min}",
+                "C_{\\mathrm{reactor,inlet}} = C_0 = 0.1000\\;\\mathrm{M}\\quad (\\text{single-feed PFR; no dilution at inlet})",
+                "P_{\\mathrm{flow}} = \\dot{n}_{\\mathrm{lim,flow}} \\cdot Y \\cdot 60 = 0.0500 \\times 0.99 \\times 60 = 2.97\\;\\mathrm{mmol/h}",
+                "V_{\\mathrm{startup}} = 3 \\cdot \\tau \\cdot Q = 3 \\times 0.2 \\times 0.500 = 0.3\\;\\mathrm{mL}",
+                "IF = \\frac{t_{\\mathrm{batch}}}{\\tau_{\\mathrm{flow}}} = \\frac{300}{10.3} = 29.2\\times"
+              ],
+              "warnings": [
+                "Productivity closure FAIL: P_flow = 2.97 mmol/h < P_batch = 43.97 mmol/h. Increase C_feed or check yield assumptions."
+              ],
+              "adjustments": [],
+              "assumptions": []
+            }
+          ],
+          "temperature_C": 21.0,
+          "temperature_K": 294.15,
+          "concentration_M": 0.1,
+          "batch_time_s": 299.88,
+          "target_conversion": 0.99,
+          "rate_constant": 0.447956323293655,
+          "reaction_order": 1,
+          "kinetics_method": "council-approved",
+          "kinetics_status": "legacy_estimate",
+          "residence_time_s": 10.2804,
+          "residence_time_min": 0.17134,
+          "residence_time_inlet_min": 0.1713,
+          "residence_time_in_channel_min": 0.5126,
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_range_min": [
+            0.14,
+            0.21
+          ],
+          "intensification_factor": 29.2,
+          "tau_analogy_min": null,
+          "tau_class_min": null,
+          "tau_kinetics_min": null,
+          "if_analogy": 48.0,
+          "if_class": 6.0,
+          "n_analogy_datapoints": 3,
+          "arrhenius_correction": null,
+          "flow_rate_mL_min": 0.5,
+          "flow_rate_m3_s": 8.333333333333334e-09,
+          "reactor_volume_mL": 1.0,
+          "reactor_volume_m3": 1e-06,
+          "tubing_ID_mm": 1.0,
+          "tubing_ID_m": 0.001,
+          "tubing_length_m": 1.2732,
+          "velocity_m_s": 0.04139908945418259,
+          "reynolds_number": 22.539781129771125,
+          "flow_regime": "laminar",
+          "viscosity_Pa_s": 0.00037,
+          "density_kg_m3": 786.0,
+          "pressure_drop_bar": 0.019194,
+          "pump_max_bar": 10.0,
+          "pump_adequate": true,
+          "is_gas_liquid": true,
+          "gas_species": "air",
+          "gas_oxygen_fraction": 0.21,
+          "gas_reagent_fraction": 0.21,
+          "liquid_flow_rate_mL_min": 0.5,
+          "gas_flow_sccm": 5.3364,
+          "gas_sccm_uncapped": 5.3364,
+          "gas_flow_actual_mL_min": 1.4509,
+          "gas_actual_uncapped_mL_min": 1.4509,
+          "gas_flow_capped_by_holdup": false,
+          "gas_pressure_abs_bar": 4.0133,
+          "gas_liquid_ratio": 2.9018,
+          "gas_holdup": 0.7437,
+          "liquid_holdup_volume_mL": 0.2563,
+          "two_phase_multiplier": 12.0,
+          "two_phase_pressure_drop_bar": 0.019194,
+          "o2_supply_mmol_min": 0.05,
+          "o2_required_mmol_min": 0.05,
+          "gas_supply_mmol_min": 0.05,
+          "gas_required_mmol_min": 0.05,
+          "target_gas_equiv_inlet": 1.0,
+          "explicit_gas_equiv_inlet": 1.0,
+          "o2_equiv_supplied": 1.0,
+          "gas_equiv_supplied": 1.0,
+          "gas_flow_recomputed_from_equiv": false,
+          "dissolved_o2_mM": 5.2172,
+          "kLa_s": 0.2803,
+          "o2_transfer_capacity_mmol_min": 0.022488,
+          "o2_transfer_sufficiency": 0.4498,
+          "mixing_time_s": 101.32,
+          "damkohler_mass": 447.9563,
+          "mass_transfer_limited": true,
+          "heat_generation_W": 0.574056,
+          "heat_removal_W": 11.999627,
+          "thermal_damkohler": 0.047839,
+          "thermal_safe": true,
+          "surface_to_volume": 4000.0,
+          "heat_transfer_area_m2": 0.00399988,
+          "UA_W_K": 1.199963,
+          "heat_transfer_score": 1.0,
+          "bpr_required": true,
+          "bpr_pressure_bar": 3.0,
+          "vapor_pressure_bar": 0.0423,
+          "space_time_yield_mol_L_h": 34.6679,
+          "productivity_mmol_h": 2.97,
+          "n_molar_flow_mmol_min": 0.05,
+          "P_batch_mmol_h": 43.974,
+          "P_flow_mmol_h": 2.97,
+          "C_reactor_M": 0.1,
+          "startup_waste_mL": 0.3,
+          "productivity_closure_ok": false,
+          "Pe": 2.0,
+          "Pe_adequate": false,
+          "consistent": true,
+          "consistency_notes": [],
+          "material_warnings": [],
+          "batch_time_source": "stage batch_time_h"
+        }
+      }
+    ],
+    "after": [
+      {
+        "stage_number": 1,
+        "status": "calculated",
+        "source": "realized stage; frozen geometry",
+        "calculations": {
+          "steps": [
+            {
+              "step": 1,
+              "name": "Batch Conditions",
+              "status": "PASS",
+              "summary": "T = 21 °C, C₀ = 0.1 M, t_batch = 0.1 h (300 s), X = 0.99",
+              "values": {
+                "T_C": 21.0,
+                "T_K": 294.15,
+                "C_M": 0.1,
+                "t_batch_h": 0.0833,
+                "t_batch_s": 299.88,
+                "X": 0.99
+              },
+              "equations": [],
+              "warnings": [],
+              "adjustments": [],
+              "assumptions": []
+            },
+            {
+              "step": 2,
+              "name": "Kinetics & Residence Time",
+              "status": "PASS",
+              "summary": "τ = 0.2 min (council-approved — not re-derived from kinetics). Implied IF = 29× vs batch.",
+              "values": {
+                "tau_primary_min": 0.17134,
+                "method": "council-approved",
+                "IF_implied": 29.2,
+                "IF_class": 6.0,
+                "k_flow": 0.447956323293655
+              },
+              "equations": [],
+              "warnings": [],
+              "adjustments": [],
+              "assumptions": [
+                "τ set by ENGINE council — kinetics estimation bypassed"
+              ]
+            },
+            {
+              "step": 3,
+              "name": "Reactor Sizing",
+              "status": "WARNING",
+              "summary": "V_R = 1.00 mL, d = 1.00 mm, L = 1.27 m, Pe = 2 (⚠ axial dispersion)",
+              "values": {
+                "V_R_mL": 1.0,
+                "liquid_holdup_mL": 0.25629379001686514,
+                "gas_holdup": 0.7437,
+                "d_mm": 1.0,
+                "L_m": 1.2732395447351628,
+                "Q_mL_min": 0.5,
+                "v_m_s": 0.04139908945418259,
+                "residence_time_basis": "inlet/STP apparent residence time",
+                "residence_time_inlet_min": 0.1713,
+                "residence_time_in_channel_min": 0.5126,
+                "Pe": 2.0,
+                "Pe_adequate": false
+              },
+              "equations": [
+                "V_R = t_{inlet} \\times (Q_L + Q_{g,STP}) = 0.17 \\times (0.5000 + 5.3364) = 1.00\\;\\mathrm{mL}",
+                "Q_{g,actual} = Q_{g,STP}\\frac{T}{T_{STP}}\\frac{P_{STP}}{P} = 1.4509\\;\\mathrm{mL/min}",
+                "t_{in-channel} = \\frac{V_R}{Q_L + Q_{g,actual}} = 0.51\\;\\mathrm{min}",
+                "\\varepsilon_g = \\frac{Q_{g,actual}}{Q_{g,actual}+Q_L} = 0.744",
+                "L = \\frac{4\\,V_R}{\\pi\\,d^2} = 1.27\\;\\mathrm{m}",
+                "Pe = \\frac{192\\,\\tau\\,D_{\\mathrm{mol}}}{d^2} = \\frac{192 \\times 10.3 \\times 1e-09}{0.0010^2} = 2\\;\\mathbf{WARNING}"
+              ],
+              "warnings": [
+                "Pe = 2 < 100 — significant axial dispersion. Reactor behaves closer to CSTR than PFR. Reduce d (smaller d → higher Pe) or accept lower conversion efficiency."
+              ],
+              "adjustments": [],
+              "assumptions": []
+            },
+            {
+              "step": 4,
+              "name": "Fluid Dynamics",
+              "status": "PASS",
+              "summary": "Re = 22.5 (laminar), v = 0.0414 m/s",
+              "values": {
+                "Re": 22.539781129771125,
+                "regime": "laminar",
+                "v_m_s": 0.04139908945418259,
+                "mu_Pa_s": 0.00037,
+                "rho_kg_m3": 786.0,
+                "mu_cP": 0.37,
+                "rho_g_mL": 0.786
+              },
+              "equations": [
+                "v = \\frac{4\\,Q}{\\pi\\,d^2} = \\frac{4 \\times 8.333e-09}{\\pi \\times (0.0010)^2} = 0.0414\\;\\mathrm{m/s}",
+                "Re = \\frac{\\rho\\,v\\,d}{\\mu} = \\frac{786 \\times 0.0414 \\times 0.0010}{3.7000e-04} = 22.5"
+              ],
+              "warnings": [],
+              "adjustments": [],
+              "assumptions": []
+            },
+            {
+              "step": 5,
+              "name": "Pressure Drop",
+              "status": "PASS",
+              "summary": "ΔP = 0.0192 bar (pump max = 10 bar, margin = 100 %)",
+              "values": {
+                "dP_bar": 0.019194285029204467,
+                "dP_Pa": 1919.4285029204466,
+                "pump_max_bar": 10.0,
+                "margin_pct": 99.80805714970795
+              },
+              "equations": [
+                "\\Delta P = \\frac{128\\,\\mu\\,L\\,Q}{\\pi\\,d^4} = \\frac{128 \\times 3.7000e-04 \\times 1.27 \\times 8.333e-09}{\\pi \\times (0.0010)^4} \\times \\phi^2_{2p} = 0.0192\\;\\mathrm{bar}",
+                "\\phi^2_{2p} = 1 + 12\\varepsilon_g + 25\\varepsilon_g^2 = 12.00"
+              ],
+              "warnings": [],
+              "adjustments": [],
+              "assumptions": []
+            },
+            {
+              "step": 6,
+              "name": "Mass Transfer",
+              "status": "WARNING",
+              "summary": "t_mix = 101.3 s, Da = 447.956 — Mass-transfer limited — mixing is the bottleneck",
+              "values": {
+                "t_mix_s": 101.32118364233777,
+                "Da_mass": 447.9563232936549,
+                "D_m2_s": 1e-09,
+                "interpretation": "Mass-transfer limited — mixing is the bottleneck",
+                "gas_species": "air",
+                "gas_flow_sccm": 5.3364,
+                "gas_flow_actual_mL_min": 1.4509,
+                "gas_pressure_abs_bar": 4.0133,
+                "gas_liquid_ratio": 2.9018,
+                "gas_holdup": 0.7437,
+                "o2_supply_mmol_min": 0.05,
+                "o2_required_mmol_min": 0.05,
+                "gas_supply_mmol_min": 0.05,
+                "gas_required_mmol_min": 0.05,
+                "target_gas_equiv_inlet": 1.0,
+                "explicit_gas_equiv_inlet": 1.0,
+                "o2_equiv_supplied": 1.0,
+                "gas_equiv_supplied": 1.0,
+                "gas_flow_recomputed_from_equiv": false,
+                "dissolved_o2_mM": 5.2172,
+                "kLa_s": 0.2803,
+                "o2_transfer_capacity_mmol_min": 0.022488,
+                "o2_transfer_sufficiency": 0.4498
+              },
+              "equations": [
+                "t_{\\mathrm{mix}} \\approx \\frac{d^2}{D \\cdot \\pi^2} = \\frac{(0.0010)^2}{1.0e-09 \\times \\pi^2} = 101.3\\;\\mathrm{s}",
+                "Da = \\frac{k \\cdot d^2}{D} = \\frac{4.480e-01 \\times (0.0010)^2}{1.0e-09} = 447.956",
+                "Q_{g,\\mathrm{actual}} = Q_{g,\\mathrm{STP}}\\frac{T}{T_{STP}}\\frac{P_{STP}}{P} = 1.451\\;\\mathrm{mL/min}",
+                "C^*_{O2} \\approx 1.3\\;\\mathrm{mM}\\times\\frac{P_{O2}}{0.21\\;\\mathrm{bar}} = 5.22\\;\\mathrm{mM}",
+                "\\dot n_{O2,transfer} = k_La C^* V_L = 0.0225\\;\\mathrm{mmol/min}"
+              ],
+              "warnings": [
+                "Da = 448.0 ≫ 1: severely mass-transfer limited. Need micromixer, smaller d, or pre-mixed streams.",
+                "Estimated O2 transfer sufficiency = 0.45× reaction demand; increase gas pressure, gas/liquid interface, or residence time."
+              ],
+              "adjustments": [],
+              "assumptions": [
+                "D = 1e-09 m²/s (typical for small organic molecules in liquid)",
+                "Gas holdup estimated from actual reactor gas/liquid volumetric ratio.",
+                "O2 solubility uses a water/ethanol-scale Henry-law approximation; validate experimentally for final scale-up.",
+                "kLa is a conservative capillary slug-flow estimate tied to gas holdup."
+              ]
+            },
+            {
+              "step": 7,
+              "name": "Heat Transfer",
+              "status": "PASS",
+              "summary": "Q_gen = 0.5741 W, Q_rem = 11.9996 W, Da_th = 0.0478 — Thermally safe",
+              "values": {
+                "Q_gen_W": 0.5740560283008188,
+                "Q_rem_W": 11.999627299651577,
+                "Da_th": 0.047839488174560824,
+                "S_V_m_inv": 4000.0,
+                "U_W_m2K": 300,
+                "A_wall_m2": 0.003999875766550525,
+                "UA_W_K": 1.199963,
+                "heat_transfer_score": 1.0,
+                "dH_J_mol": -50000,
+                "dT_lm_C": 10.0,
+                "r_mol_m3_s": 44.795632329365496
+              },
+              "equations": [
+                "\\dot{Q}_{\\mathrm{rxn}} = |\\Delta H_r| \\cdot r \\cdot V_R = 50000 \\times 44.796 \\times 2.563e-07 = 0.5741\\;\\mathrm{W}",
+                "A_{\\mathrm{wall}} = \\pi\\,d\\,L = \\pi \\times 0.0010 \\times 1.27 = 0.00400\\;\\mathrm{m^2}",
+                "\\dot{Q}_{\\mathrm{rem}} = U \\cdot A \\cdot \\Delta T_{\\mathrm{lm}} = 300 \\times 0.00400 \\times 10 = 11.9996\\;\\mathrm{W}",
+                "Da_{\\mathrm{th}} = \\frac{\\dot{Q}_{\\mathrm{rxn}}}{\\dot{Q}_{\\mathrm{rem}}} = \\frac{0.5741}{11.9996} = 0.0478",
+                "\\frac{S}{V} = \\frac{4}{d} = \\frac{4}{0.0010} = 4000\\;\\mathrm{m^{-1}}"
+              ],
+              "warnings": [],
+              "adjustments": [],
+              "assumptions": [
+                "ΔH_r ≈ -50 kJ/mol (estimated for photoredox)",
+                "U ≈ 300 W/m²·K (coil in temperature-controlled bath)",
+                "ΔT_lm ≈ 10.0 °C (conservative estimate)"
+              ]
+            },
+            {
+              "step": 8,
+              "name": "Back-Pressure Regulator",
+              "status": "PASS",
+              "summary": "BPR REQUIRED: 3.0 bar (Gas-liquid system detected — BPR mandatory to maintain gas solubility (Henry's law: C_gas = H·P) and prevent uncontrolled degassing.)",
+              "values": {
+                "bpr_required": true,
+                "bpr_bar": 3.0,
+                "P_vapor_bar": 0.04228791242289945,
+                "dP_system_bar": 0.019194,
+                "solvent_bp_C": 82,
+                "gas_liquid": true,
+                "gas_species": "air",
+                "gas_pressure_abs_bar": 4.0133,
+                "gas_flow_sccm": 5.3364,
+                "dissolved_o2_mM": 5.2172
+              },
+              "equations": [
+                "C_{\\mathrm{gas}} = H \\cdot P_{\\mathrm{partial}}\\quad\\text{(higher BPR} \\Rightarrow \\text{more dissolved gas)}",
+                "P_{\\mathrm{BPR}} \\geq \\max\\left(P_{\\mathrm{vap}} + \\Delta P + 0.5,\\; 3\\right) = \\max(0.04 + 0.019 + 0.5,\\; 3) = 3.0\\;\\mathrm{bar}"
+              ],
+              "warnings": [],
+              "adjustments": [],
+              "assumptions": []
+            },
+            {
+              "step": 9,
+              "name": "Process Metrics",
+              "status": "WARNING",
+              "summary": "STY = 2.9700 mol/(L·h), P = 2.970 mmol/h, ṅ_lim = 0.0500 mmol/min, startup waste = 0.3 mL, IF = 29×",
+              "values": {
+                "STY_mol_L_h": 2.97,
+                "STY_volume_basis": "total nominal reactor volume",
+                "productivity_mmol_h": 2.97,
+                "conversion_basis": "assumed target_conversion",
+                "IF": 29.170071203455116,
+                "n_molar_flow_mmol_min": 0.05,
+                "P_batch_mmol_h": 43.974,
+                "P_flow_mmol_h": 2.97,
+                "C_reactor_M": 0.1,
+                "startup_waste_mL": 0.3,
+                "productivity_closure_ok": false,
+                "is_gas_liquid": true,
+                "liquid_flow_rate_mL_min": 0.5,
+                "gas_flow_sccm": 5.3364,
+                "gas_holdup": 0.7437,
+                "liquid_holdup_volume_mL": 0.2563,
+                "total_reactor_volume_mL": 1.0
+              },
+              "equations": [
+                "P = Q \\cdot C_0 \\cdot X \\cdot 60 = 0.500 \\times 0.1 \\times 0.99 \\times 60 = 2.970\\;\\mathrm{mmol/h}",
+                "STY = \\frac{P_{\\mathrm{conditional}}}{V_R} = \\frac{2.97}{1} = 2.9700\\;\\mathrm{mol/(L \\cdot h)}",
+                "P_{\\mathrm{batch}} = \\frac{n_{\\mathrm{batch}} \\cdot Y}{t_{\\mathrm{batch}}} = \\frac{3.7 \\times 0.99}{0.08} = 43.97\\;\\mathrm{mmol/h}",
+                "\\dot{n}_{\\mathrm{lim,flow}} = Q_{\\mathrm{total}} \\cdot C_0 = 0.5000\\;\\mathrm{mL/min} \\times 0.100\\;\\mathrm{M} = 0.0500\\;\\mathrm{mmol/min}",
+                "C_{\\mathrm{reactor,inlet}} = C_0 = 0.1000\\;\\mathrm{M}\\quad (\\text{single-feed PFR; no dilution at inlet})",
+                "P_{\\mathrm{flow}} = \\dot{n}_{\\mathrm{lim,flow}} \\cdot Y \\cdot 60 = 0.0500 \\times 0.99 \\times 60 = 2.97\\;\\mathrm{mmol/h}",
+                "V_{\\mathrm{startup}} = 3 \\cdot \\tau \\cdot Q = 3 \\times 0.2 \\times 0.500 = 0.3\\;\\mathrm{mL}",
+                "IF = \\frac{t_{\\mathrm{batch}}}{\\tau_{\\mathrm{flow}}} = \\frac{300}{10.3} = 29.2\\times"
+              ],
+              "warnings": [
+                "Productivity closure FAIL: P_flow = 2.97 mmol/h < P_batch = 43.97 mmol/h. Increase C_feed or check yield assumptions."
+              ],
+              "adjustments": [],
+              "assumptions": [
+                "Productivity and STY are conditional projections using target_conversion; no flow yield is established."
+              ]
+            }
+          ],
+          "temperature_C": 21.0,
+          "temperature_K": 294.15,
+          "concentration_M": 0.1,
+          "batch_time_s": 299.88,
+          "target_conversion": 0.99,
+          "rate_constant": 0.447956323293655,
+          "reaction_order": 1,
+          "kinetics_method": "council-approved",
+          "kinetics_status": "legacy_estimate",
+          "residence_time_s": 10.2804,
+          "residence_time_min": 0.17134,
+          "residence_time_inlet_min": 0.1713,
+          "residence_time_in_channel_min": 0.5126,
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_range_min": [
+            0.14,
+            0.21
+          ],
+          "intensification_factor": 29.2,
+          "tau_analogy_min": null,
+          "tau_class_min": null,
+          "tau_kinetics_min": null,
+          "if_analogy": 48.0,
+          "if_class": 6.0,
+          "n_analogy_datapoints": 3,
+          "arrhenius_correction": null,
+          "flow_rate_mL_min": 0.5,
+          "flow_rate_m3_s": 8.333333333333334e-09,
+          "reactor_volume_mL": 1.0,
+          "reactor_volume_m3": 1e-06,
+          "tubing_ID_mm": 1.0,
+          "tubing_ID_m": 0.001,
+          "tubing_length_m": 1.2732,
+          "velocity_m_s": 0.04139908945418259,
+          "reynolds_number": 22.539781129771125,
+          "flow_regime": "laminar",
+          "viscosity_Pa_s": 0.00037,
+          "density_kg_m3": 786.0,
+          "pressure_drop_bar": 0.019194,
+          "pump_max_bar": 10.0,
+          "pump_adequate": true,
+          "is_gas_liquid": true,
+          "gas_species": "air",
+          "gas_oxygen_fraction": 0.21,
+          "gas_reagent_fraction": 0.21,
+          "liquid_flow_rate_mL_min": 0.5,
+          "gas_flow_sccm": 5.3364,
+          "gas_sccm_uncapped": 5.3364,
+          "gas_flow_actual_mL_min": 1.4509,
+          "gas_actual_uncapped_mL_min": 1.4509,
+          "gas_flow_capped_by_holdup": false,
+          "gas_pressure_abs_bar": 4.0133,
+          "gas_liquid_ratio": 2.9018,
+          "gas_holdup": 0.7437,
+          "liquid_holdup_volume_mL": 0.2563,
+          "two_phase_multiplier": 12.0,
+          "two_phase_pressure_drop_bar": 0.019194,
+          "o2_supply_mmol_min": 0.05,
+          "o2_required_mmol_min": 0.05,
+          "gas_supply_mmol_min": 0.05,
+          "gas_required_mmol_min": 0.05,
+          "target_gas_equiv_inlet": 1.0,
+          "explicit_gas_equiv_inlet": 1.0,
+          "o2_equiv_supplied": 1.0,
+          "gas_equiv_supplied": 1.0,
+          "gas_flow_recomputed_from_equiv": false,
+          "dissolved_o2_mM": 5.2172,
+          "kLa_s": 0.2803,
+          "o2_transfer_capacity_mmol_min": 0.022488,
+          "o2_transfer_sufficiency": 0.4498,
+          "mixing_time_s": 101.32,
+          "damkohler_mass": 447.9563,
+          "mass_transfer_limited": true,
+          "heat_generation_W": 0.574056,
+          "heat_removal_W": 11.999627,
+          "thermal_damkohler": 0.047839,
+          "thermal_safe": true,
+          "surface_to_volume": 4000.0,
+          "heat_transfer_area_m2": 0.00399988,
+          "UA_W_K": 1.199963,
+          "heat_transfer_score": 1.0,
+          "bpr_required": true,
+          "bpr_pressure_bar": 3.0,
+          "vapor_pressure_bar": 0.0423,
+          "space_time_yield_mol_L_h": 2.97,
+          "productivity_mmol_h": 2.97,
+          "n_molar_flow_mmol_min": 0.05,
+          "P_batch_mmol_h": 43.974,
+          "P_flow_mmol_h": 2.97,
+          "C_reactor_M": 0.1,
+          "startup_waste_mL": 0.3,
+          "productivity_closure_ok": false,
+          "Pe": 2.0,
+          "Pe_adequate": false,
+          "consistent": true,
+          "consistency_notes": [],
+          "material_warnings": [],
+          "batch_time_source": "stage batch_time_h"
+        }
+      }
+    ]
+  },
+  {
+    "path": "$.final_validation.design_disposition.hard_failures",
+    "before": [],
+    "after": []
+  },
+  {
+    "path": "$.final_validation.design_disposition.requirements.required_gases",
+    "before": [
+      "O2"
+    ],
+    "after": [
+      "O2"
+    ]
+  },
+  {
+    "path": "$.final_validation.design_disposition.screen_reasons",
+    "before": [
+      "Council requires screening",
+      "Proposal is not engine-validated"
+    ],
+    "after": [
+      "Council requires screening",
+      "Proposal is not engine-validated"
+    ]
+  },
+  {
+    "path": "$.offline_repair_provenance",
+    "before_present": false,
+    "after_present": true,
+    "before": null,
+    "after": {
+      "kind": "unscored offline deterministic artifact recompilation from unchanged reviewed proposal",
+      "fresh_generation": false,
+      "model_or_judge_calls": 0,
+      "source_result": "ablation_results/practical_input/claude_practical_repair_20261014/generation/photochemical_oxidation/claude_repaired_flowpilot/repeat_01/result.json",
+      "source_sha256": "e63fbab213870e2880c41ee96ddb6437085cd67147c65a11f1739f7377193728",
+      "benchmark_scores_updated": false,
+      "source_model_proposal_preserved_in_archive": true,
+      "reviewed_proposal_unchanged": true,
+      "restored_fields": {
+        "final_validation.checks": "final_design.consistency.validation_checks",
+        "design_disposition": "final_validation.design_disposition",
+        "safety_report": "council_safety_report_diagnostic"
+      },
+      "no_new_council_approval": true
+    }
+  },
+  {
+    "path": "$.png_path",
+    "before": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T020816_416774Z_332f43d2/process.png",
+    "after": "/home/amirreza/Documents/codes/Flow Agent/output/practical_benchmark_tools/post_benchmark_repairs_20261014/photochemical_oxidation/diagrams/20261014T023025_833179Z_1cee7d9a/process.png"
+  },
+  {
+    "path": "$.process_requirements_topology.unit_operations",
+    "before": [
+      {
+        "op_id": "pump_a",
+        "op_type": "pump",
+        "label": "Pump A — Single liquid feed pump delivering premixed substrate and photocatalyst solution",
+        "parameters": {
+          "stream": "A",
+          "contents": [
+            "Fmoc-L-methionine (0.1 M, 1 equiv)",
+            "4,7-diphenyl-2,1,3-benzothiadiazole (0.01 M, 10 mol%)"
+          ],
+          "solvent": "acetonitrile",
+          "flow_rate_mL_min": 0.5,
+          "phase": "liquid",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null,
+          "molar_equiv": 1.0,
+          "inventory_equipment_id": "pump_photo_liquid",
+          "concentration_M": 0.1,
+          "gas_reagent_mole_fraction": null
+        },
+        "required": true,
+        "rationale": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.5 mL/min; equiv=1, C=0.1 M; pump=pump_photo_liquid; concentration_basis=reference component: Fmoc-L-methionine; equiv_basis=reference component: Fmoc-L-methionine.",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "pump_b",
+        "op_type": "mfc",
+        "label": "MFC B — Air MFC delivering reagent gas for singlet-oxygen generation",
+        "parameters": {
+          "stream": "B",
+          "contents": [
+            "air"
+          ],
+          "solvent": "",
+          "flow_rate_mL_min": 1.450886,
+          "phase": "gas",
+          "gas_flow_sccm": 5.336362,
+          "gas_flow_actual_mL_min": 1.450886,
+          "molar_equiv": 1.0,
+          "inventory_equipment_id": "mfc_air_10",
+          "delivery_hardware": "MFC",
+          "concentration_M": null,
+          "gas_reagent_mole_fraction": 0.21
+        },
+        "required": true,
+        "rationale": "MFC inlet/STP flow=5.33636 sccm at 273.15 K and 1.01325 bar (22.412722 L/mol); pressure-corrected in-channel flow=1.45089 mL/min at 21 deg C and 4.01325 bar absolute; total gas=0.23809524 mmol/min, active O2=0.05 mmol/min (mole fraction 0.21); supplied=1 equiv O2 relative to limiting substrate.",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "mixer_1",
+        "op_type": "mixer",
+        "label": "T-mixer (PFA gas-liquid T-mixer, mixer_photo_t)",
+        "parameters": {
+          "type": "T-mixer (PFA gas-liquid T-mixer, mixer_photo_t)",
+          "material": "not specified"
+        },
+        "required": true,
+        "rationale": "Chemistry Plan: Stream A (liquid) premixed before reactor; Stream B (air) introduced via PFA T-mixer immediately upstream of photocoil to generate segmented Taylor flow. This ensures photocatalyst is uniformly distributed before gas contact, O2 is not present in feed lines (preventing premature oxidation), and segmented flow is established before the irradiated zone for maximum gas-liquid mass transfer.",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "reactor_1",
+        "op_type": "photoreactor",
+        "label": "PFA Photoreactor Coil",
+        "parameters": {
+          "material": "PFA",
+          "ID_mm": 1.0,
+          "volume_mL": 1.0,
+          "Q_inlet_mL_min": 0.5,
+          "Q_liquid_mL_min": 0.5,
+          "Q_gas_sccm": 5.336362,
+          "Q_gas_actual_mL_min": 1.450886,
+          "temperature_C": 21.0,
+          "wavelength_nm": 420.0,
+          "residence_time_min": 0.17134,
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_inlet_min": 0.17134,
+          "residence_time_in_channel_min": 0.512588,
+          "reactor_type": "photochemical coil"
+        },
+        "required": true,
+        "rationale": "Flow reactor",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "heater_1",
+        "op_type": "heater",
+        "label": "Temperature Control 21 deg C",
+        "parameters": {
+          "temperature_C": 21.0
+        },
+        "required": true,
+        "rationale": "Active reactor temperature control",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "led_1",
+        "op_type": "led_module",
+        "label": "LED 420 nm",
+        "parameters": {
+          "wavelength_nm": 420.0
+        },
+        "required": true,
+        "rationale": "Photoexcitation",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "bpr_1",
+        "op_type": "bpr",
+        "label": "BPR",
+        "parameters": {
+          "pressure_bar": 3.0
+        },
+        "required": true,
+        "rationale": "Maintain liquid phase",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "separator_1",
+        "op_type": "phase_separator",
+        "label": "Phase Separator",
+        "parameters": {
+          "phases": [
+            "gas",
+            "liquid"
+          ]
+        },
+        "required": true,
+        "rationale": "Separate gas from the product-containing liquid.",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "collector_1",
+        "op_type": "collector",
+        "label": "Product Collection",
+        "parameters": {},
+        "required": true,
+        "rationale": "Outlet",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      }
+    ],
+    "after": [
+      {
+        "op_id": "pump_a",
+        "op_type": "pump",
+        "label": "Pump A — Single liquid feed pump delivering premixed substrate and photocatalyst solution",
+        "parameters": {
+          "stream": "A",
+          "contents": [
+            "Fmoc-L-methionine (0.1 M, 1 equiv)",
+            "4,7-diphenyl-2,1,3-benzothiadiazole (0.01 M, 10 mol%)"
+          ],
+          "solvent": "acetonitrile",
+          "flow_rate_mL_min": 0.5,
+          "phase": "liquid",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null,
+          "molar_equiv": 1.0,
+          "inventory_equipment_id": "pump_photo_liquid",
+          "concentration_M": 0.1,
+          "gas_reagent_mole_fraction": null
+        },
+        "required": true,
+        "rationale": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.5 mL/min; equiv=1, C=0.1 M; pump=pump_photo_liquid; concentration_basis=reference component: Fmoc-L-methionine; equiv_basis=reference component: Fmoc-L-methionine.",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "pump_b",
+        "op_type": "mfc",
+        "label": "MFC B — Air MFC delivering reagent gas for singlet-oxygen generation",
+        "parameters": {
+          "stream": "B",
+          "contents": [
+            "air"
+          ],
+          "solvent": "",
+          "flow_rate_mL_min": 1.450886,
+          "phase": "gas",
+          "gas_flow_sccm": 5.336362,
+          "gas_flow_actual_mL_min": 1.450886,
+          "molar_equiv": 1.0,
+          "inventory_equipment_id": "mfc_air_10",
+          "delivery_hardware": "MFC",
+          "concentration_M": null,
+          "gas_reagent_mole_fraction": 0.21
+        },
+        "required": true,
+        "rationale": "MFC inlet/STP flow=5.33636 sccm at 273.15 K and 1.01325 bar (22.412722 L/mol); pressure-corrected in-channel flow=1.45089 mL/min at 21 deg C and 4.01325 bar absolute; total gas=0.23809524 mmol/min, active O2=0.05 mmol/min (mole fraction 0.21); supplied=1 equiv O2 relative to limiting substrate.",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "mixer_1",
+        "op_type": "mixer",
+        "label": "T-mixer (PFA gas-liquid T-mixer, mixer_photo_t)",
+        "parameters": {
+          "type": "T-mixer (PFA gas-liquid T-mixer, mixer_photo_t)",
+          "material": "not specified"
+        },
+        "required": true,
+        "rationale": "Combine the reactor feed streams at this mixer. Follow the final process diagram for downstream equipment and pressure-control order.",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "reactor_1",
+        "op_type": "photoreactor",
+        "label": "PFA Photoreactor Coil",
+        "parameters": {
+          "material": "PFA",
+          "ID_mm": 1.0,
+          "volume_mL": 1.0,
+          "Q_inlet_mL_min": 0.5,
+          "Q_liquid_mL_min": 0.5,
+          "Q_gas_sccm": 5.336362,
+          "Q_gas_actual_mL_min": 1.450886,
+          "temperature_C": 21.0,
+          "wavelength_nm": 420.0,
+          "residence_time_min": 0.17134,
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_inlet_min": 0.17134,
+          "residence_time_in_channel_min": 0.512588,
+          "reactor_type": "photochemical coil"
+        },
+        "required": true,
+        "rationale": "Flow reactor",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "heater_1",
+        "op_type": "heater",
+        "label": "Temperature Control 21 deg C",
+        "parameters": {
+          "temperature_C": 21.0
+        },
+        "required": true,
+        "rationale": "Active reactor temperature control",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "led_1",
+        "op_type": "led_module",
+        "label": "LED 420 nm",
+        "parameters": {
+          "wavelength_nm": 420.0
+        },
+        "required": true,
+        "rationale": "Photoexcitation",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "bpr_1",
+        "op_type": "bpr",
+        "label": "BPR",
+        "parameters": {
+          "pressure_bar": 3.0
+        },
+        "required": true,
+        "rationale": "Maintain liquid phase",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "separator_1",
+        "op_type": "phase_separator",
+        "label": "Phase Separator",
+        "parameters": {
+          "phases": [
+            "gas",
+            "liquid"
+          ]
+        },
+        "required": true,
+        "rationale": "Separate gas from the product-containing liquid.",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "collector_1",
+        "op_type": "collector",
+        "label": "Product Collection",
+        "parameters": {},
+        "required": true,
+        "rationale": "Outlet",
+        "inventory_item_id": null,
+        "inventory_item_ids": [],
+        "instrument_name": "",
+        "inventory_category": "",
+        "assignment_status": "unassigned",
+        "capability_checks": {},
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      }
+    ]
+  },
+  {
+    "path": "$.process_topology.unit_operations",
+    "before": [
+      {
+        "op_id": "pump_a",
+        "op_type": "pump",
+        "label": "Pump A — Single liquid feed pump delivering premixed substrate and photocatalyst solution | Photochemistry HPLC pump",
+        "parameters": {
+          "stream": "A",
+          "contents": [
+            "Fmoc-L-methionine (0.1 M, 1 equiv)",
+            "4,7-diphenyl-2,1,3-benzothiadiazole (0.01 M, 10 mol%)"
+          ],
+          "solvent": "acetonitrile",
+          "flow_rate_mL_min": 0.5,
+          "phase": "liquid",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null,
+          "molar_equiv": 1.0,
+          "inventory_equipment_id": "pump_photo_liquid",
+          "concentration_M": 0.1,
+          "gas_reagent_mole_fraction": null,
+          "inventory_item_id": "pump_photo_liquid",
+          "inventory_item_ids": [
+            "pump_photo_liquid"
+          ],
+          "instrument_name": "Photochemistry HPLC pump"
+        },
+        "required": true,
+        "rationale": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.5 mL/min; equiv=1, C=0.1 M; pump=pump_photo_liquid; concentration_basis=reference component: Fmoc-L-methionine; equiv_basis=reference component: Fmoc-L-methionine.",
+        "inventory_item_id": "pump_photo_liquid",
+        "inventory_item_ids": [
+          "pump_photo_liquid"
+        ],
+        "instrument_name": "Photochemistry HPLC pump",
+        "inventory_category": "pumps",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "pump_b",
+        "op_type": "mfc",
+        "label": "MFC B — Air MFC delivering reagent gas for singlet-oxygen generation | Air mass-flow controller",
+        "parameters": {
+          "stream": "B",
+          "contents": [
+            "air"
+          ],
+          "solvent": "",
+          "flow_rate_mL_min": 1.450886,
+          "phase": "gas",
+          "gas_flow_sccm": 5.336362,
+          "gas_flow_actual_mL_min": 1.450886,
+          "molar_equiv": 1.0,
+          "inventory_equipment_id": "mfc_air_10",
+          "delivery_hardware": "MFC",
+          "concentration_M": null,
+          "gas_reagent_mole_fraction": 0.21,
+          "inventory_item_id": "mfc_air_10",
+          "inventory_item_ids": [
+            "mfc_air_10"
+          ],
+          "instrument_name": "Air mass-flow controller"
+        },
+        "required": true,
+        "rationale": "MFC inlet/STP flow=5.33636 sccm at 273.15 K and 1.01325 bar (22.412722 L/mol); pressure-corrected in-channel flow=1.45089 mL/min at 21 deg C and 4.01325 bar absolute; total gas=0.23809524 mmol/min, active O2=0.05 mmol/min (mole fraction 0.21); supplied=1 equiv O2 relative to limiting substrate.",
+        "inventory_item_id": "mfc_air_10",
+        "inventory_item_ids": [
+          "mfc_air_10"
+        ],
+        "instrument_name": "Air mass-flow controller",
+        "inventory_category": "gas_hardware",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "mixer_1",
+        "op_type": "mixer",
+        "label": "T-mixer (PFA gas-liquid T-mixer, mixer_photo_t) | PFA gas-liquid T-mixer",
+        "parameters": {
+          "type": "T-mixer (PFA gas-liquid T-mixer, mixer_photo_t)",
+          "material": "not specified",
+          "inventory_item_id": "mixer_photo_t",
+          "inventory_item_ids": [
+            "mixer_photo_t"
+          ],
+          "instrument_name": "PFA gas-liquid T-mixer"
+        },
+        "required": true,
+        "rationale": "Chemistry Plan: Stream A (liquid) premixed before reactor; Stream B (air) introduced via PFA T-mixer immediately upstream of photocoil to generate segmented Taylor flow. This ensures photocatalyst is uniformly distributed before gas contact, O2 is not present in feed lines (preventing premature oxidation), and segmented flow is established before the irradiated zone for maximum gas-liquid mass transfer.",
+        "inventory_item_id": "mixer_photo_t",
+        "inventory_item_ids": [
+          "mixer_photo_t"
+        ],
+        "instrument_name": "PFA gas-liquid T-mixer",
+        "inventory_category": "mixers",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "reactor_1",
+        "op_type": "photoreactor",
+        "label": "PFA Photoreactor Coil | One milliliter PFA photocoil",
+        "parameters": {
+          "material": "PFA",
+          "ID_mm": 1.0,
+          "volume_mL": 1.0,
+          "Q_inlet_mL_min": 0.5,
+          "Q_liquid_mL_min": 0.5,
+          "Q_gas_sccm": 5.336362,
+          "Q_gas_actual_mL_min": 1.450886,
+          "temperature_C": 21.0,
+          "wavelength_nm": 420.0,
+          "residence_time_min": 0.17134,
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_inlet_min": 0.17134,
+          "residence_time_in_channel_min": 0.512588,
+          "reactor_type": "photochemical coil",
+          "inventory_item_id": "reactor_photo_100",
+          "inventory_item_ids": [
+            "reactor_photo_100"
+          ],
+          "instrument_name": "One milliliter PFA photocoil",
+          "light_instrument_name": "420 nm photochemistry LED",
+          "light_inventory_item_id": "light_photo_420",
+          "temperature_controller_name": "Photoreactor thermostat",
+          "temperature_controller_inventory_item_id": "controller_photo_thermostat"
+        },
+        "required": true,
+        "rationale": "Flow reactor",
+        "inventory_item_id": "reactor_photo_100",
+        "inventory_item_ids": [
+          "reactor_photo_100"
+        ],
+        "instrument_name": "One milliliter PFA photocoil",
+        "inventory_category": "reactors",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "heater_1",
+        "op_type": "heater",
+        "label": "Temperature Control 21 deg C | Photoreactor thermostat",
+        "parameters": {
+          "temperature_C": 21.0,
+          "inventory_item_id": "controller_photo_thermostat",
+          "inventory_item_ids": [
+            "controller_photo_thermostat"
+          ],
+          "instrument_name": "Photoreactor thermostat"
+        },
+        "required": true,
+        "rationale": "Active reactor temperature control",
+        "inventory_item_id": "controller_photo_thermostat",
+        "inventory_item_ids": [
+          "controller_photo_thermostat"
+        ],
+        "instrument_name": "Photoreactor thermostat",
+        "inventory_category": "temperature_controllers",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "led_1",
+        "op_type": "led_module",
+        "label": "LED 420 nm | 420 nm photochemistry LED",
+        "parameters": {
+          "wavelength_nm": 420.0,
+          "inventory_item_id": "light_photo_420",
+          "inventory_item_ids": [
+            "light_photo_420"
+          ],
+          "instrument_name": "420 nm photochemistry LED"
+        },
+        "required": true,
+        "rationale": "Photoexcitation",
+        "inventory_item_id": "light_photo_420",
+        "inventory_item_ids": [
+          "light_photo_420"
+        ],
+        "instrument_name": "420 nm photochemistry LED",
+        "inventory_category": "light_sources",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "bpr_1",
+        "op_type": "bpr",
+        "label": "BPR | Photochemistry BPR",
+        "parameters": {
+          "pressure_bar": 3.0,
+          "inventory_item_id": "bpr_photo_3",
+          "inventory_item_ids": [
+            "bpr_photo_3"
+          ],
+          "instrument_name": "Photochemistry BPR"
+        },
+        "required": true,
+        "rationale": "Maintain liquid phase",
+        "inventory_item_id": "bpr_photo_3",
+        "inventory_item_ids": [
+          "bpr_photo_3"
+        ],
+        "instrument_name": "Photochemistry BPR",
+        "inventory_category": "pressure_controllers",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "separator_1",
+        "op_type": "phase_separator",
+        "label": "Phase Separator | Vented gas-liquid separator",
+        "parameters": {
+          "phases": [
+            "gas",
+            "liquid"
+          ],
+          "inventory_item_id": "separator_photo_gl",
+          "inventory_item_ids": [
+            "separator_photo_gl"
+          ],
+          "instrument_name": "Vented gas-liquid separator"
+        },
+        "required": true,
+        "rationale": "Separate gas from the product-containing liquid.",
+        "inventory_item_id": "separator_photo_gl",
+        "inventory_item_ids": [
+          "separator_photo_gl"
+        ],
+        "instrument_name": "Vented gas-liquid separator",
+        "inventory_category": "separators",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "collector_1",
+        "op_type": "collector",
+        "label": "Product Collection | Amber vented collection vessel",
+        "parameters": {
+          "inventory_item_id": "collector_photo_100",
+          "inventory_item_ids": [
+            "collector_photo_100"
+          ],
+          "instrument_name": "Amber vented collection vessel"
+        },
+        "required": true,
+        "rationale": "Outlet",
+        "inventory_item_id": "collector_photo_100",
+        "inventory_item_ids": [
+          "collector_photo_100"
+        ],
+        "instrument_name": "Amber vented collection vessel",
+        "inventory_category": "collectors",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      }
+    ],
+    "after": [
+      {
+        "op_id": "pump_a",
+        "op_type": "pump",
+        "label": "Pump A — Single liquid feed pump delivering premixed substrate and photocatalyst solution | Photochemistry HPLC pump",
+        "parameters": {
+          "stream": "A",
+          "contents": [
+            "Fmoc-L-methionine (0.1 M, 1 equiv)",
+            "4,7-diphenyl-2,1,3-benzothiadiazole (0.01 M, 10 mol%)"
+          ],
+          "solvent": "acetonitrile",
+          "flow_rate_mL_min": 0.5,
+          "phase": "liquid",
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null,
+          "molar_equiv": 1.0,
+          "inventory_equipment_id": "pump_photo_liquid",
+          "concentration_M": 0.1,
+          "gas_reagent_mole_fraction": null,
+          "inventory_item_id": "pump_photo_liquid",
+          "inventory_item_ids": [
+            "pump_photo_liquid"
+          ],
+          "instrument_name": "Photochemistry HPLC pump"
+        },
+        "required": true,
+        "rationale": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.5 mL/min; equiv=1, C=0.1 M; pump=pump_photo_liquid; concentration_basis=reference component: Fmoc-L-methionine; equiv_basis=reference component: Fmoc-L-methionine.",
+        "inventory_item_id": "pump_photo_liquid",
+        "inventory_item_ids": [
+          "pump_photo_liquid"
+        ],
+        "instrument_name": "Photochemistry HPLC pump",
+        "inventory_category": "pumps",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "pump_b",
+        "op_type": "mfc",
+        "label": "MFC B — Air MFC delivering reagent gas for singlet-oxygen generation | Air mass-flow controller",
+        "parameters": {
+          "stream": "B",
+          "contents": [
+            "air"
+          ],
+          "solvent": "",
+          "flow_rate_mL_min": 1.450886,
+          "phase": "gas",
+          "gas_flow_sccm": 5.336362,
+          "gas_flow_actual_mL_min": 1.450886,
+          "molar_equiv": 1.0,
+          "inventory_equipment_id": "mfc_air_10",
+          "delivery_hardware": "MFC",
+          "concentration_M": null,
+          "gas_reagent_mole_fraction": 0.21,
+          "inventory_item_id": "mfc_air_10",
+          "inventory_item_ids": [
+            "mfc_air_10"
+          ],
+          "instrument_name": "Air mass-flow controller"
+        },
+        "required": true,
+        "rationale": "MFC inlet/STP flow=5.33636 sccm at 273.15 K and 1.01325 bar (22.412722 L/mol); pressure-corrected in-channel flow=1.45089 mL/min at 21 deg C and 4.01325 bar absolute; total gas=0.23809524 mmol/min, active O2=0.05 mmol/min (mole fraction 0.21); supplied=1 equiv O2 relative to limiting substrate.",
+        "inventory_item_id": "mfc_air_10",
+        "inventory_item_ids": [
+          "mfc_air_10"
+        ],
+        "instrument_name": "Air mass-flow controller",
+        "inventory_category": "gas_hardware",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "mixer_1",
+        "op_type": "mixer",
+        "label": "T-mixer (PFA gas-liquid T-mixer, mixer_photo_t) | PFA gas-liquid T-mixer",
+        "parameters": {
+          "type": "T-mixer (PFA gas-liquid T-mixer, mixer_photo_t)",
+          "material": "not specified",
+          "inventory_item_id": "mixer_photo_t",
+          "inventory_item_ids": [
+            "mixer_photo_t"
+          ],
+          "instrument_name": "PFA gas-liquid T-mixer"
+        },
+        "required": true,
+        "rationale": "Combine the reactor feed streams at this mixer. Follow the final process diagram for downstream equipment and pressure-control order.",
+        "inventory_item_id": "mixer_photo_t",
+        "inventory_item_ids": [
+          "mixer_photo_t"
+        ],
+        "instrument_name": "PFA gas-liquid T-mixer",
+        "inventory_category": "mixers",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "reactor_1",
+        "op_type": "photoreactor",
+        "label": "PFA Photoreactor Coil | One milliliter PFA photocoil",
+        "parameters": {
+          "material": "PFA",
+          "ID_mm": 1.0,
+          "volume_mL": 1.0,
+          "Q_inlet_mL_min": 0.5,
+          "Q_liquid_mL_min": 0.5,
+          "Q_gas_sccm": 5.336362,
+          "Q_gas_actual_mL_min": 1.450886,
+          "temperature_C": 21.0,
+          "wavelength_nm": 420.0,
+          "residence_time_min": 0.17134,
+          "residence_time_basis": "inlet/STP apparent residence time",
+          "residence_time_inlet_min": 0.17134,
+          "residence_time_in_channel_min": 0.512588,
+          "reactor_type": "photochemical coil",
+          "inventory_item_id": "reactor_photo_100",
+          "inventory_item_ids": [
+            "reactor_photo_100"
+          ],
+          "instrument_name": "One milliliter PFA photocoil",
+          "light_instrument_name": "420 nm photochemistry LED",
+          "light_inventory_item_id": "light_photo_420",
+          "temperature_controller_name": "Photoreactor thermostat",
+          "temperature_controller_inventory_item_id": "controller_photo_thermostat"
+        },
+        "required": true,
+        "rationale": "Flow reactor",
+        "inventory_item_id": "reactor_photo_100",
+        "inventory_item_ids": [
+          "reactor_photo_100"
+        ],
+        "instrument_name": "One milliliter PFA photocoil",
+        "inventory_category": "reactors",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "heater_1",
+        "op_type": "heater",
+        "label": "Temperature Control 21 deg C | Photoreactor thermostat",
+        "parameters": {
+          "temperature_C": 21.0,
+          "inventory_item_id": "controller_photo_thermostat",
+          "inventory_item_ids": [
+            "controller_photo_thermostat"
+          ],
+          "instrument_name": "Photoreactor thermostat"
+        },
+        "required": true,
+        "rationale": "Active reactor temperature control",
+        "inventory_item_id": "controller_photo_thermostat",
+        "inventory_item_ids": [
+          "controller_photo_thermostat"
+        ],
+        "instrument_name": "Photoreactor thermostat",
+        "inventory_category": "temperature_controllers",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "led_1",
+        "op_type": "led_module",
+        "label": "LED 420 nm | 420 nm photochemistry LED",
+        "parameters": {
+          "wavelength_nm": 420.0,
+          "inventory_item_id": "light_photo_420",
+          "inventory_item_ids": [
+            "light_photo_420"
+          ],
+          "instrument_name": "420 nm photochemistry LED"
+        },
+        "required": true,
+        "rationale": "Photoexcitation",
+        "inventory_item_id": "light_photo_420",
+        "inventory_item_ids": [
+          "light_photo_420"
+        ],
+        "instrument_name": "420 nm photochemistry LED",
+        "inventory_category": "light_sources",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "bpr_1",
+        "op_type": "bpr",
+        "label": "BPR | Photochemistry BPR",
+        "parameters": {
+          "pressure_bar": 3.0,
+          "inventory_item_id": "bpr_photo_3",
+          "inventory_item_ids": [
+            "bpr_photo_3"
+          ],
+          "instrument_name": "Photochemistry BPR"
+        },
+        "required": true,
+        "rationale": "Maintain liquid phase",
+        "inventory_item_id": "bpr_photo_3",
+        "inventory_item_ids": [
+          "bpr_photo_3"
+        ],
+        "instrument_name": "Photochemistry BPR",
+        "inventory_category": "pressure_controllers",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "separator_1",
+        "op_type": "phase_separator",
+        "label": "Phase Separator | Vented gas-liquid separator",
+        "parameters": {
+          "phases": [
+            "gas",
+            "liquid"
+          ],
+          "inventory_item_id": "separator_photo_gl",
+          "inventory_item_ids": [
+            "separator_photo_gl"
+          ],
+          "instrument_name": "Vented gas-liquid separator"
+        },
+        "required": true,
+        "rationale": "Separate gas from the product-containing liquid.",
+        "inventory_item_id": "separator_photo_gl",
+        "inventory_item_ids": [
+          "separator_photo_gl"
+        ],
+        "instrument_name": "Vented gas-liquid separator",
+        "inventory_category": "separators",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      },
+      {
+        "op_id": "collector_1",
+        "op_type": "collector",
+        "label": "Product Collection | Amber vented collection vessel",
+        "parameters": {
+          "inventory_item_id": "collector_photo_100",
+          "inventory_item_ids": [
+            "collector_photo_100"
+          ],
+          "instrument_name": "Amber vented collection vessel"
+        },
+        "required": true,
+        "rationale": "Outlet",
+        "inventory_item_id": "collector_photo_100",
+        "inventory_item_ids": [
+          "collector_photo_100"
+        ],
+        "instrument_name": "Amber vented collection vessel",
+        "inventory_category": "collectors",
+        "assignment_status": "assigned",
+        "capability_checks": {
+          "available": true,
+          "quantity": true,
+          "settings": true
+        },
+        "requirement_authority": "model_inference",
+        "source_evidence": [],
+        "accepted_requirement": true
+      }
+    ]
+  },
+  {
+    "path": "$.result_report.canonical_sha256",
+    "before": "0082fba501e7ef5889060fc1364f7a276b6e49c95f72a2080c188d8fb8f3ded9",
+    "after": "f061fba5d24a66fda7932e773780c9a29ead3fbd594f257b0037a51c75e5ffd7"
+  },
+  {
+    "path": "$.safety_report.canonical_sha256",
+    "before": "0082fba501e7ef5889060fc1364f7a276b6e49c95f72a2080c188d8fb8f3ded9",
+    "after": "f061fba5d24a66fda7932e773780c9a29ead3fbd594f257b0037a51c75e5ffd7"
+  },
+  {
+    "path": "$.svg_path",
+    "before": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T020816_416774Z_332f43d2/process.svg",
+    "after": "/home/amirreza/Documents/codes/Flow Agent/output/practical_benchmark_tools/post_benchmark_repairs_20261014/photochemical_oxidation/diagrams/20261014T023025_833179Z_1cee7d9a/process.svg"
+  }
+]

@@ -1,0 +1,422 @@
+{
+  "schema_version": "fair_practical_selected_delivery_v1.0",
+  "candidate_id": "N2-7A0E8A18",
+  "case_context": {
+    "case_label": "Hydrogenolysis",
+    "protocol": "N-Diphenylmethylazetidin-3-ol (DMAOL; MW 239.32 g/mol) was prepared as a 3.8 wt% solution in methanol. The solution density is assumed to be 0.792 g/mL (approximately 0.126 M DMAOL). A 200 mL charge was contacted with hydrogen over 0.5 g of 7 wt% Pd(OH)2/Al2O3 catalyst in a stirred batch reactor at 60 °C and 21 bar for 5 h. Conversion to 3-azetidinol was 38.1%.",
+    "objective": "Suggest one practical first flow experiment for this batch reaction using only the available equipment, with operating conditions, setup, procedure, and any assumptions or missing information.\n\nRequired final output: one JSON object with recommended_disposition, disposition_rationale, and proposal. The proposal must be a JSON object, not a JSON-encoded string. The proposal uses these fields:\n\nresidence_time_min, flow_rate_mL_min, temperature_C, concentration_M,\nBPR_bar, reactor_type, tubing_material, tubing_ID_mm, reactor_volume_mL,\nresidence_time_basis, residence_time_inlet_min,\nresidence_time_in_channel_min, light_setup, wavelength_nm, streams,\nmixer_type, mixing_order_reasoning, pre_reactor_steps,\npost_reactor_steps, chemistry_notes, stage_parameters,\nreasoning_per_field, literature_analogies, engine_validated,\nsafety_flags, confidence.\n\nEach stream is an object with stream_label, pump_role, contents, solvent,\nphase, flow_rate_mL_min, concentration_M, molar_equiv, gas_flow_sccm, and\ngas_flow_actual_mL_min where applicable. Distinguish inlet/STP gas flow from\npressure-corrected in-channel gas flow. Ensure reactor_volume_mL is consistent\nwith flow and residence time. State assumptions rather than inventing missing\nfacts.\n\nrecommended_disposition must be exactly EXECUTE, SCREEN, or BLOCK. Use BLOCK\nwhen the hard constraints make a safe design physically or operationally\nimpossible. Use SCREEN for a feasible first experiment that still requires\nexperimental validation. Use EXECUTE only for a directly executable design\nsupported by sufficient evidence.",
+    "hard_constraints": [
+      "Use only the supplied equipment inventory."
+    ],
+    "authoritative_inventory": {
+      "schema_version": "the audited system_lab_inventory_v3.0",
+      "strict_assignment": true,
+      "pumps": [
+        {
+          "equipment_id": "pump_h2_pilot",
+          "name": "Pressure-rated plunger pump",
+          "type": "plunger",
+          "max_pressure_bar": 40.0,
+          "min_flow_rate_mL_min": 0.1,
+          "max_flow_rate_mL_min": 2.0,
+          "compatible_materials": [
+            "methanol",
+            "DMAOL"
+          ]
+        }
+      ],
+      "tubing": [
+        {
+          "equipment_id": "tube_h2_pilot_ss",
+          "name": "Hydrogen-service packed tube",
+          "material": "stainless steel",
+          "ID_mm": 4.35,
+          "max_pressure_bar": 40.0,
+          "max_temperature_C": 100.0,
+          "transparent": false,
+          "length_m": 0.2
+        }
+      ],
+      "BPR_available": [
+        21.0
+      ],
+      "light_sources": [],
+      "gas_hardware": [
+        {
+          "equipment_id": "gas_h2_cylinder",
+          "name": "Certified hydrogen cylinder and regulator",
+          "type": "gas_supply",
+          "gas": "H2",
+          "max_pressure_bar": 40.0
+        },
+        {
+          "equipment_id": "mfc_h2_100",
+          "name": "Hydrogen mass-flow controller",
+          "type": "MFC",
+          "gas": "H2",
+          "min_flow_sccm": 1.0,
+          "max_flow_sccm": 100.0,
+          "max_pressure_bar": 40.0
+        },
+        {
+          "equipment_id": "gas_n2_cylinder",
+          "name": "Nitrogen purge cylinder and regulator",
+          "type": "gas_supply",
+          "gas": "N2",
+          "max_pressure_bar": 40.0
+        }
+      ],
+      "reactors": [
+        {
+          "equipment_id": "reactor_h2_pbr_300",
+          "name": "Pd(OH)2/Al2O3 micro-packed bed",
+          "type": "packed-bed",
+          "material": "stainless steel",
+          "volume_mL": 3.0,
+          "ID_mm": 4.35,
+          "system": "hydrogenation skid",
+          "min_temperature_C": 20.0,
+          "max_temperature_C": 100.0,
+          "allowed_temperatures_C": [
+            60.0
+          ],
+          "min_pressure_bar": 0.0,
+          "max_pressure_bar": 40.0,
+          "configuration": "single 200 mm gas-liquid-solid packed tube"
+        }
+      ],
+      "mixers": [
+        {
+          "equipment_id": "mixer_h2_t",
+          "name": "Hydrogen-service T-mixer",
+          "type": "T-mixer",
+          "material": "stainless steel",
+          "max_inputs": 2,
+          "min_total_flow_mL_min": 0.1,
+          "max_total_flow_mL_min": 5.0,
+          "max_pressure_bar": 40.0,
+          "supported_ID_mm": [
+            4.35
+          ]
+        }
+      ],
+      "pressure_controllers": [
+        {
+          "equipment_id": "bpr_h2_21",
+          "name": "Hydrogen-service BPR",
+          "type": "BPR",
+          "setpoints_bar": [
+            21.0
+          ],
+          "min_pressure_bar": 21.0,
+          "max_pressure_bar": 21.0
+        }
+      ],
+      "degassers": [],
+      "filters": [],
+      "separators": [
+        {
+          "equipment_id": "separator_h2_gl",
+          "name": "Vented gas-liquid separator",
+          "type": "gas-liquid separator",
+          "supported_phases": [
+            "gas",
+            "liquid"
+          ],
+          "max_flow_mL_min": 10.0,
+          "max_pressure_bar": 25.0
+        }
+      ],
+      "connectors": [
+        {
+          "equipment_id": "connector_h2_pbr",
+          "name": "Hydrogen-rated packed-bed connector set",
+          "type": "packed-bed union",
+          "material": "stainless steel",
+          "supported_ID_mm": [
+            4.35
+          ],
+          "max_pressure_bar": 40.0
+        }
+      ],
+      "temperature_controllers": [
+        {
+          "equipment_id": "bath_h2_60",
+          "name": "Packed-bed water bath",
+          "type": "water bath",
+          "min_temperature_C": 20.0,
+          "max_temperature_C": 90.0,
+          "allowed_temperatures_C": [
+            60.0
+          ]
+        }
+      ],
+      "collectors": [
+        {
+          "equipment_id": "collector_h2_250",
+          "name": "Grounded vented liquid collection vessel",
+          "type": "collection vessel",
+          "volume_mL": 250.0,
+          "max_pressure_bar": 1.0
+        }
+      ],
+      "reactor_trains": [],
+      "safety_accessories": [
+        {
+          "equipment_id": "safety_h2_check_valve",
+          "name": "Hydrogen non-return check valve",
+          "type": "check valve",
+          "capabilities": [
+            "backflow_prevention"
+          ],
+          "max_pressure_bar": 40.0,
+          "compatible_hazards": [
+            "hydrogen"
+          ]
+        },
+        {
+          "equipment_id": "safety_h2_vent",
+          "name": "Dedicated hydrogen separator safe vent",
+          "type": "safe vent",
+          "capabilities": [
+            "vented_separator"
+          ],
+          "max_pressure_bar": 25.0,
+          "compatible_hazards": [
+            "hydrogen"
+          ]
+        }
+      ]
+    },
+    "held_out_source_fact_check": {
+      "batch_reference": {
+        "substrate": "N-diphenylmethylazetidin-3-ol",
+        "solution_wt_pct": 3.8,
+        "catalyst": "7 wt% Pd(OH)2/Al2O3",
+        "catalyst_mass_g": 0.5,
+        "solvent": "methanol",
+        "raw_material_volume_mL": 200.0,
+        "temperature_C": 60.0,
+        "hydrogen_pressure_bar_reported": 21.0,
+        "reaction_time_h": 5.0,
+        "conversion_pct": 38.1,
+        "evidence": "PDF pages 14-15, Table 3 and experimental conditions"
+      },
+      "published_flow_reference": {
+        "temperature_C": 60.0,
+        "liquid_flow_mL_min": 0.5,
+        "hydrogen_flow_sccm": 40.0,
+        "hydrogen_to_DMAOL_molar_ratio": 26.0,
+        "pressure_bar_reported": 21.0,
+        "substrate_solution_wt_pct": 3.8,
+        "estimated_substrate_concentration_M": 0.12576,
+        "reactor_type": "micro-packed bed",
+        "reactor_material": "stainless steel",
+        "reactor_length_m": 0.2,
+        "reactor_ID_mm": 4.35,
+        "geometric_reactor_volume_mL": 2.97234,
+        "reported_reactor_volume_mL": 3.0,
+        "liquid_holdup_residence_time_min": 1.9,
+        "nominal_empty_bed_liquid_space_time_min": 6.0,
+        "conversion_pct": 63.0,
+        "estimated_H2_in_channel_mL_min_if_21_bar_abs": 2.35394,
+        "estimated_H2_in_channel_mL_min_if_21_bar_gauge": 2.24559,
+        "evidence": [
+          "PDF page 9, reactor dimensions and liquid-holdup residence-time definition",
+          "PDF pages 14-15, Table 3 and flow experimental conditions"
+        ]
+      },
+      "interpretation": "Published flow conditions are a validated reference design, not the only permissible valid design. Universal errors and source distance are reported separately. The paper defines reaction time as liquid-holdup residence time, not total gas-plus-liquid empty-volume time."
+    },
+    "source_policy": "Use the source to fact-check claims and arithmetic. The published flow design is not the only valid design, so a candidate differs from it only when the difference violates physics, protocol facts, inventory, safety, or lacks a defensible stated basis.",
+    "applicability": {
+      "gas_process": true,
+      "multistage_process": false
+    }
+  },
+  "delivered_final_outcome": {
+    "parameters": {
+      "residence_time_min": 30,
+      "flow_rate_mL_min": 0.1,
+      "temperature_C": 60,
+      "concentration_M": 0.126,
+      "BPR_bar": 21,
+      "reactor_type": "packed-bed",
+      "tubing_material": "stainless steel",
+      "tubing_ID_mm": 4.35,
+      "reactor_volume_mL": 3.0,
+      "residence_time_basis": "Liquid-phase residence time = reactor_volume_mL / liquid_flow_rate_mL_min = 3.0 / 0.1 = 30 min. This is the interstitial liquid residence time assuming the full 3 mL tube volume is accessible to liquid; actual residence time will be shorter if bed void fraction < 1. Void fraction is unknown and assumed ~0.4 for a packed bed, giving an estimated true liquid residence time of ~12 min. Both values are reported; 30 min is the conservative upper bound used for scheduling.",
+      "residence_time_inlet_min": 30,
+      "residence_time_in_channel_min": 12,
+      "light_setup": "none",
+      "wavelength_nm": null,
+      "mixer_type": "T-mixer (equipment_id: mixer_h2_t, stainless steel, max 40 bar)",
+      "mixing_order_reasoning": "The liquid stream S1 and gas stream S2 are combined at the T-mixer upstream of the packed-bed reactor inlet. Gas is introduced into the liquid line so that a gas-liquid mixture enters the catalyst bed in trickle-flow or Taylor-flow regime. The check valve (safety_h2_check_valve) is placed on the H2 line immediately upstream of the T-mixer to prevent liquid back-flow into the MFC. This is the standard gas-liquid co-feed arrangement for trickle-bed hydrogenation in flow.",
+      "engine_validated": false,
+      "confidence": 0.62
+    },
+    "streams": [
+      {
+        "stream_label": "S1_liquid",
+        "pump_role": "liquid feed",
+        "contents": "DMAOL in methanol",
+        "solvent": "methanol",
+        "phase": "liquid",
+        "flow_rate_mL_min": 0.1,
+        "concentration_M": 0.126,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      {
+        "stream_label": "S2_H2",
+        "pump_role": "gas feed",
+        "contents": "hydrogen",
+        "solvent": null,
+        "phase": "gas",
+        "flow_rate_mL_min": null,
+        "concentration_M": null,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": 10,
+        "gas_flow_actual_mL_min": 0.561398
+      }
+    ],
+    "stages": [
+      {
+        "stage": 1,
+        "description": "Gas-liquid mixing at T-mixer",
+        "temperature_C": "ambient (pre-heated zone)",
+        "pressure_bar": 21,
+        "flow_rate_mL_min_liquid": 0.1,
+        "flow_rate_sccm_gas": 10
+      },
+      {
+        "stage": 2,
+        "description": "Trickle-bed hydrogenolysis in Pd(OH)2/Al2O3 packed bed",
+        "temperature_C": 60,
+        "pressure_bar": 21,
+        "residence_time_min_nominal": 30,
+        "residence_time_min_estimated_true": 12
+      },
+      {
+        "stage": 3,
+        "description": "Pressure let-down at BPR and gas-liquid separation",
+        "temperature_C": "ambient",
+        "pressure_bar_upstream": 21,
+        "pressure_bar_downstream": "atmospheric"
+      }
+    ],
+    "topology": {
+      "reactor_type": "packed-bed",
+      "mixer_type": "T-mixer (equipment_id: mixer_h2_t, stainless steel, max 40 bar)",
+      "mixing_order_reasoning": "The liquid stream S1 and gas stream S2 are combined at the T-mixer upstream of the packed-bed reactor inlet. Gas is introduced into the liquid line so that a gas-liquid mixture enters the catalyst bed in trickle-flow or Taylor-flow regime. The check valve (safety_h2_check_valve) is placed on the H2 line immediately upstream of the T-mixer to prevent liquid back-flow into the MFC. This is the standard gas-liquid co-feed arrangement for trickle-bed hydrogenation in flow.",
+      "inventory_selection": null
+    },
+    "chemistry_and_operations": {
+      "chemistry_notes": "The reaction is a hydrogenolysis of the C–N bond of the diphenylmethyl (benzhydryl) protecting group on the azetidine nitrogen, releasing diphenylmethane (or diphenylmethanol) and 3-azetidinol. Pd(OH)2 (Pearlman's catalyst) on Al2O3 is the standard catalyst for this transformation. The batch gave 38.1% conversion in 5 h at 60 °C, 21 bar H2. The flow experiment at 30 min liquid residence time (or ~12 min true residence time) is expected to give substantially lower conversion; this is intentional for a first screening experiment to establish a conversion-vs-residence-time data point. Methanol is the preferred solvent for Pd-catalysed hydrogenolysis. No co-solvent or acid additive is included in this first experiment; if conversion is low, addition of a small amount of HCl or AcOH can be explored in subsequent runs. Diphenylmethane by-product is soluble in methanol at these concentrations and should not cause precipitation. The substrate concentration (0.126 M) is kept identical to the batch to allow direct comparison.",
+      "chemistry_identity": null,
+      "stream_components": null,
+      "stationary_components": null,
+      "operating_procedure": null,
+      "pre_reactor_steps": [
+        "Prepare 50 mL of 3.8 wt% DMAOL in methanol (0.126 M) by dissolving the appropriate mass of DMAOL in HPLC-grade methanol. Degas by sparging with N2 for 10 min.",
+        "Load 0.5 g of 7 wt% Pd(OH)2/Al2O3 catalyst into the 4.35 mm ID × 200 mm stainless-steel packed tube (reactor_h2_pbr_300). Wet the bed with methanol before sealing.",
+        "Assemble the flow train: pump → T-mixer → packed-bed reactor → BPR (21 bar) → gas-liquid separator → safe vent / liquid collector. Install the H2 check valve on the gas line before the T-mixer.",
+        "Pressure-test the assembled system with N2 to 25 bar for 10 min. Check all fittings for leaks using leak-detection solution.",
+        "Flush the system with methanol at 0.1 mL/min and N2 at 5 sccm for 15 min to displace air and condition the catalyst bed.",
+        "Set the water bath to 60 °C and allow the reactor to reach thermal equilibrium (≥ 20 min).",
+        "Switch gas supply from N2 to H2. Set MFC to 10 sccm. Allow BPR to pressurize the system to 21 bar before starting the liquid pump."
+      ],
+      "post_reactor_steps": [
+        "Collect liquid effluent from the gas-liquid separator into the grounded vented 250 mL collection vessel (collector_h2_250). Discard the first 1.5 reactor volumes (≈ 45 min at 0.1 mL/min, ~4.5 mL) as a wash fraction to ensure steady state.",
+        "Collect a steady-state sample (≥ 0.5 mL) for HPLC or LC-MS analysis to determine conversion of DMAOL to 3-azetidinol.",
+        "At end of experiment, switch liquid feed to pure methanol and flush the bed for 30 min at 0.1 mL/min under H2 to remove substrate.",
+        "Depressurize slowly via the BPR. Purge the system with N2 at 5 sccm for 20 min before opening any fittings.",
+        "Vent residual H2 through the dedicated hydrogen separator safe vent (safety_h2_vent).",
+        "Analyse collected fractions by reverse-phase HPLC (C18 column, aqueous ammonium formate / acetonitrile gradient) or LC-MS to quantify DMAOL and 3-azetidinol."
+      ]
+    },
+    "safety_controls": [
+      "H2 is flammable and forms explosive mixtures with air (LEL 4 vol%). All operations must be conducted in a well-ventilated fume hood or dedicated H2-rated enclosure with continuous H2 leak detection.",
+      "Install the H2 non-return check valve (safety_h2_check_valve) on the H2 line upstream of the T-mixer to prevent liquid back-flow into the MFC and H2 cylinder.",
+      "Route all H2 vent streams through the dedicated hydrogen separator safe vent (safety_h2_vent, rated 25 bar) to a safe external exhaust.",
+      "Use the grounded vented liquid collection vessel (collector_h2_250) to prevent static discharge ignition of H2-saturated methanol effluent.",
+      "Pressure-test with N2 before H2 introduction. Never exceed 21 bar at the BPR; system maximum is 40 bar.",
+      "Pd(OH)2 on dry support is pyrophoric. Keep catalyst wet at all times during loading and unloading. Dispose of spent catalyst under methanol.",
+      "Methanol is flammable (flash point 11 °C). Minimise open handling. Keep ignition sources away from the apparatus.",
+      "DMAOL: no specific acute toxicity data available in the public domain; handle as a potentially irritating amine. Use gloves and eye protection.",
+      "Depressurise slowly via the BPR at end of run. Purge with N2 for ≥ 20 min before opening any fittings."
+    ],
+    "evidence_and_reasoning": {
+      "reasoning_per_field": {
+        "residence_time_min": "Pump minimum flow is 0.1 mL/min; reactor volume is 3.0 mL. Nominal residence time = 3.0/0.1 = 30 min. This is the longest achievable residence time with available equipment and is chosen to maximise conversion in the first experiment.",
+        "flow_rate_mL_min": "0.1 mL/min is the minimum of the plunger pump, giving the longest achievable residence time. Higher flows would reduce residence time further below the batch equivalent.",
+        "temperature_C": "60 °C matches the batch condition exactly. The water bath (bath_h2_60) is rated for this temperature.",
+        "concentration_M": "0.126 M matches the batch feed to allow direct conversion comparison.",
+        "BPR_bar": "21 bar is the only available BPR setpoint (bpr_h2_21) and matches the batch H2 pressure.",
+        "reactor_type": "The only available reactor is the Pd(OH)2/Al2O3 micro-packed bed (reactor_h2_pbr_300).",
+        "tubing_material": "Stainless steel is the only available tubing material and is compatible with H2 service at 21 bar.",
+        "tubing_ID_mm": "4.35 mm is the only available ID, matching the packed-bed connector and T-mixer.",
+        "reactor_volume_mL": "3.0 mL as specified in the reactor equipment record.",
+        "BPR_bar_note": "The BPR is fixed at 21 bar; no other setpoint is available. This matches the batch pressure.",
+        "gas_flow_sccm": "10 sccm provides a 35:1 molar excess of H2 over substrate, ensuring H2 is not limiting. This is within the 1–100 sccm MFC range. Higher flows are possible but unnecessary for a first experiment.",
+        "mixer_type": "The only available mixer is the stainless-steel T-mixer (mixer_h2_t), rated to 40 bar.",
+        "light_setup": "No photochemistry; no light sources available or required.",
+        "streams": "Two streams: liquid substrate feed via plunger pump, and H2 gas via MFC. No second liquid pump is available, so no separate reagent stream is possible.",
+        "pre_reactor_steps": "N2 pressure test and flush are mandatory safety steps before H2 introduction. Catalyst wetting prevents dry ignition. Thermal equilibration before pressurisation avoids thermal shock.",
+        "post_reactor_steps": "Steady-state collection after 1.5 void volumes ensures representative sampling. N2 purge before disassembly is a mandatory H2 safety step.",
+        "safety_flags": "H2 flammability is the primary hazard. Check valve prevents liquid back-flow into MFC. Safe vent routes H2 away from the workspace. Grounded collector prevents static ignition. BPR rated to 21 bar; system rated to 40 bar, providing 2× safety margin."
+      },
+      "evidence_calibration": null,
+      "literature_analogies": [
+        "Hydrogenolysis of benzhydryl-protected amines over Pd(OH)2/C in continuous flow has been reported at 20–50 bar H2, 25–60 °C, with residence times of 5–30 min giving 40–95% conversion depending on substrate and catalyst loading (e.g., Baxendale et al., Org. Lett. 2006; Ley group flow hydrogenation reviews). The present substrate and catalyst are analogous.",
+        "Trickle-bed flow hydrogenation at 0.1–0.5 mL/min liquid flow with 5–20 sccm H2 in 2–5 mL packed beds is a standard first-experiment protocol for Pd-catalysed N-debenzylation in flow (ThalesNano H-Cube analogues; Cosford et al., J. Flow Chem. 2014).",
+        "Batch-to-flow scale-down for Pd(OH)2/Al2O3 hydrogenolysis: batch 5 h → flow 10–30 min residence time typically gives 20–50% of batch conversion in a first experiment, consistent with the expected outcome here."
+      ],
+      "decision_rationale": null,
+      "validation_experiments": null
+    },
+    "inventory_selection": null,
+    "additional_delivered_fields": {},
+    "reported_disposition": "SCREEN",
+    "disposition_rationale": "The batch reaction is feasible (38.1% conversion at 60 °C, 21 bar, 5 h) and all required hardware is present: a Pd(OH)2/Al2O3 packed-bed reactor, a 21-bar BPR, an H2 MFC, a plunger pump compatible with methanol/DMAOL, a gas-liquid separator, and a safe vent. A direct translation is physically possible. However, the batch residence time (5 h) far exceeds what the 3 mL packed bed can deliver at the pump's minimum flow (0.1 mL/min → 30 min liquid residence time), so conversion will be lower than batch and must be measured experimentally. Key unknowns include catalyst bed void fraction, actual gas-liquid mass-transfer efficiency in the trickle-bed geometry, and whether the 100 sccm MFC can sustain stoichiometric H2 supply at the chosen flow. The design is feasible and safe but requires experimental validation; SCREEN is therefore appropriate.",
+    "additional_response_fields": {}
+  },
+  "deterministic_verification_sheet": {
+    "scope": "Recalculation from delivered values only; no candidate repair and no assigned scores.",
+    "reference_caution": "Gas worksheet uses its stated nominal STP reference. A different or missing meter reference must be reviewed explicitly; no holdup is inferred.",
+    "delivered_arithmetic": {
+      "scope": "Arithmetic from delivered values only; no kinetic, transport, safety or yield validation.",
+      "parameter_path": "$.delivered_final_outcome.parameters",
+      "reference_substrate_mmol_min": 0.0126,
+      "reference_substrate_equation": "C [M = mmol/mL] * Q_liquid [mL/min]",
+      "nominal_volume_over_liquid_flow_min": 30.0,
+      "time_limitation": "V/Q is nominal space time, not measured multiphase or packed-bed contact time.",
+      "conditional_nominal_gas_reference_examples": [
+        {
+          "source_path": "$.delivered_final_outcome.streams[1]",
+          "gas_inlet_sccm": 10.0,
+          "active_species": "H2",
+          "active_mole_fraction": 1.0,
+          "reference": "nominal STP, 273.15 K and 1.01325 bar; 22.414 mL/mmol; verify compatibility with the declared meter reference",
+          "total_gas_mmol_min": 0.44614972784866597,
+          "active_gas_mmol_min": 0.44614972784866597,
+          "calculated_active_equivalents": 35.40870855941793,
+          "equivalent_interpretation": "Compare the reported basis with active-species equivalents, not total carrier-gas equivalents.",
+          "channel_flow_unassessable_reason": "No explicit numerical absolute pressure/gauge-basis field; inspect the delivered narrative.",
+          "declared_generic_molar_equiv": 1.0,
+          "declared_generic_equivalent_basis": null,
+          "declared_active_gas_equivalents": null,
+          "comparison_status": "CONDITIONAL EXAMPLE ONLY, not a pass/fail verification of this design. Calculations assume the nominal STP reference and gas composition stated in this row. Check the original meter reference, declared composition and equivalent basis before comparing with delivered claims. A missing or different reference does not establish a numerical defect."
+        }
+      ]
+    },
+    "declared_time_index": {
+      "assessable": false,
+      "scope": "Declared time index only; no phase holdup or measured contact time inferred.",
+      "source_path": "$.delivered_final_outcome.parameters",
+      "reason": "Gas process without an unambiguous inlet/standard or channel basis; no liquid-only closure imposed."
+    }
+  },
+  "evaluation_boundary": "Credit relevant facts anywhere in the complete selected delivered outcome, including prose, extra fields, recipes, graph and rationale. Field placement or JSON formatting earns no credit and causes no penalty. Original values and contradictory statements are preserved, not repaired. Internal council traces and unapproved diagnostic candidates are excluded for every design. Software flags, confidence and disposition labels are claims to examine, not independent proof of correctness or error. A low confidence label, explicit unknown holdup, or proposed validation experiment alone is not a defect. A withheld executable artifact remains a delivery limitation. Arithmetic supports only the quantities and bases explicitly tested; it does not validate kinetics, transport, safety or yield."
+}

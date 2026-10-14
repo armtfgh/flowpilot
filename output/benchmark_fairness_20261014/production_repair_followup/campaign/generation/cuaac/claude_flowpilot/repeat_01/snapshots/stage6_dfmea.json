@@ -1,0 +1,42 @@
+{
+  "selected_candidate_id": 1,
+  "failure_modes": [
+    {
+      "rank": 1,
+      "mode": "BPR blockage causing total loss of back-pressure and flash vaporisation of acetone",
+      "cause": "Triazole product, catalyst fines, or precipitated Cu species partially or fully occlude the single 20-bar BPR valve. At 150 °C, acetone vapour pressure (~20 bar absolute) equals or exceeds system pressure the moment BPR seating fails, causing immediate bulk flash vaporisation and a pressure spike upstream. Only one BPR setpoint (20 bar) is available; there is no redundant pressure-relief path in the declared inventory.",
+      "severity": 9,
+      "likelihood": 5,
+      "RPN": 45,
+      "mitigation": "Install a 0.5 µm inline frit upstream of the BPR to trap catalyst fines. Perform a pre-run blank (neat acetone, 150 °C, 20 bar, 30 min) and inspect BPR for particulate accumulation before introducing substrate. Place a secondary burst-disc or pressure-relief valve rated at 35 bar between reactor outlet and BPR if inventory permits future addition. Operate behind blast shield (safety_cuaac_shield) at all times."
+    },
+    {
+      "rank": 2,
+      "mode": "Benzyl azide accumulation and exothermic decomposition in packed bed",
+      "cause": "At Re ≈ 7 (deep laminar, empty-tube proxy) and with unresolved packed-bed voidage and catalyst loading, actual liquid holdup and contact time are unknown. If catalyst activity is lower than assumed, unconverted benzyl azide accumulates in the hot zone (150 °C). Organic azides are thermally labile; bulk decomposition (ΔH_decomp highly exothermic, N₂ release) inside a pressurised stainless-steel packed bed can cause a pressure excursion or mechanical failure. The computed conversion (0.996) is an unvalidated screening proxy with no measured flow kinetics.",
+      "severity": 9,
+      "likelihood": 4,
+      "RPN": 36,
+      "mitigation": "Begin at reduced temperature (100 °C) and confirm conversion by inline or offline analysis before stepping to 150 °C. Limit initial benzyl azide inventory to ≤ 0.5 mmol total in the feed syringe/reservoir. Collect and assay the first 5 reactor volumes of effluent for residual azide (IR or LC-MS) before declaring steady state. Never exceed 0.25 M benzyl azide concentration without confirmed conversion data."
+    },
+    {
+      "rank": 3,
+      "mode": "Pump cavitation or vapour lock at the HPLC pump inlet",
+      "cause": "Acetone boiling point at 1 bar is ~56 °C. The feed reservoir and pump head are at ambient pressure. If the feed line warms above ~30 °C (e.g., from proximity to the heated cartridge zone or inadequate thermal isolation), localised vapour formation at the pump inlet causes cavitation, erratic flow delivery, and loss of the pressure required to keep the reactor above the acetone bubble point. At 150 °C and 20 bar, any momentary flow interruption allows the liquid plug in the reactor to flash.",
+      "severity": 7,
+      "likelihood": 5,
+      "RPN": 35,
+      "mitigation": "Thermally isolate the feed reservoir and pump head from the heated cartridge zone; keep feed lines at ambient temperature. Monitor pump inlet pressure and delivered flow rate continuously; set a software interlock to halt heating if flow deviates > 5% from setpoint for > 10 s. Optionally, pressurise the feed reservoir to 0.3–0.5 bar above ambient using inert gas (N₂) if hardware permits, to suppress cavitation."
+    }
+  ],
+  "single_points_of_failure": [
+    "BPR valve (bpr_xcube_20) — the sole pressure-control device; blockage or failure immediately removes all back-pressure, causing flash vaporisation of acetone at 150 °C with no redundant relief path in the declared inventory.",
+    "Cu/C CatCart (reactor_cuc_cart_030) — the sole reactor and catalyst source; catalyst deactivation, bed channelling, or fines migration cannot be detected without inline analytics, and there is no bypass or parallel reactor.",
+    "Single HPLC pump (pump_xcube_hplc) — any pump failure stops all flow while the reactor remains at 150 °C and 20 bar, leaving hot azide-containing liquid stationary in the packed bed."
+  ],
+  "validation_experiments": [
+    "Blank solvent pressure-stability run: pump neat acetone at Q = 0.5 mL/min through the Cu/C CatCart at 150 °C and 20 bar BPR for 60 min. Log upstream pressure at 1 Hz. Accept criterion: pressure drift < ±5% of 20 bar over the final 30 min. This confirms BPR seating integrity, absence of bed collapse, and pump delivery stability before any azide is introduced.",
+    "Low-temperature conversion ramp with azide assay: run the full substrate mixture (0.25 M benzyl azide, 0.275 M phenylacetylene in acetone) at Q = 0.5 mL/min starting at T = 100 °C, 20 bar. Collect effluent fractions at 3, 5, and 10 reactor volumes; assay each for residual benzyl azide by FTIR (2090 cm⁻¹ azide stretch) or LC-MS. Only advance to 150 °C if conversion ≥ 90% is confirmed at 100 °C, establishing that azide holdup in the hot zone is acceptably low before operating at the target temperature.",
+    "BPR particulate-fouling inspection: after the blank run and before the first substrate run, disassemble and visually inspect the BPR valve seat and the downstream side of the CatCart for catalyst fines. If fines are present, install a 0.5 µm stainless-steel frit at the reactor outlet. Repeat inspection after the first 30 min of substrate flow to establish a fines-migration baseline and set a cleaning interval."
+  ]
+}

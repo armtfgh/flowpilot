@@ -1,0 +1,30 @@
+Comparison of accepted Astra dev04 with the practical Claude campaigns
+Verified from immutable local records on 2026-10-14. Read-only analysis; no APIs or source edits.
+
+Accepted Astra campaign
+ablation_results/manuscript_benchmark/astra_verified_repairs_dev04_20261012
+Report: report/summary.json; independently checked figures: output/pdf/astra_latest_benchmark_20261012/verified_results.json.
+FlowPilot 0.963141 versus one-shot 0.960648, difference +0.002493 (0.2493 percentage points).
+Excluding the OpenAI-family judge gives FlowPilot 0.960737 versus one-shot 0.976763. Thus the small positive aggregate difference was not robust across judge-family exclusion. Three cases, one generation per case/architecture; no within-case repeatability estimate.
+
+Configurations
+1. Generator. Astra used gpt-6-astra via OpenAI Responses, medium reasoning, streaming, minimum 16,384 maximum-output budget per call; temperature/seed not sent. Practical Claude uses claude-sonnet-4-6 via Anthropic, temperature 0.2, no accepted seed. Current repair remains Claude.
+2. Workflow. Both accepted Astra dev04 and practical Claude use legacy production design policy, TWO initial candidates, source-excluded lexical retrieval, strict council scoring, scoring batch size 2, strong revision true, branching false, max one descendant per candidate and max two revised candidates. council_execution is null/default. Neither is the 12-candidate GUI configuration. Do not attribute their difference to different candidate counts or call the accepted Astra run scientific-council mode.
+3. Cases. Both use Hydrogenolysis, Photochemical oxidation and CuAAC. Astra and initial practical Claude each generated six outcomes (two arms x three cases, n=1). Current repair adds a guided prose one-shot control: nine fresh outcomes plus six archived outcomes reevaluated, 30 planned judgments.
+4. Input. Astra used the engineered design brief, chemistry-specific checklist, original extensive hard constraints and explicitly confirmed chemistry identity in BOTH architectures. Its FlowPilot intake_package preserved original protocol separately. All three Astra final chemistry_identity objects say authority_source=chemist_confirmed. The first practical Claude campaign removed those confirmations/checklists, used a 26-word ordinary request with the complete inventory, and its old runner passed no intake_package. The composite request was parsed as raw protocol; that triggered the false identity gates. Current repair separates boundaries and obtains narrow deterministic evidence from the original protocol without inventing confirmations.
+5. Output. Astra one-shot had an explicit JSON schema and EXECUTE/SCREEN/BLOCK instruction. Practical Claude one-shot is free prose, retained verbatim; no required JSON/disposition labels. Current practical and guided one-shot outputs remain prose. Consequently shortening the prompt was not the only difference between Astra and practical Claude.
+6. Judging. Astra mean pools Qwen3.6-27B, GPT-4o and Claude Sonnet4.6 equally (18 accepted judgments). Practical Claude reports GPT-4o PRIMARY and Qwen SECONDARY separately (12 original judgments), with no Claude self-judge. Current repair keeps those judges and separately reevaluates archived outcomes. Rubric is the same 14 criteria and identical SHA256 0974b75afb85f965472dcca446344820672aa0e5f653e57ecd381afea9bf57c6. However Astra used outcome adapter v1.1 with common arithmetic worksheet; practical used prose v1 with no automatic numerical worksheet and format-neutral instructions. Current repair v2 changes symmetric verification instructions and blocked-output provenance, keeps the rubric, and does not pool historical scores.
+
+Prompt volume
+The accepted Astra one-shot telemetry records only 1,773 / 1,748 / 1,240 input tokens for Hydrogenolysis / oxidation / CuAAC, respectively. These are user+system generation tokens; FlowPilot's internal multi-call tokens are a different quantity.
+Counting the engineered versus practical briefs with the SAME Claude tokenizer gives 2,132 vs 1,293; 2,095 vs 1,311; and 1,488 vs 861 tokens, respectively. Inventory was identical. The extra text is valuable engineering guidance, but describing it as an inhuman token volume is unsupported by these records. A shorter prompt can retain the essential chemical facts; removing text does not guarantee worse performance.
+The previous studies changed generator, instructions, output form, confirmation, evaluator aggregation and packet adaptation together, so they do not establish that fewer prompt tokens cause better one-shot performance. The new guided/practical within-Claude control addresses that question more directly, still as a small development pilot.
+
+Evidence paths
+- Astra frozen/campaign_manifest.json, frozen/PREREGISTRATION.md and frozen/execution_plan.json
+- Astra generation/{case}/astra_flowpilot/repeat_01/result.json: pipeline_runtime, intake_package, final_design.chemistry_identity
+- Astra generation/{case}/astra_one_shot/repeat_01/prompt.json and run_summary.json
+- Astra frozen/full_source/ablation_test/src/runner.py lines 542-601
+- ablation_results/practical_input/claude_practical_pilot_20261014/frozen/campaign_manifest.json
+- ablation_results/practical_input/claude_practical_pilot_20261014/frozen/input_token_comparison.json
+- ablation_results/practical_input/claude_practical_repair_20261014/frozen/campaign_manifest.json

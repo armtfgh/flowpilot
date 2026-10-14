@@ -1,0 +1,75 @@
+HISTORICAL VERSUS PRACTICAL BENCHMARK AUDIT — 14 OCTOBER 2026
+
+The near-perfect practical scores do not demonstrate that shorter prompts improved chemistry design. The historical and current headline numbers describe different generators, judge panels, output formats and task instructions. The exact same named Qwen judge already gave historical Claude Sonnet one-shot almost perfect scores. Current manual checks also establish that some 1.000 ratings overlook real arithmetic errors.
+
+1. Exact manuscript cohort recovered
+
+The manuscript five-model cohort contains 90 designs: five generators x two architectures x three chemistries x three independent generations. Recalculation from the integer criterion ratings gives one-shot 0.7936965812 and FlowPilot 0.9169159544, with 98 and 4 judge-reported critical flags. The extended combined table now also contains GPT-5.4 and Claude Opus 5; those entries must be excluded to reproduce the five-model manuscript claim.
+
+Generator                    One-shot    FlowPilot    Difference
+Qwen3.6-27B                   0.764542    0.903787     +0.139245
+Qwen3.8-27B                   0.747388    0.915242     +0.167854
+GPT-4o                        0.683701    0.909722     +0.226021
+Claude Sonnet 4.6             0.890076    0.924027     +0.033951
+Claude Opus 4.6               0.882775    0.931802     +0.049027
+
+The relevant historical baseline for the new Claude run is therefore 0.890076, not 0.794. Its nine one-shot outcome scores ranged from 0.820513 to 0.958333. FlowPilot ranged from 0.826923 to 0.958333. Historical Sonnet repeat-level one-shot means were 0.904914, 0.878027 and 0.887286 (sample SD 0.013659); FlowPilot means were 0.909010, 0.951744 and 0.911325 (sample SD 0.024033). Minor last-digit differences from archived summary CSVs reflect their intermediate six-decimal rounding.
+
+Historical Sonnet means by chemistry (each averages three generations and three judges):
+Chemistry                    One-shot    FlowPilot
+Hydrogenolysis                0.831197    0.871795
+Photochemical oxidation      0.903846    0.946581
+CuAAC                        0.935185    0.953704
+
+2. The evaluator changed substantially
+
+Historical configured/requested judges, verified from accepted telemetry and frozen source across the cohort, were local /models/Qwen3.6-27B, OpenAI gpt-5.4-2026-03-05, and Anthropic claude-sonnet-4-6. Current practical primary judging used gpt-4o, with local Qwen reported separately; Claude was absent. An 'openai' directory label does not identify the same judge model across campaigns.
+
+Historical Sonnet generation, scored separately by each judge:
+Judge                         One-shot    FlowPilot    FP minus OS
+Qwen3.6-27B                   0.995726    1.000000     +0.004274
+GPT-5.4                       0.731125    0.865385     +0.134259
+Claude Sonnet 4.6             0.943376    0.906695     -0.036681
+
+Qwen gave 8/9 historical one-shot designs and 9/9 FlowPilot designs exactly 1.000. Its current practical one-shot mean of 1.000 differs from its historical same-generator mean by only 0.004274. This saturation predates the practical experiment. The historical Claude evaluator favored one-shot; the overall historical FlowPilot advantage was driven mainly by GPT-5.4. Neither a majority vote nor a generic claim that all judges preferred FlowPilot would be accurate.
+
+Current fresh practical campaign, three cases with one generation per arm:
+Arm                           GPT-4o primary    Qwen secondary
+Practical one-shot             0.987179          1.000000
+Guided one-shot                0.980235          0.980769
+FlowPilot                     0.935897          1.000000
+
+An exact descriptive decomposition of the headline change is 0.793697 -> 0.890076 (+0.096379 by selecting historical Sonnet rather than the five-generator mixture) -> 0.987179 (+0.097104, an unidentified cross-campaign difference involving judges, prompts, format, versions and generation variability). The second increment cannot be assigned causally to prompt length. As a panel-sensitivity example, excluding only GPT-5.4 from the OLD Sonnet one-shot panel raises its mean to 0.969551 without changing any generated design.
+
+3. Input length is smaller than the earlier characterization implied
+
+Actual Anthropic-recorded complete one-shot input token counts:
+Chemistry                    Historical JSON    Practical prose    Guided prose
+Hydrogenolysis                2132               1293               1609
+Photochemical oxidation      2095               1311               1627
+CuAAC                        1488                861               1177
+
+Historical one-shot inputs were about 1.6–1.7 times practical inputs, not an extra-human volume of text. FlowPilot's accumulated internal tokens are a separate quantity. Historical inputs did require unusually careful engineering preparation: an extensive checklist and hard constraints, explicit chemist-confirmed identity, complete inventory and a prescribed JSON schema. The current practical input retains chemistry facts and inventory but removes the confirmation, most instructions and the schema. Guided input adds a 316-token generic checklist to the same factual practical prompt; it is not a reconstruction of the historical engineered prompt.
+
+The generator identifier was claude-sonnet-4-6 through Anthropic, temperature 0.2, in both campaigns. Historical one-shot output allowance was 16,384 tokens; current practical/guided allowance was 8,192. All audited one-shot responses stopped with end_turn. Historical responses used 2,830–6,002 output tokens; fresh practical/guided responses used 2,174–6,648. No observed truncation explains these results. Seeds are recorded but Anthropic does not honor them. Same public identifier does not prove unchanged server weights across August and October.
+
+4. The rubric is unchanged; its application and packets are not
+
+The same frozen 14-criterion rubric has SHA256 0974b75afb85f965472dcca446344820672aa0e5f653e57ecd381afea9bf57c6. Scores 4/3/2/1/0 mean no material defect / minor defect / recoverable material defect / major or multiple deficiencies / fundamentally wrong or impossible. Hydrogenolysis and oxidation have 13 applicable criteria; CuAAC has 12. Scores average applicable criterion ratings, divide by four, and historically average three judges equally. Flags remain separate. The current report instead keeps GPT-4o primary and Qwen secondary, so it must not be presented as the original three-judge consensus.
+
+Inventories and held-out reference-fact objects are identical between historical and current example packets for all three chemistries. The design instructions, objective and constraints differ. Historical one-shot delivered structured JSON; new one-shot delivers prose retained in full in chemistry_and_operations.chemistry_notes. Historical packets exposed a narrow automatic V=Q*tau/declared-volume sheet and told judges to treat its tested calculations as authoritative. New practical packets omit numerical pass/fail worksheets for BOTH architectures and explicitly require credit for information anywhere in prose or JSON. New packets also expose final delivery status, issues and blocked supporting artifacts more explicitly. Scoring instructions add software-warning verification, uncertainty calibration and arithmetic checks. Thus identical criterion names do not make the two assessments interchangeable.
+
+Historical GPT-5.4 H2 one-shot judgment N2-658335A0 penalized absent structured equipment IDs even when equipment was named narratively (UO-05/13). It also caught real conflicting H2 equivalents (3.54 versus 10), an unavailable fixed-BPR adjustment/bypass, and inconsistent gas volume calculations. Historical photo judgment N2-9718DA6F caught the candidate's own 0.47 O2-equivalent supply. Those real defects support some deductions, but the schema-specific penalties complicate direct prose-versus-JSON comparison. Conversely, current GPT-4o rated fresh practical photo N2-2AC84057 1.000 despite explicit 0.60 mL/min ~= 10 sccm and 5 sccm ~= 0.30 mL/min claims; equal-reference sccm and mL/min are numerically identical. Additional guided-one-shot and FlowPilot defects are documented in the existing independent manual audits. Near-perfect grades are not verified physical correctness.
+
+Historical runtime temperature override was 0.0 and output allowance 7,500 tokens for all three models. The frozen transport actually omitted temperature for GPT-5.4 and used max_completion_tokens=7500; the other two judges received temperature=0.0. Current accepted GPT-4o judgments also used 7,500; accepted Qwen judgments used 12,000. Full prompts, seeds, responses, accepted retry paths and model settings are archived. The historical configuration is recoverable from frozen/source_code/run_newgen_2_0_benchmark.py, llm_agents.py and actual prompt/telemetry records. The wrapper stored the REQUESTED model in raw_response.model, discarding the SDK-returned model; endpoint URL/environment were also not recorded. The archive proves the requested GPT-5.4 identifier and a completed response, not an independently verified server model identity. It used the standard SDK OpenAI client with upstream_mode=never, and no reasoning_effort override in this text-only path. Endpoint availability was not tested by this audit.
+
+5. Delivery regression and later fixes are a separate question
+
+The initial October practical pilot removed explicit chemistry confirmation and used a no-clarification path. The pipeline consequently hit input/identity publication gates, blocking all three final deliveries. The earlier typed-confirmed path did not expose that problem. Source parsing and identity-validation defects were subsequently repaired, yielding three executable fresh FlowPilot artifacts in the repair campaign. Separate post-benchmark alias charging, mixer text and space-time-yield repairs were verified by offline artifact recompilation; they are not part of its frozen scores and cannot retroactively improve them. The full evidence is in output/practical_benchmark_tools/audit_20261014 and post_benchmark_repairs_20261014. These implementation defects explain an earlier FlowPilot delivery decline; they do not explain away current one-shot evaluator misses.
+
+6. Minimal fair follow-up
+
+Keep the 14 criteria and core pipeline fixed. First bridge the stored historical Sonnet repeat-1 six outcomes and current nine outcomes using the same three explicitly identified judges, equal weights and one preregistered acceptance rule, retaining the byte-exact packets as a diagnostic comparison. Because their formats and instructions still differ, this isolates judge-panel changes better than the current comparison but does not isolate prompt length. Then generate three practical one-shot and three FlowPilot designs from matched practical facts/objective/inventory, with a common required structured output contract, a symmetric basis-aware verification sheet, and the same three-judge panel. Preserve full original responses and expose missing fields without inventing content. All outcomes and all valid unfavorable ratings must remain. Report these as development comparisons; n=1 per chemistry cannot establish general superiority.
+
+Supporting files
+historical_audit.json contains exact candidate-, repeat-, case- and judge-level values; configuration and context comparisons; raw output telemetry; and the recovered full-cohort generator/judge identifiers. source_hashes.json hashes every read evidence file. build_historical_audit.py reproduces the extraction without APIs. Source archives and production files were not edited. Combined cohort source: deliverables/newgen_2_0_all_models_three_repeat_20260824/tables, explicitly filtered to the five listed generators.

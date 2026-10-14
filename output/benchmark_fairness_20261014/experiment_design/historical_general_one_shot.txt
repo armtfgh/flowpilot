@@ -1,0 +1,87 @@
+def _general_one_shot(
+    case: AblationCase,
+    model: str,
+    provider: str,
+    recorder: BenchmarkRecorder,
+    temperature: float,
+    seed: int | None,
+) -> dict[str, Any]:
+    system = (
+        "You are a general chemistry assistant. Translate a batch chemistry "
+        "protocol into a practical continuous-flow experiment."
+    )
+    proposal_fields = _flow_schema_instruction().split(
+        "proposal_json must be a JSON-encoded string whose decoded object uses these fields:",
+        1,
+    )[1]
+    user = (
+        f"FROZEN DESIGN INPUT:\n{case.design_input_text}\n\n"
+        "Propose one complete flow design with numeric operating conditions, "
+        "stream assignments, safety controls, and a brief rationale. Return one "
+        "JSON object and no markdown with exactly these top-level fields: "
+        "recommended_disposition, disposition_rationale, and proposal. The proposal "
+        "value must be a JSON object, not a JSON-encoded string.\n\n"
+        "The proposal object uses these fields:\n" + proposal_fields
+    )
+    recorder.write_json("prompt.json", {"system": system, "user": user})
+    set_llm_observer(recorder.observe_llm)
+    set_llm_runtime_overrides(
+        temperature=temperature,
+        seed=seed,
+        capture_content=True,
+        json_mode=True,
+    )
+    try:
+        result = call_model_text(
+            model=model,
+            provider=provider,
+            api_name="ablation_general_one_shot",
+            max_tokens=16384,
+            system=system,
+            user_content=user,
+        )
+        recorder.write_json("raw_response.json", asdict(result))
+        try:
+            envelope = _parse_json_object(result.text)
+            parsed = envelope.get("proposal")
+            if not isinstance(parsed, dict):
+                raise json.JSONDecodeError(
+                    "Direct response must contain a proposal object", result.text, 0
+                )
+        except json.JSONDecodeError as exc:
+            recorder.write_json(
+                "schema_error.json",
+                {
+                    "error": str(exc),
+                    "classification": "malformed_json",
+                    "finish_reason": result.finish_reason or result.stop_reason,
+                },
+            )
+            return {
+                "variant": "general_one_shot",
+                "proposal": {},
+                "schema_valid": False,
+                "output_validity": "malformed_json",
+                "parse_error": str(exc),
+            }
+        try:
+            proposal = FlowProposal(**_canonicalize_one_shot_proposal(parsed))
+            normalized = proposal.model_dump()
+            schema_valid = True
+        except Exception as exc:
+            normalized = parsed
+            schema_valid = False
+            recorder.write_json("schema_error.json", {"error": str(exc)})
+        return {
+            "variant": "general_one_shot",
+            "proposal": normalized,
+            "raw_proposal": parsed,
+            "response_envelope": envelope,
+            "reported_disposition": envelope.get("recommended_disposition"),
+            "disposition_rationale": envelope.get("disposition_rationale"),
+            "schema_valid": schema_valid,
+            "output_contract": "direct_json_object_v2",
+        }
+    finally:
+        clear_llm_observer()
+        clear_llm_runtime_overrides()

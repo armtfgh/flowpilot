@@ -1,0 +1,234 @@
+READ-ONLY PACKET AND EVALUATOR FAIRNESS AUDIT — 14 OCTOBER 2026
+
+Main conclusion
+The latest practical-input scores are not a reliable measure of the quality gap.
+The same 14-criterion rubric was retained, but numerical checking was removed and
+several accepted judgments contradict either the supplied evidence or their own
+written rationale. Errors occur in both directions. One-shot mistakes received
+full credit, FlowPilot received unsupported deductions, and a real FlowPilot
+double-charge defect also received full credit. This audit does not establish a
+corrected ranking and does not replace any archived score.
+
+All work here was read-only except for this audit directory. No APIs, new model
+judgments, production changes, archive changes or score revisions were made.
+
+1. Exact comparison sources
+
+The manuscript's five-model cohort is selected by
+ablation_test/scripts/build_manuscript_visualization_package.py from
+deliverables/newgen_2_0_latest_results_20260824/tables/all_candidate_consensus_scores.csv.
+Its 90 outcomes come from three campaigns under ablation_results/manuscript_benchmark/
+- manuscript_three_model_three_repeat_postfix_20260820 (Qwen3.6 and Sonnet)
+- qwen38_three_repeat_20260824 (Qwen3.8)
+- alternative_frontier_three_repeat_20260824 (GPT-4o and Opus)
+
+All three frozen rubrics and the latest practical rubric have SHA256
+0974b75afb85f965472dcca446344820672aa0e5f653e57ecd381afea9bf57c6.
+The original packet adapters are frozen/source_code/newgen_2_outcome.py in those
+campaigns. Their substantive packet/judge prompt code is the same. The later
+frontier copy adds normalization of N/A rows only.
+
+The current comparison is
+ablation_results/practical_input/claude_practical_repair_20261014.
+Its frozen/full_source/ablation_test/scripts/run_practical_input_pilot.py and
+run_practical_repair_benchmark.py define the practical wrapper. Its
+frozen/full_source/ablation_test/src/newgen_2_outcome.py defines the packet and
+judge contract. Actual packets, accepted judgment paths, exact criterion rows
+and source hashes are captured in machine_audit.json and checked_findings.json.
+
+2. What changed despite keeping the rubric
+
+Original manuscript
+- One-shot returned a structured JSON proposal. FlowPilot supplied its final
+  contract, graph, stream components, instructions and uncertainty information.
+- Both received a deterministic verification sheet. It checked top-level Q*tau
+  against V, reactor-volume inventory matching, schema/delivery status and
+  source-exclusion telemetry.
+- The original judge prompt explicitly called the tested calculations in that
+  sheet authoritative unless the judge identified an erroneous input or formula.
+- Three judge families were pooled and three generation repeats were reported.
+
+Latest practical campaign
+- One-shot returns complete free prose in chemistry_notes. The remaining common
+  structured fields are empty. No prose is dropped; all six fresh one-shot
+  outputs exactly match their raw text after identity scrubbing, and all ended
+  normally with stop_reason=end_turn.
+- FlowPilot retains its structured final graph, component descriptions, procedure
+  and confidence metadata. This is a richer, longer, more visibly segmented packet.
+- practical_packet explicitly replaces the entire verification sheet with the
+  statement that no automated numerical pass/fail is supplied. It removes both
+  the original mechanical checks and the newer delivered_arithmetic worksheet.
+- The revised addendum requires independent arithmetic, concrete reasons for
+  deductions, and no penalty for low confidence alone. Those instructions were
+  present but were not reliably followed by the accepted judges.
+- GPT-4o is primary, Qwen secondary, reported separately; one fresh generation
+  per case/arm. These are not directly comparable to the manuscript's pooled
+  three-judge, three-repeat estimates.
+
+The absence of a worksheet is nominally symmetric but leaves different reading
+tasks. Prose claims must be located and reconciled inside a long text string;
+structured metadata and explicit warnings are easier to notice. Fresh packet
+file size averaged 20,011 bytes for practical one-shot, 28,201 for guided one-shot
+and 63,888 for FlowPilot. This is an exposure/format asymmetry, not proof that
+format alone caused the ranking. Output quality and content also differ.
+
+3. Concrete scoring failures against the original anchors
+
+Across nine fresh outputs, the two judges returned 228 applicable criterion
+ratings: 211 scores of 4, sixteen scores of 3, one score of 2, and no critical
+flags. The independent manual audit identifies material defects underneath that
+ceiling. Eight checked examples with the actual judgment rows are retained in
+checked_findings.json. They are examples, not an exhaustive substitute benchmark.
+
+a. Practical H2 one-shot, N2-CFB2CBF4
+The delivered diagram puts a vented separator upstream of the only BPR, with
+the separator gas branch venting separately. Both judges award UO-05=4 and
+UO-12=4. As drawn, that vent bypasses the pressure-defining device. The original
+UO-05 critical condition specifically covers a topology unable to execute the
+intended process. The same output's 3–5 turnovers at 3 mL and 0.4 mL/min require
+22.5–37.5 min, not its stated 7–12 min; 250 mL at 0.4 mL/min takes 625 min, not
+approximately 10 min. Both judges nevertheless award UO-13=4.
+
+b. Practical photo one-shot, N2-2AC84057
+It equates 0.60 standard mL/min with 10 sccm, and later 5 sccm with 0.30 mL/min
+at NTP. At equal reference conditions one sccm is one standard mL/min. Both
+written conversions differ by a factor of 16.67. Both judges assign every
+applicable criterion a 4, including gas bookkeeping UO-08.
+
+c. Guided photo one-shot, N2-D5F033BB
+0.10 M x 0.20 mL/min = 20 micromol/min substrate, not 1.2. The stated 0.55 sccm
+air supplies about 5.16 micromol/min O2, so its O2/substrate ratio is 0.258,
+not 4.3. Its 25 min collection receives 500 micromol substrate, not 30.
+GPT-4o gives gas bookkeeping UO-08=4. Qwen notices the arithmetic error and
+deducts UO-08 to 2, but gives UO-06=4 while its UO-06 rationale explicitly says
+the error is material and ends with 'Score 2.' That self-contradiction alone
+corresponds to two criterion points, or 2/52=0.03846 on the case's normalized
+score. No score has been changed here. Qwen's UO-08 score of 2 also carries
+severity MINOR, despite the rubric defining 2 as a material defect.
+
+d. Fresh FlowPilot H2, N2-A55DB624
+PREP-A charges DMAOL at 1.26 mmol and its source-defined full-name alias at
+another 1.26 mmol into 10 mL. Literal execution gives 0.252 M, whereas the
+canonical design is 0.126 M. Both judges award procedure UO-13=4; Qwen awards
+every applicable criterion a 4. This is a genuine production error, later
+repaired after the benchmark. The repair cannot retrospectively excuse the
+frozen result. An evaluation that only finds one-shot errors would be unfair.
+
+e. Additional examples
+Guided CuAAC claims a 10 min flush at 0.10 mL/min is at least ten 0.30 mL reactor
+volumes; it is 3.33. Both judges award UO-13=4. Its own table also claims a
+130–135 C boiling point at 20 bar while concluding that 150 C at 20 bar retains
+liquid; both award UO-11=4. This is an internal contradiction, not endorsement
+of that estimated physical property. Practical CuAAC calls the 1.50 mmol/h
+substrate rate its product rate at 94%; the corresponding value would be
+1.41 mmol/h. Both judges award material balance UO-06=4. These errors differ in
+severity and must not all be treated as critical failures.
+
+4. Unsupported FlowPilot deductions and metadata exposure
+
+Fresh H2 FlowPilot loses one GPT-4o point each on UO-03, UO-06 and UO-08 because
+gas stoichiometry supposedly lacks justification. The packet already states
+0.126 M x 0.5 mL/min = 0.063 mmol/min substrate, H2 molar flow 0.063 mmol/min,
+one equivalent H2, STP 273.15 K/1.01325 bar, and corrected channel gas flow
+0.07927 mL/min at 60 C/22.01325 bar absolute. The judge gives no competing
+calculation. Its UO-14 deduction cites 'Confidence: LOW' and asks to increase
+confidence through additional experiments, contrary to the campaign's explicit
+instruction that low confidence/need for testing is not itself a defect.
+
+Fresh photo FlowPilot loses six GPT-4o criterion points through generic 'minor
+inconsistency/clarification' statements on UO-03/06/07/08/11/14. The packet
+already distinguishes 0.17134 min inlet/STP index from 0.512588 min channel
+index, gives 5.336362 sccm air, 0.21 O2 fraction, 0.05 mmol/min O2, one O2
+equivalent, and 4.01325 bar absolute. The judge never supplies numerical operands
+and a discrepant result, despite the addendum requiring them. Its uncertainty
+deduction identifies no specific unsupported claim.
+
+Together these are ten inadequately supported GPT-4o point deductions across
+the two FlowPilot gas cases. This count is NOT a proposal to restore ten points:
+the genuine duplicate stock charge and any other real defects still require
+assessment. It establishes that the reasons attached to the scores are unreliable.
+
+Confidence metadata is exposed only for FlowPilot here. This asymmetry existed
+in the older packet adapter too; it is not a new explicit software penalty. No
+architecture-specific numerical penalty exists in the scorer. The observed
+penalty comes from the judge interpreting a software confidence label as a defect.
+
+5. Dropped material, leakage and truncation
+
+- Held-out fact-check context is byte-equivalent after serialization across all
+  arms within each case, including the archived comparison outcomes. It appears
+  intentionally in judge packets, not as a generator answer key. All nine fresh
+  generation metrics record no prompt source-ID leaks or retrieval source leaks
+  and leave_one_source_out_pass=true. These checks do not establish absence from
+  model pretraining or prove that every semantic fact is unseen.
+- All 15 recorded Qwen context checks report the full prompt fits without
+  truncation; input length ranges 6,810–20,137 tokens within the 32,768 context.
+  Packet gates also reject truncation markers. Missing numerical verification
+  therefore cannot be attributed to demonstrated prompt truncation in this run.
+- Full one-shot prose is retained, including its extra calculations and errors.
+  FlowPilot's raw design_calculations, engineering_history, council traces and
+  several proposal metric blocks are excluded from final-outcome packets.
+  Excluding internal history is intentional and largely pre-existing. It must
+  not be reintroduced merely to give FlowPilot more supporting material.
+- In the fresh FlowPilot packets, the design_calculations pressure-drop,
+  Reynolds-number, heat-generation and STY fields are not included by name.
+  Those internal values are not automatically validated or final. The later
+  discovered STY bug demonstrates why importing all calculations wholesale
+  would be wrong. A shared worksheet should recompute from delivered values.
+- Crucially, the gas equations for the GPT-4o 'unclear gas' deductions ARE in
+  the delivered streams; this was a reading/judgment failure, not an omitted fact.
+
+6. Why not restore the old implementation verbatim
+
+The old Q*tau worksheet ignores the declared gas/time basis. Applying liquid
+flow to an inlet/STP gas-plus-liquid time can manufacture a volume mismatch.
+The old one-shot adapter also prefers result.proposal after Pydantic parsing
+over raw_proposal. In the original five-model cohort, 3/45 one-shot results
+have explicit time fields changed by normalization. Examples include Sonnet
+H2 repeat_02, 2.29 -> 6 min; Opus H2 repeat_01, 10 -> 20 min; Opus H2 repeat_02,
+30 -> 20.27 min, with inlet time 30 -> 2.73 min. Exact immutable source paths
+and changed fields are in machine_audit.json. This audit does not quantify the
+historical score impact. Restoring the rubric must not restore hidden rewriting
+of candidate answers or phase-insensitive arithmetic.
+
+7. Smallest defensible restoration
+
+Keep the 14 criteria, original anchors, applicability rules, weights and chemical
+cases unchanged. No new quality criterion or architecture-dependent bonus is needed.
+
+1. Preserve the actual delivered answers. Keep complete one-shot prose and the
+   final FlowPilot artifact, including contradictions. Do not judge patched
+   outputs against frozen originals or silently normalize a candidate's numbers.
+2. Reinstate a small common arithmetic worksheet for BOTH formats. Extract values
+   with exact source quotes/paths; compute C*Q, equivalents, standard-to-channel
+   gas flow, V/Q on the stated basis, stock quantities and procedure durations.
+   Preserve conflicting occurrences. Mark genuinely unknown basis/holdup as
+   unassessable; do not fill it with an oracle assumption. This restores the
+   original verification function without changing its scoring target.
+3. Use the existing judge response fields to require the tested operands/result
+   for numerical claims and a concrete defect for a deduction. Reject explicit
+   score-versus-rationale contradictions and impossible severity/anchor pairings.
+   Apply these checks to all candidates. Preserve invalid attempts; never retry
+   a valid judgment merely because the result is unfavorable.
+4. Treat confidence/disposition/software flags as claims to examine. They may
+   provide context but cannot substitute for a demonstrated chemical, physical
+   or delivery defect. This is already in the revised instruction; the needed
+   change is verification of compliance, not stronger pro-FlowPilot wording.
+5. Pilot the repaired evaluator offline on the known correct AND incorrect
+   examples from all arms above before paying for another campaign. Freeze the
+   packet/validation protocol before any new judging. Keep any re-evaluation
+   explicitly separate from the original manuscript and practical scores.
+
+A comparison directly pooled with the manuscript would additionally require its
+three-judge aggregation and repeat structure. A smaller practical-input study
+can retain the current primary/secondary judges if it is clearly reported as a
+different experiment. No supported conclusion currently shows that shorter
+prompts improve design quality or that FlowPilot wins after correcting the audit.
+
+Artifacts
+machine_audit.json contains source manifests, hashes, exact score arrays,
+context checks, prose preservation checks and historical normalization examples.
+checked_findings.json contains eight concrete examples with the actual accepted
+judge rows and source paths. reproduce_packet_audit.py regenerates both offline.
+The earlier pre-judging manual audit of all nine outputs remains at
+output/practical_benchmark_tools/fresh_content_audit_20261014.txt.

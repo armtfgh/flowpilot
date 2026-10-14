@@ -1,0 +1,403 @@
+--- /dev/null
++++ b/flora_translate/source_component_aliases.py
+@@ -0,0 +1,169 @@
++"""Source-declared component aliases, scoped to one protocol and one feed.
++
++Never infer equivalence from a model's abbreviation or molecular similarity.
++Concentration/equivalent conflicts and ambiguous alias declarations stay visible.
++"""
++from __future__ import annotations
++
++from dataclasses import dataclass
++import math
++import re
++from typing import Iterable
++
++from flora_translate.component_identity import component_key, component_name
++from flora_translate.protocol_input import extract_protocol_text
++
++_ALIAS_TAIL = re.compile(r"^(?P<name>.+?)\s+\((?P<alias>[A-Z][A-Z0-9]{1,15})\)$")
++_PORTIONS = re.compile(r"\b(?:portion(?:s|wise)?|aliquots?|split[- ](?:charge|addition)|(?:first|second|third|additional|separate)\s+(?:charge|addition|aliquot)|(?:two|three|\d+)\s+(?:(?:equal|separate|successive)\s+)?(?:parts|charges|additions))\b", re.I)
++_CONFLICT = "source_component_alias_conflict: "
++
++
++@dataclass(frozen=True)
++class SourceAliases:
++    canonical_by_key: dict[str, str]
++    evidence_by_key: dict[str, str]
++    conflicts: tuple[str, ...]
++
++    def canonical_name(self, name: str) -> str:
++        return self.canonical_by_key.get(component_key(name), name)
++
++    def canonical_text(self, text: str) -> str:
++        name = component_name(text)
++        canonical = self.canonical_name(name)
++        return canonical + text[len(name):] if canonical != name else text
++
++
++def source_aliases(protocol: str, names: Iterable[str]) -> SourceAliases:
++    """Find full-name (ACRONYM) declarations beside known candidate names.
++
++    Candidate names delimit possible full names; only an exact declaration in
++    the original protocol grants equivalence. Generated names alone grant none.
++    """
++    protocol = extract_protocol_text(protocol)
++    candidates = list(dict.fromkeys(component_name(str(name)) for name in names))
++    declarations: dict[str, dict[str, tuple[str, str]]] = {}
++    known_declaration_positions: dict[str, set[int]] = {}
++    asserted_pairs = []
++    for candidate in candidates:
++        tail = _ALIAS_TAIL.fullmatch(candidate)
++        full = tail['name'] if tail else candidate
++        if tail:
++            asserted_pairs.append((full, tail['alias']))
++        # Boundaries prevent methyl... and substituted methyl... sharing an
++        # accidental substring. Source aliases are uppercase declarations.
++        pattern = r"(?<![A-Za-z0-9-])" + re.escape(full) + r"\s*\(\s*(?P<alias>[A-Z][A-Z0-9]{1,15})(?=\s*[;,)])[^)]*\)"
++        for match in re.finditer(pattern, protocol, re.I):
++            alias = match['alias']
++            if not alias.isupper():
++                continue
++            alias_key = component_key(alias)
++            declarations.setdefault(alias_key, {})[component_key(full)] = (full, match.group(0))
++            known_declaration_positions.setdefault(alias_key, set()).add(match.start('alias'))
++    canonical = {}
++    evidence = {}
++    conflicts = []
++    for alias_key, full_names in declarations.items():
++        # Candidate names do not delimit source authority. A second declaration
++        # may name a compound the model omitted entirely. Refuse the alias if
++        # any occurrence has not been grounded to a known full-name declaration.
++        source_positions = {match.start('alias') for match in re.finditer(
++            r"\(\s*(?P<alias>" + re.escape(alias_key) + r")(?=\s*[;,)])[^)]*\)",
++            protocol, re.I) if match['alias'].isupper()}
++        if len(full_names) != 1 or source_positions - known_declaration_positions[alias_key]:
++            conflicts.append(f"Protocol acronym {alias_key!r} has conflicting or incompletely resolved source declarations; clarify identity before dispensing.")
++            continue
++        full, quote = next(iter(full_names.values()))
++        for key in (alias_key, component_key(full)):
++            canonical[key] = full
++            evidence[key] = quote
++        # Only exact candidate '(ALIAS)' descriptions inherit this declaration.
++        for candidate in candidates:
++            tail = _ALIAS_TAIL.fullmatch(candidate)
++            if tail and component_key(tail['name']) == component_key(full) and component_key(tail['alias']) == alias_key:
++                canonical[component_key(candidate)] = full
++                evidence[component_key(candidate)] = quote
++    candidate_keys = {component_key(name) for name in candidates}
++    for full, alias in asserted_pairs:
++        if component_key(alias) in candidate_keys and component_key(alias) not in canonical:
++            conflicts.append(f"Feed contains both {alias!r} and {full!r} with an alias claim not unambiguously defined by the original protocol; resolve before dispensing.")
++    return SourceAliases(canonical, evidence, tuple(dict.fromkeys(conflicts)))
++
++
++def normalize_plan_component_aliases(plan, protocol: str) -> None:
++    """Normalize a copied chemistry plan before missing-feed restoration."""
++    feeds = [*plan.stream_logic, *(feed for stage in plan.stages for feed in stage.feed_streams)]
++    names = [item.name for item in plan.reagents] + [name for feed in feeds for name in feed.reagents]
++    registry = source_aliases(protocol, names)
++    if registry.conflicts or _PORTIONS.search(protocol):
++        # Final validation retains/flags uncertainty; do not erase evidence here.
++        return
++    declarations = {}
++    for item in plan.reagents:
++        key = component_key(registry.canonical_name(item.name))
++        signature = (item.role.strip().casefold(), item.equiv_or_loading.strip().casefold())
++        if key in declarations and declarations[key] != signature:
++            # Renaming would let downstream name-keyed role maps overwrite
++            # contradictory declarations. Keep their original evidence intact.
++            return
++        declarations[key] = signature
++    for item in plan.reagents:
++        item.name = registry.canonical_name(item.name)
++    for feed in feeds:
++        feed.reagents = [registry.canonical_text(name) for name in feed.reagents]
++
++
++def collapse_source_alias_components(components: list, protocol: str) -> list:
++    """Return canonical copies; never change the supplied proposal or sum doses.
++
++    This caller supplies ONE physical stream. Separate feeds/stages therefore
++    remain separate. Explicit portions are never silently dropped. Conflicting
++    quantities remain duplicate canonical entries for the existing release gate.
++    """
++    registry = source_aliases(protocol, [item.name for item in components])
++    result = []
++    seen = {}
++    for source in components:
++        item = source.model_copy(deep=True)
++        original_name = item.name
++        key = component_key(original_name)
++        item.name = registry.canonical_name(original_name)
++        if key in registry.evidence_by_key:
++            item.provenance = list(dict.fromkeys([*item.provenance,
++                'source_declared_alias: ' + registry.evidence_by_key[key]]))
++        for conflict in registry.conflicts:
++            item.provenance.append(_CONFLICT + conflict)
++        canonical_key = component_key(item.name)
++        feed_key = (item.stream_label, canonical_key)
++        same = seen.get(feed_key)
++        separate = (_PORTIONS.search(protocol) or _PORTIONS.search(source.source_text)
++                    or (same is not None and _PORTIONS.search(same.source_text)))
++        quantities = ('concentration_M', 'molar_equiv', 'loading_mol_pct')
++        def quantities_agree(a, b):
++            for field in quantities:
++                left, right = getattr(a, field), getattr(b, field)
++                if left is None or right is None:
++                    if left != right:
++                        return False
++                elif not math.isclose(left, right, rel_tol=1e-8, abs_tol=1e-12):
++                    return False
++            return a.quantification_required == b.quantification_required
++        # Only source-proven alias groups may collapse; an unrelated repeated
++        # name/quantity remains under the existing duplicate conflict policy.
++        known_alias = canonical_key in registry.canonical_by_key
++        compatible_assignment = (same is None or (
++            same.role.strip().casefold() == item.role.strip().casefold()
++            and getattr(same, 'phase', None) == getattr(item, 'phase', None)))
++        if same is not None and known_alias and not compatible_assignment:
++            item.provenance.append(_CONFLICT + f"Source-identical component {item.name!r} has conflicting role or phase assignments in stream {item.stream_label!r}; resolve before dispensing.")
++        if same is not None and known_alias and compatible_assignment and not separate and quantities_agree(same, item):
++            same.provenance = list(dict.fromkeys([*same.provenance, *item.provenance,
++                f'alias_description_collapsed_without_adding_dose: {source.source_text}']))
++            continue
++        result.append(item)
++        seen.setdefault(feed_key, item)
++    return result
++
++
++def source_alias_conflicts(components: list) -> list[str]:
++    return list(dict.fromkeys(note[len(_CONFLICT):] for item in components
++                             for note in item.provenance if note.startswith(_CONFLICT)))
+--- a/flora_translate/chemistry_contract.py
++++ b/flora_translate/chemistry_contract.py
+@@ -30,6 +30,9 @@
+ )
+ 
+ 
++from flora_translate.source_component_aliases import normalize_plan_component_aliases
++
++
+ _INERT_GASES = {"n2", "nitrogen", "ar", "argon"}
+ 
+ 
+@@ -43,6 +46,7 @@
+     """Return a protocol-anchored plan and an auditable reconciliation report."""
+ 
+     plan = chemistry_plan.model_copy(deep=True)
++    normalize_plan_component_aliases(plan, batch_record.raw_text or "")
+     protocol = _protocol_text(batch_record)
+     constraint_text = _chemistry_constraint_text(hard_constraints)
+     evidence_text = "\n".join(value for value in (protocol, constraint_text) if value)
+--- a/flora_translate/executable_artifacts.py
++++ b/flora_translate/executable_artifacts.py
+@@ -30,6 +30,7 @@
+     gas_time_basis_consistent,
+ )
+ from flora_translate.topology_semantics import topology_semantic_issues
++from flora_translate.source_component_aliases import collapse_source_alias_components, source_alias_conflicts
+ from flora_translate.protocol_input import extract_protocol_text
+ from flora_translate.protocol_identity import (
+     infer_protocol_identity, plan_identity_issues, protocol_label_text,
+@@ -94,6 +95,8 @@
+ ) -> list[dict[str, str]]:
+     issues: list[dict[str, str]] = []
+     identity = bundle.chemistry_identity
++    for message in source_alias_conflicts(bundle.stream_components):
++        issues.append({"code": "FINAL-COMPONENT-DESCRIPTIONS-CONFLICT", "message": message})
+     for message in identity.validation_issues:
+         issues.append({"code": "FINAL-CHEMISTRY-IDENTITY-DRIFT", "message": message})
+     if (
+@@ -498,6 +501,9 @@
+                 )
+             )
+         _infer_component_concentrations(output[component_start:], stream)
++        output[component_start:] = collapse_source_alias_components(
++            output[component_start:], extract_protocol_text(str((result.get("batch_record") or {}).get("raw_text") or "")),
++        )
+     return output
+ 
+ 
+--- a/flora_translate/main.py
++++ b/flora_translate/main.py
+@@ -540,7 +540,8 @@
+     from flora_translate.executable_artifacts import _stream_components
+     feed_map = {s.stream_label: s for s in proposal.streams}
+     components = _stream_components(
+-        {"chemistry_plan": chemistry_plan.model_dump() if chemistry_plan else {}},
++        {"chemistry_plan": chemistry_plan.model_dump() if chemistry_plan else {},
++         "batch_record": batch_record.model_dump()},
+         [s.model_dump() for s in proposal.streams],
+     )
+     for operation in topology.unit_operations:
+--- /dev/null
++++ b/flora_translate/tests/test_source_component_aliases.py
+@@ -0,0 +1,167 @@
++from copy import deepcopy
++
++from flora_translate.source_component_aliases import (
++    source_aliases, collapse_source_alias_components, source_alias_conflicts,
++    normalize_plan_component_aliases,
++)
++from flora_translate.schemas import CanonicalStreamComponent, BatchRecord, ChemistryPlan, StreamLogic, ReagentRole
++from flora_translate.chemistry_contract import reconcile_chemistry_plan
++from flora_translate.executable_artifacts import _stream_components, _stream_preparation_instruction
++
++PROTOCOL = 'N-diphenylmethylazetidin-3-ol (DMAOL; MW239.32) was dissolved in methanol.'
++FULL = 'N-diphenylmethylazetidin-3-ol'
++
++
++def component(name, concentration=.126, text=None, stream='A'):
++    return CanonicalStreamComponent(stream_label=stream, name=name, source_text=text or name,
++        concentration_M=concentration, molar_equiv=1, role='substrate', quantified=True)
++
++
++def test_explicit_source_acronym_collapses_identical_dose_only():
++    items = [component('DMAOL'), component(FULL+' (DMAOL)')]
++    before = deepcopy(items)
++    out = collapse_source_alias_components(items, PROTOCOL)
++    assert items == before
++    assert len(out) == 1 and out[0].name == FULL and out[0].concentration_M == .126
++    assert any(PROTOCOL[:-len(' was dissolved in methanol.')] in note for note in out[0].provenance)
++
++
++def test_conflicting_quantities_remain_visible_under_same_canonical_name():
++    out = collapse_source_alias_components([component('DMAOL'),component(FULL+' (DMAOL)',.252)],PROTOCOL)
++    assert len(out)==2 and out[0].name==out[1].name==FULL
++    assert [x.concentration_M for x in out]==[.126,.252]
++
++
++def test_legitimate_portions_are_never_silently_deleted():
++    protocol=PROTOCOL+' The solution was added in two portions.'
++    out=collapse_source_alias_components([component('DMAOL',text='DMAOL (first portion)'),component(FULL+' (DMAOL)',text=FULL+' (second portion)')],protocol)
++    assert len(out)==2
++
++
++def test_portion_marker_on_earlier_description_prevents_merging():
++    out=collapse_source_alias_components([component('DMAOL',text='DMAOL (first portion)'),component(FULL+' (DMAOL)')],PROTOCOL)
++    assert len(out)==2
++
++
++def test_aliquots_and_equal_parts_are_preserved_as_possible_separate_charges():
++    for phrase in ['two aliquots', 'two equal parts', 'two separate charges']:
++        out=collapse_source_alias_components([component('DMAOL'),component(FULL+' (DMAOL)')],PROTOCOL+' It was added in '+phrase+'.')
++        assert len(out)==2
++
++
++def test_separate_feeds_retain_their_independent_amounts():
++    first=collapse_source_alias_components([component('DMAOL')],PROTOCOL)
++    second=collapse_source_alias_components([component(FULL+' (DMAOL)',.252,stream='B')],PROTOCOL)
++    assert len(first)==len(second)==1 and first[0].concentration_M==.126 and second[0].concentration_M==.252
++
++
++def test_mixed_stream_input_never_collapses_separate_feeds():
++    out=collapse_source_alias_components([component('DMAOL',stream='A'),component(FULL+' (DMAOL)',stream='B')],PROTOCOL)
++    assert len(out)==2 and [x.stream_label for x in out]==['A','B']
++
++
++def test_conflicting_roles_preserved_and_flagged():
++    other=component(FULL+' (DMAOL)')
++    other.role='catalyst'
++    out=collapse_source_alias_components([component('DMAOL'),other],PROTOCOL)
++    assert len(out)==2 and [x.role for x in out]==['substrate','catalyst']
++    assert source_alias_conflicts(out)
++
++
++def test_upstream_normalization_does_not_mask_role_or_loading_conflicts():
++    for role, loading in [('catalyst','1 equiv'), ('substrate','2 equiv')]:
++        plan=ChemistryPlan(reagents=[ReagentRole(name='DMAOL',role='substrate',equiv_or_loading='1 equiv'),
++            ReagentRole(name=FULL+' (DMAOL)',role=role,equiv_or_loading=loading)],
++            stream_logic=[StreamLogic(stream_label='A',reagents=['DMAOL',FULL+' (DMAOL)'],phase='liquid')])
++        before=plan.model_copy(deep=True)
++        normalize_plan_component_aliases(plan,PROTOCOL)
++        assert plan==before
++
++
++def test_model_only_alias_does_not_authorize_merging():
++    out=collapse_source_alias_components([component('DMAOL'),component(FULL+' (DMAOL)')],'An unnamed substrate was dissolved in methanol.')
++    assert len(out)==2
++    assert source_alias_conflicts(out)
++
++
++def test_one_acronym_for_two_source_compounds_is_ambiguous():
++    protocol='Substrate A (XYZ) was charged. Substrate B (XYZ) was also charged.'
++    out=collapse_source_alias_components([component('XYZ'),component('Substrate A (XYZ)'),component('Substrate B (XYZ)')],protocol)
++    assert len(out)==3 and source_alias_conflicts(out)
++
++
++def test_omitted_second_source_compound_cannot_hide_acronym_ambiguity():
++    protocol='Substrate A (XYZ) was charged. Substrate B (XYZ) was also charged.'
++    out=collapse_source_alias_components([component('XYZ'),component('Substrate A (XYZ)')],protocol)
++    assert len(out)==2 and source_alias_conflicts(out)
++    assert not source_aliases(protocol,['XYZ','Substrate A (XYZ)']).canonical_by_key
++
++
++def test_repeated_same_original_alias_declaration_is_not_ambiguous():
++    protocol=PROTOCOL+' More '+FULL+' (DMAOL) was reserved for analysis.'
++    reg=source_aliases(protocol,['DMAOL',FULL+' (DMAOL)'])
++    assert reg.canonical_name('DMAOL')==FULL and not reg.conflicts
++
++
++def test_molecular_parentheses_are_not_aliases():
++    reg=source_aliases('Pd(OH)2 catalyst and H2O2 were used.', ['Pd(OH)2','H2O2','H2'])
++    assert not reg.canonical_by_key and not reg.conflicts
++
++
++def test_inventory_cannot_supply_alias_authority():
++    protocol='BATCH PROCEDURE\nA compound was heated.\n\nAVAILABLE EQUIPMENT\n'+PROTOCOL
++    out=collapse_source_alias_components([component('DMAOL'),component(FULL+' (DMAOL)')],protocol)
++    assert len(out)==2 and source_alias_conflicts(out)
++
++
++def test_unrelated_substituent_names_are_not_merged():
++    protocol='Benzyl azide (BA) was used.'
++    reg=source_aliases(protocol,['BA','4-nitrobenzyl azide (BA)'])
++    assert not reg.canonical_by_key
++    assert reg.conflicts
++
++
++def test_reconciliation_does_not_restore_fullname_as_an_additional_charge():
++    batch=BatchRecord(raw_text=PROTOCOL,solvent='methanol',concentration_M=.126)
++    plan=ChemistryPlan(reaction_name='Hydrogenolysis',reagents=[ReagentRole(name=FULL+' (DMAOL)',role='substrate',equiv_or_loading='1 equiv')],
++        stream_logic=[StreamLogic(stream_label='A',reagents=['DMAOL (1 equiv, 0.126 M)','methanol'],phase='liquid')])
++    before=plan.model_copy(deep=True)
++    out,_=reconcile_chemistry_plan(batch,plan)
++    assert plan==before
++    names=out.stream_logic[0].reagents
++    assert len([x for x in names if FULL in x])==1
++
++
++def test_stock_recipe_deduplication_does_not_mutate_raw_proposal():
++    stream={'stream_label':'A','phase':'liquid','solvent':'methanol','concentration_M':.126,'molar_equiv':1,
++            'flow_rate_mL_min':.5,'contents':['DMAOL (1 equiv, 0.126 M)',FULL+' (DMAOL)','methanol']}
++    result={'batch_record':{'raw_text':PROTOCOL},'chemistry_plan':{'reagents':[{'name':FULL+' (DMAOL)','role':'substrate','equiv_or_loading':'1 equiv'},{'name':'methanol','role':'solvent'}]}}
++    before=deepcopy((stream,result))
++    comps=_stream_components(result,[stream])
++    recipe=_stream_preparation_instruction(stream,comps,parameters={'residence_time_min':1.569036})
++    assert recipe.count('1.26 mmol')==1
++    assert (stream,result)==before
++
++
++def test_conflicting_alias_quantities_block_full_release():
++    from flora_translate.final_design_contract import build_final_design_contract
++    from flora_translate.tests.test_executable_artifact_contract import _hydrogen_result, _issue_codes
++    result=_hydrogen_result()
++    result['batch_record']['raw_text']='Hydrogenolysis. '+PROTOCOL
++    result['chemistry_plan']['reagents'][0]['name']=FULL+' (DMAOL)'
++    result['proposal']['streams'][0]['contents']=['DMAOL (0.126 M, 1 equiv)',FULL+' (DMAOL) (0.252 M, 1 equiv)','Methanol']
++    contract=build_final_design_contract(result)
++    assert contract['status']=='blocked'
++    assert 'FINAL-COMPONENT-DESCRIPTIONS-CONFLICT' in _issue_codes(contract)
++
++
++def test_unverified_alias_pair_blocks_full_release():
++    from flora_translate.final_design_contract import build_final_design_contract
++    from flora_translate.tests.test_executable_artifact_contract import _hydrogen_result, _issue_codes
++    result=_hydrogen_result()
++    result['batch_record']['raw_text']='Hydrogenolysis of the supplied substrate under H2.'
++    result['chemistry_plan']['reagents'][0]['name']=FULL+' (DMAOL)'
++    result['proposal']['streams'][0]['contents']=['DMAOL (0.126 M, 1 equiv)',FULL+' (DMAOL)','Methanol']
++    contract=build_final_design_contract(result)
++    assert contract['status']=='blocked'
++    assert 'FINAL-COMPONENT-DESCRIPTIONS-CONFLICT' in _issue_codes(contract)

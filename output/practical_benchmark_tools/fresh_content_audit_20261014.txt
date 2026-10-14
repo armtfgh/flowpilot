@@ -1,0 +1,124 @@
+Independent manual content audit of the fresh Claude practical-input repair campaign
+Campaign: ablation_results/practical_input/claude_practical_repair_20261014
+Scope: read-only spot checks of delivered outputs for every arm. Findings are not supplied to judges, do not alter the rubric, and are not an exhaustive validation or a substitute score. No source/data edits or API calls. Exact quotations below come from the indicated result.json raw_delivered_text or delivered FlowPilot fields. Arithmetic is recalculated independently.
+
+HYDROGENOLYSIS — PRACTICAL ONE-SHOT
+Source: generation/hydrogenolysis/claude_practical_one_shot/repeat_01/result.json (raw_delivered_text)
+Confirmed numerical inconsistencies:
+- Collection table says “250 mL vessel | ~10 min to fill at 0.4 mL/min”. At its stated flow, 250/0.4 = 625 min, not 10. Its later 60 min collection =24 mL is correct.
+- Startup says “3–5 reactor volumes” at “0.4 mL/min and ~3 mL void volume” is “7–12 min”. Those quantities give 22.5–37.5 min. If it intended an assumed 0.4 void fraction, 3–5 x (3 x 0.4)/0.4 =9–15 min; that is a different declared basis and still not its stated figures.
+- Residence table gives “Expected residence time (liquid) | ~7.5 min | Based on bed void volume ~3 mL × 0.4”. Using that stated void-volume assumption gives (3 x0.4)/0.4=3 min; 7.5 min is gross empty-bed volume/flow. These bases are conflated.
+- Gas conversion uses “23/21” for mL/min operating flow despite declaring standard273K and operating333K. Under its implied21bar absolute,1bar standard assumptions, Q=23*(333/273)*(1/21)=1.336 mL/min, versus1.095 from pressure correction alone. Gas/liquid ratio is3.34 rather than2.74. Pressure basis itself is not explicitly resolved.
+Chemical identity inconsistency:
+- “consumes 2 mol H₂ per mol substrate (cleavage of two C–N bonds of the diphenylmethyl group)” invents a second C–N cleavage. The stated single N-diphenylmethyl removal needs one C–N cleavage. The model calls this an assumption, but the premise does not match the described transformation. Excess H2 may be chosen operationally without redefining net stoichiometry.
+Topology/operating inconsistency:
+- Diagram places reactor -> “Gas-Liquid Separator (vented)” with one branch “Safe H₂ Vent” and the other branch the only21barBPR. The vent bypasses the pressure-defining BPR, so the drawn path does not support the claimed21bar reactor pressure without an additional unshown gas-side pressure control.
+- Detailed assembly starts H2 pressurization/leak testing before any system N2 purge; the safety summary nevertheless says “N₂ purge before and after run”. Feed sparging alone does not establish an inert gas circuit.
+What closes:
+- Geometry π*(4.35/2)^2*200/1000=2.97mL; substrate flow0.126M*0.4mL/min=0.0504mmol/min; one stated60min collection is24mL. Liquid/MFC settings lie within supplied nominal ranges.
+
+HYDROGENOLYSIS — GUIDED ONE-SHOT
+Source: generation/hydrogenolysis/claude_guided_one_shot/repeat_01/result.json (raw_delivered_text)
+Corrected/consistent aspects:
+- Diagram puts reactor -> BPR -> vented separator -> collector, with H2 check valve upstream of mixer. This closes the principal pressure-boundary error found in the practical arm.
+- Uses1H2equivalent net stoichiometry. Explicit273.15K/1.01325bar reference and333.15K/21bar absolute give factor0.05885;7sccm gives0.412mL/min. At0.1258M*0.5mL/min=0.0629mmol/min,7sccm/22.414mL/mmol/0.0629=4.97equiv, matching its stated~5.
+- Empty-bed time3/.5=6min, void-based1.2/.5=2.4min and holdup0.6–0.84/.5=1.2–1.68min are correctly distinguished as assumptions;5empty-bed volumes=30min,30min collection=15mL.
+Concrete contradiction:
+- Procedure9.2.1 says “pump → T-mixer (liquid inlet) → check valve (H₂ inlet to T-mixer) → MFC → H₂ cylinder → reactor → BPR → separator → vent / collector.” Read literally, this is not the valid two-branch diagram and reverses the gas supply path. It should not be treated as a single coherent operating order.
+Explicit unresolved assumptions (not silently scored as confirmed errors):
+- Catalyst retention requires unlisted glass wool/frits; the output identifies this as a “critical gap” and asks to confirm availability. Proposed dry packing nevertheless uses them.
+- Shutdown says vent upstream system pressure through the separator safe vent, downstream of a fixed21barBPR. A manufacturer-approved depressurization path through/across that fixedBPR is not described, so full depressurization is not demonstrated by the diagram alone.
+- 21bar absolute is a declared calculation assumption; supplied inventory does not establish pressure basis. This requires confirmation, not automatic rejection of the arithmetic.
+
+Initial checkpoint: remaining cases/arms were pending. The completed sections below now cover all nine outcomes.
+
+PHOTOCHEMICAL OXIDATION — PRACTICAL ONE-SHOT
+Source: generation/photochemical_oxidation/claude_practical_one_shot/repeat_01/result.json (raw_delivered_text)
+Confirmed gas-volume unit errors:
+- “0.60 mL/min ≈ 10 sccm” is false for volumes at the same reference state:1sccm=1cm³/min=1mL/min. No stated temperature convention accounts for a factor16.67.
+- Starting table says “5 sccm (≈ 0.30 mL/min at NTP)”. Five standardcm³/min is approximately5mL/min at its standard state, with only a modest correction between commonSTP/NTP definitions; it is not0.30mL/min.
+- Its asserted “~1.5:1 gas:liquid ratio at3bar” follows the erroneous0.30mL/min figure. Assuming0°C/1atm standard and its declared21°C/3barabsolute operating state gives5*(294.15/273.15)*(1.01325/3)=1.819mL/min gas, gas/liquid9.09 at0.20mL/min. Using20°C/1bar as reference still gives~1.67mL/min, ratio~8.36, nowhere near1.5. The actual reference state requires confirmation.
+Inconsistent selection and residence interpretation:
+- Text recommends “0.30 mL/min liquid /5sccm air”, but condition table and procedure use0.20mL/min. One selected condition is therefore not consistently presented.
+- 1mL/.20mLmin=5min is a correct liquid-only nominal space-time index. Calling it an actual5min irradiation exposure in gas–liquid flow ignores gas occupancy. Under the above explicit0°C/1atm approximation,1/(.20+1.819)=0.495min is a homogeneous inlet-volume estimate; true phase residence requires holdup/slip information. This is not a claim that the latter model predicts actual contact time.
+What closes:
+- Diagram correctly places coil -> BPR -> vented separator -> collector, and LED enclosure/interlock is included.
+- Concentrations0.100M substrate and0.010M photocatalyst preserve10mol%;25mincollection*.20=5mL and50minrun*.20=10mL close.
+- Selected0.20mL/min liquid and5sccm air individually fit pump/MFC ranges. Totalmixerflow2mL/min limit is near or exceeded depending on unresolved gas reference/pressure basis; no categorical hardware violation is assigned without resolving those definitions.
+
+PHOTOCHEMICAL OXIDATION — GUIDED ONE-SHOT
+Source: generation/photochemical_oxidation/claude_guided_one_shot/repeat_01/result.json (raw_delivered_text)
+Confirmed molar-delivery errors:
+- At0.10M substrate and0.20mL/min, actual substrate delivery is0.020mmol/min=20µmol/min=0.333µmol/s. Section4.2 instead gives “0.020µmol/s” and “1.2µmol/min”, undercounting by16.67. Photocatalyst delivery0.010M*.20mL/min=2µmol/min=33.3nmol/s, not its2nmol/s.
+- Its O2gas calculation0.21*.55/22400=5.16µmol/min is internally correct. Dividing by20µmol/min substrate gives0.258O2equiv, not “4.3:1” or “comfortable excess”. The erroneous substrate denominator changes the central gas-feeding conclusion.
+- Its stated dissolvedO2 concentration5.7mM relative to substrate0.10M=100mM is0.057equiv, not “~57-fold excess”. This conclusion fails even accepting the unverified Henry coefficient for the sake of arithmetic.
+- Its25mincollection contains20µmol/min*25=500µmol delivered substrate, not “~30µmol”. The downstream mass estimate inherits the throughput error.
+What closes/improves:
+- Gas compression with its declaredSTP and3barabsolute basis gives.55*.364=.200mL/min, consistent with1:1gas/liquid flow at.20mL/min. BothMFC and liquidflow settings fit stated limits.
+- Nominal5min versus approximateholdup-based2.5min are explicitly separated, with the latter correctly labeled an assumption requiring measurement.
+- Diagram/procedure place BPR upstream of vented separator and retain enclosure/interlock controls.
+Unverified details, not asserted as confirmed audit errors:
+- Supplied molecularweights417.51 and304.39g/mol for substrate and photocatalyst are not present in the frozen protocol. Actual identities/weights would require independent authoritative verification before dispensing; this audit did not supply unverified replacements.
+
+HYDROGENOLYSIS — REPAIRED FLOWPILOT
+Source: generation/hydrogenolysis/claude_repaired_flowpilot/repeat_01/result.json
+Confirmed delivered recipe defect despite passing software contract:
+- final_design.operating_procedure[step_id=PREP-A] says “charge DMAOL: 1.26 mmol (0.126 M final); N-diphenylmethylazetidin-3-ol (DMAOL): 1.26 mmol (0.126 M final); add methanol to 10 mL total.” The original supplied protocol explicitly defines DMAOL as that same compound. Literal execution charges2.52mmol of one substrate into10mL, giving0.252M, while canonical concentration and gas equivalents assume0.126M. Both entries appear separately in final_design.stream_components and the pump graph contents. This is an alias-normalization/double-dispensing defect, not two stated independent additions.
+Remaining prose/graph contradiction:
+- proposal.mixing_order_reasoning says “BPR ... downstream of packed bed and gas-liquid separator maintains21bar”. The final graph correctly has reactor_1 -> bpr_1 -> separator_1. The prose is stale and should not be treated as consistent merely because the authoritative graph was corrected.
+Correct numerical closure against NOMINAL concentration (does not resolve the double-charge defect):
+- Nominal substrate .126M*.5mL/min=.063mmol/min. H2=1.412002sccm/22.412722mL/mmol=.063mmol/min=1equiv.
+- Declared21bargauge ->22.01325barabsolute;1.412002*(333.15/273.15)*(1.01325/22.01325)=.07927mL/min gas.
+- ApparentSTPindex3/(.5+1.412002)=1.569036min; in-channelhomogeneousindex3/(.5+.07927)=5.17893min; empty-bedliquidindex3/.5=6min. True contact/holdup explicitly requiresmeasurement.
+- Steady-state initialinterval3*6=18min andinitialcollection6min correctly use gross liquidvolume turnover, with composition/pressure/flow checks required.
+- Canonicalgraph BPR precedes ventedseparator; explicitN2purge/checkvalve/vent instructions precede H2 admission.
+
+PHOTOCHEMICAL OXIDATION — REPAIRED FLOWPILOT
+Source: generation/photochemical_oxidation/claude_repaired_flowpilot/repeat_01/result.json
+Spot-checked delivery closes:
+- PREP-A gives1mmolsubstrate and.1mmolphotocatalyst in10mL, i.e..100M/.010M and10mol%.
+- Substrate .100M*.5mL/min=.050mmol/min. Air5.336362sccm/22.412722mL/mmol*.21=.050mmolO2/min=1O2equiv, with totalair and activeO2 explicitly distinguished.
+-3bargauge ->4.01325barabsolute;21°C gascompression gives1.450886mL/min. Atinlet totalgas+liquid1.950886mL/min is below statedmixer2mL/min limit using thisbasis.
+- STPapparentindex1/(.5+5.336362)=.17134min; in-channelhomogeneousindex1/(.5+1.450886)=.512588min; grossliquidindex1/.5=2min. These are explicit calculation indices; actualholdup/contacttime is not claimed measured.
+- BPR precedes ventedseparator; enclosure/lightventcontrols included. Three liquidvolume turnovers=6mininitialcommissioning and2mininitialcollection close.
+Remaining limitation observed:
+- Canonical operator steps refer generically to starting feeds at canonical setpoints and isolating energy sources; they do not explicitly give a distinct LED-on step after wet flow or a light-off-first shutdown sequence. The hardware and wavelength are specified, but sequencing is less concrete than the one-shot procedures.
+- Some older scientific-rationale fields retain superseded2min/inlet assertions, explicitly tagged requires_review_after_parameter_change. They should remain visibly subordinate to the final canonical numbers; they are not independent verification of the final operatingpoint.
+No confirmed stoichiometric or pressure-boundary error was found in these selected final numeric/graph checks. This is not exhaustive verification or evidence of experimental yield.
+
+CuAAC — PRACTICAL ONE-SHOT
+Source: generation/cuaac/claude_practical_one_shot/repeat_01/result.json (raw_delivered_text)
+Confirmed arithmetic inconsistencies:
+- Feed-preparation note calls “~5mL for system equilibration (≈5reactorvolumes)”;5mL/.3mL=16.67reactorvolumes. Laterprocedure correctly gives5volumes=1.5mL=15minat.10mL/min. Thus the two instructions disagree.
+- Final throughput says “productive output≈0.025mmol/min ... assuming~94%yield =1.5mmol/h.” .025mmol/min is substrate feed;94%productyield would give.0235mmol/min=1.41mmol/h. This is a feed/product-throughput distinction, not a measured yield prediction.
+What closes:
+-2.5mmolazide/10mL=.25M and2.75mmolalkyne/10mL=.275M preserve1:1.1 ratio; .3/.10=3minnominalempty-bedtime;5mLcollection/.10=50min.
+- Catalyst retained in CatCart; pump -> cartridge -> BPR -> ventedcollector respects pressure boundary. Initialflow.10 lies on pumpminimum. Optional.05 proposal explicitly acknowledged belowpumpminimum, so it is not silently treatedasavailable.
+- Estimated bedvoidfraction.5 and lower.15mLliquidvolume are acknowledged, although the main table still calls grossvolume/flow simply residence time.
+
+CuAAC — GUIDED ONE-SHOT
+Source: generation/cuaac/claude_guided_one_shot/repeat_01/result.json (raw_delivered_text)
+Confirmed contradictions:
+- Shutdown says10minat.10mL/min is “≥10reactorvolumes.” It gives1mL/.3mL=3.33reactorvolumes. Ten nominalvolumeswouldbe3mLand30min.
+- Numericaltable states “Acetone boiling point at20bar ~130–135°C” while claiming liquidphase maintained at150°C. This is self-contradictory on its own supplied numbers. Othersections claim acetonevaporpressure~9–10barat150°C, a different mutuallyinconsistent property statement. Actualvaporpressurewasnotindependentlyverifiedinthisaudit.
+- Subsequent recommended.05mL/min and.05/.10/.20/.50screen include valuesbelowthefrozenpumpminimum.10mL/min withoutacknowledgingadditionalhardware/calibration. Thisdoesnotinvalidateinitial.10point,butviolatesinventorylimitsintheproposedrefinement.
+What closes:
+-1.25mmolazide/5mL=.25M and1.375mmolalkyne/5mL=.275M; flows25and27.5µmol/min at.10mL/min;10mincollection=1mL=250µmolazideinput; hypothetical94%yield=235µmolproductasstated.
+- Emptybed3minandassumedvoid1–1.5minareexplicitlydistinguished.3equilibrationvolumes=.9mL=9minisconsistent.
+- BPR precedes ventedcollector; catalyst is stationary, withnoinventedgasstream.
+
+CuAAC — REPAIRED FLOWPILOT
+Source: generation/cuaac/claude_repaired_flowpilot/repeat_01/result.json
+Selected checks close:
+- PREP-A:2.5mmolazideand2.75mmolphenylacetylenein10mL=.25M/.275M;onepremixedliquidfeed. Cu/C isstationaryratherthanapumpedcomponent.
+- Flow.125mL/min lies within.1–3mL/minpump range. .3/.125=2.4min explicitly labeled nominalemptybedspace time; pressure20bargauge and150°C agreewithselectedequipmentsettings.
+- Azidemolarflow.25*.125=.03125mmol/min;alkyne.275*.125=.034375mmol/min, ratio1.1.
+- Pump -> reactor -> BPR -> ventedcollector; no invented gasfeed/mixer/separator.3volumecommissioning=7.2min and2.4mincollection=.3mLclose, withactualsteadycompositionandholdup/RTDconfirmationrequired.
+Remaining artifact qualityissues:
+- stationary_components lists “Cu/C catalyst (CatCart packed-bed)” and “Cu/C catalyst” as two names for the same packing. No separateamountsdosedandnocomponentintheliquidrecipe, so this is a duplicate-description issue, not the H2double-charge failure.
+- post_reactor_steps repeats the same “Collect only after ...” statementthree times. This is outputredundancy,notanumericaldefect.
+- Genericoperatorproceduredoesnotprovideaspecificheateractivation/thermal-equilibrationstepbeyondcanonicalsetpointsandconfirmationofstabletemperature;implementationstillrequireslabprocedureconfirmation.
+No confirmed molar-ratio or pressure-boundary error found in these selected final checks; this is not an exhaustive validation.
+
+COMPLETION
+All9freshoutcomes have now been read across practicalone-shot,guidedone-shotandrepairedFlowPilot. ManualfindingsremainseparatefromthefrozenLLMjudgments. MostconsequentialremainingFlowPilotfindingistheH2aliasdoublecharge; mostclearone-shotissuesaregas/molar-flow arithmeticandprocedure/graphinconsistency. Improvedguidancecorrectedsomeerrorsandintroducedothers;neithermoreprompttextnorasoftwarecontractpassestablishescorrectness.

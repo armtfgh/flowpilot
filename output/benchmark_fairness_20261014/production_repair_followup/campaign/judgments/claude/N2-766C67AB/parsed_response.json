@@ -1,0 +1,348 @@
+{
+  "candidate_id": "N2-766C67AB",
+  "criterion_scores": [
+    {
+      "criterion_id": "UO-01",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.chemistry_and_operations.chemistry_identity",
+        "$.delivered_final_outcome.chemistry_and_operations.stationary_components"
+      ],
+      "observed_values": [
+        "reaction_name: Hydrogenolysis of N-diphenylmethylazetidin-3-ol (DMAOL) to 3-azetidinol",
+        "catalyst: Pd(OH)2/Al2O3",
+        "modality: heterogeneous catalytic hydrogenolysis",
+        "phase: gas-liquid-solid packed bed",
+        "temperature_C: 60",
+        "BPR_bar: 21"
+      ],
+      "expected_or_correct": "Hydrogenolysis of DMAOL over Pd(OH)2/Al2O3 at 60 C, 21 bar H2 in methanol; packed-bed flow format",
+      "rationale": "The transformation (hydrogenolysis of N-diphenylmethylazetidin-3-ol to 3-azetidinol), catalyst identity (7 wt% Pd(OH)2/Al2O3), reaction modality (heterogeneous catalytic), phase regime (gas-liquid-solid packed bed), temperature (60 C), and pressure (21 bar) all match the protocol exactly. No unsupported substitution is present.",
+      "required_correction": "None",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-02",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.streams",
+        "$.delivered_final_outcome.chemistry_and_operations.stream_components",
+        "$.delivered_final_outcome.chemistry_and_operations.stationary_components"
+      ],
+      "observed_values": [
+        "Stream A: DMAOL 0.126 M in methanol",
+        "Stream B: H2 gas via MFC",
+        "Stationary: Pd(OH)2/Al2O3 packed bed"
+      ],
+      "expected_or_correct": "DMAOL substrate in methanol, H2 gas reagent, Pd(OH)2/Al2O3 catalyst all present and correctly assigned",
+      "rationale": "All required components are present: substrate (DMAOL) in solvent (methanol) as liquid stream A, H2 as gas stream B via MFC, and Pd(OH)2/Al2O3 as stationary phase in the packed bed. No unsafe or transformation-changing material is introduced. N2 is correctly assigned only to purge duty.",
+      "required_correction": "None",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-03",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.streams[1]",
+        "$.delivered_final_outcome.deterministic_verification_sheet.delivered_arithmetic",
+        "$.delivered_final_outcome.parameters"
+      ],
+      "observed_values": [
+        "DMAOL: 0.126 M, 1.0 equiv, molar flow 0.063 mmol/min",
+        "H2: 1.412 sccm STP, 0.063 mmol/min, declared 1.0 equiv H2 relative to substrate",
+        "H2:DMAOL molar ratio = 0.063/0.063 = 1.0",
+        "Published reference H2:DMAOL ratio = 26"
+      ],
+      "expected_or_correct": "H2 should be supplied in large excess relative to substrate (published ratio ~26:1); 1:1 is stoichiometrically deficient for a gas-liquid hydrogenolysis where H2 is the limiting reagent in solution",
+      "rationale": "The substrate concentration (0.126 M) and liquid flow (0.5 mL/min) are correctly derived from the protocol. However, the H2 molar flow (0.063 mmol/min) equals the substrate molar flow (0.063 mmol/min), giving a 1:1 H2:DMAOL ratio. The published flow reference uses ~26 equiv H2. While the design does not prevent the reaction (H2 is continuously replenished from the pressurized cylinder and dissolves at 21 bar), the declared equivalents figure of 1.0 is misleading and inconsistent with the large excess needed for a gas-liquid hydrogenolysis. The MFC setpoint of 1.412 sccm is very low (well within the 1-100 sccm range but at the minimum end), and the actual dissolved H2 availability depends on Henry's law solubility at 21 bar rather than the gas-phase molar flow alone. This is a minor defect in the equivalents declaration rather than a stoichiometric impossibility, since the BPR maintains 21 bar and H2 dissolves continuously. The design is executable but the equivalents claim is not well-supported.",
+      "required_correction": "Clarify that H2 equivalents in a pressurized packed-bed system are determined by dissolved H2 concentration (Henry's law at 21 bar) rather than the gas-phase molar flow ratio; increase MFC setpoint to match published ~26 equiv or justify the low setpoint explicitly.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-04",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.parameters",
+        "$.delivered_final_outcome.chemistry_and_operations.operating_procedure"
+      ],
+      "observed_values": [
+        "temperature_C: 60",
+        "BPR_bar: 21 (gauge)",
+        "atmosphere: H2 at 21 bar",
+        "N2 purge before H2 admission",
+        "liquid feed before gas admission",
+        "startup sequence: prime, pressure test, N2 purge, then H2"
+      ],
+      "expected_or_correct": "60 C, 21 bar H2, methanol solvent, correct addition order (liquid before gas), N2 purge before H2",
+      "rationale": "All chemistry-critical conditions are faithfully translated: temperature 60 C matches protocol, pressure 21 bar matches protocol, H2 atmosphere is maintained via BPR, addition order is correct (liquid primed first, gas admitted after pressure/purge checks), and N2 purge is specified before H2 admission. No stage boundary issues for this single-stage design.",
+      "required_correction": "None",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-05",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.topology.pid_description",
+        "$.delivered_final_outcome.topology.streams",
+        "$.delivered_final_outcome.topology.unit_operations"
+      ],
+      "observed_values": [
+        "Pump A -> T-mixer; MFC B -> T-mixer; T-mixer -> PBR; PBR -> BPR; BPR -> gas-liquid separator; separator -> collector",
+        "Check valve on H2 feed; safe vent on separator; N2 purge cylinder"
+      ],
+      "expected_or_correct": "Correct executable order: liquid pump + MFC -> T-mixer -> packed-bed reactor (with temperature control) -> BPR -> gas-liquid separator -> collection vessel, with safety accessories correctly placed",
+      "rationale": "The topology is complete and correctly ordered. All required unit operations are present and connected in the correct sequence. The BPR is placed downstream of the reactor (correct for maintaining pressure in the reactor), the gas-liquid separator follows the BPR, and the collection vessel follows the separator. Safety accessories (check valve, safe vent) are correctly placed.",
+      "required_correction": "None",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-06",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.streams",
+        "$.delivered_final_outcome.deterministic_verification_sheet.delivered_arithmetic",
+        "$.delivered_final_outcome.parameters"
+      ],
+      "observed_values": [
+        "Q_liquid = 0.5 mL/min",
+        "C_DMAOL = 0.126 M",
+        "substrate molar flow = 0.126 * 0.5 = 0.063 mmol/min (verified)",
+        "H2 STP flow = 1.412 sccm = 0.063 mmol/min (verified)",
+        "H2 actual in-channel = 0.07927 mL/min at 22.013 bar, 333 K (verified)",
+        "Total liquid flow = 0.5 mL/min"
+      ],
+      "expected_or_correct": "Liquid material balance closes: substrate molar flow = 0.063 mmol/min, consistent with 0.126 M at 0.5 mL/min. H2 molar flow arithmetic is internally consistent. Minor issue: H2 equivalents declared as 1.0 is arithmetically consistent with the low MFC setpoint but not with the intended excess.",
+      "rationale": "The liquid material balance closes correctly: 0.126 M x 0.5 mL/min = 0.063 mmol/min substrate. The H2 molar flow (1.412 sccm / 22.414 mL/mmol = 0.063 mmol/min) is arithmetically consistent with the declared 1.0 equiv. The in-channel gas flow calculation is verified. The minor defect is that the H2 MFC setpoint appears to have been set to match 1 equiv rather than the large excess appropriate for this chemistry, but the arithmetic itself is self-consistent. No dimensional invalidity.",
+      "required_correction": "Justify or correct the H2 MFC setpoint to provide adequate excess H2 for the hydrogenolysis.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-07",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.parameters",
+        "$.delivered_final_outcome.deterministic_verification_sheet.declared_time_index",
+        "$.delivered_final_outcome.graph_context.stages[0]"
+      ],
+      "observed_values": [
+        "V_R = 3.0 mL",
+        "Q_liquid = 0.5 mL/min",
+        "Q_gas_STP = 1.412 sccm",
+        "residence_time_min (inlet/STP) = 1.569 min: V/(Q_liq+Q_gas_STP) = 3.0/1.912 = 1.569 (verified)",
+        "residence_time_in_channel_min = 5.179 min: V/(Q_liq+Q_gas_actual) = 3.0/0.5793 = 5.179 (verified)",
+        "nominal liquid space time = 3.0/0.5 = 6.0 min (stated)",
+        "Published liquid holdup residence time = 1.9 min at 0.5 mL/min"
+      ],
+      "expected_or_correct": "Reactor volume 3.0 mL, liquid flow 0.5 mL/min, nominal liquid space time 6.0 min. The published paper defines residence time as liquid-holdup time (~1.9 min), not inlet/STP index. The candidate uses inlet/STP as primary basis which is a defensible choice for a gas-liquid system, but the liquid holdup time (the experimentally relevant contact time) is not explicitly reported.",
+      "rationale": "The arithmetic for the declared inlet/STP residence time index closes correctly (verified by deterministic sheet). The in-channel index also closes. The reactor geometry (3.0 mL, 4.35 mm ID, 200 mm length) is consistent with inventory. The minor defect is that the liquid holdup residence time (the basis used in the published reference, ~1.9 min) is not explicitly stated as a separate quantity, though the nominal liquid space time of 6.0 min is mentioned. The candidate acknowledges this distinction in the rationale history. This is a minor presentation issue rather than a calculation error.",
+      "required_correction": "Explicitly report the liquid holdup residence time alongside the inlet/STP index to enable direct comparison with the published reference.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-08",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.streams[1]",
+        "$.delivered_final_outcome.deterministic_verification_sheet.delivered_arithmetic.conditional_nominal_gas_reference_examples[0]",
+        "$.delivered_final_outcome.evidence_and_reasoning.final_quantitative_basis.gas_streams[0]"
+      ],
+      "observed_values": [
+        "H2 STP: 1.412 sccm at 273.15 K, 1.01325 bar",
+        "H2 molar flow: 0.063 mmol/min",
+        "H2 actual in-channel: 0.07927 mL/min at 22.013 bar abs, 333.15 K",
+        "H2 equiv declared: 1.0 (mol H2/mol substrate)",
+        "Absolute pressure: 22.013 bar (21 bar gauge + 1.013 bar atm, verified)",
+        "MFC range: 1-100 sccm; setpoint 1.412 sccm is within range but at minimum boundary"
+      ],
+      "expected_or_correct": "Gas identity (H2) correct, STP definition explicit (273.15 K, 1.01325 bar), inlet/STP and in-channel flows distinguished, absolute pressure correctly computed, molar flow arithmetic closes. Minor issue: 1.412 sccm is very close to the MFC minimum (1.0 sccm), raising practical control concerns; H2 equivalents of 1.0 is inconsistent with the large excess needed and with the published 26 equiv.",
+      "rationale": "Gas bookkeeping is largely correct: H2 identity is correct, STP reference is explicit, inlet STP flow and pressure-corrected in-channel flow are clearly distinguished, absolute pressure is correctly computed as 22.013 bar, and molar flow arithmetic closes. The MFC setpoint of 1.412 sccm is within the declared range (1-100 sccm) but is very close to the minimum, which may cause control instability. The declared H2 equivalents of 1.0 is the primary minor defect - it is arithmetically consistent with the low MFC setpoint but chemically inappropriate for this hydrogenolysis. The design does not create an unsafe gas pressure basis.",
+      "required_correction": "Increase H2 MFC setpoint to provide meaningful excess (e.g., 40 sccm as in published reference) and correct the equivalents declaration accordingly.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-09",
+      "applicability": "NOT_APPLICABLE",
+      "score": null,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [],
+      "observed_values": [],
+      "expected_or_correct": "Single-stage process; UO-09 not applicable",
+      "rationale": "The case context declares multistage_process=false and the design is a single-stage packed-bed reactor.",
+      "required_correction": "None",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-10",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.topology.instrument_manifest",
+        "$.case_context.authoritative_inventory"
+      ],
+      "observed_values": [
+        "pump_h2_pilot: 0.5 mL/min (range 0.1-2.0, within limits)",
+        "mfc_h2_100: 1.412 sccm (range 1-100, within limits, at lower boundary)",
+        "mixer_h2_t: 2 inputs, total flow 0.5 mL/min (max 5.0, within limits)",
+        "reactor_h2_pbr_300: 3.0 mL, 4.35 mm ID, 60 C, 21 bar (all within limits)",
+        "bath_h2_60: 60 C (allowed temperature, within limits)",
+        "bpr_h2_21: 21 bar (only setpoint available, matches)",
+        "separator_h2_gl: max 25 bar, max 10 mL/min (within limits)",
+        "collector_h2_250: max 1 bar (post-separator, atmospheric, acceptable)",
+        "connector_h2_pbr: 4.35 mm ID, 40 bar rated (matches)",
+        "safety_h2_check_valve and safety_h2_vent: correctly assigned"
+      ],
+      "expected_or_correct": "All equipment exists in inventory, operating points within declared limits, correct IDs and materials used",
+      "rationale": "Every equipment item is drawn from the authoritative inventory. All flow rates, temperatures, pressures, and IDs are within declared limits. The MFC setpoint of 1.412 sccm is within the 1-100 sccm range. The BPR is the only available unit at 21 bar, which matches the required pressure. No invented equipment is present.",
+      "required_correction": "None",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-11",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.chemistry_and_operations.chemistry_identity",
+        "$.delivered_final_outcome.parameters",
+        "$.delivered_final_outcome.evidence_and_reasoning.decision_rationale.chemistry_notes"
+      ],
+      "observed_values": [
+        "Temperature 60 C, methanol bp 64.7 C; BPR at 21 bar prevents boiling",
+        "H2 at 21 bar: dissolved H2 concentration maintained by pressure",
+        "Gas-liquid flow in 4.35 mm ID packed bed: segmented/Taylor flow expected",
+        "Catalyst fines risk noted; no inline filter in inventory",
+        "Re calculated as ~3.4 (laminar, appropriate for packed bed)",
+        "H2 MFC at 1.412 sccm: very low gas flow relative to liquid; gas holdup fraction will be very small"
+      ],
+      "expected_or_correct": "Phase behavior plausible at 21 bar, 60 C in methanol. Packed-bed gas-liquid flow is physically feasible. Low gas flow may limit gas-liquid mass transfer enhancement claimed as the primary flow advantage.",
+      "rationale": "The BPR at 21 bar correctly prevents methanol boiling at 60 C (bp 64.7 C at 1 bar). H2 solubility is maintained by pressure. The packed-bed format is appropriate for the heterogeneous catalyst. However, the very low H2 gas flow (1.412 sccm, actual in-channel 0.079 mL/min) relative to liquid flow (0.5 mL/min) means the gas volume fraction is extremely small (~14% by volume at operating conditions), which may not generate the segmented flow regime claimed to enhance kLa. The catalyst fines risk is acknowledged but no mitigation (frit specification) is provided beyond the connector. These are minor physical plausibility concerns rather than impossibilities.",
+      "required_correction": "Specify frit or filter arrangement at bed outlet; reconsider gas flow rate to achieve meaningful gas-liquid segmented flow for the claimed mass transfer enhancement.",
+      "confidence": "MEDIUM"
+    },
+    {
+      "criterion_id": "UO-12",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.safety_controls",
+        "$.delivered_final_outcome.chemistry_and_operations.operating_procedure"
+      ],
+      "observed_values": [
+        "H2 flammability hazard identified (LEL 4 vol%)",
+        "N2 purge before H2 admission (H2-INERT-PURGE)",
+        "Check valve on H2 feed (H2-BACKFLOW-PREVENTION)",
+        "Safe vent on separator (H2-VENT-ROUTING)",
+        "Grounded ventilation, ignition source exclusion (H2-IGNITION-CONTROL)",
+        "Pressure leak test before reagents (PRESSURE-LEAK-TEST)",
+        "Overpressure response defined (PRESSURE-OVERPRESSURE-RESPONSE)",
+        "Controlled depressurization procedure (PRESSURE-DEPRESSURIZE)",
+        "H2 shutdown sequence defined (H2-SHUTDOWN)",
+        "PPE and containment specified",
+        "Emergency stop procedure defined",
+        "Waste segregation specified",
+        "Pd catalyst pyrophoricity not explicitly addressed"
+      ],
+      "expected_or_correct": "All major hazards (H2 flammability, pressurized operation, Pd catalyst) recognized with concrete controls",
+      "rationale": "The design comprehensively addresses H2 flammability (purge, check valve, safe vent, grounded ventilation, ignition exclusion), pressurized operation (leak test, overpressure response, controlled depressurization), and general chemical hazards (PPE, waste). The Pd(OH)2/Al2O3 catalyst pyrophoricity upon drying is not explicitly mentioned, but this is a minor omission for a wet packed-bed system where the catalyst remains wetted. All critical H2 safety controls are present and concrete.",
+      "required_correction": "Add note on Pd catalyst handling (pyrophoricity risk if catalyst dries out during shutdown/depressurization).",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-13",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.chemistry_and_operations.operating_procedure"
+      ],
+      "observed_values": [
+        "PREP-A: feed preparation with volume basis",
+        "PREP-B: H2 MFC setup",
+        "SETUP-VERIFY: assembly verification",
+        "SETUP-PRIME: liquid line priming",
+        "PRESSURE-LEAK-TEST: pressure test at 21 bar",
+        "H2-INERT-PURGE: N2 purge",
+        "H2-BACKFLOW-PREVENTION: check valve verification",
+        "H2-VENT-ROUTING: vent connection verification",
+        "H2-IGNITION-CONTROL: ventilation check",
+        "START-FEEDS: startup sequence",
+        "STEADY-STATE: 18 min stabilization",
+        "COLLECT-PRODUCT: timed collection",
+        "COLLECT-ANALYZE-WORKUP: crude collection",
+        "H2-SHUTDOWN: H2 isolation and purge",
+        "NORMAL-SHUTDOWN: feed stop and flush",
+        "PRESSURE-DEPRESSURIZE: controlled depressurization",
+        "GENERAL-EMERGENCY-STOP: emergency procedure",
+        "GENERAL-WASTE: waste handling"
+      ],
+      "expected_or_correct": "Complete reproducible procedure covering all phases of operation",
+      "rationale": "The operating procedure is comprehensive and covers all required phases: preparation, assembly, priming, leak testing, purging, startup, steady-state qualification, collection, shutdown, depressurization, emergency stop, and waste handling. The steady-state criterion (18 min minimum, measurement required) is appropriate. Minor defect: the feed preparation step (PREP-A) specifies a 12 mL minimum volume basis with a 24 min commissioning duration, but the steady-state step specifies 18 min stabilization plus 6 min collection = 24 min minimum, which is consistent. However, the catalyst packing procedure for the packed bed is not described (how to pack the Pd(OH)2/Al2O3 into the reactor, bed conditioning, catalyst activation). This is a minor but notable omission for a packed-bed system.",
+      "required_correction": "Add catalyst packing procedure and bed conditioning/activation steps before the startup sequence.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-14",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.reported_disposition",
+        "$.delivered_final_outcome.evidence_and_reasoning.confidence",
+        "$.delivered_final_outcome.evidence_and_reasoning.decision_rationale.chemistry_notes"
+      ],
+      "observed_values": [
+        "reported_disposition: SCREEN",
+        "confidence: LOW",
+        "Analogies acknowledged as low similarity (0.07-0.08), used only for format confirmation",
+        "Residence time acknowledged as shorter than calculated ideal",
+        "Catalyst loading acknowledged as requiring experimental confirmation",
+        "H2 MFC setpoint acknowledged as requiring optimization",
+        "Validation experiments specified (hydraulic baseline, RTD, first screen, H2 leak/purge)",
+        "Intensification factor 191x realized vs 20x target - this claim is not well-supported"
+      ],
+      "expected_or_correct": "Honest SCREEN disposition with acknowledged uncertainties; no invented evidence or unresolved critical defects recommended for execution",
+      "rationale": "The SCREEN disposition is appropriate and honestly stated. Confidence is declared LOW. Key uncertainties (residence time adequacy, catalyst loading, H2 equivalents) are acknowledged. Validation experiments are specified. The analogies are correctly characterized as low-similarity. The main concern is the 'realized intensification factor' of 191x, which is not a meaningful or supported claim - it compares the batch time (300 min) to the inlet/STP residence time index (1.57 min), which is not the liquid contact time and not a valid basis for intensification claims. This is a minor evidence calibration issue. No execution is recommended despite acknowledged deficiencies.",
+      "required_correction": "Remove or qualify the 191x intensification factor claim, which is based on an inappropriate comparison of batch time to an STP gas-volume-weighted residence time index rather than actual liquid contact time.",
+      "confidence": "HIGH"
+    }
+  ],
+  "overall_executability": "SCREEN_ONLY",
+  "cross_criterion_notes": [
+    "The H2 MFC setpoint of 1.412 sccm (1.0 equiv H2 relative to substrate) is the most significant cross-cutting issue: it affects UO-03 (stoichiometry), UO-06 (material balance), UO-08 (gas bookkeeping), and UO-11 (transport plausibility). The published reference uses 40 sccm (~26 equiv). The low setpoint may be insufficient to maintain dissolved H2 saturation throughout the packed bed, undermining the claimed mass transfer advantage of flow chemistry.",
+    "The residence time basis (inlet/STP index of 1.57 min) is internally consistent but differs from the published liquid holdup basis (1.9 min). The nominal liquid space time of 6.0 min is the most practically relevant figure for comparison with batch (300 min). The candidate acknowledges this distinction but does not resolve it quantitatively.",
+    "Catalyst packing procedure is absent from the operating procedure (UO-13), which is a practical gap for a packed-bed system requiring careful bed preparation to avoid channeling and fines migration.",
+    "The design is physically executable with the available inventory and correctly identifies SCREEN as the appropriate disposition given the unvalidated residence time, catalyst loading, and H2 flow rate."
+  ]
+}

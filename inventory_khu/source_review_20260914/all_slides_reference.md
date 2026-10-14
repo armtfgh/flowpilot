@@ -21,7 +21,7 @@ Step 2: Oxidation reaction
 After 4 h, the cap of the tube was removed to expose the reaction mixture to ambient air, providing atmospheric oxygen as the terminal oxidant, and stirring was continued under otherwise identical irradiation conditions for an additional 6 h.
 
 Green Chem., 2025, 27, 3284–3292
-
+dfdf
 Figure 5: Protocol
 
 

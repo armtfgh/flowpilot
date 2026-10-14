@@ -1,0 +1,19 @@
+UNAPPLIED GENERIC REPAIRS — OUTSIDE FROZEN CAMPAIGN
+
+The two proposed source changes are provided in proposed.patch and full copies in patched_source/. They have NOT been applied to live code. Baseline live-source hashes are in source_hashes.json and were rechecked after isolated testing.
+
+1. STY normalization
+Root: flora_translate/design_calculator.py, DesignCalculator._step9. Existing STY=C_liquid*X*60/tau is valid only if tau=V_total/Q_liquid. Gas cases report a distinct inlet/STP index V_total/(Q_liquid+Q_gas_STP), so substituting that index spuriously counts gas volume as dissolved-substrate throughput. This is not a declared alternative productivity basis: the field is space_time_yield_mol_L_h and Step9 calls it STY without qualification.
+
+Patch: derive P_conditional=Q_liquid*C_liquid*X*60 (already calculated), then STY=P_conditional/V_total. mmol/h divided by mL equals mol/(L h). The same unvalidated target_conversion X is preserved; no yield is inferred or increased. Step9 now labels the total nominal volume basis and explicitly states that productivity/STY are conditional projections, not measured flow yield. No resident-time, pump, gas, catalyst or scoring values change. This metric appears in engineering diagnostics/UI, but is excluded from this campaign's delivered judge packet.
+
+Isolated archived-value replay: hydrogenolysis 1.8346 -> 0.4801; photo-oxidation 34.9412 -> 2.9700; CuAAC 5.8750 -> 5.8750 mol/(L h). Productivities and target conversions are unchanged. Exact inputs/outputs/hashes are in isolated_metric_replay.json. This is NOT a new generation or benchmark result.
+
+2. Stale mixer prose
+Root: flora_translate/main.py, _build_singlestep_topology copies proposal.mixing_order_reasoning verbatim into mixer.rationale while independently compiling the physical edge order. The archived H2 proposal says the BPR follows the separator, although the canonical edges correctly put the BPR before the vented separator. The final delivered topology therefore repeats an inconsistent apparatus instruction.
+
+Patch: the main mixing node receives a deterministic description of its actual function and directs downstream ordering to the compiled process connections. The model's original scientific reasoning remains unmodified in proposal.mixing_order_reasoning and the upstream archive. This does not delete that record or change the connections, and it is generic rather than a hydrogenolysis-name special case. The scope is the stale mixer-order sentence; it does NOT solve other potentially stale numeric rationale such as the photo BPR discussion quoting an older pressure-drop calculation, or arbitrary errors in chief selection prose.
+
+Tests: 8 isolated pytest cases passed. Tests cover three alternative gas time-reporting bases at fixed feed/volume, hydrogenolysis mass/volume normalization, unchanged liquid-only CuAAC, absent volume, volume scaling, explicit unmeasured-conversion labeling, and a contradictory model mixer rationale retained in the proposal but excluded from the executable mixer description.
+
+After root authorizes unfreezing: apply proposed.patch only after checking the recorded source hashes. Run these cases against the live implementation plus the existing targeted test suite. Any full-design offline replay must copy the frozen result, rebuild the deterministic topology/rationale, render fresh topology artifacts into a separate output folder with render_topology_artifacts(base_dir=...), and rebuild/publish the contract using the newly rendered manifest. Do not replace an old diagram hash without rendering matching artifacts. Recompute Step9 from the saved engineering inputs for both top-level and per-stage diagnostics; preserve the old raw result and benchmark scores. Record every changed field and source hashes. Label all such repaired exports unscored offline replays.

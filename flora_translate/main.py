@@ -46,6 +46,7 @@ from flora_translate.pipeline_runtime import (
     with_runtime_model_routing,
 )
 from flora_translate.prompt_builder import TranslationPromptBuilder
+from flora_translate.protocol_input import design_context_from_input, protocol_batch_input
 from flora_translate.residence_time_basis import (
     INLET_STP_BASIS,
     IN_CHANNEL_BASIS,
@@ -101,6 +102,23 @@ def _coerce_intake_package(intake_package) -> DesignInputPackage | None:
             + (f"; missing intake questions: {missing}" if missing else "")
         )
     return package
+
+
+def _resolve_design_inputs(batch_input, intake_package=None):
+    """Keep protocol evidence, requested objectives, and hardware distinct.
+
+    Explicit intake readiness is still checked. A pasted design envelope is
+    only a transport adapter; it adds no answers or chemistry confirmation.
+    """
+    intake = _coerce_intake_package(intake_package)
+    if intake is None:
+        context = design_context_from_input(batch_input)
+        if context is not None:
+            if not str(context.get("schema_version", "")).startswith("flowpilot_intake"):
+                context.setdefault("ready_for_design", True)
+            intake = _coerce_intake_package(context)
+    effective = batch_input_from_package(intake) if intake else protocol_batch_input(batch_input)
+    return effective, intake
 
 
 def _inventory_from_intake_or_path(
@@ -522,7 +540,8 @@ def _build_translate_topology(
     from flora_translate.executable_artifacts import _stream_components
     feed_map = {s.stream_label: s for s in proposal.streams}
     components = _stream_components(
-        {"chemistry_plan": chemistry_plan.model_dump() if chemistry_plan else {}},
+        {"chemistry_plan": chemistry_plan.model_dump() if chemistry_plan else {},
+         "batch_record": batch_record.model_dump()},
         [s.model_dump() for s in proposal.streams],
     )
     for operation in topology.unit_operations:
@@ -548,7 +567,25 @@ def _build_translate_topology(
             elif component.loading_mol_pct is not None:
                 details.append(f"{component.loading_mol_pct:.6g} mol%")
             labels.append(component.name + (" (" + ", ".join(details) + ")" if details else ""))
-        operation.parameters["contents"] = labels or list(feed.contents)
+        # Preserve explicit same-feed solvent evidence during solute rendering.
+        # Do not inherit another feed's or the batch solvent.
+        solvent_components = [component for component in components
+                              if component.stream_label == feed.stream_label
+                              and component.role == "solvent"]
+        solvent_labels = list(dict.fromkeys(component.name for component in solvent_components))
+        operation.parameters["declared_solvent_components"] = [
+            {"name": component.name, "source_text": component.source_text,
+             "authority": "explicit_same_feed_component"}
+            for component in solvent_components
+        ]
+        operation.parameters["contents"] = (labels + solvent_labels) or list(feed.contents)
+        if not feed.solvent and len(solvent_labels) == 1:
+            operation.parameters["solvent"] = solvent_labels[0]
+            operation.parameters["solvent_provenance"] = {
+                "authority": "explicit_same_feed_component",
+                "stream_label": feed.stream_label,
+                "source_text": [component.source_text for component in solvent_components],
+            }
     return normalize_topology_semantics(topology)
 
 
@@ -843,7 +880,10 @@ def _build_singlestep_topology(
     ops.append(UnitOperation(op_id="mixer_1", op_type="mixer",
         label=proposal.mixer_type or "T-Mixer",
         parameters={"type": proposal.mixer_type or "T-mixer", "material": "not specified"},
-        required=True, rationale=proposal.mixing_order_reasoning or "Combine reactor feeds"))
+        required=True, rationale=(
+            "Combine the reactor feed streams at this mixer. "
+            "Follow the final process diagram for downstream equipment and pressure-control order."
+        )))
     for pid in pump_ids:
         _connect(ops, streams, sc, pid, "mixer_1")
     prev = "mixer_1"
@@ -2026,9 +2066,8 @@ def translate(
     def scientific_snapshot(name, data):
         if scientific_archive:
             (scientific_archive / (name + ".json")).write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
-    intake = _coerce_intake_package(intake_package)
+    effective_batch_input, intake = _resolve_design_inputs(batch_input, intake_package)
     intake_block = intake_context_block(intake)
-    effective_batch_input = batch_input_from_package(intake) if intake else batch_input
     objectives = (
         runtime.objective_override
         or (intake.objective if intake and intake.objective else "balanced")

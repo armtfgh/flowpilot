@@ -1,0 +1,68 @@
+--- a/ablation_test/scripts/run_fair_practical_benchmark.py
++++ b/ablation_test/scripts/run_fair_practical_benchmark.py
+@@ -26,6 +26,8 @@
+ sys.path.insert(0, str(ROOT))
+ from ablation_test.src import runner
+ NORMAL_ONE_SHOT = runner._general_one_shot
++# A configure/reload cycle must never capture our own adapter as the native pipeline.
++NORMAL_PRODUCTION = getattr(runner._production_full, "_fair_native_production", runner._production_full)
+ from ablation_test.scripts import run_practical_input_pilot as base
+ from ablation_test.src.holistic_audit import build_case_context
+ from ablation_test.src.llm_judge import parse_json_object
+@@ -51,6 +53,32 @@
+ OUTPUT_FIELDS = NORMAL_ONE_SHOT.__globals__['_flow_schema_instruction']().split('proposal_json must be a JSON-encoded string whose decoded object uses these fields:', 1)[1]
+ SHARED_OUTPUT = ('Required final output: one JSON object with recommended_disposition, disposition_rationale, and proposal. '
+                  'The proposal must be a JSON object, not a JSON-encoded string. The proposal uses these fields:\n' + OUTPUT_FIELDS)
++# Final serialization belongs to the external delivery boundary, while these
++# scientific requirements must also reach intermediate agents unchanged.
++_SCIENTIFIC_START = 'Distinguish inlet/STP gas flow from\n'
++assert SHARED_OUTPUT.count(_SCIENTIFIC_START) == 1
++SERIALIZATION_PREFIX, _scientific_tail = SHARED_OUTPUT.split(_SCIENTIFIC_START, 1)
++SCIENTIFIC_OUTPUT_GUIDANCE = _SCIENTIFIC_START + _scientific_tail
++FLOWPILOT_INTERNAL_OBJECTIVE = base.OBJECTIVE + '\n\n' + SCIENTIFIC_OUTPUT_GUIDANCE
++
++
++def _production_with_scoped_output(case, recorder, candidate_budget, temperature, seed, execution_config=None):
++    """Keep final-envelope syntax out of native specialist schema instructions."""
++    expected = base.OBJECTIVE + '\n\n' + SHARED_OUTPUT
++    if case.objective != expected:
++        raise ValueError('Only the exact fair-benchmark objective may be routed')
++    recorder.write_json('objective_routing.json', {
++        'public_objective': case.objective,
++        'internal_objective': FLOWPILOT_INTERNAL_OBJECTIVE,
++        'removed_serialization': SERIALIZATION_PREFIX,
++        'retained_guidance_exact': SCIENTIFIC_OUTPUT_GUIDANCE,
++        'scope': 'Intermediate production objective only; public case and final delivery contract unchanged.',
++    })
++    internal_case = replace(case, objective=FLOWPILOT_INTERNAL_OBJECTIVE)
++    return NORMAL_PRODUCTION(internal_case, recorder, candidate_budget, temperature, seed, execution_config)
++
++
++_production_with_scoped_output._fair_native_production = NORMAL_PRODUCTION
+ 
+ 
+ def historical_module(output=None):
+@@ -69,6 +97,7 @@
+ 
+ def configure(output=None):
+     runner._general_one_shot = NORMAL_ONE_SHOT
++    runner._production_full = _production_with_scoped_output
+     campaign.MODELS = {'claude': GENERATOR}
+     campaign.REPEAT_IDS = ('repeat_01',)
+     campaign.JUDGES = tuple(JUDGES)
+@@ -139,6 +168,7 @@
+     write(frozen / 'case_manifest.json', {'cases': [{'case_label': label, **case.manifest_payload()} for label, case in cases]})
+     write(frozen / 'execution_plan.json', {'cells': campaign.campaign_cells(cases)})
+     (frozen / 'shared_output_contract.txt').write_text(SHARED_OUTPUT + '\n')
++    (frozen / 'flowpilot_internal_objective.txt').write_text(FLOWPILOT_INTERNAL_OBJECTIVE + '\n')
+     for label, case in cases:
+         folder = frozen / 'practical_inputs' / campaign.safe_name(label)
+         write(folder / 'public_input.json', case.public_payload())
+@@ -173,6 +203,7 @@
+         'packet_policy_A': 'Byte-identical saved packets; restored historical prompt/validator and actual historical panel. This isolates instructions/panel with packet content fixed, not a full historical adapter replay.',
+         'packet_policy_B': 'Complete raw-JSON one-shot and canonical delivered FlowPilot content under the same adapter. No arithmetic correction. Shared phase-basis-aware delivered-arithmetic worksheet for explicit values in either arm; no hidden calculations or internal verdicts.',
+         'shared_output_contract': True, 'one_shot_native_schema_repeated': True,
++        'flowpilot_output_routing': 'Public output contract unchanged; only its final JSON envelope and field-list prefix are excluded from intermediate objectives. Exact gas/time/assumptions/disposition guidance is retained.',
+         'historical_worksheet_caveat': 'Historical copied packets retain legacy Q_liquid*tau worksheet even for gas/STP time. Report this limitation; do not silently repair the historical record.',
+         'retry_policy': 'One generation attempt per cell. At most three judge format/transport attempts; never retry a valid historical-validator grade. Stricter current citation checks are audit only.',
+         'stopping_rule': 'Fixed fifteen saved outcomes then six fresh outcomes, sixty-three grades. No source changes, outcome selection, score-based retries or extensions. Stop at resource failure and retain incompleteness.',

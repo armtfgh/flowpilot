@@ -1,0 +1,100 @@
+Independent audit of the three fresh FlowPilot production-repair outputs
+======================================================================
+
+Scope
+Read-only review of the three result.json files under campaign/generation and
+their embedded inventory, final process graph, procedure and rationale. No
+one-shot outputs or judge responses were opened. No generated design, source,
+prompt, grade or campaign configuration was changed. This audit does not assign
+replacement scores. Source hashes and independent arithmetic are retained in
+arithmetic_audit.json and the case-specific *_arithmetic.json records.
+
+Confirmed repairs and quantitative closure
+- All three final designs report executable status. Independently recomputed
+  feed totals, stage volume/time relationships and minimum stock requirements
+  agree with the delivered figures. Every assigned topology equipment ID occurs
+  in the supplied inventory.
+- Hydrogenolysis requires at least 12 mL of Stream A for 18 min commissioning
+  plus 6 min collection at 0.5 mL/min. Preparation contains one substrate charge
+  of 1.512 mmol at 0.126 M. Extra startup/displacement and extended collection
+  volumes are explicitly unresolved, and available stock is not invented.
+- Hydrogen at 1.412002 sccm supplies approximately 0.063 mmol/min, agreeing with
+  the 0.063 mmol/min substrate feed and 1 equivalent. The independently computed
+  in-channel gas flow is 0.07926955 mL/min at 60 C and 22.01325 bar absolute.
+  The 1.569036 min inlet/STP index, 5.178932 min in-channel index and 6 min liquid
+  volume index are different, consistently labelled quantities.
+- Photochemistry uses 0.5 mL/min liquid and 5.336362 sccm air. Applying 21 mol%
+  oxygen gives approximately 0.050 mmol/min O2, matching one equivalent to the
+  0.050 mmol/min substrate feed. Its minimum stock is 4 mL for 6 min initial
+  commissioning plus 2 min collection. The 420 nm source is inventory-assigned;
+  irradiation is enabled before commissioning and disabled before flushing.
+- CuAAC uses a 0.3 mL packed bed at 0.5 mL/min, giving 0.6 min nominal empty-bed
+  space time. The 1.2 mL minimum stock covers 1.8 min commissioning and 0.6 min
+  collection. Feed preparation preserves benzyl azide/phenylacetylene ratios;
+  Cu/C is represented as stationary catalyst rather than a liquid feed charge.
+- In both gas cases the mixer feeds the reactor, then the BPR precedes the
+  vented separator and collector. Hydrogen purge/check-valve/vent controls and
+  explicit shutdown sequencing survive publication. No old separator-before-
+  BPR error was found.
+- Final quantitative explanations are explicitly calculated from delivered
+  settings. Original quantitative rationale is retained in non-executable
+  history; model scientific arguments are labelled unverified. The original
+  top-level explanation has status pre_realization_audit_only. Arithmetic
+  consistency does not certify chemical performance or safety.
+
+Remaining findings, distinguished from canonical arithmetic errors
+
+1. Hydrogenolysis still contains stale and unsupported scientific prose.
+   $.final_design.decision_rationale.chemistry_notes.text contains the old gas
+   value 0.0167 mL/min and 5.84 min calculation, alongside a 10-50-fold kLa claim
+   and an asserted batch rate-limiting step without confirming measurements.
+   This entry is visibly unverified and requires_review_after_parameter_change;
+   the correct final gas/time calculations are separately authoritative.
+   Therefore this is a residual interpretation burden, not evidence that the
+   delivered 1.412002 sccm setting or its numerical closure is wrong.
+   The stationary-components list also contains two descriptions of the same
+   Pd(OH)2/Al2O3 catalyst. Neither is an extra liquid charge or quantified second
+   loading, so duplicate metadata alone does not prove double dosing.
+
+2. Photochemical downstream separator capacity needs a stated flow basis.
+   Reactor/mixer total actual flow at 3 bar gauge is 1.950886 mL/min, within the
+   mixer's listed 2 mL/min maximum. At the vented separator after the BPR, ideal
+   gas expansion to 1.01325 bar absolute and 21 C gives
+       Q_total = 0.5 + 5.336362 * (294.15/273.15) = 6.246626 mL/min.
+   $.inventory_snapshot.separators[0].max_flow_mL_min is 5.0, but its reference
+   state and whether it refers to liquid-only or total throughput are absent.
+   If it is an actual total-throughput rating, the proposed outlet exceeds it.
+   This conditional capacity concern requires clarification; it is not an
+   established inventory violation under an unspecified rating convention.
+   The unverified council justification also calls 0.5 mL/min the maximum pump
+   rate, whereas the supplied pump maximum is 1.0 mL/min. The setpoint itself is
+   within range. Older 5.0 sccm prose remains in unverified chemistry_notes.
+
+3. CuAAC needs an explicit plan for hot product depressurization/collection.
+   The final graph connects the 150 C packed bed directly to the 20 bar BPR and
+   vented collector. No downstream cooling unit or operating cooling step is
+   specified before normal product collection; the procedure only calls for
+   cooling during shutdown. Consequently effluent temperature, potential flash
+   behavior and vapor management at normal collection remain unresolved. This
+   observation does not presume that the actual outlet necessarily stays at
+   150 C, nor does it invent a missing cooler in the inventory.
+   Its unverified council_selection recommends three one-minute fractions after
+   at least 3 min equilibration, whereas the authoritative minimum procedure is
+   1.8 min plus 0.6 min. The stock instructions explicitly require scaling for
+   longer collection, so the minimum is internally consistent; following that
+   optional council sampling recommendation would need at least 3 mL feed,
+   before measured allowances, rather than the minimum 1.2 mL recipe basis.
+
+4. Across the cases, numerical design completeness remains distinct from a
+   fully commissioned SOP. Final temperatures and equipment are specified, but
+   explicit instructions to establish the reactor temperature under solvent
+   flow before reactive feed introduction remain generic. Packing details and
+   catalyst-bed loading/voidage are not established by an assigned reactor name.
+   The outputs retain these unknowns in their scientific/validation discussion;
+   arithmetic closure should not be described as resolving them.
+
+Interpretation
+The repairs demonstrably corrected stock/schedule mismatch and control-step
+publication and made explanation authority explicit. The new outputs still
+contain chemical/operating questions that require research judgement. These
+findings should be reported without changing this frozen campaign or its scores.

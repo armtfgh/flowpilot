@@ -7,6 +7,7 @@ import time
 import flora_translate.config as cfg
 from flora_translate.batch_normalization import enrich_batch_record_dict
 from flora_translate.engine.llm_agents import call_model_text
+from flora_translate.protocol_input import protocol_batch_input
 from flora_translate.schemas import BatchRecord
 
 logger = logging.getLogger("flora.input_parser")
@@ -75,6 +76,7 @@ class InputParser:
     """Normalize user input (free text or JSON) into a BatchRecord."""
 
     def parse(self, batch_input: str | dict) -> BatchRecord:
+        batch_input = protocol_batch_input(batch_input)
         # If already a dict or JSON string representing a dict, try direct parse
         if isinstance(batch_input, dict):
             raw_text = batch_input.get("raw_text") or json.dumps(

@@ -1,0 +1,197 @@
+{
+  "case_id": "aerobic_oxidation_fmoc_methionine",
+  "scenario_id": "aerobic_oxidation_fmoc_methionine",
+  "title": "Photocatalytic aerobic oxidation of Fmoc-L-methionine",
+  "protocol": "Fmoc-L-methionine (3.7 mmol, 1.0 equiv) and 4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%) were dissolved in acetonitrile at 0.10 M in a round-bottom flask. The solution was exposed to air and irradiated with a 1.5 W LED centered near 420 nm at 21 C for 5 min. Fmoc-methionine sulfoxide was formed in 99% yield.",
+  "category": "photochemical_gas_liquid_oxidation",
+  "objective": "Suggest one practical first flow experiment for this batch reaction using only the available equipment, with operating conditions, setup, procedure, and any assumptions or missing information.\n\nRequired final output: one JSON object with recommended_disposition, disposition_rationale, and proposal. The proposal must be a JSON object, not a JSON-encoded string. The proposal uses these fields:\n\nresidence_time_min, flow_rate_mL_min, temperature_C, concentration_M,\nBPR_bar, reactor_type, tubing_material, tubing_ID_mm, reactor_volume_mL,\nresidence_time_basis, residence_time_inlet_min,\nresidence_time_in_channel_min, light_setup, wavelength_nm, streams,\nmixer_type, mixing_order_reasoning, pre_reactor_steps,\npost_reactor_steps, chemistry_notes, stage_parameters,\nreasoning_per_field, literature_analogies, engine_validated,\nsafety_flags, confidence.\n\nEach stream is an object with stream_label, pump_role, contents, solvent,\nphase, flow_rate_mL_min, concentration_M, molar_equiv, gas_flow_sccm, and\ngas_flow_actual_mL_min where applicable. Distinguish inlet/STP gas flow from\npressure-corrected in-channel gas flow. Ensure reactor_volume_mL is consistent\nwith flow and residence time. State assumptions rather than inventing missing\nfacts.\n\nrecommended_disposition must be exactly EXECUTE, SCREEN, or BLOCK. Use BLOCK\nwhen the hard constraints make a safe design physically or operationally\nimpossible. Use SCREEN for a feasible first experiment that still requires\nexperimental validation. Use EXECUTE only for a directly executable design\nsupported by sufficient evidence.",
+  "hard_constraints": [
+    "Use only the supplied equipment inventory."
+  ],
+  "inventory": {
+    "schema_version": "flowpilot_lab_inventory_v3.0",
+    "strict_assignment": true,
+    "pumps": [
+      {
+        "equipment_id": "pump_photo_liquid",
+        "name": "Photochemistry HPLC pump",
+        "type": "HPLC",
+        "max_pressure_bar": 10.0,
+        "min_flow_rate_mL_min": 0.01,
+        "max_flow_rate_mL_min": 1.0,
+        "compatible_materials": [
+          "acetonitrile",
+          "Fmoc-L-methionine",
+          "4,7-diphenyl-2,1,3-benzothiadiazole"
+        ]
+      }
+    ],
+    "tubing": [
+      {
+        "equipment_id": "tubing_photo_pfa_10",
+        "name": "PFA photoreactor coil tubing",
+        "material": "PFA",
+        "ID_mm": 1.0,
+        "max_pressure_bar": 10.0,
+        "max_temperature_C": 60.0,
+        "transparent": true,
+        "length_m": 1.273
+      }
+    ],
+    "BPR_available": [
+      3.0
+    ],
+    "light_sources": [
+      {
+        "equipment_id": "light_photo_420",
+        "name": "420 nm photochemistry LED",
+        "wavelength_nm": 420.0,
+        "power_W": 1.5,
+        "compatible_reactor": "coil",
+        "min_temperature_C": 15.0,
+        "max_temperature_C": 40.0,
+        "allowed_temperatures_C": [
+          21.0,
+          25.0
+        ]
+      }
+    ],
+    "gas_hardware": [
+      {
+        "equipment_id": "gas_air_clean",
+        "name": "Clean dry air supply and regulator",
+        "type": "gas_supply",
+        "gas": "air",
+        "max_pressure_bar": 10.0
+      },
+      {
+        "equipment_id": "mfc_air_10",
+        "name": "Air mass-flow controller",
+        "type": "MFC",
+        "gas": "air",
+        "min_flow_sccm": 0.1,
+        "max_flow_sccm": 10.0,
+        "max_pressure_bar": 10.0
+      }
+    ],
+    "reactors": [
+      {
+        "equipment_id": "reactor_photo_100",
+        "name": "One milliliter PFA photocoil",
+        "type": "photochemical coil",
+        "material": "PFA",
+        "volume_mL": 1.0,
+        "ID_mm": 1.0,
+        "system": "420 nm photochemistry module",
+        "light_source": "light_photo_420",
+        "wavelength_nm": 420.0,
+        "min_temperature_C": 15.0,
+        "max_temperature_C": 40.0,
+        "allowed_temperatures_C": [
+          21.0,
+          25.0
+        ],
+        "min_pressure_bar": 0.0,
+        "max_pressure_bar": 10.0,
+        "configuration": "irradiated PFA coil"
+      }
+    ],
+    "mixers": [
+      {
+        "equipment_id": "mixer_photo_t",
+        "name": "PFA gas-liquid T-mixer",
+        "type": "T-mixer",
+        "material": "PFA",
+        "max_inputs": 2,
+        "min_total_flow_mL_min": 0.01,
+        "max_total_flow_mL_min": 2.0,
+        "max_pressure_bar": 10.0,
+        "supported_ID_mm": [
+          1.0
+        ]
+      }
+    ],
+    "pressure_controllers": [
+      {
+        "equipment_id": "bpr_photo_3",
+        "name": "Photochemistry BPR",
+        "type": "BPR",
+        "setpoints_bar": [
+          3.0
+        ],
+        "min_pressure_bar": 3.0,
+        "max_pressure_bar": 3.0
+      }
+    ],
+    "degassers": [],
+    "filters": [],
+    "separators": [
+      {
+        "equipment_id": "separator_photo_gl",
+        "name": "Vented gas-liquid separator",
+        "type": "gas-liquid separator",
+        "supported_phases": [
+          "gas",
+          "liquid"
+        ],
+        "max_flow_mL_min": 5.0,
+        "max_pressure_bar": 5.0
+      }
+    ],
+    "connectors": [
+      {
+        "equipment_id": "connector_photo_set",
+        "name": "PFA photochemistry connector set",
+        "type": "photoreactor union set",
+        "material": "PFA",
+        "supported_ID_mm": [
+          1.0
+        ],
+        "max_pressure_bar": 10.0
+      }
+    ],
+    "temperature_controllers": [
+      {
+        "equipment_id": "controller_photo_thermostat",
+        "name": "Photoreactor thermostat",
+        "type": "recirculating thermostat",
+        "min_temperature_C": 15.0,
+        "max_temperature_C": 40.0,
+        "allowed_temperatures_C": [
+          21.0,
+          25.0
+        ]
+      }
+    ],
+    "collectors": [
+      {
+        "equipment_id": "collector_photo_100",
+        "name": "Amber vented collection vessel",
+        "type": "collection vessel",
+        "volume_mL": 100.0,
+        "max_pressure_bar": 1.0
+      }
+    ],
+    "reactor_trains": [],
+    "safety_accessories": [
+      {
+        "equipment_id": "safety_photo_enclosure",
+        "name": "Interlocked photochemical enclosure and vent",
+        "type": "interlocked enclosure",
+        "capabilities": [
+          "shield_or_containment",
+          "vented_separator"
+        ],
+        "max_pressure_bar": 1.0,
+        "compatible_hazards": [
+          "high_intensity_light",
+          "oxygen_enriched_organic_stream",
+          "acetonitrile_vapor"
+        ]
+      }
+    ]
+  },
+  "chemistry_identity_confirmation": {},
+  "design_input_text": "BATCH PROCEDURE\nFmoc-L-methionine (3.7 mmol, 1.0 equiv) and 4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%) were dissolved in acetonitrile at 0.10 M in a round-bottom flask. The solution was exposed to air and irradiated with a 1.5 W LED centered near 420 nm at 21 C for 5 min. Fmoc-methionine sulfoxide was formed in 99% yield.\n\nREQUEST\nSuggest one practical first flow experiment for this batch reaction using only the available equipment, with operating conditions, setup, procedure, and any assumptions or missing information.\n\nRequired final output: one JSON object with recommended_disposition, disposition_rationale, and proposal. The proposal must be a JSON object, not a JSON-encoded string. The proposal uses these fields:\n\nresidence_time_min, flow_rate_mL_min, temperature_C, concentration_M,\nBPR_bar, reactor_type, tubing_material, tubing_ID_mm, reactor_volume_mL,\nresidence_time_basis, residence_time_inlet_min,\nresidence_time_in_channel_min, light_setup, wavelength_nm, streams,\nmixer_type, mixing_order_reasoning, pre_reactor_steps,\npost_reactor_steps, chemistry_notes, stage_parameters,\nreasoning_per_field, literature_analogies, engine_validated,\nsafety_flags, confidence.\n\nEach stream is an object with stream_label, pump_role, contents, solvent,\nphase, flow_rate_mL_min, concentration_M, molar_equiv, gas_flow_sccm, and\ngas_flow_actual_mL_min where applicable. Distinguish inlet/STP gas flow from\npressure-corrected in-channel gas flow. Ensure reactor_volume_mL is consistent\nwith flow and residence time. State assumptions rather than inventing missing\nfacts.\n\nrecommended_disposition must be exactly EXECUTE, SCREEN, or BLOCK. Use BLOCK\nwhen the hard constraints make a safe design physically or operationally\nimpossible. Use SCREEN for a feasible first experiment that still requires\nexperimental validation. Use EXECUTE only for a directly executable design\nsupported by sufficient evidence.\n\nAVAILABLE EQUIPMENT\n{\"BPR_available\":[3.0],\"collectors\":[{\"equipment_id\":\"collector_photo_100\",\"max_pressure_bar\":1.0,\"name\":\"Amber vented collection vessel\",\"type\":\"collection vessel\",\"volume_mL\":100.0}],\"connectors\":[{\"equipment_id\":\"connector_photo_set\",\"material\":\"PFA\",\"max_pressure_bar\":10.0,\"name\":\"PFA photochemistry connector set\",\"supported_ID_mm\":[1.0],\"type\":\"photoreactor union set\"}],\"degassers\":[],\"filters\":[],\"gas_hardware\":[{\"equipment_id\":\"gas_air_clean\",\"gas\":\"air\",\"max_pressure_bar\":10.0,\"name\":\"Clean dry air supply and regulator\",\"type\":\"gas_supply\"},{\"equipment_id\":\"mfc_air_10\",\"gas\":\"air\",\"max_flow_sccm\":10.0,\"max_pressure_bar\":10.0,\"min_flow_sccm\":0.1,\"name\":\"Air mass-flow controller\",\"type\":\"MFC\"}],\"light_sources\":[{\"allowed_temperatures_C\":[21.0,25.0],\"compatible_reactor\":\"coil\",\"equipment_id\":\"light_photo_420\",\"max_temperature_C\":40.0,\"min_temperature_C\":15.0,\"name\":\"420 nm photochemistry LED\",\"power_W\":1.5,\"wavelength_nm\":420.0}],\"mixers\":[{\"equipment_id\":\"mixer_photo_t\",\"material\":\"PFA\",\"max_inputs\":2,\"max_pressure_bar\":10.0,\"max_total_flow_mL_min\":2.0,\"min_total_flow_mL_min\":0.01,\"name\":\"PFA gas-liquid T-mixer\",\"supported_ID_mm\":[1.0],\"type\":\"T-mixer\"}],\"pressure_controllers\":[{\"equipment_id\":\"bpr_photo_3\",\"max_pressure_bar\":3.0,\"min_pressure_bar\":3.0,\"name\":\"Photochemistry BPR\",\"setpoints_bar\":[3.0],\"type\":\"BPR\"}],\"pumps\":[{\"compatible_materials\":[\"acetonitrile\",\"Fmoc-L-methionine\",\"4,7-diphenyl-2,1,3-benzothiadiazole\"],\"equipment_id\":\"pump_photo_liquid\",\"max_flow_rate_mL_min\":1.0,\"max_pressure_bar\":10.0,\"min_flow_rate_mL_min\":0.01,\"name\":\"Photochemistry HPLC pump\",\"type\":\"HPLC\"}],\"reactor_trains\":[],\"reactors\":[{\"ID_mm\":1.0,\"allowed_temperatures_C\":[21.0,25.0],\"configuration\":\"irradiated PFA coil\",\"equipment_id\":\"reactor_photo_100\",\"light_source\":\"light_photo_420\",\"material\":\"PFA\",\"max_pressure_bar\":10.0,\"max_temperature_C\":40.0,\"min_pressure_bar\":0.0,\"min_temperature_C\":15.0,\"name\":\"One milliliter PFA photocoil\",\"system\":\"420 nm photochemistry module\",\"type\":\"photochemical coil\",\"volume_mL\":1.0,\"wavelength_nm\":420.0}],\"safety_accessories\":[{\"capabilities\":[\"shield_or_containment\",\"vented_separator\"],\"compatible_hazards\":[\"high_intensity_light\",\"oxygen_enriched_organic_stream\",\"acetonitrile_vapor\"],\"equipment_id\":\"safety_photo_enclosure\",\"max_pressure_bar\":1.0,\"name\":\"Interlocked photochemical enclosure and vent\",\"type\":\"interlocked enclosure\"}],\"schema_version\":\"flowpilot_lab_inventory_v3.0\",\"separators\":[{\"equipment_id\":\"separator_photo_gl\",\"max_flow_mL_min\":5.0,\"max_pressure_bar\":5.0,\"name\":\"Vented gas-liquid separator\",\"supported_phases\":[\"gas\",\"liquid\"],\"type\":\"gas-liquid separator\"}],\"strict_assignment\":true,\"temperature_controllers\":[{\"allowed_temperatures_C\":[21.0,25.0],\"equipment_id\":\"controller_photo_thermostat\",\"max_temperature_C\":40.0,\"min_temperature_C\":15.0,\"name\":\"Photoreactor thermostat\",\"type\":\"recirculating thermostat\"}],\"tubing\":[{\"ID_mm\":1.0,\"equipment_id\":\"tubing_photo_pfa_10\",\"length_m\":1.273,\"material\":\"PFA\",\"max_pressure_bar\":10.0,\"max_temperature_C\":60.0,\"name\":\"PFA photoreactor coil tubing\",\"transparent\":true}]}",
+  "design_input_sha256": "f044a7ac52af4440e9398d266b1a837056e9cef89a1e9517f84faebed25bc1cb"
+}

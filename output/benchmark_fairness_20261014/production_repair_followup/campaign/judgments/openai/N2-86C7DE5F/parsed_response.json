@@ -1,0 +1,336 @@
+{
+  "candidate_id": "N2-86C7DE5F",
+  "criterion_scores": [
+    {
+      "criterion_id": "UO-01",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.chemistry_and_operations.chemistry_identity.reaction_name",
+        "$.delivered_final_outcome.streams[0].contents",
+        "$.delivered_final_outcome.streams[1].contents",
+        "$.delivered_final_outcome.parameters.wavelength_nm"
+      ],
+      "observed_values": [
+        "Photooxidation of Fmoc-L-methionine to Fmoc-L-methionine sulfoxide",
+        "Liquid stream contains Fmoc-L-methionine + 4,7-diphenyl-2,1,3-benzothiadiazole in acetonitrile",
+        "Gas stream is air",
+        "420 nm"
+      ],
+      "expected_or_correct": "Preserve batch transformation: Fmoc-L-methionine to matching sulfoxide via 4,7-diphenyl-2,1,3-benzothiadiazole photocatalysis in MeCN under air with visible-light photochemistry in a gas-liquid flow regime.",
+      "rationale": "The delivered design preserves the intended substrate, product class, photocatalyst strategy, solvent, oxidant, irradiation wavelength, and photochemical gas-liquid modality without unsupported substitution.",
+      "required_correction": "",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-02",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.streams[0].contents",
+        "$.delivered_final_outcome.streams[0].concentration_M",
+        "$.delivered_final_outcome.chemistry_and_operations.stream_components[1].loading_mol_pct",
+        "$.delivered_final_outcome.streams[1].contents"
+      ],
+      "observed_values": [
+        "Stream A contains Fmoc-L-methionine, 4,7-diphenyl-2,1,3-benzothiadiazole, acetonitrile",
+        "Substrate concentration 0.1 M",
+        "Photocatalyst 10 mol% / 0.01 M",
+        "Stream B contains air"
+      ],
+      "expected_or_correct": "All required reactive materials from the protocol should be present and correctly assigned: substrate, photocatalyst, solvent, and air as oxidant.",
+      "rationale": "All required materials are present and assigned to appropriate streams; no unsafe or chemistry-changing extra reagent is introduced.",
+      "required_correction": "",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-03",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.streams[0].flow_rate_mL_min",
+        "$.delivered_final_outcome.streams[0].concentration_M",
+        "$.delivered_final_outcome.streams[1].gas_flow_sccm",
+        "$.delivered_final_outcome.streams[1].gas_active_molar_flow_mmol_min",
+        "$.delivered_final_outcome.deterministic_verification_sheet.delivered_arithmetic.reference_substrate_mmol_min"
+      ],
+      "observed_values": [
+        "Liquid flow 0.5 mL/min",
+        "Substrate concentration 0.1 M",
+        "Air flow 5.336362 sccm",
+        "O2 active molar flow 0.05 mmol/min",
+        "Substrate molar flow 0.05 mmol/min"
+      ],
+      "expected_or_correct": "Explicit coherent stoichiometry and compatible feeds. At 0.1 M and 0.5 mL/min, substrate flow should be 0.05 mmol/min; gas bookkeeping should clearly distinguish air total flow from active O2 basis and avoid incompatible feed combinations.",
+      "rationale": "The design is chemically coherent and the arithmetic closes for 1 equiv O2 on an active-species basis relative to substrate flow. Minor issue: calling air itself '1.0 equiv' can be semantically confusing because the true reactive basis is O2 in air, though the basis is separately explained correctly.",
+      "required_correction": "Label gas equivalents explicitly as O2 equivalents only, not air equivalents, in every stream field for unambiguous stoichiometry.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-04",
+      "applicability": "APPLICABLE",
+      "score": 2,
+      "critical_error": false,
+      "severity": "MAJOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.parameters.temperature_C",
+        "$.delivered_final_outcome.parameters.BPR_bar",
+        "$.delivered_final_outcome.parameters.wavelength_nm",
+        "$.delivered_final_outcome.parameters.residence_time_min",
+        "$.case_context.held_out_source_fact_check.batch_reference.reaction_time_min"
+      ],
+      "observed_values": [
+        "21 C",
+        "3.0 bar gauge",
+        "420 nm",
+        "Residence time 0.17134 min inlet/STP basis",
+        "Batch reference reaction time 5.0 min"
+      ],
+      "expected_or_correct": "Translate chemistry-critical conditions faithfully: 21 C, air exposure, 420 nm irradiation, and a defensible residence time/stage mapping for a first flow experiment. A major shortening from 5 min batch requires clear defensible staging/condition rationale because it may change chemistry materially.",
+      "rationale": "Temperature, irradiation, and gas introduction are mapped, but the proposed single-stage condition shortens nominal apparent residence time from 5 min batch to 0.171 min without direct supporting evidence. The candidate acknowledges this is a speculative screen, so this is recoverable, but the chemistry-critical operating point needs revision before execution if the goal is faithful first translation rather than aggressive intensification.",
+      "required_correction": "Choose a more conservative first condition achievable with the inventory, e.g. substantially lower liquid flow to increase residence time, or justify the very short residence time with stronger evidence specific to this chemistry.",
+      "confidence": "MEDIUM"
+    },
+    {
+      "criterion_id": "UO-05",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.topology.streams",
+        "$.delivered_final_outcome.topology.pid_description",
+        "$.delivered_final_outcome.chemistry_and_operations.operating_procedure"
+      ],
+      "observed_values": [
+        "pump_a -> mixer_1",
+        "pump_b -> mixer_1",
+        "mixer_1 -> reactor_1 -> bpr_1 -> separator_1 -> collector_1",
+        "Startup/shutdown/collection sequence provided"
+      ],
+      "expected_or_correct": "Executable order should include liquid feed and gas feed to mixer, photoreactor, pressure control, gas-liquid separation, and collection/waste routing in a physically executable sequence.",
+      "rationale": "The topology is complete and correctly ordered for a gas-liquid photochemical oxidation using the available inventory.",
+      "required_correction": "",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-06",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.streams[0].concentration_M",
+        "$.delivered_final_outcome.streams[0].flow_rate_mL_min",
+        "$.delivered_final_outcome.deterministic_verification_sheet.delivered_arithmetic.reference_substrate_mmol_min",
+        "$.delivered_final_outcome.chemistry_and_operations.stream_components[1].concentration_M"
+      ],
+      "observed_values": [
+        "0.1 M substrate",
+        "0.5 mL/min liquid",
+        "0.05 mmol/min substrate",
+        "0.01 M photocatalyst in same feed"
+      ],
+      "expected_or_correct": "Liquid concentrations and flow rates should reproduce stated liquid molar flows and catalyst loading consistently.",
+      "rationale": "Liquid material balance is dimensionally valid and consistent with the declared concentrations, flow rate, and catalyst loading.",
+      "required_correction": "",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-07",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.parameters.reactor_volume_mL",
+        "$.delivered_final_outcome.parameters.residence_time_min",
+        "$.delivered_final_outcome.graph_context.stages[0].residence_flow_mL_min",
+        "$.delivered_final_outcome.deterministic_verification_sheet.declared_time_index"
+      ],
+      "observed_values": [
+        "Reactor volume 1.0 mL",
+        "Residence time 0.17134 min",
+        "Residence-flow 5.836362 mL/min on inlet/STP basis",
+        "Verification sheet agrees V/(Q_liquid+Q_gas_standard)=0.1713396 min"
+      ],
+      "expected_or_correct": "Reactor volume, cumulative flow, and residence-time basis should close numerically and be physically possible for the executable design.",
+      "rationale": "Residence-time and geometry closure are numerically consistent on the declared inlet/STP basis, with separate in-channel time also reported.",
+      "required_correction": "",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-08",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.parameters.pressure_absolute_bar",
+        "$.delivered_final_outcome.streams[1].gas_flow_sccm",
+        "$.delivered_final_outcome.streams[1].gas_flow_actual_mL_min",
+        "$.delivered_final_outcome.evidence_and_reasoning.decision_rationale.final_quantitative_basis.gas_streams[0].checks",
+        "$.delivered_final_outcome.parameters.residence_time_basis"
+      ],
+      "observed_values": [
+        "Absolute pressure 4.01325 bar",
+        "Air inlet flow 5.336362 sccm",
+        "In-channel gas flow 1.450886 mL/min",
+        "Gas molar flow and actual-flow checks agree",
+        "Residence-time basis is inlet/STP apparent"
+      ],
+      "expected_or_correct": "For gas-using designs, gas identity, STP basis, inlet flow, molar flow, active-species basis, absolute pressure, and distinct in-channel compressed flow should be explicit and consistent.",
+      "rationale": "Gas bookkeeping is largely excellent and explicitly distinguishes inlet/STP from pressure-corrected in-channel flow. Minor issue: some prose elsewhere in the packet contains older inconsistent diagnostic time statements, though the final audited values are consistent and clearly marked authoritative.",
+      "required_correction": "Remove or reconcile superseded diagnostic gas/time prose so only one gas-residence-time description remains in the final deliverable.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-09",
+      "applicability": "NOT_APPLICABLE",
+      "score": null,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.case_context.applicability.multistage_process"
+      ],
+      "observed_values": [
+        "multistage_process=false"
+      ],
+      "expected_or_correct": "Criterion applies only to processes with more than one reactive stage.",
+      "rationale": "Single reactive stage only.",
+      "required_correction": "",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-10",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.case_context.authoritative_inventory.pumps[0].max_flow_rate_mL_min",
+        "$.delivered_final_outcome.instrument_manifest[0].settings[0].flow_rate_mL_min",
+        "$.case_context.authoritative_inventory.gas_hardware[1].max_flow_sccm",
+        "$.delivered_final_outcome.instrument_manifest[1].settings[0].flow_sccm",
+        "$.case_context.authoritative_inventory.reactors[0].volume_mL",
+        "$.delivered_final_outcome.parameters.reactor_volume_mL",
+        "$.case_context.authoritative_inventory.pressure_controllers[0].setpoints_bar",
+        "$.delivered_final_outcome.parameters.BPR_bar"
+      ],
+      "observed_values": [
+        "Pump max 1.0 mL/min; used 0.5 mL/min",
+        "MFC max 10 sccm; used 5.336362 sccm",
+        "Reactor available 1.0 mL; used 1.0 mL",
+        "Only BPR setpoint 3.0 bar; used 3.0 bar"
+      ],
+      "expected_or_correct": "Every equipment item must exist in inventory and be operated within hard limits for flow, volume, temperature, pressure, wavelength, and connectivity.",
+      "rationale": "All assigned equipment exists in the provided inventory and the selected operating point remains within the declared hardware limits.",
+      "required_correction": "",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-11",
+      "applicability": "APPLICABLE",
+      "score": 2,
+      "critical_error": false,
+      "severity": "MAJOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.parameters.flow_rate_mL_min",
+        "$.delivered_final_outcome.parameters.residence_time_in_channel_min",
+        "$.delivered_final_outcome.evidence_and_reasoning.decision_rationale.scientific_review_requirement.status",
+        "$.delivered_final_outcome.chemistry_and_operations.operating_procedure[11].instruction"
+      ],
+      "observed_values": [
+        "Liquid flow 0.5 mL/min",
+        "In-channel apparent time 0.512588 min",
+        "Scientific review required",
+        "Procedure requires measured holdup/tracer response before trusting steady state"
+      ],
+      "expected_or_correct": "Phase behavior, gas-liquid transport, mixing, and contact-time assumptions should be physically plausible and sufficiently supported at the chosen operating point.",
+      "rationale": "The hydrodynamic setup is plausible, but the chemistry-specific transport assumption is weakly supported for this exact reaction because the candidate selects an extremely short contact time and explicitly states that holdup/RTD and wet-lab validation are still required. That makes the proposal screenable, but revision/support is needed before execution as a chemistry-faithful first run.",
+      "required_correction": "Use a more conservative flow condition or supply stronger evidence that the selected gas-liquid contact time and irradiation exposure are adequate for this oxidation in the available 1 mL coil.",
+      "confidence": "MEDIUM"
+    },
+    {
+      "criterion_id": "UO-12",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.safety_controls.controls",
+        "$.delivered_final_outcome.chemistry_and_operations.operating_procedure[8].instruction",
+        "$.delivered_final_outcome.chemistry_and_operations.operating_procedure[9].instruction",
+        "$.delivered_final_outcome.safety_controls.hazards"
+      ],
+      "observed_values": [
+        "Controls include pressure test, depressurization, light enclosure, ignition control, and oxygen-organic venting",
+        "Exclude ignition sources and minimize oxygen-containing organic holdup",
+        "Route oxygen-containing off-gas and solvent vapor to declared vent",
+        "Hazards listed: high_intensity_light, oxygen_organic_service, pressurized_operation"
+      ],
+      "expected_or_correct": "Major chemistry-specific hazards should be recognized and translated into concrete controls, including light shielding, oxygen/organic mixture control, venting, pressure control, and emergency handling.",
+      "rationale": "Key operational hazards are recognized and linked to concrete controls. Minor gap: over-oxidation/selectivity risk is noted as a chemistry concern rather than converted into an operational control such as explicit analytical stop criteria or conservative initial dwell adjustment.",
+      "required_correction": "Add an explicit chemistry control for over-oxidation risk, such as predefined sampling frequency/acceptance criteria and a lower-flow contingency before extended collection.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-13",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.chemistry_and_operations.operating_procedure",
+        "$.delivered_final_outcome.chemistry_and_operations.operating_procedure[13].instruction",
+        "$.delivered_final_outcome.chemistry_and_operations.operating_procedure[14].instruction",
+        "$.delivered_final_outcome.chemistry_and_operations.operating_procedure[20].instruction"
+      ],
+      "observed_values": [
+        "Detailed feed prep, setup, priming, leak test, startup, steady state, collection, shutdown, emergency, waste steps provided",
+        "Crude outlet collected and aliquot retained for analysis",
+        "No isolation work-up authorized without added downstream procedure",
+        "Waste segregation instruction provided"
+      ],
+      "expected_or_correct": "Procedure should be reconstructable and include feed prep, startup, steady-state qualification, collection, shutdown, depressurization, and waste handling; work-up should be clear where required.",
+      "rationale": "The experiment is reconstructable and operational steps are strong. Minor limitation: product work-up/isolation is intentionally deferred, so the delivered plan is fully reproducible only as a crude-collection screening experiment, not as a complete preparative procedure.",
+      "required_correction": "If full reaction outcome beyond crude screening is intended, add a confirmed downstream isolation/work-up procedure; otherwise explicitly label the proposal as crude analytical screen only in the core proposal fields.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-14",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.reported_disposition",
+        "$.delivered_final_outcome.disposition_rationale",
+        "$.delivered_final_outcome.evidence_and_reasoning.confidence",
+        "$.delivered_final_outcome.evidence_and_reasoning.decision_rationale.scientific_review_requirement.status"
+      ],
+      "observed_values": [
+        "Disposition SCREEN",
+        "Rationale says first experimental screen pending wet-lab validation",
+        "Confidence LOW",
+        "Scientific review requirement: experimental_review_required"
+      ],
+      "expected_or_correct": "Evidence, assumptions, uncertainty, and disposition should be represented honestly; unresolved critical uncertainties should not be hidden or overstated as guaranteed performance.",
+      "rationale": "The candidate is appropriately cautious, does not overclaim performance, and selects SCREEN rather than EXECUTE in light of unresolved chemistry/transport uncertainty.",
+      "required_correction": "",
+      "confidence": "HIGH"
+    }
+  ],
+  "overall_executability": "SCREEN_ONLY",
+  "cross_criterion_notes": [
+    "The delivered design is inventory-feasible and operationally well specified, but the chosen first-pass operating point is an aggressive intensification relative to the 5 min batch fact and is not sufficiently supported to score as directly executable chemistry without revision or stronger justification.",
+    "Deterministic arithmetic and gas bookkeeping are internally consistent in the final audited values; earlier contradictory rationale snippets are preserved but should not be treated as the final quantitative instruction set.",
+    "Because gas_process=true, UO-08 was scored applicable; because multistage_process=false, UO-09 was correctly marked NOT_APPLICABLE."
+  ]
+}

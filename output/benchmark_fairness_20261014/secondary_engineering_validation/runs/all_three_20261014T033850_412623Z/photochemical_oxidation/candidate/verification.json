@@ -1,0 +1,356 @@
+{
+  "variant": "isolated_candidate",
+  "source_status": "executable",
+  "replayed_status": "executable",
+  "source_issues": [],
+  "replayed_issues": [],
+  "disposition": "SCREEN",
+  "validation_checks": {
+    "design_realization_complete": true,
+    "reactor_inventory_match": true,
+    "pump_flow_feasible": true,
+    "stream_flow_closure": true,
+    "stoichiometric_flow_closure": true,
+    "pressure_inventory_match": true,
+    "tubing_feasible": true,
+    "geometry_closure": true,
+    "calculation_matches_serialized_design": true,
+    "gas_bookkeeping_complete": true,
+    "gas_time_basis_consistent": true,
+    "safety_contract_complete": true,
+    "topology_matches_serialized_design": true,
+    "inventory_topology_assignment_complete": true,
+    "chemistry_identity_preserved": true,
+    "component_stoichiometry_complete": true,
+    "topology_phase_consistent": true,
+    "control_edges_not_in_process_path": true,
+    "safety_controls_complete": true,
+    "procedure_complete": true,
+    "no_unsupported_operations": true,
+    "diagram_matches_canonical_topology": true,
+    "residence_time_basis_unambiguous": true,
+    "mixing_regime_matches_topology": true,
+    "stationary_components_not_in_feeds": true,
+    "reagent_gas_delivery_unique": true,
+    "gas_composition_and_equivalent_closure": true,
+    "final_design_contract_consistency": true
+  },
+  "normal_allocation_checks": {
+    "all_required_operations_assigned": true,
+    "equipment_quantities_respected": true,
+    "no_unknown_equipment_ids": true,
+    "serial_reactor_train_valid": true,
+    "standard_accessories_verified": true
+  },
+  "unresolved_requirements": [],
+  "physical_proposal_unchanged": true,
+  "physical_proposal_sha256": "c27a34e1167d851bae970a44ca111e973aa5b14bb4fba9d6d1ded33e85e55f66",
+  "chemistry_plan_unchanged": true,
+  "inventory_unchanged": true,
+  "council_unchanged": true,
+  "engineering_metrics_unchanged": true,
+  "negative_failed_pump_still_blocks": true,
+  "independent_physical_audit": {
+    "liquid_flow_sum_mL_min": 0.01,
+    "reported_total_liquid_flow_mL_min": 0.01,
+    "liquid_flow_closure": true,
+    "top_level_concentration_M": 0.1,
+    "feed_concentrations_M": [
+      {
+        "stream_label": "A",
+        "concentration_M": 0.1,
+        "concentration_basis": "reference component: Fmoc-L-methionine"
+      }
+    ],
+    "remaining_findings": [],
+    "single_feed_concentration_agrees_with_top_level": true,
+    "conditional_STY": {
+      "recorded": 0.0594,
+      "expected_from_declared_calculator_basis": 0.0594,
+      "passed": true,
+      "conversion_basis": "unchanged assumed target conversion; not measured flow yield"
+    }
+  },
+  "recipe": [
+    {
+      "step_id": "PREP-A",
+      "section": "preparation",
+      "instruction": "Prepare Stream A: on a 10 mL final-volume basis, charge Fmoc-L-methionine: 1 mmol (0.1 M final); 4,7-diphenyl-2,1,3-benzothiadiazole: 0.1 mmol (0.01 M final); add the declared solvent to 10 mL total. Convert mmol to weighed/dispensed amount using the verified reagent MW, assay, and density recorded at preparation.",
+      "required": true,
+      "equipment_ids": [
+        "pump_photo_liquid"
+      ],
+      "parameter_bindings": {
+        "stream_label": "A",
+        "flow_rate_mL_min": 0.01,
+        "gas_flow_sccm": null
+      }
+    },
+    {
+      "step_id": "PREP-B",
+      "section": "preparation",
+      "instruction": "Prepare Stream B: connect air to the assigned MFC at 0.106727 mL/min at STP on the declared STP basis (273.15 K, 1.01325 bar; 22.414 L/mol); no liquid stock is prepared.",
+      "required": true,
+      "equipment_ids": [
+        "mfc_air_10"
+      ],
+      "parameter_bindings": {
+        "stream_label": "B",
+        "flow_rate_mL_min": 0.029018,
+        "gas_flow_sccm": 0.106727
+      }
+    },
+    {
+      "step_id": "SETUP-VERIFY",
+      "section": "setup",
+      "instruction": "Assemble only the inventory-assigned process graph and verify every equipment ID and connection against the final diagram.",
+      "required": true,
+      "equipment_ids": [
+        "bpr_photo_3",
+        "collector_photo_100",
+        "controller_photo_thermostat",
+        "mfc_air_10",
+        "mixer_photo_t",
+        "pump_photo_liquid",
+        "reactor_photo_100"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "SETUP-PRIME",
+      "section": "startup",
+      "instruction": "Prime each liquid line with its declared solvent using its assigned pump until the outlet is bubble-free; do not introduce reactive feeds during priming.",
+      "required": true,
+      "equipment_ids": [
+        "pump_photo_liquid"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PRESSURE-LEAK-TEST",
+      "section": "startup",
+      "instruction": "Pressure-test with compatible inert fluid to the approved operating setpoint of 3 bar and verify stable pressure before reagents.",
+      "required": true,
+      "equipment_ids": [
+        "bpr_photo_3",
+        "collector_photo_100",
+        "controller_photo_thermostat",
+        "mfc_air_10",
+        "mixer_photo_t",
+        "pump_photo_liquid",
+        "reactor_photo_100"
+      ],
+      "parameter_bindings": {
+        "BPR_bar": 3.0
+      }
+    },
+    {
+      "step_id": "GENERAL-PPE-CONTAINMENT",
+      "section": "setup",
+      "instruction": "Use the laboratory-approved PPE and containment for every declared reagent.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "GENERAL-EMERGENCY-STOP",
+      "section": "emergency",
+      "instruction": "Define and rehearse the emergency feed-stop sequence.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "GENERAL-WASTE",
+      "section": "waste",
+      "instruction": "Segregate and label all process and flush waste by hazard class.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PRESSURE-OVERPRESSURE-RESPONSE",
+      "section": "emergency",
+      "instruction": "Define blockage and overpressure response without opening a pressurized line.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PRESSURE-DEPRESSURIZE",
+      "section": "shutdown",
+      "instruction": "Cool and depressurize through the controlled outlet before opening the system.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PHOTO-LIGHT-ENCLOSURE",
+      "section": "setup",
+      "instruction": "Use the declared interlocked light enclosure when one is available; otherwise verify equivalent laboratory-approved light shielding before irradiation.",
+      "required": true,
+      "equipment_ids": [
+        "safety_photo_enclosure"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "OXYGEN-ORGANIC-IGNITION-CONTROL",
+      "section": "setup",
+      "instruction": "Exclude ignition sources and minimize oxygen-containing organic holdup.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "OXYGEN-ORGANIC-VENT",
+      "section": "setup",
+      "instruction": "Route oxygen-containing off-gas and solvent vapor to the declared compatible vent when one is available.",
+      "required": true,
+      "equipment_ids": [
+        "collector_photo_100",
+        "safety_photo_enclosure",
+        "separator_photo_gl"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "START-FEEDS",
+      "section": "startup",
+      "instruction": "Start liquid feeds at the canonical setpoints. Admit gas only after liquid flow, temperature, pressure, purge, and vent checks are stable.",
+      "required": true,
+      "equipment_ids": [
+        "pump_photo_liquid",
+        "mfc_air_10"
+      ],
+      "parameter_bindings": {
+        "A": {
+          "equipment_id": "pump_photo_liquid",
+          "flow_rate_mL_min": 0.01,
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null
+        },
+        "B": {
+          "equipment_id": "mfc_air_10",
+          "flow_rate_mL_min": null,
+          "gas_flow_sccm": 0.106727,
+          "gas_flow_actual_mL_min": 0.029018
+        }
+      }
+    },
+    {
+      "step_id": "STEADY-STATE",
+      "section": "steady_state",
+      "instruction": "Allow an initial commissioning interval of at least 300 min, based on three nominal liquid-volume turnovers. Confirm steady outlet composition and stable flow, pressure and temperature before collection; elapsed time alone does not establish steady state. Measure phase holdup or tracer response when gas or a packed bed is present.",
+      "required": true,
+      "equipment_ids": [
+        "bpr_photo_3",
+        "collector_photo_100",
+        "controller_photo_thermostat",
+        "mfc_air_10",
+        "mixer_photo_t",
+        "pump_photo_liquid",
+        "reactor_photo_100"
+      ],
+      "parameter_bindings": {
+        "residence_time_min": 8.566998,
+        "minimum_initial_stabilization_time_min": 300.0,
+        "timing_reference_min": 100.0,
+        "steady_state_requires_measurement": true,
+        "residence_time_basis": "inlet/STP apparent residence time"
+      }
+    },
+    {
+      "step_id": "COLLECT-PRODUCT",
+      "section": "collection",
+      "instruction": "After measured steady state, collect a timed fraction over at least 100 min as an initial sampling interval; record exact start/end times and collected mass or volume. Extend collection if needed for the analytical method.",
+      "required": true,
+      "equipment_ids": [
+        "collector_photo_100"
+      ],
+      "parameter_bindings": {
+        "minimum_initial_collection_time_min": 100.0
+      }
+    },
+    {
+      "step_id": "COLLECT-ANALYZE-WORKUP",
+      "section": "collection",
+      "instruction": "Collect the crude outlet in the assigned vessel and retain a labeled aliquot for conversion, selectivity, and yield analysis. This first screen ends at crude collection; no isolation work-up is authorized unless the chemist adds a confirmed downstream procedure to the intake package.",
+      "required": true,
+      "equipment_ids": [
+        "collector_photo_100"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "NORMAL-SHUTDOWN",
+      "section": "shutdown",
+      "instruction": "Stop reactive feeds, flush each compatible line, cool the reactor to a safe handling temperature, and isolate energy sources.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    }
+  ],
+  "topology_sha256": "d46cc6de423ed9e2403adef26dba0805f2f6d3615ab158f6ac6672756ab91933",
+  "diagram_status": "complete",
+  "pump_operations": [
+    {
+      "op_id": "pump_a",
+      "op_type": "pump",
+      "label": "Pump A — Single premixed liquid feed; no mandatory separation is stated. | Photochemistry HPLC pump",
+      "parameters": {
+        "stream": "A",
+        "contents": [
+          "Fmoc-L-methionine (0.1 M, 1 equiv)",
+          "4,7-diphenyl-2,1,3-benzothiadiazole (0.01 M, 10 mol%)",
+          "Acetonitrile"
+        ],
+        "solvent": "Acetonitrile",
+        "flow_rate_mL_min": 0.01,
+        "phase": "liquid",
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null,
+        "molar_equiv": 1.0,
+        "inventory_equipment_id": "pump_photo_liquid",
+        "concentration_M": 0.1,
+        "gas_reagent_mole_fraction": null,
+        "declared_solvent_components": [
+          {
+            "name": "Acetonitrile",
+            "source_text": "Acetonitrile",
+            "authority": "explicit_same_feed_component"
+          }
+        ],
+        "solvent_provenance": {
+          "authority": "explicit_same_feed_component",
+          "stream_label": "A",
+          "source_text": [
+            "Acetonitrile"
+          ]
+        },
+        "inventory_item_id": "pump_photo_liquid",
+        "inventory_item_ids": [
+          "pump_photo_liquid"
+        ],
+        "instrument_name": "Photochemistry HPLC pump"
+      },
+      "required": true,
+      "rationale": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.01 mL/min; equiv=1, C=0.1 M; pump=pump_photo_liquid; concentration_basis=reference component: Fmoc-L-methionine; equiv_basis=reference component: Fmoc-L-methionine.",
+      "inventory_item_id": "pump_photo_liquid",
+      "inventory_item_ids": [
+        "pump_photo_liquid"
+      ],
+      "instrument_name": "Photochemistry HPLC pump",
+      "inventory_category": "pumps",
+      "assignment_status": "assigned",
+      "capability_checks": {
+        "available": true,
+        "quantity": true,
+        "settings": true
+      },
+      "requirement_authority": "model_inference",
+      "source_evidence": [],
+      "accepted_requirement": true
+    }
+  ]
+}

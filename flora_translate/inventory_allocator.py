@@ -129,7 +129,12 @@ class InventoryAllocator:
                 and item.min_flow_rate_mL_min - 1e-12 <= flow <= item.max_flow_rate_mL_min + 1e-12
                 and setting_supported(item, flow)
                 and self.proposal.BPR_bar <= item.max_pressure_bar + 1e-12
-                and _pump_material_compatible(item, stream_identity)
+                and _pump_material_compatible(
+                    item, stream_identity,
+                    solvent=str(operation.parameters.get("solvent") or ""),
+                    solvent_components=[str(entry.get("name") or "") for entry in
+                                        operation.parameters.get("declared_solvent_components") or []],
+                )
                 and equipment_system_compatible(item, self.selected_systems)
             ]
             self._claim(
@@ -966,11 +971,31 @@ def _gas_matches(required: str, available: str) -> bool:
     return bool(identities(required) & identities(available))
 
 
-def _pump_material_compatible(pump, stream_identity: str) -> bool:
-    """Require a declared wetted-material match when a pump lists one."""
+def _explicit_medium_members(value: str) -> list[str]:
+    """Split explicit medium lists; ratios are amounts, not extra identities.
+
+    Unrecognized descriptions remain literal and cannot gain compatibility from
+    an incidental known-solvent substring.
+    """
+    text = re.sub(r"\(\s*\d+(?:\.\d+)?(?:\s*:\s*\d+(?:\.\d+)?)+\s*(?:v/v)?\s*\)", "", value, flags=re.I)
+    text = re.sub(r"\s+\d+(?:\.\d+)?(?:\s*:\s*\d+(?:\.\d+)?)+\s*(?:v/v)?\s*$", "", text, flags=re.I)
+    return [part.strip() for part in re.split(r"\s*(?:/|:|,|\+|\band\b)\s*", text) if part.strip()]
+
+
+def _pump_material_compatible(pump, stream_identity: str, *, solvent: str = "", solvent_components: list[str] | None = None) -> bool:
+    """Require every explicit medium identity when a pump lists compatibility."""
 
     if not pump.compatible_materials:
         return True
+    from flora_translate.component_identity import declared_solvent_member
+    explicit_members = [member for value in [solvent, *(solvent_components or [])]
+                        for member in _explicit_medium_members(value)]
+    if explicit_members:
+        # A matching solute cannot authorize an incompatible or unknown medium.
+        # Conflicting solvent declarations and mixtures are checked in full.
+        return all(any(declared_solvent_member(member, str(material))
+                       for material in pump.compatible_materials)
+                   for member in explicit_members)
     identity = " ".join(re.findall(r"[a-z0-9]+", stream_identity.lower()))
     for material in pump.compatible_materials:
         candidate = " ".join(re.findall(r"[a-z0-9]+", str(material).lower()))

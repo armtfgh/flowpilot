@@ -1,0 +1,42 @@
+{
+  "selected_candidate_id": 1,
+  "failure_modes": [
+    {
+      "rank": 1,
+      "mode": "Packed-bed blockage / channelling due to catalyst fines migration",
+      "cause": "Pd(OH)2/Al2O3 particles (particle size, voidage, and loading unspecified) can migrate under low-Re trickle flow (Re≈5), plug the downstream connector or BPR orifice, or create preferential channels that bypass catalyst — eliminating gas-liquid-solid contact and causing uncontrolled pressure excursion or loss of conversion",
+      "severity": 9,
+      "likelihood": 5,
+      "RPN": 45,
+      "mitigation": "Install a 10–20 µm sintered SS frit at both bed ends; record inlet pressure continuously and halt run if ΔP rises >2 bar above baseline; characterise particle size distribution before packing"
+    },
+    {
+      "rank": 2,
+      "mode": "H2 gas-phase breakthrough to liquid collector (BPR failure / slug flow bypassing separator)",
+      "cause": "At 21 bar and Q_gas_actual ≈ 0.08 mL/min the gas holdup is unmeasured; if the gas-liquid separator fails to disengage or the BPR chatters, pressurised H2 can reach the atmospheric-rated (1 bar) collection vessel, creating an explosive atmosphere in a grounded but open vessel",
+      "severity": 10,
+      "likelihood": 3,
+      "RPN": 30,
+      "mitigation": "Confirm gas-liquid separator (max 25 bar) is upstream of BPR and vented to a dedicated H2 safe-vent line; verify collection vessel is downstream of BPR at ≤1 bar; install H2 gas detector at separator vent; do not open collector during run"
+    },
+    {
+      "rank": 3,
+      "mode": "Oxygen ingress causing pyrophoric catalyst ignition on shutdown or bed opening",
+      "cause": "Pd(OH)2/Al2O3 (Pearlman's catalyst) is O2-sensitive; residual methanol solvent in the bed at 60 °C combined with air admission during column disassembly can cause rapid oxidation/ignition of finely divided Pd; the system has no inline O2 monitor and no degasser",
+      "severity": 9,
+      "likelihood": 4,
+      "RPN": 36,
+      "mitigation": "Purge with N2 (gas_n2_cylinder) at ≥5 bed volumes before any line opening; cool bed to <30 °C under N2 before disassembly; confirm O2 <100 ppm at vent with portable O2 sensor before breaking any fitting"
+    }
+  ],
+  "single_points_of_failure": [
+    "BPR valve (bpr_h2_21) — sole pressure-control device; blockage by catalyst fines stops all flow and causes uncontrolled pressure build-up; no redundant pressure-relief path is listed in inventory",
+    "MFC (mfc_h2_100) — sole H2 flow-control device; failure open delivers unmetered H2; failure closed starves reaction and may cause pump cavitation on methanol at 60 °C",
+    "Check valve (safety_h2_check_valve) — sole device preventing liquid methanol backflow into H2 gas line and MFC; failure allows solvent ingress and potential pump damage or ignition source"
+  ],
+  "validation_experiments": [
+    "Hydraulic commissioning (no catalyst, no H2): pump methanol at Q=0.5 mL/min through the packed bed loaded with inert glass beads of representative particle size at 60 °C and 21 bar BPR; record inlet pressure every 30 s for 60 min; accept if ΔP is stable within ±0.5 bar and no fines appear in effluent — establishes baseline ΔP, confirms frit integrity, and validates that empty-tube proxy ΔP≈0 bar is physically reasonable before introducing H2",
+    "Gas-liquid separator and BPR functional test: introduce H2 via MFC at 1.4 sccm into methanol flow at 0.5 mL/min at 21 bar with catalyst bed replaced by inert packing; verify separator cleanly disengages gas to safe vent and liquid exits BPR at ≤1 bar; confirm H2 detector alarm threshold with controlled H2 release — validates single-point-of-failure BPR and separator before reactive run",
+    "N2 inert-purge qualification: with catalyst bed installed and system at ambient temperature, flow N2 at maximum available regulator pressure through all lines for 10 min; measure O2 concentration at separator vent until O2 <100 ppm for three consecutive readings — establishes minimum purge protocol required before H2 introduction and before any bed disassembly, directly addressing the pyrophoric ignition failure mode"
+  ]
+}

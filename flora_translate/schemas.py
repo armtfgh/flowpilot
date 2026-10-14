@@ -1099,9 +1099,12 @@ class ExecutableChemistryIdentity(BaseModel):
     protocol_sha256: str = Field(min_length=64, max_length=64)
     chemistry_plan_sha256: str = Field(min_length=64, max_length=64)
     authority_source: Literal[
-        "protocol_fact", "chemist_confirmed", "model_inference", "legacy_unavailable"
+        "protocol_fact", "protocol_evidence", "chemist_confirmed", "model_inference", "legacy_unavailable"
     ] = "model_inference"
     confirmed: bool = False
+    evidence_rule: str = ""
+    source_evidence: list[str] = Field(default_factory=list)
+    validation_issues: list[str] = Field(default_factory=list)
 
 
 class ExecutableSafetyControl(BaseModel):

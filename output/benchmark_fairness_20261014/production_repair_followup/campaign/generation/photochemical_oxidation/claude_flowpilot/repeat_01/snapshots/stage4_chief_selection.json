@@ -1,0 +1,159 @@
+{
+  "weighted_scores": [
+    {
+      "candidate_id": 1,
+      "combined": 0.8926,
+      "legacy_domain_combined": 0.899,
+      "domain_mean": 0.885,
+      "PVS": 0.845,
+      "chemistry": 0.82,
+      "kinetics": 0.72,
+      "fluidics": 1.0,
+      "safety": 1.0,
+      "geometry": 1.0,
+      "objective_boosted": "safety",
+      "disqualified": false,
+      "intensification_penalty_applied": false,
+      "enabled_scoring_agents": [
+        "chemistry",
+        "fluidics",
+        "kinetics",
+        "safety"
+      ]
+    },
+    {
+      "candidate_id": 2,
+      "combined": 0.8855,
+      "legacy_domain_combined": 0.8835,
+      "domain_mean": 0.8675,
+      "PVS": 0.8448,
+      "chemistry": 0.79,
+      "kinetics": 0.68,
+      "fluidics": 1.0,
+      "safety": 1.0,
+      "geometry": 1.0,
+      "objective_boosted": "safety",
+      "disqualified": false,
+      "intensification_penalty_applied": false,
+      "enabled_scoring_agents": [
+        "chemistry",
+        "fluidics",
+        "kinetics",
+        "safety"
+      ]
+    }
+  ],
+  "chief_data": {
+    "selected_candidate_id": 1,
+    "runner_up_ids": [
+      2
+    ],
+    "selection_justification": "Candidate 1 (τ = 2.0 min, Q_liquid = 0.5 mL/min) is selected as the first screening experiment. It achieves the higher combined score (0.893 vs 0.885), delivers ~2.5× residence-time reduction relative to the 5-min batch benchmark using the fixed 1.0 mL PFA photocoil, and operates at the maximum liquid pump rate within inventory bounds. The proposed flow advantage — enhanced gas–liquid kLa via segmented slug flow and improved photon penetration through the 1 mm ID coil — is a hypothesis consistent with the reaction class but is not experimentally demonstrated; this run is the screen that will test it. The 3.0 bar BPR is the only available setpoint and is accepted as a hardware constraint; the design envelope tool's 5.0 bar heuristic minimum is advisory and does not constitute a hard physical block for this reaction at these conditions.",
+    "selection_flag": "SCREEN",
+    "selection_rationale": "Candidate 1 wins with a combined score of 0.893 versus 0.885 for Candidate 2, a margin of 0.9% — within the 5% tiebreak band — so tiebreak criteria are applied. On safety and fluidics both score identically (1.000/1.000); the difference is driven by chemistry (0.820 vs 0.790) and kinetics (0.720 vs 0.680), reflecting that the shorter τ = 2.0 min at higher Q = 0.5 mL/min better matches the researcher objective of a practical first experiment with maximum throughput on fixed hardware. Candidate 2's longer τ = 2.5 min at Q = 0.4 mL/min is a valid alternative but offers no demonstrated advantage and lower productivity (600 vs 750 mg/h proxy). The researcher objective explicitly requests a first practical flow experiment, not an optimized one; Candidate 1's higher liquid flow rate makes it the more informative starting point for mapping the τ–conversion relationship. The most important remaining uncertainties are: (1) actual gas–liquid holdup and slug-flow regime establishment at the T-mixer under 3.0 bar BPR — the liquid-only hydraulic proxy is not validated for multiphase flow; and (2) whether the 420 nm, 1.5 W LED delivers sufficient photon flux through the 1 mm PFA coil to match or exceed the batch irradiation geometry at τ = 2.0 min. The first bench experiment should verify stable segmented-flow slug formation at the T-mixer outlet (visual or pressure-trace inspection) and confirm that the BPR holds steady at 3.0 bar before any reaction mixture is introduced.",
+    "weighted_scores": {
+      "id_1": {
+        "combined": 0.893,
+        "PVS": 0.845,
+        "domain": 0.899,
+        "chemistry": 0.82,
+        "kinetics": 0.72,
+        "fluidics": 1.0,
+        "safety": 1.0,
+        "geometry": 1.0
+      },
+      "id_2": {
+        "combined": 0.885,
+        "PVS": 0.845,
+        "domain": 0.883,
+        "chemistry": 0.79,
+        "kinetics": 0.68,
+        "fluidics": 1.0,
+        "safety": 1.0,
+        "geometry": 1.0
+      }
+    },
+    "resolved_tradeoffs": [
+      "id=1 vs id=2: Combined scores differ by 0.9% (within 5% tiebreak band). Tiebreak applied: (a) safety identical (1.000 = 1.000); (b) design fit to researcher objective favors id=1 — higher Q = 0.5 mL/min maximizes throughput on fixed 1.0 mL reactor, giving 750 mg/h proxy vs 600 mg/h; (c) id=1 τ = 2.0 min is the more aggressive first screen point, leaving id=2 (τ = 2.5 min) as a natural second data point in a τ-sweep.",
+      "BPR envelope flag: compute_design_envelope returned hard_minimum = 5.0 bar for both candidates, but the only available BPR is 3.0 bar. This heuristic is advisory; the inventory BPR is a real hardware item. The reaction does not require high-pressure O2 dissolution (air atmosphere, not pure O2 at elevated pressure). The 3.0 bar setpoint is accepted with a warning: multiphase pressure stability must be verified experimentally before concluding the BPR margin is adequate.",
+      "Gas flow distinction: Stream B MFC setpoint is 5.336 sccm at STP (273.15 K, 1.01325 bar). Pressure-corrected in-channel volumetric flow at 21 °C and 4.01325 bar absolute is 1.451 mL/min. These are not interchangeable; the MFC is programmed in sccm (STP), and the in-channel value is used only for holdup and velocity estimates.",
+      "Reactor volume consistency: V_R = 1.0 mL is the fixed inventory reactor (reactor_photo_100). Nominal liquid space time τ_liquid = V_R / Q_liquid = 1.0 / 0.5 = 2.0 min. This is the liquid-only space time; actual gas–liquid contact time is shorter and unmeasured due to unknown gas holdup."
+    ],
+    "overridden_concerns": [
+      {
+        "agent": "compute_design_envelope",
+        "concern": "BPR hard_minimum flagged at 5.0 bar; available BPR is 3.0 bar",
+        "override_reason": "The 5.0 bar figure is a tool-internal heuristic margin, not a physical constraint from the inventory or chemistry brief. The reaction is a photocatalytic thioether oxidation in acetonitrile at 21 °C using air (not pure O2 at elevated pressure). The 3.0 bar BPR is the only declared hardware setpoint and is physically present. Pressure stability must be verified experimentally; this is captured as a remaining uncertainty and the SCREEN flag is applied rather than EXECUTE."
+      }
+    ],
+    "remaining_uncertainties": [
+      "Gas–liquid holdup and slug-flow regime: the liquid-only hydraulic proxy (ΔP = 0.002 bar) does not account for multiphase slip, slug length, or gas consumption along the coil. Actual liquid contact time and O2 availability are unmeasured.",
+      "Photon flux adequacy: the 1.5 W, 420 nm LED irradiates a coil geometry; whether the photon dose delivered to the flowing stream in τ = 2.0 min matches the batch irradiation dose (5 min in a round-bottom flask) is not established. Photon penetration through 1 mm ID PFA is expected to be favorable but is unvalidated.",
+      "BPR pressure stability under two-phase flow: the 3.0 bar BPR setpoint is below the tool-heuristic 5.0 bar margin. Slug-flow pressure oscillations may cause instability; this must be assessed by pressure-trace monitoring during the solvent blank run.",
+      "Kinetic transfer from batch to flow: the τ_kinetics = 0.42 min estimate is inferred from the batch t90 ≈ 5 min with a 6× intensification factor applied for gas–liquid mass transfer enhancement. This is a class-typical hypothesis, not a measured flow rate constant."
+    ],
+    "requires_new_experiment": true,
+    "experiment_recommendation": "Step 1 — Solvent blank and flow stability check: Prime pump_photo_liquid with pure acetonitrile at Q = 0.5 mL/min. Set MFC mfc_air_10 to 5.34 sccm (STP). Set BPR bpr_photo_3 to 3.0 bar. Confirm stable pressure readout (±0.1 bar) and visually inspect T-mixer outlet for regular slug formation. Run for ≥ 5 × τ_liquid = 10 min before proceeding. Step 2 — Reaction run: Prepare stock solution of Fmoc-L-methionine (0.10 M) and 4,7-diphenyl-2,1,3-benzothiadiazole (0.010 M, 10 mol%) in acetonitrile. Switch pump_photo_liquid to reaction solution at Q = 0.5 mL/min. Activate 420 nm LED (light_photo_420) at 21 °C (controller_photo_thermostat). Collect output in amber vented vessel (collector_photo_100) after discarding the first 3 × τ_liquid = 6 min of eluent (transient). Collect steady-state fraction for ≥ 5 min. Step 3 — Analysis: Analyze by HPLC or LC-MS for Fmoc-methionine sulfoxide yield. Compare to batch benchmark (99% yield, 5 min). If yield < 80%, increase τ to 2.5 min (Q = 0.4 mL/min, Candidate 2) as the next data point.",
+    "design_envelope": {
+      "tau_range_min": [
+        1.4,
+        2.0,
+        2.6
+      ],
+      "Q_range_mL_min": [
+        0.35,
+        0.5,
+        0.65
+      ],
+      "d_range_mm": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "T_range_C": [
+        18.9,
+        21.0,
+        23.1
+      ],
+      "BPR_range_bar": [
+        3.0,
+        3.0,
+        3.0
+      ]
+    },
+    "final_consensus": {
+      "tau_min": 2.0,
+      "Q_mL_min": 0.5,
+      "d_mm": 1.0,
+      "V_R_mL": 1.0,
+      "L_m": 1.273,
+      "BPR_bar": 3.0,
+      "material": "PFA",
+      "X_estimated": 1.0,
+      "productivity_mg_h": 750.0
+    },
+    "pump_flowrates": [
+      {
+        "stream_label": "A",
+        "role": "substrate + photocatalyst (premixed liquid feed)",
+        "Q_mL_min": 0.5,
+        "derivation": "ṅ_limiting derived from liquid feed: Q_liquid × C_limiting = 0.500 mL/min × 0.10 mmol/mL = 0.0500 mmol/min. Stream A delivers Fmoc-L-methionine at 1.0 equiv and 4,7-diphenyl-2,1,3-benzothiadiazole at 10 mol% (0.010 M), both premixed in acetonitrile. Q_A = ṅ_lim × equiv / C_feed = 0.0500 × 1.0 / 0.100 = 0.500 mL/min. Pump: pump_photo_liquid (HPLC, max 1.0 mL/min). Within bounds.",
+        "C_feed_M": 0.1,
+        "molar_equiv": 1.0
+      },
+      {
+        "stream_label": "B",
+        "role": "air (O2 source) via MFC",
+        "Q_mL_min": 1.451,
+        "derivation": "ṅ_lim = 0.0500 mmol/min (from Stream A). O2 required = 1.0 equiv → ṅ_O2 = 0.0500 mmol/min. Air mole fraction of O2 = 0.21, so ṅ_air_total = 0.0500 / 0.21 = 0.2381 mmol/min. STP volumetric flow (273.15 K, 1.01325 bar): Q_STP = 0.2381 mmol/min × 22.4127 mL/mmol = 5.336 mL/min = 5.336 sccm → MFC setpoint = 5.34 sccm. Pressure-corrected in-channel flow at T = 21 °C = 294.15 K and P_abs = 3.0 + 1.01325 = 4.01325 bar: Q_in-channel = 5.336 sccm × (294.15/273.15) × (1.01325/4.01325) = 5.336 × 1.0769 × 0.2524 = 1.451 mL/min. MFC is programmed at 5.34 sccm (STP); 1.451 mL/min is the in-channel volumetric estimate only. MFC: mfc_air_10 (max 10.0 sccm). Within bounds.",
+        "C_feed_M": null,
+        "molar_equiv": 1.0
+      }
+    ],
+    "n_limiting_mmol_min": 0.05,
+    "Q_total_mL_min": 0.5,
+    "ask_expert": null,
+    "ask_expert_question": null
+  },
+  "disqualify_ids": []
+}

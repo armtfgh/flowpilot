@@ -1,0 +1,241 @@
+Independent content audit — fresh matched-JSON campaign
+
+Independent read-only content audit of six fresh matched-JSON outcomes. No replacement scores, no judge feedback, no source or frozen result edits, no API calls. Arithmetic is conditional where reference states are unspecified. Non-exhaustive; positive and adverse checks applied to both arms.
+
+Campaign: ablation_results/practical_input/claude_fair_bridge_20261014
+Status: complete_for_six_original_fresh_outputs; 6/6 outcomes reviewed.
+
+Interpretation: The shared final-output envelope was inserted into the scientific objective by the benchmark harness. All three fresh FlowPilot translation responses adopted that envelope, which the existing parser silently converted to defaults. Three immediately preceding practical FlowPilot responses and three original manuscript examples were flat and retained their scientific fields. This six-output campaign is therefore a format-confounded diagnostic, not a clean estimate of the architecture effect. Its outcomes and original scores must remain preserved; no favorable diagnostic reconstruction replaces them. A separately registered harness-only follow-up is required.
+
+Hydrogenolysis / One-shot
+Source: ablation_results/practical_input/claude_fair_bridge_20261014/generation/hydrogenolysis/claude_one_shot/repeat_01/result.json
+SHA256: ce835768f3dbd7cae87abdb7268d6d13058b4d744d2653439e82ace3b20f25b1
+Boundary: raw_proposal and response_envelope; normalized proposal not used as the generated answer
+
+Verified/supporting check — Topology preserves pressure boundary
+Quote: Assemble the flow train: pump → T-mixer → packed-bed reactor → BPR (21 bar) → gas-liquid separator → safe vent / liquid collector. Install the H2 check valve on the gas line before the T-mixer.
+BPR precedes the vented separator and atmospheric collector; gas-branch check valve is specified.
+
+Verified/supporting check — Nominal flow, feed and inventory arithmetic
+0.126 M x 0.1 mL/min = 0.0126 mmol/min substrate. 3/0.1 = 30 min gross liquid-volume index. Tube geometry pi*(4.35 mm)^2/4*200 mm = 2.972 mL, consistent with nominal 3 mL. Pump 0.1 mL/min is its declared minimum; 60 C and 21 bar match inventory.
+
+Verified/supporting check — Gas settings are feasible under the explicit audit assumption
+If standard gas is 273.15 K/1.01325 bar and operating pressure is 21 barg, 10 sccm becomes 0.561398 mL/min at 60 C. The meter setting is within 1–100 sccm; combined channel flow is about 0.6614 mL/min, below the mixer 5 mL/min limit. The raw answer does not explicitly give those reference-state numbers.
+
+Verified/supporting check — Collection schedule arithmetic closes
+Quote: Collect liquid effluent from the gas-liquid separator into the grounded vented 250 mL collection vessel (collector_h2_250). Discard the first 1.5 reactor volumes (≈ 45 min at 0.1 mL/min, ~4.5 mL) as a wash fraction to ensure steady state.
+1.5 x 3 mL / 0.1 mL/min = 45 min and 4.5 mL.
+
+H2-OS-EQUIV — internal numerical contradiction
+Fields: raw_proposal.streams[1].molar_equiv, raw_proposal.reasoning_per_field.gas_flow_sccm
+Quote: 1.0
+Quote: 10 sccm provides a 35:1 molar excess of H2 over substrate, ensuring H2 is not limiting. This is within the 1–100 sccm MFC range. Higher flows are possible but unnecessary for a first experiment.
+At nominal STP, (10/22.414)/(0.126*0.1) = 35.41 mol H2/mol substrate, agreeing with the approximately 35:1 narrative and contradicting stream molar_equiv=1.
+
+H2-OS-PRESSURE-TEST — procedure contradicts stated equipment limit
+Fields: raw_proposal.pre_reactor_steps[3], raw_proposal.safety_flags[4], input_inventory.pressure_controllers[0]
+Quote: Pressure-test the assembled system with N2 to 25 bar for 10 min. Check all fittings for leaks using leak-detection solution.
+Quote: Pressure-test with N2 before H2 introduction. Never exceed 21 bar at the BPR; system maximum is 40 bar.
+The instruction tests the assembled system at 25 bar. Its own instruction says never exceed 21 bar at the BPR, and the supplied BPR record lists max_pressure_bar=21. No isolation or alternative testing boundary is specified. The general claim that the whole system is rated to 40 bar also overgeneralizes component ratings.
+
+H2-OS-TIME-LABELS — reported indices and assumptions require distinction
+Fields: raw_proposal.residence_time_inlet_min, raw_proposal.residence_time_in_channel_min, raw_proposal.residence_time_basis
+Quote: Liquid-phase residence time = reactor_volume_mL / liquid_flow_rate_mL_min = 3.0 / 0.1 = 30 min. This is the interstitial liquid residence time assuming the full 3 mL tube volume is accessible to liquid; actual residence time will be shorter if bed void fraction < 1. Void fraction is unknown and assumed ~0.4 for a packed bed, giving an estimated true liquid residence time of ~12 min. Both values are reported; 30 min is the conservative upper bound used for scheduling.
+30 min is correctly V/Q_liquid. It is also placed in residence_time_inlet_min even though the instruction requests an inlet/STP gas distinction; the corresponding 3/(0.1+10) inlet-volume index is 0.29703 min. The stated 12 min uses an explicitly assumed 0.4 voidage and does not determine actual two-phase liquid holdup or tracer residence time. This is not a claim that the homogeneous channel index 4.53585 min is measured contact time.
+
+H2-OS-SAFETY-HARDWARE — required control not represented in supplied inventory
+Fields: raw_proposal.safety_flags[0], input_inventory.safety_accessories
+Quote: H2 is flammable and forms explosive mixtures with air (LEL 4 vol%). All operations must be conducted in a well-ventilated fume hood or dedicated H2-rated enclosure with continuous H2 leak detection.
+Continuous H2 leak detection and an H2-rated enclosure are required in this statement but neither appears in the supplied inventory; the assumption/gap should be explicit. This does not establish that the real laboratory lacks these controls.
+
+H2-OS-EVIDENCE — unverified literature/performance claims
+Fields: raw_proposal.literature_analogies
+Quote: Hydrogenolysis of benzhydryl-protected amines over Pd(OH)2/C in continuous flow has been reported at 20–50 bar H2, 25–60 °C, with residence times of 5–30 min giving 40–95% conversion depending on substrate and catalyst loading (e.g., Baxendale et al., Org. Lett. 2006; Ley group flow hydrogenation reviews). The present substrate and catalyst are analogous.
+Quote: Trickle-bed flow hydrogenation at 0.1–0.5 mL/min liquid flow with 5–20 sccm H2 in 2–5 mL packed beds is a standard first-experiment protocol for Pd-catalysed N-debenzylation in flow (ThalesNano H-Cube analogues; Cosford et al., J. Flow Chem. 2014).
+Quote: Batch-to-flow scale-down for Pd(OH)2/Al2O3 hydrogenolysis: batch 5 h → flow 10–30 min residence time typically gives 20–50% of batch conversion in a first experiment, consistent with the expected outcome here.
+These citations and quantitative conversion ranges were not checked against papers in this read-only audit. Treat them as unverified candidate assertions, not demonstrated precedents or grounds for asserting fabrication.
+
+Raw-versus-normalized serialization differences (raw answer remains authoritative):
+{"residence_time_min": {"raw": 30, "normalized": 4.535845}, "residence_time_inlet_min": {"raw": 30, "normalized": 0.29703}, "residence_time_in_channel_min": {"raw": 12, "normalized": 4.535845}}
+
+------------------------------------------------------------------------
+
+Hydrogenolysis / FlowPilot
+Source: ablation_results/practical_input/claude_fair_bridge_20261014/generation/hydrogenolysis/claude_flowpilot/repeat_01/result.json
+SHA256: c0c07dd0024a392906105edc60a130234af7803e0e3e0bcdf478cc9fa8058fd9
+Boundary: Actual final_design/result_report delivery. Blocked output is not replaced by a diagnostic candidate. Separate internal diagnostics explain failure only, and are not credited as a delivered executable design.
+
+Verified/supporting check — Delivery gate preserves failure status
+Final status is blocked, parameters are null, streams/stages/process graph/recipe/operations withheld. The report does not present the incomplete graph as an executable experiment.
+
+Verified/supporting check — Diagnostic gas and time arithmetic is internally coherent but unreleased
+Intermediate feed supplies 0.126*0.1=0.0126 mmol/min substrate; 1 sccm at its explicitly recorded 273.15 K/1.01325 bar reference gives 0.0446175 mmol/min H2 and 3.5411 equivalents. MFC minimum 1 sccm is respected. At 60 C and 22.01325 bar absolute gas flow is 0.0561398 mL/min; gross liquid index=30 min, inlet index=3/(0.1+1)=2.727273 min, homogeneous channel index=3/(0.1+0.0561398)=19.2135 min. None is proof of packed-bed holdup or conversion. These checks explain the provisional state, not credit for delivered instructions.
+
+H2-FP-DELIVERY — missing deliverable caused by lossy inventory mapping
+Fields: final_design.status, inventory_allocation.unresolved_requirements, diagnostic_topology.unit_operations[0].parameters, proposal.streams[0]
+Quote: {"requirement_id": "INV-PUMPS", "operation_id": "pump_a", "category": "pumps", "reason": "No available pumps item satisfies the required settings.", "criteria": {"equipment_id": "pump_h2_pilot", "flow_rate_mL_min": 0.1}}
+Quote: {"stream": "A", "contents": ["N-Diphenylmethylazetidin-3-ol (0.126 M, 1 equiv)"], "solvent": "", "flow_rate_mL_min": 0.1, "phase": "liquid", "gas_flow_sccm": null, "gas_flow_actual_mL_min": null, "molar_equiv": 1.0, "inventory_equipment_id": "pump_h2_pilot", "concentration_M": 0.126, "gas_reagent_mole_fraction": null, "inventory_assignment_status": "unresolved", "unresolved_inventory_category": "pumps"}
+Quote: ["N-Diphenylmethylazetidin-3-ol (N-diphenylmethylazetidin-3-ol, 0.126 M in methanol)", "Methanol"]
+The sole allocation failure is pump_a at 0.1 mL/min. The supplied pump is available, requested ID matches, 0.1 lies within 0.1–2 mL/min, the grid permits it, 21 bar is below its 40 bar rating, quantity is one and platform compatibility passes. Only _pump_material_compatible fails. Before mapping, this feed explicitly contains Methanol; after canonical solute rendering, contents contain only the full substrate name and solvent remains empty. The pump allowlist is [methanol,DMAOL]. Thus the failure reflects information loss at the mapper, not absent compatible hardware. An isolated unapplied patch and seven offline tests are saved under pump_material_repair. This does not change or rescore the blocked delivered result.
+
+H2-FP-INTERNAL-CONCENTRATION — diagnostic-only unresolved concentration inconsistency
+Fields: proposal.concentration_M, proposal.streams[0].concentration_M, proposal.decision_rationale
+Quote: top-level concentration_M=0.1; stream A concentration_M=0.126
+The intermediate candidate retains top-level 0.1 M versus 0.126 M in the actual feed. It is not a delivered executable recipe because release was blocked. A future repair should reconcile or clearly label aggregate/stream concentration rather than make these appear interchangeable.
+
+------------------------------------------------------------------------
+
+Photochemical oxidation / One-shot
+Source: ablation_results/practical_input/claude_fair_bridge_20261014/generation/photochemical_oxidation/claude_one_shot/repeat_01/result.json
+SHA256: 49fbed57478a0e5466e4a77ab6a31fd4ecd27d575f532f2ca3beea7e5010fb2d
+Boundary: raw_proposal; normalized proposal is not used as the generated answer
+
+Verified/supporting check — Chemical identity, stock ratio and available light preserved
+The named sulfide substrate, 10 mol% photocatalyst, acetonitrile and 420 nm/1.5 W light match the supplied facts; 0.010/0.100=0.10 photocatalyst/substrate. Feed at 0.16 mL/min carries 0.016 mmol/min substrate. One liquid pump plus an air MFC feeds the two-input mixer. Temperature21 C and selected1 mLcoil/3barBPR match inventory.
+
+Verified/supporting check — Outlet pressure boundary explicitly placed correctly
+Quote: PRESSURE: System operates at 3 bar. All components rated to ≥ 10 bar except the collection vessel (max 1.0 bar) and enclosure (max 1.0 bar); the gas-liquid separator must be positioned upstream of the collector and downstream of the BPR to ensure the collector sees only atmospheric pressure.
+Safety paragraph specifies gas-liquid separator downstream of BPR and upstream of atmospheric collector.
+
+Verified/supporting check — Stock stabilization arithmetic closes
+Quote: Allow system to reach steady state (≥ 3 reactor volumes ≈ 3 mL liquid throughput, ~19 min at 0.16 mL/min) before collecting product fraction.
+3mL/.16mL/min=18.75min, consistent with stated ~19min; this is a selected flushing quantity, not measured RTD.
+
+PHOTO-OS-GAS-VOLUME — contradictory gas-flow and pressure/time calculations
+Fields: raw_proposal.streams[1].gas_flow_actual_mL_min, raw_proposal.streams[1].gas_flow_notes, raw_proposal.reasoning_per_field.flow_rate_mL_min, raw_proposal.reasoning_per_field.residence_time_in_channel_min
+Quote: 0.04
+Quote: Inlet flow at STP: 0.80 sccm. At 3 bar absolute operating pressure the volumetric gas flow in-channel is approximately 0.80/3 ≈ 0.27 mL/min (STP-to-pressure correction). Gas-to-liquid volumetric ratio at inlet ≈ 0.80/0.16 = 5:1 (STP basis), giving a segmented (Taylor) flow regime in the 1 mm ID channel. This ratio is a first-pass estimate; it should be screened to ensure adequate O2 delivery without excessive gas holdup. MFC range: 0.1–10 sccm (equipment_id: mfc_air_10); 0.80 sccm is within range.
+Quote: Total flow = liquid (0.16) + gas-equivalent (0.04 mL/min at 3 bar) = 0.20 mL/min. Liquid flow rate 0.16 mL/min chosen so that liquid residence time in 1 mL coil ≈ 1/0.16 = 6.25 min, slightly above the 5 min batch time to account for any photon-flux differences.
+Quote: At 3 bar, gas volume fraction ≈ 0.80/(0.80 + 0.16×3×1000/1000) ≈ 0.80/(0.80+0.48) ≈ 0.625 at inlet, but after pressure correction the in-channel gas volumetric flow is 0.80/3 ≈ 0.267 mL/min. Liquid fraction of channel = 0.16/(0.16+0.267) ≈ 0.375. Liquid residence time = 1.0 mL × 0.375 / 0.16 mL/min ≈ 2.3 min. NOTE: This estimate is sensitive to the gas-liquid flow model; a simpler and more conservative estimate (liquid fills ~80% of channel at 3 bar) gives 1.0×0.80/0.16 = 5 min. The value 6.25 min reported uses the assumption that gas occupies ~20% of channel volume at operating pressure, giving liquid fraction 0.80 and residence time = 1.0×0.80/0.16 = 5.0 min ≈ 6.25 min with a 25% safety margin. Exact value requires experimental measurement; this is flagged as an assumption.
+The same 0.8sccm air is represented as 0.04mL/min in-channel in the field and sum, and ~0.267mL/min in prose at3bar absolute; these cannot both describe the same reference and operating conditions. Conditional on nominal STP273.15K/1.01325bar and the prose operating3bar absolute at21C, ideal-gas conversion gives0.291mL/min, not0.04. At3barg it is~0.2175mL/min. The narrative alternates20%gas/62.5%gas and2.3/5/6.25min. 1*.8/.16=5, not6.25; an arbitrary25%margin changes the proposed target rather than physical holdup. Actual two-phase RTD needs evidence. The inlet field5min also does not equal standard-flow index1/(.16+.8)=1.04167min.
+
+PHOTO-OS-OXYGEN — gas-equivalent contradiction and possible double-counting of dissolved gas
+Fields: raw_proposal.streams[1].molar_equiv, raw_proposal.reasoning_per_field.gas_flow_sccm
+Quote: 1.0
+Quote: 0.80 sccm chosen to give gas-to-liquid ratio of 5:1 at STP (0.80/0.16), which is typical for Taylor flow in 1 mm channels and provides excess O2 relative to stoichiometric requirement. Stoichiometric O2 needed: 0.10 M × 0.16 mL/min = 0.016 mmol/min; O2 in air at 0.80 sccm = 0.80×0.21/22400 mmol/mL × 1000 mL/L... = 0.80 sccm × 0.21 / 22.4 L/mol × 1000 = 0.0075 mmol/min. This is slightly below stoichiometric, suggesting the dissolved O2 in the liquid feed and the pressurised dissolution at 3 bar compensate. At 3 bar, O2 solubility in MeCN ≈ 3× atmospheric ≈ ~3 mM, providing an additional 0.16 mL/min × 0.003 mmol/mL = 0.00048 mmol/min. Total O2 supply may be marginal; screening higher air flow (1.5–2 sccm) is recommended if conversion is incomplete.
+At22.4mL/mmol nominal standard gas,0.8*.21/22.4=.0075mmol/min O2; divided by.016mmol/min substrate gives.46875O2equiv. Total-air equivalents are2.232, so molar_equiv=1 fits neither basis. The statement correctly notices possible oxygen shortage but pressure-driven dissolution of this same feed is not an independent source of additional oxygen; any independently pre-dissolved oxygen would need a documented feed concentration. For sulfide+1/2O2→sulfoxide, ideal net atom balance is0.5O2eq, not the1eq implicitly called stoichiometric here. These facts alone do not predict conversion.
+
+PHOTO-OS-TIME-SCREEN — proposed follow-up times are liquid-volume indices mislabeled as exposure
+Fields: raw_proposal.post_reactor_steps[2]
+Quote: If yield < 90%, screen residence time (increase to 7.5 and 10 min by reducing liquid flow rate to 0.13 and 0.10 mL/min respectively) and/or gas-to-liquid ratio.
+1/.13=7.692 and1/.10=10min are liquid-only gross-volume indices; with a continuing gas co-feed these do not establish7.5 or10min actual residence time. Proposed gas-flow changes would change the gas fraction as well.
+
+PHOTO-OS-EVIDENCE — unverified literature assertions
+Fields: raw_proposal.literature_analogies
+Quote: Plutschack et al., Chem. Rev. 2017, 117, 11796: general principles of gas-liquid Taylor flow in PFA microreactors for aerobic oxidations; 1 mm ID channels, BPR 3–5 bar for O2 dissolution.
+Quote: Rueping et al., Chem. Commun. 2012, 48, 2201: photocatalytic aerobic oxidations in continuous flow using visible-light photosensitisers; residence times 5–15 min in coil reactors.
+Quote: Garlets & Nguyen, Org. Lett. 2019 (and related): flow photochemistry with benzothiadiazole photocatalysts at 420 nm; direct translation of batch irradiation time to flow residence time as first approximation.
+Quote: Su et al., Org. Process Res. Dev. 2020: aerobic sulfoxidation in flow; air co-feed at 3 bar BPR; gas-to-liquid ratio 3–10:1 at STP for adequate O2 supply.
+Named precedents and quantitative ranges have not been verified against papers in this read-only audit. No assertion of fabrication or independent precedent validation is made.
+
+Raw-versus-normalized serialization differences (raw answer remains authoritative):
+{"residence_time_min": {"raw": 5.0, "normalized": 4.166667}, "residence_time_inlet_min": {"raw": 5.0, "normalized": 1.0}, "residence_time_in_channel_min": {"raw": 6.25, "normalized": 4.166667}}
+
+------------------------------------------------------------------------
+
+Photochemical oxidation / FlowPilot
+Source: ablation_results/practical_input/claude_fair_bridge_20261014/generation/photochemical_oxidation/claude_flowpilot/repeat_01/result.json
+SHA256: 7ba6d86e631b22839ff8b9ebe1a59565f38a378af2cc7e71cdcbd7c908503fc4
+Boundary: Actual executable final_design and non-input result_report only. Internal council, historical candidate rationales and input data are not substituted for missing delivered operating details.
+
+Verified/supporting check — Stock preparation and oxidant equivalents close
+Quote: mol O2 / mol limiting substrate; active gas mole fraction=0.21, from STP molar flow
+On10mL stock basis,1mmol substrate/.010L=.10M and.1mmol catalyst/.010L=.010M, preserving10mol%. Q=.01mL/min gives.001mmol/min substrate. Air.106727sccm/22.412722=.0047619mmol/min totalgas; O2 fraction.21 gives.001mmol/min and1activeO2equivalent. The explicit equivalent basis avoids confusing air with reactiveoxygen.
+
+Verified/supporting check — Numeric time indices and commissioning periods are explicitly distinguished
+1/(.01+.106727)=8.566998min inlet/STP index. With the delivered actualgas.029018mL/min,1/(.01+.029018)=25.6292min channel index;3*(1/.01)=300min nominal liquid-volume commissioning interval and1/.01=100min samplinginterval are correctly calculated. The instructions require measuredsteadycomposition/RTD instead of treating these indices as measured contacttimes.
+
+Verified/supporting check — Hardware limits and pressure boundary respected in displayed graph
+Liquid.01mL/min andair.106727sccm respect the pump/MFC minima. Reactor25C is a permitted inventory setting and3barBPR is available. Process edges putBPR before atmosphericcollector. Shielding/oxygenvent hazards are recognized and named inventory controls are identified.
+
+PHOTO-FP-LIGHT-MISSING — required reaction operating input absent despite executable status
+Fields: final_design.parameters.wavelength_nm, final_design.instrument_manifest, final_design.process_graph.topology.unit_operations, final_design.operating_procedure, result_report.stages[0].wavelength_nm
+Quote: wavelength_nm: null
+Quote: Use the declared interlocked light enclosure when one is available; otherwise verify equivalent laboratory-approved light shielding before irradiation.
+The protocol requires1.5W irradiation near420nm. Finaloutput contains no420nm value, no light_photo_420 assignment, no lamp operation and no irradiation-start instruction. The selected coil names photochemistry, and shielding is generic, but neither specifies the required energyinput. Presence of the lamp in the supplied inventory does not itself make it a selected/operated device. Finalcontract passes, so this is a genuine delivered omission missed by automated validation.
+
+PHOTO-FP-GAS-TEMPERATURE — minor state inconsistency in channel calculation
+Fields: final_design.parameters.temperature_C, final_design.streams[1].reasoning, final_design.parameters.residence_time_in_channel_min
+Quote: 25.0
+Quote: MFC inlet/STP flow=0.106727 sccm at 273.15 K and 1.01325 bar (22.412722 L/mol); pressure-corrected in-channel flow=0.0290177 mL/min at 21 deg C and 4.01325 bar absolute; total gas=0.0047619048 mmol/min, active O2=0.001 mmol/min (mole fraction 0.21); supplied=1 equiv O2 relative to limiting substrate.
+Selectedreactor temperature is25C, but the reported in-channel gasvolume is evaluated at21C. At the same4.01325barabsolute, correcting294.15K→298.15K givesgas~.0294123mL/min andhomogeneouschannelindex~25.3728min, ratherthan25.6292. A separatelydefined21Cinjection temperature could be appropriate at the inlet, but is not the25Creactor state used for an in-channelindex. Actualphaseholdup remains unmeasured.
+
+PHOTO-FP-VENT-TOPOLOGY — vent hardware listed but not placed on explicit process graph
+Fields: final_design.instrument_manifest, final_design.process_graph.topology.streams, final_design.safety.controls
+Quote: {"stream_id": "s5", "from_op": "bpr_1", "to_op": "collector_1", "stream_type": "gas_liquid", "connection_type": "process", "label": ""}
+Quote: Route oxygen-containing off-gas and solvent vapor to the declared compatible vent when one is available.
+The ventedseparator is attached as safety equipment, but processedges runBPR→collector directly. The instruction routesoffgas to a compatiblevent without locating separator relative toBPR/collector. This is a placement ambiguity, not a claim that a vent exists upstream of pressurecontrol or that the ventedcollector alone cannotfunction.
+
+PHOTO-FP-PROCEDURE-SPECIFICITY — procedure delegates unresolved operating details
+Fields: final_design.operating_procedure
+Quote: Define and rehearse the emergency feed-stop sequence.
+Quote: Stop reactive feeds, flush each compatible line, cool the reactor to a safe handling temperature, and isolate energy sources.
+Emergency feed-stopsequence and compatibleflushamount/duration are left for the operator to define. The finaloutput gives concrete feedpreparation and collectiontimes, but generic checklist instructions do not by themselves constitute a fully specified startup/shutdown program. No laboratoryfailure probability is inferred.
+
+------------------------------------------------------------------------
+
+CuAAC / One-shot
+Source: ablation_results/practical_input/claude_fair_bridge_20261014/generation/cuaac/claude_one_shot/repeat_01/result.json
+SHA256: 91bc2117e19b6272ddf64e145e36bac46eaed3ebe55453109d381c5b1142c114
+Boundary: raw_proposal with all narrative and stage_parameters retained; normalized serialization not used as the generated answer
+
+Verified/supporting check — Feed stoichiometry and catalyst placement preserved
+The liquid stock retains benzylazide0.25M andphenylacetylene0.275M, giving1.10equivalents. At.20mL/min these deliver.050/.055mmol/min. Cu/C stays in the assigned cartridge, not in the liquid stock. No separate mixer is introduced where none is available.
+
+Verified/supporting check — Gross-volume index and primary inventory settings close
+0.3mL/.2mL/min=1.5min gross packed-bed-volume index. The supplied cartridge is0.3mL, pump permits.1–3mL/min, heater permits150C, and BPR20bar matches its sole setpoint. The vented collector is explicitly downstream ofBPR.
+
+Verified/supporting check — Conditioning and collection calculations mostly close
+2mL/.2=10min conditioning,3*.3=.9mL discard and.9/.2=4.5min,10min*.2=2mL collected. The15min reagent step yields3mL, versus2.9mL described discard+collection; the0.1mL difference is consistent with approximate timing rather than necessarily a meaningful material loss.
+
+CU-OS-FLUSH — procedure/stage-table numerical contradiction
+Fields: raw_proposal.post_reactor_steps[3], raw_proposal.stage_parameters[3]
+Quote: Flush cartridge with 3 mL pure acetone at 150 °C, then cool to ambient before depressurising.
+Quote: {"stage": 4, "description": "Cartridge flush and cooldown", "temperature_C": 150, "flow_rate_mL_min": 0.2, "solvent": "acetone", "duration_min": 5, "BPR_bar": 20.0}
+The written flush is3mL at.2mL/min, requiring15min. The stage table instead allocates5min, delivering1mL. The operator has two different flush specifications.
+
+CU-OS-PACKED-BED-TIME — self-inconsistent void-volume explanation
+Fields: raw_proposal.residence_time_basis, raw_proposal.reasoning_per_field.residence_time_min
+Quote: reactor void volume estimated at ~50% of total cartridge volume (0.15 mL liquid void in 0.3 mL packed bed); nominal residence time = void_volume / flow_rate = 0.15 mL / 0.1 mL/min = 1.5 min. Total cartridge volume / flow_rate = 0.3/0.2 = 1.5 min used as conservative upper bound and reported value.
+Quote: Batch reaction: 3 min at 150 °C under microwave. Flow target: 1.5 min (conservative, using full cartridge volume / flow rate = 0.3 mL / 0.2 mL/min). Actual liquid void volume in a packed bed is ~50% of total, giving ~0.75 min true liquid residence time, but 1.5 min is used as the safe upper estimate to ensure adequate contact time for a first experiment.
+The basis paragraph calculates assumed0.15mL voidvolume/.1mL/min=1.5min, although the actual selected flow is.2mL/min. The later reasoning correctly calculates.15/.2=.75min. The displayed1.5min is valid as fullbedvolume/flow, but cannot simultaneously be the same50%-void liquid exposure. Neither assumed50%voidage nor a conservative upper index proves actual contacttime.
+
+CU-OS-UNLISTED-N2 — preparation requires unavailable-in-input gas supply
+Fields: raw_proposal.pre_reactor_steps[0], input_inventory.gas_hardware
+Quote: Prepare a single stock solution: dissolve benzyl azide (0.25 M) and phenylacetylene (0.275 M) in dry acetone in an amber vial; degas by sparging with N2 for 5 min.
+Quote: gas_hardware: []
+The mandatory5minN2sparge requires a nitrogen source that is not included in the supplied inventory, and this exception is not flagged as a required addition. This does not assert that the actual laboratory lacks nitrogen.
+
+CU-OS-EVIDENCE — unverified compatibility and literature certainty
+Fields: raw_proposal.mixing_order_reasoning, raw_proposal.safety_flags[5], raw_proposal.literature_analogies
+Quote: Both reagents are combined in the feed vial before the pump. This is safe at the concentrations used (0.25 M benzyl azide) because the solution is dilute and at ambient temperature prior to entering the heated zone. The Cu/C catalyst is heterogeneous and confined inside the cartridge, so no homogeneous copper species contacts the azide outside the reactor. Pre-mixing avoids the need for a second pump (only one HPLC pump is available) and eliminates any mixer dead-volume concerns.
+Quote: ASSUMPTION – AZIDE STABILITY IN ACETONE: Benzyl azide is stable in acetone at ambient temperature for the duration of the experiment (confirmed in literature). No decomposition expected in the feed vial.
+Premix stability and absence of solublecopper are expressed as confirmed rather than explicitly bounded assumptions. Named papers, vaporpressure and thermalstability claims were not independently verified in this audit, so they are not treated here as established evidence or as proven fabrications.
+
+------------------------------------------------------------------------
+
+CuAAC / FlowPilot
+Source: ablation_results/practical_input/claude_fair_bridge_20261014/generation/cuaac/claude_flowpilot/repeat_01/result.json
+SHA256: c1f5ad8605c290067f8d9c3ca67214adeadbe731ffcbf07cb0a8b7ead0940a23
+Boundary: Actual blocked final_design/result_report. Internal candidate and source model response are inspected only to diagnose release failure; neither substitutes for a delivered experiment.
+
+Verified/supporting check — Failed approval and allocation are exposed
+Final status is blocked, with no executable parameters, streams, graph, recipe or operating procedure. Cu/C remains identified as a stationary component, rather than a supplied liquid charge.
+
+Verified/supporting check — Intermediate stoichiometry and gross time are reconstructable but unreleased
+The diagnostic feed contains0.25M benzyl azide and0.275M phenylacetylene, which preserve1.1equivalents. At0.1mL/min these deliver0.025 and0.0275mmol/min;0.3mL cartridge/0.1mL/min=3min nominal empty-bed time. These are arithmetic checks of the incomplete candidate, not credit for a delivered recipe or evidence of conversion.
+
+CU-FP-NO-DELIVERABLE — no approved candidate and incomplete inventory allocation
+Fields: final_design.consistency.issues, inventory_allocation.unresolved_requirements
+Quote: [{"code": "FINAL-COUNCIL-NO-APPROVED-CANDIDATE", "message": "No candidate passed inventory realization; inspect the saved rejected candidates."}, {"code": "FINAL-DESIGN_REALIZATION_COMPLETE", "message": "Final validation failed: design_realization_complete."}, {"code": "FINAL-INVENTORY_TOPOLOGY_ASSIGNMENT_COMPLETE", "message": "Final validation failed: inventory_topology_assignment_complete."}, {"code": "FINAL-INVENTORY-ALLOCATION-INCOMPLETE", "message": "The process topology is not fully assigned to inventory."}]
+Quote: [{"requirement_id": "INV-PUMPS", "operation_id": "pump_a", "category": "pumps", "reason": "No available pumps item satisfies the required settings.", "criteria": {"equipment_id": "pump_xcube_hplc", "flow_rate_mL_min": 0.1}}]
+Two distinct failure classes are retained. No candidate passed inventory realization/council approval, and pump_a remains unassigned. The pump can supply0.1mL/min at20bar, but its only declared compatible medium is acetone. The intermediate feed explicitly includes acetone, while canonical topology contents retain only benzyl azide and phenylacetylene and leave solvent empty. This reproduces the same medium-loss mapper bug as H2. A pump-only repair does not by itself remove the separate missing-approval failure.
+
+CU-FP-DEFAULTED-SCIENTIFIC-INPUT — diagnostic evidence of a format-induced loss before review
+Fields: llm_events.jsonl:event2.response_text.proposal, proposal.temperature_C, proposal.concentration_M, proposal.streams[0].concentration_M
+Quote: Raw nested model proposal: temperature_C=150.0; flow_rate_mL_min=1.0; concentration_M=0.25; reactor_volume_mL=0.3.
+Quote: Post-parser diagnostic proposal: temperature_C=25.0; top-level concentration_M=0.1; feed A concentration_M=0.25.
+The original raw translation response is wrapped in a proposal envelope. Production parsing silently defaults fields at the envelope root instead of extracting the nested proposal. The resulting25C temperature is not evidence that the model chose room-temperature CuAAC. Later reconstruction restores .25/.275M feed components from chemistry, leaving .1M at top level. The loss is documented by an exact offline parser replay in wrapper_loss_comparison.json. No diagnostic numbers were substituted in scoring or final delivery.
+
+------------------------------------------------------------------------
+

@@ -1,0 +1,2118 @@
+{
+  "schema_version": "flowpilot_final_design_v2.0",
+  "status": "executable",
+  "parameters": {
+    "flow_rate_mL_min": 0.5,
+    "temperature_C": 21.0,
+    "concentration_M": 0.1,
+    "BPR_bar": 3.0,
+    "BPR_basis": "gauge",
+    "pressure_absolute_bar": 4.01325,
+    "reactor_type": "photochemical coil",
+    "tubing_material": "PFA",
+    "tubing_ID_mm": 1.0,
+    "wavelength_nm": 420.0,
+    "residence_time_basis_code": "inlet_stp",
+    "residence_time_basis": "inlet/STP apparent residence time",
+    "residence_time_basis_detail": "inlet/STP apparent residence time",
+    "reactor_volume_mL": 1.0,
+    "residence_time_min": 0.17134,
+    "residence_time_inlet_min": 0.17134,
+    "residence_time_in_channel_min": 0.512588
+  },
+  "stages": [],
+  "streams": [
+    {
+      "stream_label": "A",
+      "pump_role": "Liquid feed: substrate and photocatalyst solution delivered by HPLC pump to T-mixer",
+      "contents": [
+        "Fmoc-L-methionine (1.0 equiv, 0.10 M in acetonitrile)",
+        "4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%, 0.010 M in acetonitrile)",
+        "Acetonitrile"
+      ],
+      "solvent": "acetonitrile",
+      "concentration_M": 0.1,
+      "concentration_basis": "reference component: Fmoc-L-methionine",
+      "flow_rate_mL_min": 0.5,
+      "phase": "liquid",
+      "gas_flow_sccm": null,
+      "gas_flow_actual_mL_min": null,
+      "gas_reagent_mole_fraction": null,
+      "gas_active_species": "",
+      "gas_total_molar_flow_mmol_min": null,
+      "gas_active_molar_flow_mmol_min": null,
+      "gas_active_equivalents": null,
+      "molar_equiv": 1.0,
+      "molar_equiv_basis": "reference component: Fmoc-L-methionine",
+      "pump_equipment_id": "pump_photo_liquid",
+      "introduction_stage": 1,
+      "reasoning": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.5 mL/min; equiv=1, C=0.1 M; pump=pump_photo_liquid; concentration_basis=reference component: Fmoc-L-methionine; equiv_basis=reference component: Fmoc-L-methionine.",
+      "requirement_authority": "protocol_fact",
+      "source_evidence": [
+        "The frozen protocol or hard constraints explicitly require separate liquid feeds.",
+        "BATCH PROCEDURE\nFmoc-L-methionine (3.7 mmol, 1.0 equiv) and 4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%) were dissolved in acetonitrile at 0.10 M in a round-bottom flask."
+      ],
+      "accepted_requirement": true,
+      "separate_feed_required": true,
+      "feed_group": "ST1-LIQ-1"
+    },
+    {
+      "stream_label": "B",
+      "pump_role": "Gas feed: air delivered by MFC to T-mixer to establish Taylor flow with stream A",
+      "contents": [
+        "air"
+      ],
+      "solvent": "",
+      "concentration_M": null,
+      "concentration_basis": "",
+      "flow_rate_mL_min": 1.450886,
+      "phase": "gas",
+      "gas_flow_sccm": 5.336362,
+      "gas_flow_actual_mL_min": 1.450886,
+      "gas_reagent_mole_fraction": 0.21,
+      "gas_active_species": "O2",
+      "gas_total_molar_flow_mmol_min": 0.2380952380952381,
+      "gas_active_molar_flow_mmol_min": 0.05,
+      "gas_active_equivalents": 1.0,
+      "molar_equiv": 1.0,
+      "molar_equiv_basis": "mol O2 / mol limiting substrate; active gas mole fraction=0.21, from STP molar flow",
+      "pump_equipment_id": "mfc_air_10",
+      "introduction_stage": 1,
+      "reasoning": "MFC inlet/STP flow=5.33636 sccm at 273.15 K and 1.01325 bar (22.412722 L/mol); pressure-corrected in-channel flow=1.45089 mL/min at 21 deg C and 4.01325 bar absolute; total gas=0.23809524 mmol/min, active O2=0.05 mmol/min (mole fraction 0.21); supplied=1 equiv O2 relative to limiting substrate.",
+      "requirement_authority": "protocol_fact",
+      "source_evidence": [
+        "Batch protocol declares air as a reaction atmosphere or reagent gas."
+      ],
+      "accepted_requirement": true,
+      "separate_feed_required": true,
+      "feed_group": "ST1-GAS-AIR"
+    }
+  ],
+  "instrument_manifest": [
+    {
+      "equipment_id": "pump_photo_liquid",
+      "name": "Photochemistry HPLC pump",
+      "category": "pumps",
+      "quantity_used": 1,
+      "roles": [
+        "Pump A — Liquid feed: substrate and photocatalyst solution delivered by HPLC pump to T-mixer"
+      ],
+      "settings": [
+        {
+          "equipment_id": "pump_photo_liquid",
+          "flow_rate_mL_min": 0.5
+        }
+      ]
+    },
+    {
+      "equipment_id": "mfc_air_10",
+      "name": "Air mass-flow controller",
+      "category": "gas_hardware",
+      "quantity_used": 1,
+      "roles": [
+        "MFC B — Gas feed: air delivered by MFC to T-mixer to establish Taylor flow with stream A"
+      ],
+      "settings": [
+        {
+          "equipment_id": "mfc_air_10",
+          "gas": "air",
+          "flow_sccm": 5.336362
+        }
+      ]
+    },
+    {
+      "equipment_id": "mixer_photo_t",
+      "name": "PFA gas-liquid T-mixer",
+      "category": "mixers",
+      "quantity_used": 1,
+      "roles": [
+        "T-mixer"
+      ],
+      "settings": [
+        {
+          "input_count": 2,
+          "total_flow_mL_min": 0.5
+        }
+      ]
+    },
+    {
+      "equipment_id": "reactor_photo_100",
+      "name": "One milliliter PFA photocoil",
+      "category": "reactors",
+      "quantity_used": 1,
+      "roles": [
+        "PFA Photoreactor Coil"
+      ],
+      "settings": [
+        {
+          "equipment_id": null,
+          "volume_mL": 1.0,
+          "ID_mm": 1.0,
+          "temperature_C": 21.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "controller_photo_thermostat",
+      "name": "Photoreactor thermostat",
+      "category": "temperature_controllers",
+      "quantity_used": 1,
+      "roles": [
+        "Temperature Control 21 deg C"
+      ],
+      "settings": [
+        {
+          "temperature_C": 21.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "light_photo_420",
+      "name": "420 nm photochemistry LED",
+      "category": "light_sources",
+      "quantity_used": 1,
+      "roles": [
+        "LED 420 nm"
+      ],
+      "settings": [
+        {
+          "equipment_id": null,
+          "wavelength_nm": 420.0,
+          "temperature_C": 21.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "bpr_photo_3",
+      "name": "Photochemistry BPR",
+      "category": "pressure_controllers",
+      "quantity_used": 1,
+      "roles": [
+        "BPR"
+      ],
+      "settings": [
+        {
+          "pressure_bar": 3.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "separator_photo_gl",
+      "name": "Vented gas-liquid separator",
+      "category": "separators",
+      "quantity_used": 1,
+      "roles": [
+        "Phase Separator"
+      ],
+      "settings": [
+        {}
+      ]
+    },
+    {
+      "equipment_id": "collector_photo_100",
+      "name": "Amber vented collection vessel",
+      "category": "collectors",
+      "quantity_used": 1,
+      "roles": [
+        "Product Collection"
+      ],
+      "settings": [
+        {}
+      ]
+    },
+    {
+      "equipment_id": "tubing_photo_pfa_10",
+      "name": "PFA photoreactor coil tubing",
+      "category": "tubing",
+      "quantity_used": 1,
+      "roles": [
+        "reactor tubing"
+      ],
+      "settings": [
+        {
+          "material": "PFA",
+          "ID_mm": 1.0
+        }
+      ]
+    },
+    {
+      "equipment_id": "safety_photo_enclosure",
+      "name": "Interlocked photochemical enclosure and vent",
+      "category": "safety_accessories",
+      "quantity_used": 1,
+      "roles": [
+        "Safety control OXYGEN-ORGANIC-VENT",
+        "Safety control PHOTO-LIGHT-ENCLOSURE"
+      ],
+      "settings": []
+    }
+  ],
+  "process_graph": {
+    "schema_version": "flowpilot_executable_process_v1.0",
+    "topology": {
+      "topology_id": "translate",
+      "unit_operations": [
+        {
+          "op_id": "pump_a",
+          "op_type": "pump",
+          "label": "Pump A — Liquid feed: substrate and photocatalyst solution delivered by HPLC pump to T-mixer | Photochemistry HPLC pump",
+          "parameters": {
+            "stream": "A",
+            "contents": [
+              "Fmoc-L-methionine (0.1 M, 1 equiv)",
+              "4,7-diphenyl-2,1,3-benzothiadiazole (0.01 M, 10 mol%)"
+            ],
+            "solvent": "acetonitrile",
+            "flow_rate_mL_min": 0.5,
+            "phase": "liquid",
+            "gas_flow_sccm": null,
+            "gas_flow_actual_mL_min": null,
+            "molar_equiv": 1.0,
+            "inventory_equipment_id": "pump_photo_liquid",
+            "concentration_M": 0.1,
+            "gas_reagent_mole_fraction": null,
+            "inventory_item_id": "pump_photo_liquid",
+            "inventory_item_ids": [
+              "pump_photo_liquid"
+            ],
+            "instrument_name": "Photochemistry HPLC pump"
+          },
+          "required": true,
+          "rationale": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.5 mL/min; equiv=1, C=0.1 M; pump=pump_photo_liquid; concentration_basis=reference component: Fmoc-L-methionine; equiv_basis=reference component: Fmoc-L-methionine.",
+          "inventory_item_id": "pump_photo_liquid",
+          "inventory_item_ids": [
+            "pump_photo_liquid"
+          ],
+          "instrument_name": "Photochemistry HPLC pump",
+          "inventory_category": "pumps",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "pump_b",
+          "op_type": "mfc",
+          "label": "MFC B — Gas feed: air delivered by MFC to T-mixer to establish Taylor flow with stream A | Air mass-flow controller",
+          "parameters": {
+            "stream": "B",
+            "contents": [
+              "air"
+            ],
+            "solvent": "",
+            "flow_rate_mL_min": 1.450886,
+            "phase": "gas",
+            "gas_flow_sccm": 5.336362,
+            "gas_flow_actual_mL_min": 1.450886,
+            "molar_equiv": 1.0,
+            "inventory_equipment_id": "mfc_air_10",
+            "delivery_hardware": "MFC",
+            "concentration_M": null,
+            "gas_reagent_mole_fraction": 0.21,
+            "inventory_item_id": "mfc_air_10",
+            "inventory_item_ids": [
+              "mfc_air_10"
+            ],
+            "instrument_name": "Air mass-flow controller"
+          },
+          "required": true,
+          "rationale": "MFC inlet/STP flow=5.33636 sccm at 273.15 K and 1.01325 bar (22.412722 L/mol); pressure-corrected in-channel flow=1.45089 mL/min at 21 deg C and 4.01325 bar absolute; total gas=0.23809524 mmol/min, active O2=0.05 mmol/min (mole fraction 0.21); supplied=1 equiv O2 relative to limiting substrate.",
+          "inventory_item_id": "mfc_air_10",
+          "inventory_item_ids": [
+            "mfc_air_10"
+          ],
+          "instrument_name": "Air mass-flow controller",
+          "inventory_category": "gas_hardware",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "mixer_1",
+          "op_type": "mixer",
+          "label": "T-mixer | PFA gas-liquid T-mixer",
+          "parameters": {
+            "type": "T-mixer",
+            "material": "not specified",
+            "inventory_item_id": "mixer_photo_t",
+            "inventory_item_ids": [
+              "mixer_photo_t"
+            ],
+            "instrument_name": "PFA gas-liquid T-mixer"
+          },
+          "required": true,
+          "rationale": "Chemistry Plan mixing_order_reasoning: liquid stream A and gas stream B combined at PFA T-mixer (mixer_photo_t) immediately upstream of photocoil. This establishes Taylor (segmented) flow at the coil inlet, maximizing gas-liquid interfacial area throughout the entire 1 mL coil. Photocatalyst is not irradiated before O2 is present, avoiding unproductive excited-state quenching. BPR at 3 bar downstream increases dissolved O2 concentration via Henry's law.",
+          "inventory_item_id": "mixer_photo_t",
+          "inventory_item_ids": [
+            "mixer_photo_t"
+          ],
+          "instrument_name": "PFA gas-liquid T-mixer",
+          "inventory_category": "mixers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "reactor_1",
+          "op_type": "photoreactor",
+          "label": "PFA Photoreactor Coil | One milliliter PFA photocoil",
+          "parameters": {
+            "material": "PFA",
+            "ID_mm": 1.0,
+            "volume_mL": 1.0,
+            "Q_inlet_mL_min": 0.5,
+            "Q_liquid_mL_min": 0.5,
+            "Q_gas_sccm": 5.336362,
+            "Q_gas_actual_mL_min": 1.450886,
+            "temperature_C": 21.0,
+            "wavelength_nm": 420.0,
+            "residence_time_min": 0.17134,
+            "residence_time_basis": "inlet/STP apparent residence time",
+            "residence_time_inlet_min": 0.17134,
+            "residence_time_in_channel_min": 0.512588,
+            "reactor_type": "photochemical coil",
+            "inventory_item_id": "reactor_photo_100",
+            "inventory_item_ids": [
+              "reactor_photo_100"
+            ],
+            "instrument_name": "One milliliter PFA photocoil",
+            "light_instrument_name": "420 nm photochemistry LED",
+            "light_inventory_item_id": "light_photo_420",
+            "temperature_controller_name": "Photoreactor thermostat",
+            "temperature_controller_inventory_item_id": "controller_photo_thermostat"
+          },
+          "required": true,
+          "rationale": "Flow reactor",
+          "inventory_item_id": "reactor_photo_100",
+          "inventory_item_ids": [
+            "reactor_photo_100"
+          ],
+          "instrument_name": "One milliliter PFA photocoil",
+          "inventory_category": "reactors",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "heater_1",
+          "op_type": "heater",
+          "label": "Temperature Control 21 deg C | Photoreactor thermostat",
+          "parameters": {
+            "temperature_C": 21.0,
+            "inventory_item_id": "controller_photo_thermostat",
+            "inventory_item_ids": [
+              "controller_photo_thermostat"
+            ],
+            "instrument_name": "Photoreactor thermostat"
+          },
+          "required": true,
+          "rationale": "Active reactor temperature control",
+          "inventory_item_id": "controller_photo_thermostat",
+          "inventory_item_ids": [
+            "controller_photo_thermostat"
+          ],
+          "instrument_name": "Photoreactor thermostat",
+          "inventory_category": "temperature_controllers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "led_1",
+          "op_type": "led_module",
+          "label": "LED 420 nm | 420 nm photochemistry LED",
+          "parameters": {
+            "wavelength_nm": 420.0,
+            "inventory_item_id": "light_photo_420",
+            "inventory_item_ids": [
+              "light_photo_420"
+            ],
+            "instrument_name": "420 nm photochemistry LED"
+          },
+          "required": true,
+          "rationale": "Photoexcitation",
+          "inventory_item_id": "light_photo_420",
+          "inventory_item_ids": [
+            "light_photo_420"
+          ],
+          "instrument_name": "420 nm photochemistry LED",
+          "inventory_category": "light_sources",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "bpr_1",
+          "op_type": "bpr",
+          "label": "BPR | Photochemistry BPR",
+          "parameters": {
+            "pressure_bar": 3.0,
+            "inventory_item_id": "bpr_photo_3",
+            "inventory_item_ids": [
+              "bpr_photo_3"
+            ],
+            "instrument_name": "Photochemistry BPR"
+          },
+          "required": true,
+          "rationale": "Maintain liquid phase",
+          "inventory_item_id": "bpr_photo_3",
+          "inventory_item_ids": [
+            "bpr_photo_3"
+          ],
+          "instrument_name": "Photochemistry BPR",
+          "inventory_category": "pressure_controllers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "separator_1",
+          "op_type": "phase_separator",
+          "label": "Phase Separator | Vented gas-liquid separator",
+          "parameters": {
+            "phases": [
+              "gas",
+              "liquid"
+            ],
+            "inventory_item_id": "separator_photo_gl",
+            "inventory_item_ids": [
+              "separator_photo_gl"
+            ],
+            "instrument_name": "Vented gas-liquid separator"
+          },
+          "required": true,
+          "rationale": "Separate gas from the product-containing liquid.",
+          "inventory_item_id": "separator_photo_gl",
+          "inventory_item_ids": [
+            "separator_photo_gl"
+          ],
+          "instrument_name": "Vented gas-liquid separator",
+          "inventory_category": "separators",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "collector_1",
+          "op_type": "collector",
+          "label": "Product Collection | Amber vented collection vessel",
+          "parameters": {
+            "inventory_item_id": "collector_photo_100",
+            "inventory_item_ids": [
+              "collector_photo_100"
+            ],
+            "instrument_name": "Amber vented collection vessel"
+          },
+          "required": true,
+          "rationale": "Outlet",
+          "inventory_item_id": "collector_photo_100",
+          "inventory_item_ids": [
+            "collector_photo_100"
+          ],
+          "instrument_name": "Amber vented collection vessel",
+          "inventory_category": "collectors",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        }
+      ],
+      "streams": [
+        {
+          "stream_id": "s1",
+          "from_op": "pump_a",
+          "to_op": "mixer_1",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s2",
+          "from_op": "pump_b",
+          "to_op": "mixer_1",
+          "stream_type": "gas",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s3",
+          "from_op": "mixer_1",
+          "to_op": "reactor_1",
+          "stream_type": "gas_liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s4",
+          "from_op": "reactor_1",
+          "to_op": "bpr_1",
+          "stream_type": "gas_liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s5",
+          "from_op": "bpr_1",
+          "to_op": "separator_1",
+          "stream_type": "gas_liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s6",
+          "from_op": "separator_1",
+          "to_op": "collector_1",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        }
+      ],
+      "total_flow_rate_mL_min": 0.5,
+      "total_flow_rate_basis": "sum of liquid feeds at the outlet; reagent gas is reported separately",
+      "residence_time_min": 0.17134,
+      "reactor_volume_mL": 1.0,
+      "pid_description": "Pump A — Liquid feed: substrate and photocatalyst solution delivered by HPLC pump to T-mixer | Photochemistry HPLC pump -[liquid]-> T-mixer | PFA gas-liquid T-mixer | MFC B — Gas feed: air delivered by MFC to T-mixer to establish Taylor flow with stream A | Air mass-flow controller -[gas]-> T-mixer | PFA gas-liquid T-mixer | T-mixer | PFA gas-liquid T-mixer -[gas_liquid]-> PFA Photoreactor Coil | One milliliter PFA photocoil | PFA Photoreactor Coil | One milliliter PFA photocoil -[gas_liquid]-> BPR | Photochemistry BPR | BPR | Photochemistry BPR -[gas_liquid]-> Phase Separator | Vented gas-liquid separator | Phase Separator | Vented gas-liquid separator -[liquid]-> Product Collection | Amber vented collection vessel",
+      "literature_support": [],
+      "topology_confidence": "LOW",
+      "compilation_status": "inventory_assigned",
+      "inventory_schema_version": "flowpilot_lab_inventory_v3.0",
+      "inventory_sha256": "a21257e80d846b13d50f6585f504c757ef58a88ac91513801afdfaab545bde11",
+      "instrument_manifest": [
+        {
+          "equipment_id": "pump_photo_liquid",
+          "name": "Photochemistry HPLC pump",
+          "category": "pumps",
+          "quantity_used": 1,
+          "roles": [
+            "Pump A — Liquid feed: substrate and photocatalyst solution delivered by HPLC pump to T-mixer"
+          ],
+          "settings": [
+            {
+              "equipment_id": "pump_photo_liquid",
+              "flow_rate_mL_min": 0.5
+            }
+          ]
+        },
+        {
+          "equipment_id": "mfc_air_10",
+          "name": "Air mass-flow controller",
+          "category": "gas_hardware",
+          "quantity_used": 1,
+          "roles": [
+            "MFC B — Gas feed: air delivered by MFC to T-mixer to establish Taylor flow with stream A"
+          ],
+          "settings": [
+            {
+              "equipment_id": "mfc_air_10",
+              "gas": "air",
+              "flow_sccm": 5.336362
+            }
+          ]
+        },
+        {
+          "equipment_id": "mixer_photo_t",
+          "name": "PFA gas-liquid T-mixer",
+          "category": "mixers",
+          "quantity_used": 1,
+          "roles": [
+            "T-mixer"
+          ],
+          "settings": [
+            {
+              "input_count": 2,
+              "total_flow_mL_min": 0.5
+            }
+          ]
+        },
+        {
+          "equipment_id": "reactor_photo_100",
+          "name": "One milliliter PFA photocoil",
+          "category": "reactors",
+          "quantity_used": 1,
+          "roles": [
+            "PFA Photoreactor Coil"
+          ],
+          "settings": [
+            {
+              "equipment_id": null,
+              "volume_mL": 1.0,
+              "ID_mm": 1.0,
+              "temperature_C": 21.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "controller_photo_thermostat",
+          "name": "Photoreactor thermostat",
+          "category": "temperature_controllers",
+          "quantity_used": 1,
+          "roles": [
+            "Temperature Control 21 deg C"
+          ],
+          "settings": [
+            {
+              "temperature_C": 21.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "light_photo_420",
+          "name": "420 nm photochemistry LED",
+          "category": "light_sources",
+          "quantity_used": 1,
+          "roles": [
+            "LED 420 nm"
+          ],
+          "settings": [
+            {
+              "equipment_id": null,
+              "wavelength_nm": 420.0,
+              "temperature_C": 21.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "bpr_photo_3",
+          "name": "Photochemistry BPR",
+          "category": "pressure_controllers",
+          "quantity_used": 1,
+          "roles": [
+            "BPR"
+          ],
+          "settings": [
+            {
+              "pressure_bar": 3.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "separator_photo_gl",
+          "name": "Vented gas-liquid separator",
+          "category": "separators",
+          "quantity_used": 1,
+          "roles": [
+            "Phase Separator"
+          ],
+          "settings": [
+            {}
+          ]
+        },
+        {
+          "equipment_id": "collector_photo_100",
+          "name": "Amber vented collection vessel",
+          "category": "collectors",
+          "quantity_used": 1,
+          "roles": [
+            "Product Collection"
+          ],
+          "settings": [
+            {}
+          ]
+        },
+        {
+          "equipment_id": "tubing_photo_pfa_10",
+          "name": "PFA photoreactor coil tubing",
+          "category": "tubing",
+          "quantity_used": 1,
+          "roles": [
+            "reactor tubing"
+          ],
+          "settings": [
+            {
+              "material": "PFA",
+              "ID_mm": 1.0
+            }
+          ]
+        }
+      ]
+    },
+    "feeds": [
+      {
+        "operation_id": "pump_a",
+        "equipment_id": "pump_photo_liquid",
+        "stream_label": "A",
+        "phase": "liquid",
+        "contents": [
+          "Fmoc-L-methionine (0.1 M, 1 equiv)",
+          "4,7-diphenyl-2,1,3-benzothiadiazole (0.01 M, 10 mol%)"
+        ],
+        "solvent": "acetonitrile",
+        "flow_rate_mL_min": 0.5,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      },
+      {
+        "operation_id": "pump_b",
+        "equipment_id": "mfc_air_10",
+        "stream_label": "B",
+        "phase": "gas",
+        "contents": [
+          "air"
+        ],
+        "solvent": "",
+        "flow_rate_mL_min": null,
+        "gas_flow_sccm": 5.336362,
+        "gas_flow_actual_mL_min": 1.450886
+      }
+    ],
+    "stages": [
+      {
+        "stage_number": 1,
+        "reactor_operation_id": "reactor_1",
+        "reactor_equipment_id": "reactor_photo_100",
+        "mixer_operation_id": "mixer_1",
+        "mixer_equipment_id": "mixer_photo_t",
+        "temperature_C": 21.0,
+        "reactor_volume_mL": 1.0,
+        "residence_flow_mL_min": 5.836362,
+        "residence_time_min": 0.17134,
+        "residence_time_basis": "inlet/STP apparent residence time"
+      }
+    ],
+    "total_liquid_flow_mL_min": 0.5,
+    "total_reactor_volume_mL": 1.0,
+    "total_residence_time_min": 0.17134
+  },
+  "chemistry_identity": {
+    "reaction_name": "Photooxidation of Fmoc-L-methionine to Fmoc-L-methionine sulfoxide",
+    "reaction_class": "Photosensitized singlet oxygen oxidation of thioether",
+    "transformation_family": "oxidation",
+    "protocol_transformation_family": "oxidation",
+    "bond_formed": "S=O (sulfoxide)",
+    "bond_broken": "S lone pair → O–O bond of ¹O₂ (perepoxide/persulfoxide intermediate collapses to sulfoxide)",
+    "protocol_sha256": "329655f39a8277adb5099e38f08ba5accf1f7c59a41a1eb886cfedd72951753c",
+    "chemistry_plan_sha256": "f5201dc2775901dbbed87e6ded16dd0f568fe857c6ee11b2ba6cf4afcc2aec8c",
+    "authority_source": "protocol_evidence",
+    "confirmed": true,
+    "evidence_rule": "sulfide_to_matching_sulfoxide_v1",
+    "source_evidence": [
+      "Fmoc-L-methionine",
+      "air",
+      "Fmoc-methionine sulfoxide was formed in 99% yield."
+    ],
+    "validation_issues": []
+  },
+  "stream_components": [
+    {
+      "stream_label": "A",
+      "name": "Fmoc-L-methionine",
+      "role": "substrate (limiting reagent)",
+      "source_text": "Fmoc-L-methionine (1.0 equiv, 0.10 M in acetonitrile)",
+      "concentration_M": 0.1,
+      "molar_equiv": 1.0,
+      "loading_mol_pct": null,
+      "quantification_required": true,
+      "quantified": true,
+      "provenance": [
+        "component_text",
+        "chemistry_plan_or_component_text"
+      ]
+    },
+    {
+      "stream_label": "A",
+      "name": "4,7-diphenyl-2,1,3-benzothiadiazole",
+      "role": "photocatalyst",
+      "source_text": "4,7-diphenyl-2,1,3-benzothiadiazole (10 mol%, 0.010 M in acetonitrile)",
+      "concentration_M": 0.01,
+      "molar_equiv": null,
+      "loading_mol_pct": 10.0,
+      "quantification_required": true,
+      "quantified": true,
+      "provenance": [
+        "component_text",
+        "chemistry_plan_or_component_text"
+      ]
+    },
+    {
+      "stream_label": "A",
+      "name": "Acetonitrile",
+      "role": "solvent",
+      "source_text": "Acetonitrile",
+      "concentration_M": null,
+      "molar_equiv": null,
+      "loading_mol_pct": null,
+      "quantification_required": false,
+      "quantified": true,
+      "provenance": []
+    },
+    {
+      "stream_label": "B",
+      "name": "air",
+      "role": "stoichiometric oxidant (as ¹o₂ after sensitization)",
+      "source_text": "air",
+      "concentration_M": null,
+      "molar_equiv": 1.0,
+      "loading_mol_pct": null,
+      "quantification_required": true,
+      "quantified": true,
+      "provenance": [
+        "single_reactive_component_stream_equivalents",
+        "gas_stream_equivalents"
+      ]
+    }
+  ],
+  "stationary_components": [],
+  "decision_rationale": {
+    "residence_time_min": {
+      "text": "Calculation estimated τ = 0.8 min (range 0.6-1.2 min) for a 4.86 mL reactor at 0.5 mL/min total. Available reactor is fixed at 1 mL (reactor_photo_100 — only inventory option). At Q_liquid = 0.5 mL/min and Q_gas_STP = 0.5 sccm = 0.0083 mL/min, inlet/STP τ = 1.0 / 0.5083 = 1.97 min ≈ 2.0 min. This is slightly above the 1.2 min upper bound but is the minimum achievable with the 1 mL hardware constraint and pump minimum 0.01 mL/min. Analogy 1 (photoredox, 30 min) and Analogy 2 (photocatalytic C-H, 15 min) both used longer residence times for more demanding reactions — our fast singlet-O2 oxidation (99% in 5 min batch) supports shorter τ. 2 min is a conservative first experiment; reduce to 1 min by increasing Q_liquid to 1 mL/min if over-oxidation is observed.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "residence_time_min",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "residence_time_basis": {
+      "text": "Gas-liquid system (air MFC + liquid pump): O2 equivalents determined by inlet/STP MFC flow. Pressure-corrected in-channel time = τ_inlet × (P_atm / P_reactor) = 2.0 × (1/3) = 0.67 min reported as diagnostic only. Universal physics rule: residence_time_basis must be inlet/STP for all reagent-gas designs.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "residence_time_min",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "residence_time_inlet_min": {
+      "text": "Equal to residence_time_min = 2.0 min per inlet/STP basis definition.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "residence_time_min",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "residence_time_in_channel_min": {
+      "text": "Pressure-corrected diagnostic: 2.0 min × (1 bar / 3 bar) = 0.67 min. Gas compressed to 1/3 volume at 3 bar BPR. Reported for hydrodynamic reference only.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "residence_time_min",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "flow_rate_mL_min": {
+      "text": "Total liquid flow = 0.5 mL/min (stream A only; stream B is gas). Chosen to give ~2 min inlet/STP residence time in 1 mL reactor. Within pump_photo_liquid range (0.01-1.0 mL/min). Calculation used Q_total = 0.5 mL/min. Analogy 2 used 0.08 mL/min for 1.2 mL reactor (15 min τ) — our faster reaction allows higher flow rate.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "flow_rate_mL_min",
+        "concentration_M",
+        "reactor_volume_mL"
+      ],
+      "status": "conditions_preserved",
+      "changed_dependencies": [],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "temperature_C": {
+      "text": "Protocol specifies 21°C. Chemistry Plan confirms temperature_C = 21.0. Thermostat (controller_photo_thermostat) set to 21°C. Reactor allowed temperatures include 21°C. No thermal advantage needed — singlet O2 oxidation is fast at ambient temperature. Analogy 1 (25°C) and Analogy 2 (not specified) are consistent with ambient operation.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "BPR_basis"
+      ],
+      "status": "conditions_preserved",
+      "changed_dependencies": [],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "BPR_bar": {
+      "text": "Calculation Step 8: BPR REQUIRED for gas-liquid system. Only available BPR is bpr_photo_3 at fixed 3.0 bar. Chemistry Plan: BPR maintains elevated pressure to increase dissolved O2 via Henry's law. MeCN bp = 82°C >> 21°C operating temperature, so boiling prevention is not the primary driver but gas solubility enhancement is. 3.0 bar is the only inventory option and is appropriate.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "BPR_bar",
+        "temperature_C",
+        "BPR_basis"
+      ],
+      "status": "conditions_preserved",
+      "changed_dependencies": [],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "reactor_type": {
+      "text": "Inventory constraint: only reactor_photo_100 (irradiated PFA coil, 1 mL, 420 nm) available. Chemistry Plan specifies coil reactor. Analogy 3 used FEP tubing coil at 420 nm — chemically similar (same wavelength, photocatalytic oxidation in MeCN). PFA is transparent to 420 nm light (photochemistry rule).",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "residence_time_min",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "tubing_material": {
+      "text": "PFA — inventory reactor_photo_100 is PFA. Chemistry Plan specifies PFA coil. Photochemistry rule: FEP/PFA preferred for visible light transparency. Analogy 3 used FEP (similar transparency). PFA compatible with acetonitrile per pump_photo_liquid compatible_materials.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "residence_time_min",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "tubing_ID_mm": {
+      "text": "Fixed by inventory: reactor_photo_100 ID = 1.0 mm. Chemistry Plan specifies 1 mm ID. Photochemistry rule: 0.5-2.0 mm recommended. Calculation used d = 1.00 mm. Re = 22.5 (laminar, well below 2300). Path length 0.5 mm (radius) ensures near-complete photon absorption.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "tubing_ID_mm",
+        "reactor_volume_mL"
+      ],
+      "status": "conditions_preserved",
+      "changed_dependencies": [],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "reactor_volume_mL": {
+      "text": "Fixed by inventory: reactor_photo_100 = 1.0 mL. Only available photoreactor. Calculation sized 4.86 mL but that reactor does not exist in inventory. 1 mL is the mandatory hardware constraint. Residence time adjusted accordingly.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "reactor_volume_mL",
+        "tubing_ID_mm"
+      ],
+      "status": "conditions_preserved",
+      "changed_dependencies": [],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "concentration_M": {
+      "text": "Protocol specifies 0.10 M Fmoc-L-methionine. Chemistry Plan confirms 0.10 M. Analogy 2 used 0.10 M in MeCN — directly applicable, same solvent and concentration. No adjustment needed.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "concentration_M"
+      ],
+      "status": "conditions_preserved",
+      "changed_dependencies": [],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "BPR_bar_check": {
+      "text": "Only setpoint available is 3.0 bar. Confirmed required by gas-liquid system. Calculation confirms 3.0 bar.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "residence_time_min",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "light_setup": {
+      "text": "Inventory: light_photo_420 (420 nm, 1.5 W LED) paired with reactor_photo_100 per equipment specification. Chemistry Plan wavelength_nm = 420 nm matching photocatalyst absorption maximum. Analogy 3 used 420 nm LED for photocatalytic oxidation in MeCN — directly applicable wavelength. Enclosure safety_photo_enclosure mandatory for O2-enriched organic stream.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "residence_time_min",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "wavelength_nm": {
+      "text": "420 nm — Chemistry Plan recommended_wavelength_nm = 420.0, matching 4,7-diphenyl-2,1,3-benzothiadiazole absorption maximum. Protocol specifies 420 nm LED. Inventory light_photo_420 = 420 nm. Analogy 3 used 420 nm. All sources consistent.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "residence_time_min",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "deoxygenation_method": {
+      "text": "Null — Chemistry Plan deoxygenation_required = false. O2 is the stoichiometric oxidant; deoxygenation would suppress the reaction entirely. Air is deliberately co-fed via MFC.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "residence_time_min",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "gas_flow_sccm": {
+      "text": "Starting point 0.5 sccm air (1:1 v/v gas:liquid at STP). MFC range 0.1-10 sccm. Calculation flags O2 transfer sufficiency = 0.19x — increase MFC to 2-5 sccm in subsequent experiments. Chemistry Plan notes gas equivalents are unresolved; 1:1 v/v is the deterministic screening starting point.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "residence_time_min",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "mixer_type": {
+      "text": "PFA T-mixer (mixer_photo_t) — only available mixer, max 2 inputs matching our 2-stream design. Chemistry Plan specifies T-mixer for Taylor flow establishment. Compatible with 1 mm ID tubing matching reactor and connector set.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "residence_time_min",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "chemistry_notes": {
+      "text": "Type II photosensitization: 4,7-diphenyl-2,1,3-benzothiadiazole absorbs 420 nm, ISC to T1, energy transfer to 3O2 generates 1O2, which oxidizes thioether sulfur of Fmoc-L-methionine to sulfoxide via persulfoxide intermediate. Key flow advantages: (1) 1 mm ID PFA coil gives ~4000 m-1 surface-to-volume ratio vs ~100 m-1 for flask, ensuring near-complete photon absorption within 0.5 mm path length; (2) Taylor flow from T-mixer dramatically increases kLa for O2 mass transfer (batch limitation identified by Chemistry Plan); (3) BPR at 3 bar increases dissolved O2 via Henry's law. Calculations flag Da = 92 (mass-transfer limited) and O2 transfer sufficiency = 0.19x — MFC flow rate should be increased stepwise (0.5 → 2 → 5 sccm) during optimization. Reactor volume is fixed at 1 mL (only available reactor). Residence time is constrained by available hardware: with 0.5 mL/min liquid and 1 mL reactor, inlet/STP apparent residence time = 1 mL / (0.5 + 0.5/1000 L equivalent) ≈ 2 min, slightly above the calculated 0.8 min target but within the 0.6-1.2 min range when accounting for the 1 mL hardware constraint. Incompatible pairs respected: air (not pure O2) used for safety with organic solvent; residence time kept short to avoid over-oxidation. Photocatalyst susceptible to slow photobleaching — monitor UV absorbance of collected fractions. Enclosure (safety_photo_enclosure) mandatory for O2-enriched organic stream + high-intensity light.",
+      "source": "model_proposed_scientific_rationale",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 2.0,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 2.0,
+        "residence_time_in_channel_min": 0.67,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "requires_review_after_parameter_change",
+      "changed_dependencies": [
+        "residence_time_min",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min"
+      ],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "council_selection": {
+      "text": "Candidate 1 wins with a combined score of 0.882 versus Candidate 2's 0.876, a margin of 0.7% — well within the 5% tiebreak threshold. Both candidates are identical in hardware (reactor_photo_100, 1.0 mm PFA, BPR 3.0 bar, 21°C) and share the same safety (0.820), fluidics (1.000), and geometry (1.000) scores; the differentiator is the domain score (0.875 vs 0.862) and chemistry score (0.870 vs 0.830), reflecting that Candidate 1's slightly higher liquid flow rate is more consistent with the class-analogy basis for this fast singlet-oxygen oxidation. The researcher objective is a practical first flow experiment, not a demonstrated optimum; Candidate 1 is selected because it offers the higher productivity proxy (750 vs 600 mg/h) at the same risk profile, making it the more informative starting screen. The 20× residence-time reduction mandate is explicitly a hypothesis: neither candidate achieves it (both achieve ~2.5× reduction), and the gap is driven by the fixed 1 mL reactor volume — the intensification target would require a reactor volume that does not exist in inventory. The two most important uncertainties a lab chemist must test are: (1) actual gas-liquid Taylor flow establishment and O₂ delivery efficiency at 3.0 bar BPR with air MFC at 5.34 sccm, since the hydraulic model is a liquid-only proxy with unresolved multiphase slip; and (2) actual conversion at τ_liquid=2.0 min, since the kinetic model is an unvalidated first-order analogy and Da_mass=91 indicates the reaction is not mass-transfer limited in the model but this has not been measured in flow. The first bench experiment should verify that stable Taylor-flow slug pattern is established visually or by pressure-trace inspection before any chemical sample is taken.",
+      "source": "council_selection",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 0.17134,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 0.17134,
+        "residence_time_in_channel_min": 0.512588,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "conditions_preserved",
+      "changed_dependencies": [],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    },
+    "council_selection_justification": {
+      "text": "Candidate 1 (τ=2.0 min, Q_liquid=0.5 mL/min) is selected as the first screening experiment. It carries the highest combined score (0.882 vs 0.876) and achieves a 2.5× residence-time reduction relative to the 5-min batch reference within the only available 1 mL photoreactor (reactor_photo_100). The primary researcher objective is to establish a practical first flow experiment; Candidate 1 delivers marginally higher throughput (750 mg/h proxy vs 600 mg/h) at identical hardware, safety, and geometry scores. Both candidates share the same BPR (3.0 bar, the only inventory option), the same reactor, and the same unvalidated kinetic basis. The 20× intensification mandate is a hypothesis; neither candidate achieves it, and this is acknowledged — the screen is designed to measure actual gas-liquid contact, photon penetration, and conversion, not to assert intensification. Candidate 1 is selected as the more productive starting point for that measurement.",
+      "source": "council_selection",
+      "parameter_snapshot": {
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "concentration_M": 0.1,
+        "flow_rate_mL_min": 0.5,
+        "reactor_volume_mL": 1.0,
+        "tubing_ID_mm": 1.0,
+        "residence_time_min": 0.17134,
+        "wavelength_nm": 420.0,
+        "residence_time_basis": "inlet_stp",
+        "residence_time_inlet_min": 0.17134,
+        "residence_time_in_channel_min": 0.512588,
+        "BPR_basis": "gauge"
+      },
+      "dependencies": [
+        "temperature_C",
+        "BPR_bar",
+        "concentration_M",
+        "flow_rate_mL_min",
+        "reactor_volume_mL",
+        "tubing_ID_mm",
+        "residence_time_min",
+        "wavelength_nm",
+        "residence_time_basis",
+        "residence_time_inlet_min",
+        "residence_time_in_channel_min",
+        "BPR_basis"
+      ],
+      "status": "conditions_preserved",
+      "changed_dependencies": [],
+      "authority": "scientific rationale; not an independent validation of chemistry or safety"
+    }
+  },
+  "safety": {
+    "hazards": [
+      "high_intensity_light",
+      "oxygen_organic_service",
+      "pressurized_operation"
+    ],
+    "controls": [
+      {
+        "control_id": "GENERAL-PPE-CONTAINMENT",
+        "category": "general",
+        "description": "Use the laboratory-approved PPE and containment for every declared reagent.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:GENERAL-PPE-CONTAINMENT"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "GENERAL-EMERGENCY-STOP",
+        "category": "emergency",
+        "description": "Define and rehearse the emergency feed-stop sequence.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:GENERAL-EMERGENCY-STOP"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "GENERAL-WASTE",
+        "category": "waste",
+        "description": "Segregate and label all process and flush waste by hazard class.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:GENERAL-WASTE"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "PRESSURE-LEAK-TEST",
+        "category": "pressure",
+        "description": "Leak- and pressure-test the assembled system before reagent introduction.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:PRESSURE-LEAK-TEST"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "PRESSURE-OVERPRESSURE-RESPONSE",
+        "category": "pressure",
+        "description": "Define blockage and overpressure response without opening a pressurized line.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:PRESSURE-OVERPRESSURE-RESPONSE"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "PRESSURE-DEPRESSURIZE",
+        "category": "pressure",
+        "description": "Cool and depressurize through the controlled outlet before opening the system.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:PRESSURE-DEPRESSURIZE"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "PHOTO-LIGHT-ENCLOSURE",
+        "category": "photochemical",
+        "description": "Use the declared interlocked light enclosure when one is available; otherwise verify equivalent laboratory-approved light shielding before irradiation.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:PHOTO-LIGHT-ENCLOSURE",
+          "inventory:safety_photo_enclosure"
+        ],
+        "equipment_ids": [
+          "safety_photo_enclosure"
+        ]
+      },
+      {
+        "control_id": "OXYGEN-ORGANIC-IGNITION-CONTROL",
+        "category": "oxygen",
+        "description": "Exclude ignition sources and minimize oxygen-containing organic holdup.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:OXYGEN-ORGANIC-IGNITION-CONTROL"
+        ],
+        "equipment_ids": []
+      },
+      {
+        "control_id": "OXYGEN-ORGANIC-VENT",
+        "category": "oxygen",
+        "description": "Route oxygen-containing off-gas and solvent vapor to the declared compatible vent when one is available.",
+        "required": true,
+        "satisfied": true,
+        "evidence": [
+          "procedure:OXYGEN-ORGANIC-VENT",
+          "inventory:collector_photo_100",
+          "inventory:safety_photo_enclosure",
+          "inventory:separator_photo_gl"
+        ],
+        "equipment_ids": [
+          "collector_photo_100",
+          "safety_photo_enclosure",
+          "separator_photo_gl"
+        ]
+      }
+    ],
+    "complete": true,
+    "missing_control_ids": []
+  },
+  "operating_procedure": [
+    {
+      "step_id": "PREP-A",
+      "section": "preparation",
+      "instruction": "Prepare Stream A: on a 10 mL final-volume basis, charge Fmoc-L-methionine: 1 mmol (0.1 M final); 4,7-diphenyl-2,1,3-benzothiadiazole: 0.1 mmol (0.01 M final); add acetonitrile to 10 mL total. Convert mmol to weighed/dispensed amount using the verified reagent MW, assay, and density recorded at preparation.",
+      "required": true,
+      "equipment_ids": [
+        "pump_photo_liquid"
+      ],
+      "parameter_bindings": {
+        "stream_label": "A",
+        "flow_rate_mL_min": 0.5,
+        "gas_flow_sccm": null
+      }
+    },
+    {
+      "step_id": "PREP-B",
+      "section": "preparation",
+      "instruction": "Prepare Stream B: connect air to the assigned MFC at 5.33636 mL/min at STP on the declared STP basis (273.15 K, 1.01325 bar; 22.414 L/mol); no liquid stock is prepared.",
+      "required": true,
+      "equipment_ids": [
+        "mfc_air_10"
+      ],
+      "parameter_bindings": {
+        "stream_label": "B",
+        "flow_rate_mL_min": 1.450886,
+        "gas_flow_sccm": 5.336362
+      }
+    },
+    {
+      "step_id": "SETUP-VERIFY",
+      "section": "setup",
+      "instruction": "Assemble only the inventory-assigned process graph and verify every equipment ID and connection against the final diagram.",
+      "required": true,
+      "equipment_ids": [
+        "bpr_photo_3",
+        "collector_photo_100",
+        "controller_photo_thermostat",
+        "light_photo_420",
+        "mfc_air_10",
+        "mixer_photo_t",
+        "pump_photo_liquid",
+        "reactor_photo_100",
+        "separator_photo_gl"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "SETUP-PRIME",
+      "section": "startup",
+      "instruction": "Prime each liquid line with its declared solvent using its assigned pump until the outlet is bubble-free; do not introduce reactive feeds during priming.",
+      "required": true,
+      "equipment_ids": [
+        "pump_photo_liquid"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PRESSURE-LEAK-TEST",
+      "section": "startup",
+      "instruction": "Pressure-test with compatible inert fluid to the approved operating setpoint of 3 bar and verify stable pressure before reagents.",
+      "required": true,
+      "equipment_ids": [
+        "bpr_photo_3",
+        "collector_photo_100",
+        "controller_photo_thermostat",
+        "light_photo_420",
+        "mfc_air_10",
+        "mixer_photo_t",
+        "pump_photo_liquid",
+        "reactor_photo_100",
+        "separator_photo_gl"
+      ],
+      "parameter_bindings": {
+        "BPR_bar": 3.0
+      }
+    },
+    {
+      "step_id": "GENERAL-PPE-CONTAINMENT",
+      "section": "setup",
+      "instruction": "Use the laboratory-approved PPE and containment for every declared reagent.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "GENERAL-EMERGENCY-STOP",
+      "section": "emergency",
+      "instruction": "Define and rehearse the emergency feed-stop sequence.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "GENERAL-WASTE",
+      "section": "waste",
+      "instruction": "Segregate and label all process and flush waste by hazard class.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PRESSURE-OVERPRESSURE-RESPONSE",
+      "section": "emergency",
+      "instruction": "Define blockage and overpressure response without opening a pressurized line.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PRESSURE-DEPRESSURIZE",
+      "section": "shutdown",
+      "instruction": "Cool and depressurize through the controlled outlet before opening the system.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "PHOTO-LIGHT-ENCLOSURE",
+      "section": "setup",
+      "instruction": "Use the declared interlocked light enclosure when one is available; otherwise verify equivalent laboratory-approved light shielding before irradiation.",
+      "required": true,
+      "equipment_ids": [
+        "safety_photo_enclosure"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "OXYGEN-ORGANIC-IGNITION-CONTROL",
+      "section": "setup",
+      "instruction": "Exclude ignition sources and minimize oxygen-containing organic holdup.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "OXYGEN-ORGANIC-VENT",
+      "section": "setup",
+      "instruction": "Route oxygen-containing off-gas and solvent vapor to the declared compatible vent when one is available.",
+      "required": true,
+      "equipment_ids": [
+        "collector_photo_100",
+        "safety_photo_enclosure",
+        "separator_photo_gl"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "START-FEEDS",
+      "section": "startup",
+      "instruction": "Start liquid feeds at the canonical setpoints. Admit gas only after liquid flow, temperature, pressure, purge, and vent checks are stable.",
+      "required": true,
+      "equipment_ids": [
+        "pump_photo_liquid",
+        "mfc_air_10"
+      ],
+      "parameter_bindings": {
+        "A": {
+          "equipment_id": "pump_photo_liquid",
+          "flow_rate_mL_min": 0.5,
+          "gas_flow_sccm": null,
+          "gas_flow_actual_mL_min": null
+        },
+        "B": {
+          "equipment_id": "mfc_air_10",
+          "flow_rate_mL_min": null,
+          "gas_flow_sccm": 5.336362,
+          "gas_flow_actual_mL_min": 1.450886
+        }
+      }
+    },
+    {
+      "step_id": "STEADY-STATE",
+      "section": "steady_state",
+      "instruction": "Allow an initial commissioning interval of at least 6 min, based on three nominal liquid-volume turnovers. Confirm steady outlet composition and stable flow, pressure and temperature before collection; elapsed time alone does not establish steady state. Measure phase holdup or tracer response when gas or a packed bed is present.",
+      "required": true,
+      "equipment_ids": [
+        "bpr_photo_3",
+        "collector_photo_100",
+        "controller_photo_thermostat",
+        "light_photo_420",
+        "mfc_air_10",
+        "mixer_photo_t",
+        "pump_photo_liquid",
+        "reactor_photo_100",
+        "separator_photo_gl"
+      ],
+      "parameter_bindings": {
+        "residence_time_min": 0.17134,
+        "minimum_initial_stabilization_time_min": 6.0,
+        "timing_reference_min": 2.0,
+        "steady_state_requires_measurement": true,
+        "residence_time_basis": "inlet/STP apparent residence time"
+      }
+    },
+    {
+      "step_id": "COLLECT-PRODUCT",
+      "section": "collection",
+      "instruction": "After measured steady state, collect a timed fraction over at least 2 min as an initial sampling interval; record exact start/end times and collected mass or volume. Extend collection if needed for the analytical method.",
+      "required": true,
+      "equipment_ids": [
+        "separator_photo_gl",
+        "collector_photo_100"
+      ],
+      "parameter_bindings": {
+        "minimum_initial_collection_time_min": 2.0
+      }
+    },
+    {
+      "step_id": "COLLECT-ANALYZE-WORKUP",
+      "section": "collection",
+      "instruction": "Collect the crude outlet in the assigned vessel and retain a labeled aliquot for conversion, selectivity, and yield analysis. This first screen ends at crude collection; no isolation work-up is authorized unless the chemist adds a confirmed downstream procedure to the intake package.",
+      "required": true,
+      "equipment_ids": [
+        "separator_photo_gl",
+        "collector_photo_100"
+      ],
+      "parameter_bindings": {}
+    },
+    {
+      "step_id": "NORMAL-SHUTDOWN",
+      "section": "shutdown",
+      "instruction": "Stop reactive feeds, flush each compatible line, cool the reactor to a safe handling temperature, and isolate energy sources.",
+      "required": true,
+      "equipment_ids": [],
+      "parameter_bindings": {}
+    }
+  ],
+  "validation_experiments": [
+    {
+      "experiment_id": "VAL-HYDRAULIC-BASELINE",
+      "purpose": "Verify hydraulic stability at the final operating point before chemistry collection.",
+      "procedure": "Run compatible blank solvent at Q=0.5 mL/min, T=21.0 C, and BPR=3 bar for at least 10 min; record flow, temperature, pressure, leaks, and blockage indicators.",
+      "equipment_ids": [
+        "bpr_photo_3",
+        "collector_photo_100",
+        "controller_photo_thermostat",
+        "light_photo_420",
+        "mfc_air_10",
+        "mixer_photo_t",
+        "pump_photo_liquid",
+        "reactor_photo_100",
+        "separator_photo_gl"
+      ],
+      "parameter_bindings": {
+        "flow_rate_mL_min": 0.5,
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "duration_min": 10
+      }
+    },
+    {
+      "experiment_id": "VAL-RTD",
+      "purpose": "Measure the residence-time distribution and phase holdup at the operating point.",
+      "procedure": "Introduce a compatible nonreactive tracer at Q=0.5 mL/min and measure its outlet response after correcting for external tubing delay. Report the measured mean, dispersion and liquid holdup separately from the calculated 0.17134 min index (inlet/STP apparent residence time); do not require agreement with an STP turnover index.",
+      "equipment_ids": [
+        "bpr_photo_3",
+        "collector_photo_100",
+        "controller_photo_thermostat",
+        "light_photo_420",
+        "mfc_air_10",
+        "mixer_photo_t",
+        "pump_photo_liquid",
+        "reactor_photo_100",
+        "separator_photo_gl"
+      ],
+      "parameter_bindings": {
+        "flow_rate_mL_min": 0.5,
+        "calculated_residence_time_min": 0.17134,
+        "residence_time_basis": "inlet/STP apparent residence time"
+      }
+    },
+    {
+      "experiment_id": "VAL-FIRST-SCREEN",
+      "purpose": "Generate the first wet-lab response at the exact canonical design point.",
+      "procedure": "Execute the canonical operating procedure once and report conversion, isolated yield, selectivity, pressure trace, temperature trace, and any phase or blockage observations.",
+      "equipment_ids": [
+        "bpr_photo_3",
+        "collector_photo_100",
+        "controller_photo_thermostat",
+        "light_photo_420",
+        "mfc_air_10",
+        "mixer_photo_t",
+        "pump_photo_liquid",
+        "reactor_photo_100",
+        "separator_photo_gl"
+      ],
+      "parameter_bindings": {
+        "flow_rate_mL_min": 0.5,
+        "temperature_C": 21.0,
+        "BPR_bar": 3.0,
+        "residence_time_min": 0.17134,
+        "reactor_volume_mL": 1.0
+      }
+    }
+  ],
+  "canonical_sha256": "0c46080f3e545c8f2482c05aa6c47b3b16527a5335bfe1b3f6e5433adf27563c",
+  "artifact_provenance": {
+    "authority": "deterministic_post_realization_compiler",
+    "intermediate_agent_text_is_executable": false,
+    "canonical_sha256": "0c46080f3e545c8f2482c05aa6c47b3b16527a5335bfe1b3f6e5433adf27563c"
+  },
+  "intensification": {
+    "policy": "evidence_first",
+    "target_factor": null,
+    "hypothesis_factor": 20.0,
+    "target_role": "not applied under evidence-first policy",
+    "realized_factor": 29.17,
+    "applied_as_hard_constraint": false,
+    "basis": "Predicted screening target: 20.0x residence-time reduction; this is a hypothesis unless the run explicitly selects the intensify policy. Identified batch limitations: mass_transfer_gas_liquid, photon_penetration. Primary flow advantage: mass_transfer. Mechanisms: gas-liquid kLa enhancement (segmented flow), photon penetration via small ID, selectivity-sensitive stream logic. Limitation-driven IF (20x) exceeds class default (6x)."
+  },
+  "consistency": {
+    "passed": true,
+    "issues": [],
+    "validation_checks": {
+      "design_realization_complete": true,
+      "reactor_inventory_match": true,
+      "pump_flow_feasible": true,
+      "stream_flow_closure": true,
+      "stoichiometric_flow_closure": true,
+      "pressure_inventory_match": true,
+      "tubing_feasible": true,
+      "geometry_closure": true,
+      "calculation_matches_serialized_design": true,
+      "gas_bookkeeping_complete": true,
+      "gas_time_basis_consistent": true,
+      "safety_contract_complete": true,
+      "topology_matches_serialized_design": true,
+      "inventory_topology_assignment_complete": true
+    },
+    "semantic_checks": {
+      "chemistry_identity_preserved": true,
+      "component_stoichiometry_complete": true,
+      "topology_phase_consistent": true,
+      "control_edges_not_in_process_path": true,
+      "safety_controls_complete": true,
+      "procedure_complete": true,
+      "no_unsupported_operations": true,
+      "diagram_matches_canonical_topology": true,
+      "residence_time_basis_unambiguous": true,
+      "gas_time_basis_consistent": true,
+      "mixing_regime_matches_topology": true,
+      "stationary_components_not_in_feeds": true,
+      "reagent_gas_delivery_unique": true,
+      "gas_composition_and_equivalent_closure": true
+    }
+  },
+  "diagnostic": {
+    "preliminary_candidate": {
+      "residence_time_min": 0.17134,
+      "residence_time_inlet_min": 0.17134,
+      "residence_time_in_channel_min": 0.512588,
+      "flow_rate_mL_min": 0.5,
+      "reactor_volume_mL": 1.0,
+      "source": "pre-final council/inventory candidate"
+    },
+    "stage_requirements": [],
+    "unresolved_inventory": [],
+    "message": "No executable final design exists. Values in this diagnostic section are unapproved intermediate calculations."
+  }
+}

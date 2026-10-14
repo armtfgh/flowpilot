@@ -1,0 +1,74 @@
+--- a/flora_translate/design_calculator.py
++++ b/flora_translate/design_calculator.py
+@@ -2723,17 +2723,6 @@
+         equations: list[str] = []
+         warnings: list[str] = []
+ 
+-        # Space-Time Yield:  STY = C₀ · X · 60 / τ_min  [mol/(L·h)]
+-        STY = None
+-        if tau_min > 0:
+-            STY = C0 * X * 60.0 / tau_min
+-            calc.space_time_yield_mol_L_h = round(STY, 4)
+-            equations.append(
+-                rf"STY = \frac{{C_0 \cdot X \cdot 60}}{{\tau}}"
+-                rf" = \frac{{{C0} \times {X:.2f} \times 60}}{{{tau_min:.1f}}}"
+-                rf" = {STY:.4f}\;\mathrm{{mol/(L \cdot h)}}"
+-            )
+-
+         # Productivity (backward):  P = Q · C₀ · X · 60  [mmol/h]
+         prod = None
+         if Q > 0:
+@@ -2743,6 +2732,21 @@
+                 rf"P = Q \cdot C_0 \cdot X \cdot 60"
+                 rf" = {Q:.3f} \times {C0} \times {X:.2f} \times 60"
+                 rf" = {prod:.3f}\;\mathrm{{mmol/h}}"
++            )
++
++        # STY uses total nominal reactor volume, not an STP/holdup time index.
++        # A feed concentration divided by V/(Q_liquid+Q_gas) would count gas
++        # volume as substrate throughput. Productivity and STY share the same
++        # assumed conversion; neither is an experimentally measured yield.
++        STY = None
++        calc.space_time_yield_mol_L_h = None
++        if prod is not None and V_mL > 0:
++            STY = prod / V_mL  # mmol/h per mL == mol/(L h)
++            calc.space_time_yield_mol_L_h = round(STY, 4)
++            equations.append(
++                rf"STY = \frac{{P_{{\mathrm{{conditional}}}}}}{{V_R}}"
++                rf" = \frac{{{prod:.6g}}}{{{V_mL:.6g}}}"
++                rf" = {STY:.4f}\;\mathrm{{mol/(L \cdot h)}}"
+             )
+ 
+         # ── Forward productivity path (ṅ_limiting method) ───────────────
+@@ -2848,7 +2852,8 @@
+             status="WARNING" if warnings else "PASS",
+             summary=", ".join(summary_parts),
+             values={
+-                "STY_mol_L_h": STY, "productivity_mmol_h": prod, "IF": IF,
++                "STY_mol_L_h": STY, "STY_volume_basis": "total nominal reactor volume",
++                "productivity_mmol_h": prod, "conversion_basis": "assumed target_conversion", "IF": IF,
+                 "n_molar_flow_mmol_min": calc.n_molar_flow_mmol_min,
+                 "P_batch_mmol_h": calc.P_batch_mmol_h,
+                 "P_flow_mmol_h": calc.P_flow_mmol_h,
+@@ -2864,6 +2869,7 @@
+             },
+             equations=equations,
+             warnings=warnings,
++            assumptions=["Productivity and STY are conditional projections using target_conversion; no flow yield is established."],
+         ))
+ 
+     # ═══════════════════════════════════════════════════════════════════
+--- a/flora_translate/main.py
++++ b/flora_translate/main.py
+@@ -861,7 +861,10 @@
+     ops.append(UnitOperation(op_id="mixer_1", op_type="mixer",
+         label=proposal.mixer_type or "T-Mixer",
+         parameters={"type": proposal.mixer_type or "T-mixer", "material": "not specified"},
+-        required=True, rationale=proposal.mixing_order_reasoning or "Combine reactor feeds"))
++        required=True, rationale=(
++            "Combine the reactor feed streams at this mixer. "
++            "Follow the final process diagram for downstream equipment and pressure-control order."
++        )))
+     for pid in pump_ids:
+         _connect(ops, streams, sc, pid, "mixer_1")
+     prev = "mixer_1"

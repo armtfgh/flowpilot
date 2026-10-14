@@ -1,0 +1,876 @@
+[
+  {
+    "target": "process_topology",
+    "source_in_archived_result": "diagnostic_topology",
+    "changed": true,
+    "before_sha256": "51a8f6e665e273cc1adf7dd775a49fbb7c559d7b686d36322934acfe754a6db9",
+    "restored_sha256": "a6fce55d8e283611972a6bf3dc85359fa183357d28ff7f10ea24c15421bc03d0",
+    "before": {
+      "topology_id": "blocked",
+      "generation_status": "blocked",
+      "unit_operations": [],
+      "streams": [],
+      "pid_description": ""
+    },
+    "restored": {
+      "topology_id": "translate",
+      "unit_operations": [
+        {
+          "op_id": "pump_a",
+          "op_type": "pump",
+          "label": "Pump A — Liquid feed: substrate and photocatalyst solution delivered by HPLC pump to T-mixer | Photochemistry HPLC pump",
+          "parameters": {
+            "stream": "A",
+            "contents": [
+              "Fmoc-L-methionine (0.1 M, 1 equiv)",
+              "4,7-diphenyl-2,1,3-benzothiadiazole (0.01 M, 10 mol%)"
+            ],
+            "solvent": "acetonitrile",
+            "flow_rate_mL_min": 0.5,
+            "phase": "liquid",
+            "gas_flow_sccm": null,
+            "gas_flow_actual_mL_min": null,
+            "molar_equiv": 1.0,
+            "inventory_equipment_id": "pump_photo_liquid",
+            "concentration_M": 0.1,
+            "gas_reagent_mole_fraction": null,
+            "inventory_item_id": "pump_photo_liquid",
+            "inventory_item_ids": [
+              "pump_photo_liquid"
+            ],
+            "instrument_name": "Photochemistry HPLC pump"
+          },
+          "required": true,
+          "rationale": "Deterministic stoichiometric flow solution: Q_A=k*(equiv/C)=0.5 mL/min; equiv=1, C=0.1 M; pump=pump_photo_liquid; concentration_basis=reference component: Fmoc-L-methionine; equiv_basis=reference component: Fmoc-L-methionine.",
+          "inventory_item_id": "pump_photo_liquid",
+          "inventory_item_ids": [
+            "pump_photo_liquid"
+          ],
+          "instrument_name": "Photochemistry HPLC pump",
+          "inventory_category": "pumps",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "pump_b",
+          "op_type": "mfc",
+          "label": "MFC B — Gas feed: air delivered by MFC to T-mixer to establish Taylor flow with stream A | Air mass-flow controller",
+          "parameters": {
+            "stream": "B",
+            "contents": [
+              "air"
+            ],
+            "solvent": "",
+            "flow_rate_mL_min": 1.450886,
+            "phase": "gas",
+            "gas_flow_sccm": 5.336362,
+            "gas_flow_actual_mL_min": 1.450886,
+            "molar_equiv": 1.0,
+            "inventory_equipment_id": "mfc_air_10",
+            "delivery_hardware": "MFC",
+            "concentration_M": null,
+            "gas_reagent_mole_fraction": 0.21,
+            "inventory_item_id": "mfc_air_10",
+            "inventory_item_ids": [
+              "mfc_air_10"
+            ],
+            "instrument_name": "Air mass-flow controller"
+          },
+          "required": true,
+          "rationale": "MFC inlet/STP flow=5.33636 sccm at 273.15 K and 1.01325 bar (22.412722 L/mol); pressure-corrected in-channel flow=1.45089 mL/min at 21 deg C and 4.01325 bar absolute; total gas=0.23809524 mmol/min, active O2=0.05 mmol/min (mole fraction 0.21); supplied=1 equiv O2 relative to limiting substrate.",
+          "inventory_item_id": "mfc_air_10",
+          "inventory_item_ids": [
+            "mfc_air_10"
+          ],
+          "instrument_name": "Air mass-flow controller",
+          "inventory_category": "gas_hardware",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "mixer_1",
+          "op_type": "mixer",
+          "label": "T-mixer | PFA gas-liquid T-mixer",
+          "parameters": {
+            "type": "T-mixer",
+            "material": "not specified",
+            "inventory_item_id": "mixer_photo_t",
+            "inventory_item_ids": [
+              "mixer_photo_t"
+            ],
+            "instrument_name": "PFA gas-liquid T-mixer"
+          },
+          "required": true,
+          "rationale": "Chemistry Plan mixing_order_reasoning: liquid stream A and gas stream B combined at PFA T-mixer (mixer_photo_t) immediately upstream of photocoil. This establishes Taylor (segmented) flow at the coil inlet, maximizing gas-liquid interfacial area throughout the entire 1 mL coil. Photocatalyst is not irradiated before O2 is present, avoiding unproductive excited-state quenching. BPR at 3 bar downstream increases dissolved O2 concentration via Henry's law.",
+          "inventory_item_id": "mixer_photo_t",
+          "inventory_item_ids": [
+            "mixer_photo_t"
+          ],
+          "instrument_name": "PFA gas-liquid T-mixer",
+          "inventory_category": "mixers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "reactor_1",
+          "op_type": "photoreactor",
+          "label": "PFA Photoreactor Coil | One milliliter PFA photocoil",
+          "parameters": {
+            "material": "PFA",
+            "ID_mm": 1.0,
+            "volume_mL": 1.0,
+            "Q_inlet_mL_min": 0.5,
+            "Q_liquid_mL_min": 0.5,
+            "Q_gas_sccm": 5.336362,
+            "Q_gas_actual_mL_min": 1.450886,
+            "temperature_C": 21.0,
+            "wavelength_nm": 420.0,
+            "residence_time_min": 0.17134,
+            "residence_time_basis": "inlet/STP apparent residence time",
+            "residence_time_inlet_min": 0.17134,
+            "residence_time_in_channel_min": 0.512588,
+            "reactor_type": "photochemical coil",
+            "inventory_item_id": "reactor_photo_100",
+            "inventory_item_ids": [
+              "reactor_photo_100"
+            ],
+            "instrument_name": "One milliliter PFA photocoil",
+            "light_instrument_name": "420 nm photochemistry LED",
+            "light_inventory_item_id": "light_photo_420",
+            "temperature_controller_name": "Photoreactor thermostat",
+            "temperature_controller_inventory_item_id": "controller_photo_thermostat"
+          },
+          "required": true,
+          "rationale": "Flow reactor",
+          "inventory_item_id": "reactor_photo_100",
+          "inventory_item_ids": [
+            "reactor_photo_100"
+          ],
+          "instrument_name": "One milliliter PFA photocoil",
+          "inventory_category": "reactors",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "heater_1",
+          "op_type": "heater",
+          "label": "Temperature Control 21 deg C | Photoreactor thermostat",
+          "parameters": {
+            "temperature_C": 21.0,
+            "inventory_item_id": "controller_photo_thermostat",
+            "inventory_item_ids": [
+              "controller_photo_thermostat"
+            ],
+            "instrument_name": "Photoreactor thermostat"
+          },
+          "required": true,
+          "rationale": "Active reactor temperature control",
+          "inventory_item_id": "controller_photo_thermostat",
+          "inventory_item_ids": [
+            "controller_photo_thermostat"
+          ],
+          "instrument_name": "Photoreactor thermostat",
+          "inventory_category": "temperature_controllers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "led_1",
+          "op_type": "led_module",
+          "label": "LED 420 nm | 420 nm photochemistry LED",
+          "parameters": {
+            "wavelength_nm": 420.0,
+            "inventory_item_id": "light_photo_420",
+            "inventory_item_ids": [
+              "light_photo_420"
+            ],
+            "instrument_name": "420 nm photochemistry LED"
+          },
+          "required": true,
+          "rationale": "Photoexcitation",
+          "inventory_item_id": "light_photo_420",
+          "inventory_item_ids": [
+            "light_photo_420"
+          ],
+          "instrument_name": "420 nm photochemistry LED",
+          "inventory_category": "light_sources",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "bpr_1",
+          "op_type": "bpr",
+          "label": "BPR | Photochemistry BPR",
+          "parameters": {
+            "pressure_bar": 3.0,
+            "inventory_item_id": "bpr_photo_3",
+            "inventory_item_ids": [
+              "bpr_photo_3"
+            ],
+            "instrument_name": "Photochemistry BPR"
+          },
+          "required": true,
+          "rationale": "Maintain liquid phase",
+          "inventory_item_id": "bpr_photo_3",
+          "inventory_item_ids": [
+            "bpr_photo_3"
+          ],
+          "instrument_name": "Photochemistry BPR",
+          "inventory_category": "pressure_controllers",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "separator_1",
+          "op_type": "phase_separator",
+          "label": "Phase Separator | Vented gas-liquid separator",
+          "parameters": {
+            "phases": [
+              "gas",
+              "liquid"
+            ],
+            "inventory_item_id": "separator_photo_gl",
+            "inventory_item_ids": [
+              "separator_photo_gl"
+            ],
+            "instrument_name": "Vented gas-liquid separator"
+          },
+          "required": true,
+          "rationale": "Separate gas from the product-containing liquid.",
+          "inventory_item_id": "separator_photo_gl",
+          "inventory_item_ids": [
+            "separator_photo_gl"
+          ],
+          "instrument_name": "Vented gas-liquid separator",
+          "inventory_category": "separators",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        },
+        {
+          "op_id": "collector_1",
+          "op_type": "collector",
+          "label": "Product Collection | Amber vented collection vessel",
+          "parameters": {
+            "inventory_item_id": "collector_photo_100",
+            "inventory_item_ids": [
+              "collector_photo_100"
+            ],
+            "instrument_name": "Amber vented collection vessel"
+          },
+          "required": true,
+          "rationale": "Outlet",
+          "inventory_item_id": "collector_photo_100",
+          "inventory_item_ids": [
+            "collector_photo_100"
+          ],
+          "instrument_name": "Amber vented collection vessel",
+          "inventory_category": "collectors",
+          "assignment_status": "assigned",
+          "capability_checks": {
+            "available": true,
+            "quantity": true,
+            "settings": true
+          },
+          "requirement_authority": "model_inference",
+          "source_evidence": [],
+          "accepted_requirement": true
+        }
+      ],
+      "streams": [
+        {
+          "stream_id": "s1",
+          "from_op": "pump_a",
+          "to_op": "mixer_1",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s2",
+          "from_op": "pump_b",
+          "to_op": "mixer_1",
+          "stream_type": "gas",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s3",
+          "from_op": "mixer_1",
+          "to_op": "reactor_1",
+          "stream_type": "gas_liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s4",
+          "from_op": "reactor_1",
+          "to_op": "bpr_1",
+          "stream_type": "gas_liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s5",
+          "from_op": "bpr_1",
+          "to_op": "separator_1",
+          "stream_type": "gas_liquid",
+          "connection_type": "process",
+          "label": ""
+        },
+        {
+          "stream_id": "s6",
+          "from_op": "separator_1",
+          "to_op": "collector_1",
+          "stream_type": "liquid",
+          "connection_type": "process",
+          "label": ""
+        }
+      ],
+      "total_flow_rate_mL_min": 0.5,
+      "total_flow_rate_basis": "sum of liquid feeds at the outlet; reagent gas is reported separately",
+      "residence_time_min": 0.17134,
+      "reactor_volume_mL": 1.0,
+      "pid_description": "Pump A — Liquid feed: substrate and photocatalyst solution delivered by HPLC pump to T-mixer | Photochemistry HPLC pump -[liquid]-> T-mixer | PFA gas-liquid T-mixer | MFC B — Gas feed: air delivered by MFC to T-mixer to establish Taylor flow with stream A | Air mass-flow controller -[gas]-> T-mixer | PFA gas-liquid T-mixer | T-mixer | PFA gas-liquid T-mixer -[gas_liquid]-> PFA Photoreactor Coil | One milliliter PFA photocoil | PFA Photoreactor Coil | One milliliter PFA photocoil -[gas_liquid]-> BPR | Photochemistry BPR | BPR | Photochemistry BPR -[gas_liquid]-> Phase Separator | Vented gas-liquid separator | Phase Separator | Vented gas-liquid separator -[liquid]-> Product Collection | Amber vented collection vessel",
+      "literature_support": [],
+      "topology_confidence": "LOW",
+      "compilation_status": "inventory_assigned",
+      "inventory_schema_version": "flowpilot_lab_inventory_v3.0",
+      "inventory_sha256": "a21257e80d846b13d50f6585f504c757ef58a88ac91513801afdfaab545bde11",
+      "instrument_manifest": [
+        {
+          "equipment_id": "pump_photo_liquid",
+          "name": "Photochemistry HPLC pump",
+          "category": "pumps",
+          "quantity_used": 1,
+          "roles": [
+            "Pump A — Liquid feed: substrate and photocatalyst solution delivered by HPLC pump to T-mixer"
+          ],
+          "settings": [
+            {
+              "equipment_id": "pump_photo_liquid",
+              "flow_rate_mL_min": 0.5
+            }
+          ]
+        },
+        {
+          "equipment_id": "mfc_air_10",
+          "name": "Air mass-flow controller",
+          "category": "gas_hardware",
+          "quantity_used": 1,
+          "roles": [
+            "MFC B — Gas feed: air delivered by MFC to T-mixer to establish Taylor flow with stream A"
+          ],
+          "settings": [
+            {
+              "equipment_id": "mfc_air_10",
+              "gas": "air",
+              "flow_sccm": 5.336362
+            }
+          ]
+        },
+        {
+          "equipment_id": "mixer_photo_t",
+          "name": "PFA gas-liquid T-mixer",
+          "category": "mixers",
+          "quantity_used": 1,
+          "roles": [
+            "T-mixer"
+          ],
+          "settings": [
+            {
+              "input_count": 2,
+              "total_flow_mL_min": 0.5
+            }
+          ]
+        },
+        {
+          "equipment_id": "reactor_photo_100",
+          "name": "One milliliter PFA photocoil",
+          "category": "reactors",
+          "quantity_used": 1,
+          "roles": [
+            "PFA Photoreactor Coil"
+          ],
+          "settings": [
+            {
+              "equipment_id": null,
+              "volume_mL": 1.0,
+              "ID_mm": 1.0,
+              "temperature_C": 21.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "controller_photo_thermostat",
+          "name": "Photoreactor thermostat",
+          "category": "temperature_controllers",
+          "quantity_used": 1,
+          "roles": [
+            "Temperature Control 21 deg C"
+          ],
+          "settings": [
+            {
+              "temperature_C": 21.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "light_photo_420",
+          "name": "420 nm photochemistry LED",
+          "category": "light_sources",
+          "quantity_used": 1,
+          "roles": [
+            "LED 420 nm"
+          ],
+          "settings": [
+            {
+              "equipment_id": null,
+              "wavelength_nm": 420.0,
+              "temperature_C": 21.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "bpr_photo_3",
+          "name": "Photochemistry BPR",
+          "category": "pressure_controllers",
+          "quantity_used": 1,
+          "roles": [
+            "BPR"
+          ],
+          "settings": [
+            {
+              "pressure_bar": 3.0
+            }
+          ]
+        },
+        {
+          "equipment_id": "separator_photo_gl",
+          "name": "Vented gas-liquid separator",
+          "category": "separators",
+          "quantity_used": 1,
+          "roles": [
+            "Phase Separator"
+          ],
+          "settings": [
+            {}
+          ]
+        },
+        {
+          "equipment_id": "collector_photo_100",
+          "name": "Amber vented collection vessel",
+          "category": "collectors",
+          "quantity_used": 1,
+          "roles": [
+            "Product Collection"
+          ],
+          "settings": [
+            {}
+          ]
+        },
+        {
+          "equipment_id": "tubing_photo_pfa_10",
+          "name": "PFA photoreactor coil tubing",
+          "category": "tubing",
+          "quantity_used": 1,
+          "roles": [
+            "reactor tubing"
+          ],
+          "settings": [
+            {
+              "material": "PFA",
+              "ID_mm": 1.0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "target": "svg_path",
+    "source_in_archived_result": "diagnostic_svg_path",
+    "changed": true,
+    "before_sha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+    "restored_sha256": "acc57a67894177bcf1eabb93df5807e016ef7b07624cb3f232bee87c4ec4701f",
+    "before": "",
+    "restored": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T013602_608077Z_a1187221/process.svg"
+  },
+  {
+    "target": "png_path",
+    "source_in_archived_result": "diagnostic_png_path",
+    "changed": true,
+    "before_sha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+    "restored_sha256": "e61e46a260c7700d74e42b637ef1c86d2f56a0217db145020123f107b917a7f5",
+    "before": "",
+    "restored": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T013602_608077Z_a1187221/process.png"
+  },
+  {
+    "target": "diagram_render_manifest",
+    "source_in_archived_result": "diagnostic_diagram_render_manifest",
+    "changed": false,
+    "before_sha256": "6a4ad92e6054a1bb5a7159338bc467c6293431ba72f0251545f925cf8b0d584c",
+    "restored_sha256": "6a4ad92e6054a1bb5a7159338bc467c6293431ba72f0251545f925cf8b0d584c",
+    "before": {
+      "schema_version": "flowpilot_diagram_render_v1.0",
+      "run_id": "20261014T013602_608077Z_a1187221",
+      "created_at": "2026-10-14T01:36:02.917085+00:00",
+      "status": "complete",
+      "renderer": "graphviz",
+      "topology_sha256": "f6fb36d7708dd55478e8d9bac7be94f843b386dd672b26bc991dd04b0aaf3b11",
+      "topology_path": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T013602_608077Z_a1187221/topology.json",
+      "svg_path": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T013602_608077Z_a1187221/process.svg",
+      "png_path": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T013602_608077Z_a1187221/process.png",
+      "warnings": []
+    },
+    "restored": {
+      "schema_version": "flowpilot_diagram_render_v1.0",
+      "run_id": "20261014T013602_608077Z_a1187221",
+      "created_at": "2026-10-14T01:36:02.917085+00:00",
+      "status": "complete",
+      "renderer": "graphviz",
+      "topology_sha256": "f6fb36d7708dd55478e8d9bac7be94f843b386dd672b26bc991dd04b0aaf3b11",
+      "topology_path": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T013602_608077Z_a1187221/topology.json",
+      "svg_path": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T013602_608077Z_a1187221/process.svg",
+      "png_path": "/home/amirreza/Documents/codes/Flow Agent/.local_artifacts_backup_20260831/generated/outputs/diagram_runs/20261014T013602_608077Z_a1187221/process.png",
+      "warnings": []
+    }
+  },
+  {
+    "target": "final_validation.checks",
+    "source_in_archived_result": "final_design.consistency.validation_checks",
+    "changed": true,
+    "before_sha256": "49606fc210baec631d7e52241193f7f26912e8eabfc33fdb4f83c96b166ab37d",
+    "restored_sha256": "6391bd22c4017756195024c8c0a5eda47f5357ca03482fa4ab3d43ce12816949",
+    "before": {
+      "design_realization_complete": true,
+      "reactor_inventory_match": true,
+      "pump_flow_feasible": true,
+      "stream_flow_closure": true,
+      "stoichiometric_flow_closure": true,
+      "pressure_inventory_match": true,
+      "tubing_feasible": true,
+      "geometry_closure": true,
+      "calculation_matches_serialized_design": true,
+      "gas_bookkeeping_complete": true,
+      "gas_time_basis_consistent": true,
+      "safety_contract_complete": true,
+      "topology_matches_serialized_design": true,
+      "inventory_topology_assignment_complete": true,
+      "chemistry_identity_preserved": false,
+      "component_stoichiometry_complete": true,
+      "topology_phase_consistent": true,
+      "control_edges_not_in_process_path": true,
+      "safety_controls_complete": true,
+      "procedure_complete": true,
+      "no_unsupported_operations": true,
+      "diagram_matches_canonical_topology": true,
+      "residence_time_basis_unambiguous": true,
+      "mixing_regime_matches_topology": true,
+      "stationary_components_not_in_feeds": true,
+      "reagent_gas_delivery_unique": true,
+      "gas_composition_and_equivalent_closure": true,
+      "final_design_contract_consistency": false
+    },
+    "restored": {
+      "design_realization_complete": true,
+      "reactor_inventory_match": true,
+      "pump_flow_feasible": true,
+      "stream_flow_closure": true,
+      "stoichiometric_flow_closure": true,
+      "pressure_inventory_match": true,
+      "tubing_feasible": true,
+      "geometry_closure": true,
+      "calculation_matches_serialized_design": true,
+      "gas_bookkeeping_complete": true,
+      "gas_time_basis_consistent": true,
+      "safety_contract_complete": true,
+      "topology_matches_serialized_design": true,
+      "inventory_topology_assignment_complete": true
+    }
+  },
+  {
+    "target": "design_disposition",
+    "source_in_archived_result": "final_validation.design_disposition",
+    "changed": true,
+    "before_sha256": "670cd8c536d58755654d2dbabd790e2a32b850ef9a88eea0c4792217215f32c9",
+    "restored_sha256": "baefc4f6746bf985d5b81f752ca303d01a197bfdfc4a1da6ab2395d7d888fd92",
+    "before": {
+      "schema_version": "flowpilot_design_disposition_v1.0",
+      "recommended_disposition": "BLOCK",
+      "rationale": "The post-validation final-design contract did not close; do not execute.",
+      "hard_failures": [
+        {
+          "finding_id": "FINAL-CHEMISTRY-IDENTITY-UNCONFIRMED",
+          "message": "The protocol does not state a recognized transformation family and no chemist-confirmed chemistry identity was supplied. Model inference alone cannot authorize an executable design."
+        }
+      ],
+      "screen_reasons": [
+        "Council requires screening",
+        "Proposal is not engine-validated"
+      ],
+      "requirements": {
+        "temperature_exact_C": null,
+        "temperature_min_C": null,
+        "temperature_max_C": null,
+        "wavelength_min_nm": null,
+        "wavelength_max_nm": null,
+        "pressure_min_bar": null,
+        "pressure_max_bar": null,
+        "required_gases": [
+          "O2"
+        ],
+        "source_text": "Suggest one practical first flow experiment for this batch reaction using only the available equipment, with operating conditions, setup, procedure, and any assumptions or missing information.\nUse only the supplied equipment inventory."
+      }
+    },
+    "restored": {
+      "schema_version": "flowpilot_design_disposition_v1.0",
+      "recommended_disposition": "SCREEN",
+      "rationale": "No deterministic hard-feasibility conflict was found. Treat the design as a first experimental screen until wet-lab evidence validates it.",
+      "hard_failures": [],
+      "screen_reasons": [
+        "Council requires screening",
+        "Proposal is not engine-validated"
+      ],
+      "requirements": {
+        "temperature_exact_C": null,
+        "temperature_min_C": null,
+        "temperature_max_C": null,
+        "wavelength_min_nm": null,
+        "wavelength_max_nm": null,
+        "pressure_min_bar": null,
+        "pressure_max_bar": null,
+        "required_gases": [
+          "O2"
+        ],
+        "source_text": "Suggest one practical first flow experiment for this batch reaction using only the available equipment, with operating conditions, setup, procedure, and any assumptions or missing information.\nUse only the supplied equipment inventory."
+      }
+    }
+  },
+  {
+    "target": "recommended_disposition",
+    "source_in_archived_result": "final_validation.design_disposition.recommended_disposition",
+    "changed": true,
+    "before_sha256": "6fdebd5c11d5ce978dd5a2bb4c1dbac69a593b90380d3d926834cba70f6f74a9",
+    "restored_sha256": "75deb1a5f5186c95419ee3a68a19e2cd519851ada9c15a40b9d98f340d016846",
+    "before": "BLOCK",
+    "restored": "SCREEN"
+  },
+  {
+    "target": "reported_disposition",
+    "source_in_archived_result": "final_validation.design_disposition.recommended_disposition",
+    "changed": true,
+    "before_sha256": "6fdebd5c11d5ce978dd5a2bb4c1dbac69a593b90380d3d926834cba70f6f74a9",
+    "restored_sha256": "75deb1a5f5186c95419ee3a68a19e2cd519851ada9c15a40b9d98f340d016846",
+    "before": "BLOCK",
+    "restored": "SCREEN"
+  },
+  {
+    "target": "disposition_rationale",
+    "source_in_archived_result": "final_validation.design_disposition.rationale",
+    "changed": true,
+    "before_sha256": "0d5a49fdb6b87e97832c7be3c786aa49b534eb303002f4893d6a8e66bb8b18ab",
+    "restored_sha256": "5e6cc72d8cb9ae5d5128c0e903e562563da5d585983108ab3dac922900c0b2ab",
+    "before": "The post-validation final-design contract did not close; do not execute.",
+    "restored": "No deterministic hard-feasibility conflict was found. Treat the design as a first experimental screen until wet-lab evidence validates it."
+  },
+  {
+    "target": "safety_report",
+    "source_in_archived_result": "council_safety_report_diagnostic",
+    "changed": true,
+    "before_sha256": "caaf43ab969b64b402f2f1f88284cc55fc2615d81d1f3dab803db3e36397f1a6",
+    "restored_sha256": "eb5b1658fd1b36f1984cacacb1e16fa2c6dba3d9bdc1585753ac1f1a85e7a17a",
+    "before": {
+      "schema_version": "flowpilot_canonical_safety_v1.0",
+      "source": "blocked_final_design_diagnostic",
+      "hazards": [
+        "high_intensity_light",
+        "oxygen_organic_service",
+        "pressurized_operation"
+      ],
+      "controls": [
+        {
+          "control_id": "GENERAL-PPE-CONTAINMENT",
+          "category": "general",
+          "description": "Use the laboratory-approved PPE and containment for every declared reagent.",
+          "required": true,
+          "satisfied": true,
+          "evidence": [
+            "procedure:GENERAL-PPE-CONTAINMENT"
+          ],
+          "equipment_ids": []
+        },
+        {
+          "control_id": "GENERAL-EMERGENCY-STOP",
+          "category": "emergency",
+          "description": "Define and rehearse the emergency feed-stop sequence.",
+          "required": true,
+          "satisfied": true,
+          "evidence": [
+            "procedure:GENERAL-EMERGENCY-STOP"
+          ],
+          "equipment_ids": []
+        },
+        {
+          "control_id": "GENERAL-WASTE",
+          "category": "waste",
+          "description": "Segregate and label all process and flush waste by hazard class.",
+          "required": true,
+          "satisfied": true,
+          "evidence": [
+            "procedure:GENERAL-WASTE"
+          ],
+          "equipment_ids": []
+        },
+        {
+          "control_id": "PRESSURE-LEAK-TEST",
+          "category": "pressure",
+          "description": "Leak- and pressure-test the assembled system before reagent introduction.",
+          "required": true,
+          "satisfied": true,
+          "evidence": [
+            "procedure:PRESSURE-LEAK-TEST"
+          ],
+          "equipment_ids": []
+        },
+        {
+          "control_id": "PRESSURE-OVERPRESSURE-RESPONSE",
+          "category": "pressure",
+          "description": "Define blockage and overpressure response without opening a pressurized line.",
+          "required": true,
+          "satisfied": true,
+          "evidence": [
+            "procedure:PRESSURE-OVERPRESSURE-RESPONSE"
+          ],
+          "equipment_ids": []
+        },
+        {
+          "control_id": "PRESSURE-DEPRESSURIZE",
+          "category": "pressure",
+          "description": "Cool and depressurize through the controlled outlet before opening the system.",
+          "required": true,
+          "satisfied": true,
+          "evidence": [
+            "procedure:PRESSURE-DEPRESSURIZE"
+          ],
+          "equipment_ids": []
+        },
+        {
+          "control_id": "PHOTO-LIGHT-ENCLOSURE",
+          "category": "photochemical",
+          "description": "Use the declared interlocked light enclosure when one is available; otherwise verify equivalent laboratory-approved light shielding before irradiation.",
+          "required": true,
+          "satisfied": true,
+          "evidence": [
+            "procedure:PHOTO-LIGHT-ENCLOSURE",
+            "inventory:safety_photo_enclosure"
+          ],
+          "equipment_ids": [
+            "safety_photo_enclosure"
+          ]
+        },
+        {
+          "control_id": "OXYGEN-ORGANIC-IGNITION-CONTROL",
+          "category": "oxygen",
+          "description": "Exclude ignition sources and minimize oxygen-containing organic holdup.",
+          "required": true,
+          "satisfied": true,
+          "evidence": [
+            "procedure:OXYGEN-ORGANIC-IGNITION-CONTROL"
+          ],
+          "equipment_ids": []
+        },
+        {
+          "control_id": "OXYGEN-ORGANIC-VENT",
+          "category": "oxygen",
+          "description": "Route oxygen-containing off-gas and solvent vapor to the declared compatible vent when one is available.",
+          "required": true,
+          "satisfied": true,
+          "evidence": [
+            "procedure:OXYGEN-ORGANIC-VENT",
+            "inventory:collector_photo_100",
+            "inventory:safety_photo_enclosure",
+            "inventory:separator_photo_gl"
+          ],
+          "equipment_ids": [
+            "collector_photo_100",
+            "safety_photo_enclosure",
+            "separator_photo_gl"
+          ]
+        }
+      ],
+      "complete": true,
+      "missing_control_ids": [],
+      "total_checks": 9,
+      "critical": 0,
+      "screen_required": true
+    },
+    "restored": {
+      "total_checks": 2,
+      "critical": 0,
+      "dfmea_modes": 3,
+      "validation_experiments": [
+        "Flow-regime commissioning (no chemistry): pump neat MeCN at Q=0.5 mL/min and air at 5.34 sccm through the T-mixer and 1.0 mm PFA coil at 3.0 bar BPR; record upstream pressure oscillation frequency and amplitude for 30 min. Accept criterion: stable periodic pressure pulses (CV < 15%) indicating Taylor slug flow. Reject and redesign mixer if pressure is flat (annular) or chaotic (churn).",
+        "BPR integrity and blockage stress test: dissolve photosensitizer (0.010 M) and model sulfoxide product (0.10 M) in MeCN; pump at Q=0.5 mL/min through the full reactor-to-BPR path for 60 min at 3.0 bar with light OFF; log upstream pressure every 10 s. Accept criterion: pressure drift < 5% of setpoint over 60 min with no step-change events. Any drift > 5% triggers BPR inspection and orifice cleaning protocol before chemistry runs.",
+        "Sensitizer photobleaching kinetics: irradiate 0.010 M sensitizer in MeCN (no substrate, air atmosphere, 3.0 bar, Q=0.5 mL/min) for 60 min; collect outlet fractions every 5 min and measure UV absorbance at sensitizer λmax and HPLC purity. Accept criterion: < 10% absorbance loss and < 5% new peaks by HPLC over 60 min, confirming sensitizer stability over the planned run duration. If bleaching exceeds threshold, reduce irradiation intensity or increase sensitizer loading before substrate runs."
+      ],
+      "screen_required": true,
+      "feasibility_diagnostic": {}
+    }
+  }
+]

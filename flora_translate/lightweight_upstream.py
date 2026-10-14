@@ -22,6 +22,7 @@ from flora_translate.chemistry_agent import _parse_json_from_tagged
 from flora_translate.component_identity import component_name, component_key, declared_solvent_member, protocol_component_quantity
 from flora_translate.engine.llm_agents import call_model_text, infer_provider_for_model
 from flora_translate.intake_agent import intake_context_block
+from flora_translate.protocol_input import protocol_batch_input
 from flora_translate.intensification import ensure_intensification_mandate
 from flora_translate.schemas import (
     BatchRecord,
@@ -661,6 +662,7 @@ class LocalInputParser:
     """Compact parser path for local/Ollama models."""
 
     def parse(self, batch_input: str | dict) -> BatchRecord:
+        batch_input = protocol_batch_input(batch_input)
         if isinstance(batch_input, dict):
             raw_text = batch_input.get("raw_text") or json.dumps(
                 batch_input,
@@ -701,6 +703,7 @@ class EvidenceBackedInputParser:
     """Fair lightweight parser with deterministic protocol-text arithmetic."""
 
     def parse(self, batch_input: str | dict) -> BatchRecord:
+        batch_input = protocol_batch_input(batch_input)
         raw_text = (
             batch_input.get("raw_text")
             or json.dumps(batch_input, sort_keys=True, default=str)

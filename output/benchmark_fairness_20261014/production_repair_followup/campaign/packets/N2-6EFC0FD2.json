@@ -1,0 +1,335 @@
+{
+  "schema_version": "fair_practical_selected_delivery_v1.0",
+  "candidate_id": "N2-6EFC0FD2",
+  "case_context": {
+    "case_label": "CuAAC",
+    "protocol": "Benzyl azide (0.50 mmol, 1.0 equiv) and phenylacetylene (0.55 mmol, 1.1 equiv) were combined with Cu/C catalyst (10 mol% Cu) in acetone (2.0 mL; benzyl azide concentration 0.25 M). The homogeneous liquid reaction mixture was heated under microwave batch conditions at 150 °C for 3 min. The corresponding 1,4-disubstituted 1,2,3-triazole was isolated in 94% yield.",
+    "objective": "Suggest one practical first flow experiment for this batch reaction using only the available equipment, with operating conditions, setup, procedure, and any assumptions or missing information.\n\nRequired final output: one JSON object with recommended_disposition, disposition_rationale, and proposal. The proposal must be a JSON object, not a JSON-encoded string. The proposal uses these fields:\n\nresidence_time_min, flow_rate_mL_min, temperature_C, concentration_M,\nBPR_bar, reactor_type, tubing_material, tubing_ID_mm, reactor_volume_mL,\nresidence_time_basis, residence_time_inlet_min,\nresidence_time_in_channel_min, light_setup, wavelength_nm, streams,\nmixer_type, mixing_order_reasoning, pre_reactor_steps,\npost_reactor_steps, chemistry_notes, stage_parameters,\nreasoning_per_field, literature_analogies, engine_validated,\nsafety_flags, confidence.\n\nEach stream is an object with stream_label, pump_role, contents, solvent,\nphase, flow_rate_mL_min, concentration_M, molar_equiv, gas_flow_sccm, and\ngas_flow_actual_mL_min where applicable. Distinguish inlet/STP gas flow from\npressure-corrected in-channel gas flow. Ensure reactor_volume_mL is consistent\nwith flow and residence time. State assumptions rather than inventing missing\nfacts.\n\nrecommended_disposition must be exactly EXECUTE, SCREEN, or BLOCK. Use BLOCK\nwhen the hard constraints make a safe design physically or operationally\nimpossible. Use SCREEN for a feasible first experiment that still requires\nexperimental validation. Use EXECUTE only for a directly executable design\nsupported by sufficient evidence.",
+    "hard_constraints": [
+      "Use only the supplied equipment inventory."
+    ],
+    "authoritative_inventory": {
+      "schema_version": "the audited system_lab_inventory_v2.0",
+      "strict_assignment": true,
+      "pumps": [
+        {
+          "equipment_id": "pump_xcube_hplc",
+          "name": "X-Cube HPLC pump",
+          "type": "HPLC",
+          "max_pressure_bar": 40.0,
+          "min_flow_rate_mL_min": 0.1,
+          "max_flow_rate_mL_min": 3.0,
+          "compatible_materials": [
+            "acetone"
+          ]
+        }
+      ],
+      "tubing": [
+        {
+          "equipment_id": "tubing_xcube_ss_4mm",
+          "name": "X-Cube cartridge body",
+          "material": "stainless steel",
+          "ID_mm": 4.0,
+          "max_pressure_bar": 40.0,
+          "max_temperature_C": 200.0,
+          "transparent": false,
+          "length_m": 0.06
+        }
+      ],
+      "BPR_available": [
+        20.0
+      ],
+      "light_sources": [],
+      "gas_hardware": [],
+      "reactors": [
+        {
+          "equipment_id": "reactor_cuc_cart_030",
+          "name": "Cu/C CatCart packed-bed cartridge",
+          "type": "packed-bed",
+          "material": "stainless steel",
+          "volume_mL": 0.3,
+          "ID_mm": 4.0,
+          "system": "X-Cube",
+          "min_temperature_C": 20.0,
+          "max_temperature_C": 200.0,
+          "min_pressure_bar": 0.0,
+          "max_pressure_bar": 40.0,
+          "configuration": "single packed-bed cartridge"
+        }
+      ],
+      "mixers": [],
+      "pressure_controllers": [
+        {
+          "equipment_id": "bpr_xcube_20",
+          "name": "X-Cube BPR",
+          "type": "BPR",
+          "setpoints_bar": [
+            20.0
+          ],
+          "min_pressure_bar": 20.0,
+          "max_pressure_bar": 20.0
+        }
+      ],
+      "degassers": [],
+      "filters": [],
+      "separators": [],
+      "connectors": [
+        {
+          "equipment_id": "connector_xcube_cart",
+          "name": "X-Cube cartridge connector",
+          "type": "cartridge holder",
+          "material": "stainless steel",
+          "supported_ID_mm": [
+            4.0
+          ],
+          "max_pressure_bar": 40.0
+        }
+      ],
+      "temperature_controllers": [
+        {
+          "equipment_id": "heater_xcube",
+          "name": "X-Cube cartridge heater",
+          "type": "heater",
+          "min_temperature_C": 20.0,
+          "max_temperature_C": 200.0
+        }
+      ],
+      "collectors": [
+        {
+          "equipment_id": "collector_amber_100",
+          "name": "Vented collection vessel",
+          "type": "collection vessel",
+          "volume_mL": 100.0,
+          "max_pressure_bar": 1.0
+        }
+      ],
+      "reactor_trains": [],
+      "safety_accessories": [
+        {
+          "equipment_id": "safety_cuaac_shield",
+          "name": "Azide-service blast shield and secondary containment",
+          "type": "shielded enclosure",
+          "capabilities": [
+            "shield_or_containment"
+          ],
+          "compatible_hazards": [
+            "energetic_azide"
+          ]
+        }
+      ]
+    },
+    "held_out_source_fact_check": {
+      "batch_reference": {
+        "substrate": "benzyl azide",
+        "substrate_mmol": 0.5,
+        "coupling_partner": "phenylacetylene",
+        "coupling_partner_mmol": 0.55,
+        "coupling_partner_equiv": 1.1,
+        "catalyst": "Cu/C",
+        "catalyst_loading_mol_pct_Cu": 10.0,
+        "solvent": "acetone",
+        "solvent_volume_mL": 2.0,
+        "substrate_concentration_M": 0.25,
+        "temperature_C": 150.0,
+        "reaction_time_min": 3.0,
+        "isolated_yield_pct": 94.0,
+        "evidence": "PDF page 2, general conditions and surrounding text"
+      },
+      "published_flow_reference": {
+        "temperature_C": 170.0,
+        "liquid_flow_mL_min": 1.5,
+        "pressure_bar_set": 20.0,
+        "substrate_concentration_M": 0.25,
+        "coupling_partner_concentration_M": 0.27,
+        "reactor_type": "Cu/C packed catalyst cartridge in X-Cube",
+        "reactor_material": "stainless steel",
+        "cartridge_dimensions": "60 x 4 mm ID",
+        "measured_cartridge_dead_volume_mL": 0.3,
+        "catalyst_contact_residence_time_min": 0.2,
+        "complete_system_residence_time_min": 3.0,
+        "isolated_yield_pct": 99.0,
+        "evidence": [
+          "PDF page 3, optimized flow conditions and residence-time discussion",
+          "PDF page 5, continuous-flow experimental procedure"
+        ]
+      },
+      "interpretation": "Published flow conditions are a validated reference design, not the only permissible valid design. Universal errors and source distance are reported separately."
+    },
+    "source_policy": "Use the source to fact-check claims and arithmetic. The published flow design is not the only valid design, so a candidate differs from it only when the difference violates physics, protocol facts, inventory, safety, or lacks a defensible stated basis.",
+    "applicability": {
+      "gas_process": false,
+      "multistage_process": false
+    }
+  },
+  "delivered_final_outcome": {
+    "parameters": {
+      "residence_time_min": 1.5,
+      "flow_rate_mL_min": 0.2,
+      "temperature_C": 150,
+      "concentration_M": 0.25,
+      "BPR_bar": 20.0,
+      "reactor_type": "packed-bed",
+      "tubing_material": "stainless steel",
+      "tubing_ID_mm": 4.0,
+      "reactor_volume_mL": 0.3,
+      "residence_time_basis": "reactor void volume estimated at ~50% of total cartridge volume (0.15 mL liquid void in 0.3 mL packed bed); nominal residence time = void_volume / flow_rate = 0.15 mL / 0.1 mL/min = 1.5 min. Total cartridge volume / flow_rate = 0.3/0.2 = 1.5 min used as conservative upper bound and reported value.",
+      "residence_time_inlet_min": 1.5,
+      "residence_time_in_channel_min": 1.5,
+      "light_setup": "none",
+      "wavelength_nm": null,
+      "mixer_type": "none – single pre-mixed stream fed directly to cartridge inlet; no separate mixer required or available",
+      "mixing_order_reasoning": "Both reagents are combined in the feed vial before the pump. This is safe at the concentrations used (0.25 M benzyl azide) because the solution is dilute and at ambient temperature prior to entering the heated zone. The Cu/C catalyst is heterogeneous and confined inside the cartridge, so no homogeneous copper species contacts the azide outside the reactor. Pre-mixing avoids the need for a second pump (only one HPLC pump is available) and eliminates any mixer dead-volume concerns.",
+      "engine_validated": false,
+      "confidence": 0.72
+    },
+    "streams": [
+      {
+        "stream_label": "Stream A – Benzyl azide + phenylacetylene in acetone",
+        "pump_role": "sole reagent pump (single-stream, pre-mixed solution)",
+        "contents": "benzyl azide (0.25 M) and phenylacetylene (0.275 M, 1.1 equiv) dissolved in acetone",
+        "solvent": "acetone",
+        "phase": "liquid",
+        "flow_rate_mL_min": 0.2,
+        "concentration_M": 0.25,
+        "molar_equiv": 1.0,
+        "gas_flow_sccm": null,
+        "gas_flow_actual_mL_min": null
+      }
+    ],
+    "stages": [
+      {
+        "stage": 1,
+        "description": "Catalyst conditioning",
+        "temperature_C": 80,
+        "flow_rate_mL_min": 0.2,
+        "solvent": "acetone",
+        "duration_min": 10,
+        "BPR_bar": 20.0
+      },
+      {
+        "stage": 2,
+        "description": "Thermal equilibration at reaction temperature",
+        "temperature_C": 150,
+        "flow_rate_mL_min": 0.2,
+        "solvent": "acetone",
+        "duration_min": 5,
+        "BPR_bar": 20.0
+      },
+      {
+        "stage": 3,
+        "description": "Reagent flow – steady-state collection",
+        "temperature_C": 150,
+        "flow_rate_mL_min": 0.2,
+        "solvent": "acetone",
+        "reagent_solution_concentration_benzyl_azide_M": 0.25,
+        "reagent_solution_concentration_phenylacetylene_M": 0.275,
+        "duration_min": 15,
+        "BPR_bar": 20.0,
+        "discard_first_mL": 0.9,
+        "collect_mL": 2.0
+      },
+      {
+        "stage": 4,
+        "description": "Cartridge flush and cooldown",
+        "temperature_C": 150,
+        "flow_rate_mL_min": 0.2,
+        "solvent": "acetone",
+        "duration_min": 5,
+        "BPR_bar": 20.0
+      }
+    ],
+    "topology": {
+      "reactor_type": "packed-bed",
+      "mixer_type": "none – single pre-mixed stream fed directly to cartridge inlet; no separate mixer required or available",
+      "mixing_order_reasoning": "Both reagents are combined in the feed vial before the pump. This is safe at the concentrations used (0.25 M benzyl azide) because the solution is dilute and at ambient temperature prior to entering the heated zone. The Cu/C catalyst is heterogeneous and confined inside the cartridge, so no homogeneous copper species contacts the azide outside the reactor. Pre-mixing avoids the need for a second pump (only one HPLC pump is available) and eliminates any mixer dead-volume concerns.",
+      "inventory_selection": null
+    },
+    "chemistry_and_operations": {
+      "chemistry_notes": "CuAAC (copper-catalysed azide-alkyne cycloaddition) is highly regioselective for the 1,4-disubstituted 1,2,3-triazole. The heterogeneous Cu/C CatCart acts as both catalyst and support; no additional ligand or base is required. Acetone is compatible with Cu/C and with all stainless-steel wetted parts. The batch protocol achieved 94% yield at 150 °C / 3 min under microwave; the flow experiment targets the same temperature with a comparable residence time. The 20 bar BPR keeps acetone (bp 56 °C) fully liquid at 150 °C (vapour pressure ~7 bar at 150 °C; 20 bar provides adequate margin). Benzyl azide is a primary organic azide: energetic but manageable at this scale and concentration with proper shielding. No gas is generated or consumed in this reaction.",
+      "chemistry_identity": null,
+      "stream_components": null,
+      "stationary_components": null,
+      "operating_procedure": null,
+      "pre_reactor_steps": [
+        "Prepare a single stock solution: dissolve benzyl azide (0.25 M) and phenylacetylene (0.275 M) in dry acetone in an amber vial; degas by sparging with N2 for 5 min.",
+        "Install the Cu/C CatCart (reactor_cuc_cart_030) in the X-Cube cartridge connector.",
+        "Prime the HPLC pump with pure acetone at 0.2 mL/min; flush the cartridge with 2 mL acetone at 80 °C to condition the catalyst.",
+        "Set BPR to 20 bar and confirm pressure hold before introducing reagents.",
+        "Erect the azide-service blast shield (safety_cuaac_shield) around the X-Cube before starting the reagent flow.",
+        "Heat cartridge to 150 °C and allow thermal equilibration (~5 min at solvent flow)."
+      ],
+      "post_reactor_steps": [
+        "Collect eluent in the amber 100 mL vented collection vessel (collector_amber_100) downstream of the BPR.",
+        "Discard the first 3 reactor volumes (~0.9 mL, ~4.5 min) as non-steady-state material.",
+        "Collect steady-state fraction for ~10 min (2.0 mL) for analysis.",
+        "Flush cartridge with 3 mL pure acetone at 150 °C, then cool to ambient before depressurising.",
+        "Analyse collected fraction by TLC and 1H NMR (or HPLC-UV at 254 nm) to determine conversion and yield of 1-benzyl-4-phenyl-1,2,3-triazole.",
+        "If conversion is low, screen higher temperatures (up to 180 °C) or lower flow rates (0.1 mL/min, ~3 min residence time) in subsequent runs."
+      ]
+    },
+    "safety_controls": [
+      "ENERGETIC_AZIDE: Benzyl azide is a primary organic azide. Use blast shield (safety_cuaac_shield) at all times. Keep total azide inventory on the instrument to <5 mL of 0.25 M solution (~1.25 mmol) at any one time.",
+      "FLAMMABLE_SOLVENT: Acetone (flash point −20 °C). Ensure no ignition sources near the vented collection vessel. Use in a fume hood.",
+      "HIGH_TEMPERATURE_HIGH_PRESSURE: 150 °C / 20 bar. Inspect all fittings before pressurisation. Do not open the system while hot or pressurised.",
+      "AZIDE_METAL_COMPATIBILITY: Stainless steel is acceptable for dilute organic azide solutions. Do not use copper tubing upstream of the cartridge (risk of uncontrolled reaction outside the heated zone). The Cu/C catalyst is confined inside the cartridge.",
+      "DEPRESSURISATION: Always cool the cartridge to <50 °C before releasing BPR pressure to avoid flash evaporation of acetone.",
+      "ASSUMPTION – AZIDE STABILITY IN ACETONE: Benzyl azide is stable in acetone at ambient temperature for the duration of the experiment (confirmed in literature). No decomposition expected in the feed vial."
+    ],
+    "evidence_and_reasoning": {
+      "reasoning_per_field": {
+        "residence_time_min": "Batch reaction: 3 min at 150 °C under microwave. Flow target: 1.5 min (conservative, using full cartridge volume / flow rate = 0.3 mL / 0.2 mL/min). Actual liquid void volume in a packed bed is ~50% of total, giving ~0.75 min true liquid residence time, but 1.5 min is used as the safe upper estimate to ensure adequate contact time for a first experiment.",
+        "flow_rate_mL_min": "0.2 mL/min is within the pump operating range (0.1–3.0 mL/min), gives a manageable residence time, and keeps system pressure well below the 40 bar equipment limit at 20 bar BPR. Lower flow (0.1 mL/min) is reserved for a second screen point if conversion is insufficient.",
+        "temperature_C": "Matches the batch microwave temperature (150 °C). Within the cartridge heater range (20–200 °C). Acetone remains liquid at 20 bar (vapour pressure ~7 bar at 150 °C).",
+        "concentration_M": "0.25 M benzyl azide matches the batch protocol concentration exactly, minimising variables in the first experiment.",
+        "BPR_bar": "20 bar is the only available BPR setpoint. Acetone critical point is 235 °C / 47 bar; at 150 °C the vapour pressure is ~7 bar, so 20 bar provides >2.5× safety margin to keep the solvent liquid.",
+        "reactor_type": "Cu/C CatCart packed-bed cartridge is the only reactor available and is directly appropriate for heterogeneous CuAAC.",
+        "tubing_material": "Stainless steel – the only available tubing/connector material; compatible with acetone and with azide service at these concentrations.",
+        "tubing_ID_mm": "4.0 mm – fixed by the X-Cube cartridge connector and cartridge body.",
+        "reactor_volume_mL": "0.3 mL – fixed by the Cu/C CatCart cartridge specification.",
+        "BPR_bar_rationale": "Only one BPR is available at 20 bar; this is sufficient to suppress acetone boiling at 150 °C.",
+        "streams_rationale": "Only one HPLC pump is available, so a single pre-mixed stream is the only feasible configuration. Both reagents are stable in acetone at ambient temperature for the duration of the experiment.",
+        "mixer_type_rationale": "No mixer hardware is listed in the inventory. Single-stream design eliminates the need for a mixer.",
+        "light_setup": "Not applicable – thermal CuAAC, no photochemistry.",
+        "wavelength_nm": "Not applicable.",
+        "safety_flags_rationale": "Benzyl azide is a primary organic azide (energetic, shock/heat sensitive). The blast shield is mandatory. Concentration (0.25 M) and total quantity per run (~0.05 mmol in the reactor at any time) are low. Stainless steel is compatible. Acetone is flammable; ensure no ignition sources near the vented collector."
+      },
+      "evidence_calibration": null,
+      "literature_analogies": [
+        "Fuchs, M. et al. (2013) 'Flow Chemistry – A Challenge for the Synthesis of Pharmaceutical Compounds?' Beilstein J. Org. Chem. 9, 2243–2265 – CuAAC in flow using Cu/C packed beds in acetonitrile/water at 100–130 °C, full conversion in <5 min residence time.",
+        "Bogdan, A. R.; Sach, N. W. (2009) 'The Use of Copper Flow Reactor Technology for the Continuous Synthesis of 1,2,3-Triazoles' Adv. Synth. Catal. 351, 849–854 – Cu tubing reactor for CuAAC; demonstrates that heterogeneous Cu surfaces are highly active for this reaction in flow.",
+        "Baumann, M. et al. (2011) 'Synthesis of Pharmaceutical Intermediates Using Continuous Flow Chemistry' Org. Biomol. Chem. 9, 7779 – X-Cube CatCart packed-bed flow chemistry at 100–150 °C with HPLC pump, demonstrating feasibility of the exact equipment class used here.",
+        "Meldal, M.; Tornøe, C. W. (2008) 'Cu-Catalyzed Azide-Alkyne Cycloaddition' Chem. Rev. 108, 2952–3015 – foundational CuAAC review confirming regioselectivity and catalyst scope."
+      ],
+      "decision_rationale": null,
+      "validation_experiments": null
+    },
+    "inventory_selection": null,
+    "additional_delivered_fields": {},
+    "reported_disposition": "SCREEN",
+    "disposition_rationale": "The Cu/C CatCart packed-bed cartridge on the X-Cube platform is a well-matched heterogeneous catalyst system for CuAAC click chemistry, and the chemistry is well-precedented in flow. However, the batch protocol used microwave heating at 150 °C for only 3 min, whereas the flow residence time through a 0.3 mL packed bed at accessible flow rates will be much shorter (seconds to ~2 min). The optimal flow temperature and residence time for this specific substrate pair in this cartridge have not been established, so experimental screening is required. The design is physically feasible and safe with the available equipment, but yield must be validated experimentally.",
+    "additional_response_fields": {}
+  },
+  "deterministic_verification_sheet": {
+    "scope": "Recalculation from delivered values only; no candidate repair and no assigned scores.",
+    "reference_caution": "Gas worksheet uses its stated nominal STP reference. A different or missing meter reference must be reviewed explicitly; no holdup is inferred.",
+    "delivered_arithmetic": {
+      "scope": "Arithmetic from delivered values only; no kinetic, transport, safety or yield validation.",
+      "parameter_path": "$.delivered_final_outcome.parameters",
+      "reference_substrate_mmol_min": 0.05,
+      "reference_substrate_equation": "C [M = mmol/mL] * Q_liquid [mL/min]",
+      "nominal_volume_over_liquid_flow_min": 1.4999999999999998,
+      "time_limitation": "V/Q is nominal space time, not measured multiphase or packed-bed contact time."
+    },
+    "declared_time_index": {
+      "assessable": true,
+      "scope": "Declared time index only; no phase holdup or measured contact time inferred.",
+      "source_path": "$.delivered_final_outcome.parameters",
+      "reported_time_min": 1.5,
+      "calculated_index_min": 1.4999999999999998,
+      "equation": "V / Q_liquid; nominal empty-volume time, not measured packed-bed contact time",
+      "relative_error": 1.4802973661668756e-16,
+      "agrees_within_10_percent": true
+    }
+  },
+  "evaluation_boundary": "Credit relevant facts anywhere in the complete selected delivered outcome, including prose, extra fields, recipes, graph and rationale. Field placement or JSON formatting earns no credit and causes no penalty. Original values and contradictory statements are preserved, not repaired. Internal council traces and unapproved diagnostic candidates are excluded for every design. Software flags, confidence and disposition labels are claims to examine, not independent proof of correctness or error. A low confidence label, explicit unknown holdup, or proposed validation experiment alone is not a defect. A withheld executable artifact remains a delivery limitation. Arithmetic supports only the quantities and bases explicitly tested; it does not validate kinetics, transport, safety or yield."
+}

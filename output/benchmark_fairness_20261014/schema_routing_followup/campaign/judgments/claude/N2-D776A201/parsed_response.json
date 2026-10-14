@@ -1,0 +1,318 @@
+{
+  "candidate_id": "N2-D776A201",
+  "criterion_scores": [
+    {
+      "criterion_id": "UO-01",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.chemistry_and_operations.chemistry_identity",
+        "$.delivered_final_outcome.parameters"
+      ],
+      "observed_values": [
+        "reaction_name: Photooxidation of Fmoc-L-methionine to Fmoc-L-methionine sulfoxide",
+        "photocatalyst: 4,7-diphenyl-2,1,3-benzothiadiazole",
+        "wavelength_nm: 420.0",
+        "reaction_class: Photocatalytic aerobic oxidation (singlet oxygen mediated sulfoxidation)",
+        "transformation_family: oxidation"
+      ],
+      "expected_or_correct": "Fmoc-L-methionine → Fmoc-L-methionine sulfoxide via photocatalytic aerobic oxidation with 4,7-diphenyl-2,1,3-benzothiadiazole at 420 nm, air as oxidant, acetonitrile solvent, 21°C",
+      "rationale": "The design correctly preserves the substrate (Fmoc-L-methionine), product (Fmoc-L-methionine sulfoxide), transformation (sulfoxidation via singlet oxygen), photocatalyst (4,7-diphenyl-2,1,3-benzothiadiazole), reaction modality (photocatalytic aerobic oxidation), wavelength (420 nm), solvent (acetonitrile), and temperature (21°C). No unsupported substitutions are present.",
+      "required_correction": "None",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-02",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.streams",
+        "$.delivered_final_outcome.chemistry_and_operations.stream_components"
+      ],
+      "observed_values": [
+        "Stream A: Fmoc-L-methionine 0.1 M (1.0 equiv), 4,7-diphenyl-2,1,3-benzothiadiazole 0.01 M (10 mol%), acetonitrile solvent",
+        "Stream B: air via MFC"
+      ],
+      "expected_or_correct": "All required components present: substrate, photocatalyst at 10 mol%, acetonitrile solvent, air as oxidant gas",
+      "rationale": "All required reagents are present and correctly assigned. Substrate at 0.1 M (1.0 equiv), photocatalyst at 10 mol% (0.01 M), acetonitrile as solvent, and air as the terminal oxidant/singlet oxygen precursor via MFC. No unsafe or transformation-changing materials introduced.",
+      "required_correction": "None",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-03",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.streams[1]",
+        "$.delivered_final_outcome.deterministic_verification_sheet.delivered_arithmetic"
+      ],
+      "observed_values": [
+        "gas_flow_sccm: 2.668181",
+        "gas_active_equivalents declared: 1.0 equiv O2",
+        "O2 molar flow: 0.025 mmol/min",
+        "liquid substrate molar flow: 0.025 mmol/min",
+        "molar_equiv_basis: mol O2 / mol limiting substrate"
+      ],
+      "expected_or_correct": "Stoichiometry coherent: substrate 0.1 M × 0.25 mL/min = 0.025 mmol/min; O2 from air at 2.668 sccm × 0.21 = ~0.025 mmol/min O2 (1 equiv). Concentration and equivalents are explicit. The 1:1 O2:substrate ratio is tight for an aerobic oxidation but the design acknowledges this and recommends screening higher gas flows.",
+      "rationale": "Concentrations and equivalents are explicit and coherent. The substrate molar flow (0.025 mmol/min) matches the O2 molar flow (0.025 mmol/min) giving exactly 1 equiv O2. The design itself flags this as potentially insufficient (O2 transfer sufficiency 0.19×) and recommends screening 1–5 sccm. The 1 equiv O2 is a minor concern for a reaction requiring stoichiometric O2 consumption, but the design acknowledges it and proposes screening. Feed compatibility is fine (no incompatible pairs). Minor defect: 1 equiv O2 is tight and the design's own analysis suggests it may be insufficient, but this is flagged and not hidden.",
+      "required_correction": "Consider increasing air flow to provide excess O2 (e.g., 2–5 equiv) for the first screen, consistent with the design's own recommendation to screen 1–5 sccm.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-04",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.parameters",
+        "$.delivered_final_outcome.chemistry_and_operations.operating_procedure"
+      ],
+      "observed_values": [
+        "temperature_C: 21.0",
+        "wavelength_nm: 420.0",
+        "BPR_bar: 3.0",
+        "light_source: 420 nm LED, 1.5 W",
+        "photocatalyst loading: 10 mol%",
+        "concentration: 0.1 M"
+      ],
+      "expected_or_correct": "Protocol: 21°C, 420 nm, 1.5 W LED, 10 mol% photocatalyst, 0.1 M, air atmosphere. All faithfully translated.",
+      "rationale": "Temperature (21°C), wavelength (420 nm), LED power (1.5 W), photocatalyst loading (10 mol%), concentration (0.1 M), and air as oxidant are all faithfully translated from the batch protocol. BPR at 3 bar is a justified addition for gas-liquid flow operation. Addition order (liquid then gas) is specified in startup procedure.",
+      "required_correction": "None",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-05",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.topology.pid_description",
+        "$.delivered_final_outcome.topology.streams"
+      ],
+      "observed_values": [
+        "Pump A → T-mixer; MFC B → T-mixer; T-mixer → PFA photocoil; photocoil → BPR; BPR → gas-liquid separator; separator → collector"
+      ],
+      "expected_or_correct": "Correct executable topology: liquid pump + gas MFC → T-mixer → photoreactor (with LED and thermostat) → BPR → gas-liquid separator → collection vessel",
+      "rationale": "The topology is complete and correctly ordered. All required unit operations are present: liquid pump, gas MFC, T-mixer for gas-liquid junction, photoreactor coil with LED and thermostat, BPR for pressure control, gas-liquid separator, and collection vessel. The safety enclosure is also included. The topology is physically executable.",
+      "required_correction": "None",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-06",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.parameters",
+        "$.delivered_final_outcome.streams",
+        "$.delivered_final_outcome.deterministic_verification_sheet.delivered_arithmetic"
+      ],
+      "observed_values": [
+        "Q_liquid: 0.25 mL/min",
+        "concentration: 0.1 M",
+        "substrate molar flow: 0.025 mmol/min",
+        "photocatalyst: 0.01 M × 0.25 mL/min = 0.0025 mmol/min (10 mol% of substrate — correct)",
+        "gas_flow_sccm: 2.668181",
+        "O2 molar flow: ~0.025 mmol/min"
+      ],
+      "expected_or_correct": "Liquid material balance: 0.1 M × 0.25 mL/min = 0.025 mmol/min substrate; photocatalyst 0.01 M × 0.25 mL/min = 0.0025 mmol/min = 10 mol%. Gas: 2.668 sccm air at STP = 0.119 mmol/min total, O2 = 0.025 mmol/min. All consistent.",
+      "rationale": "The liquid material balance is coherent: substrate at 0.1 M and 0.25 mL/min gives 0.025 mmol/min; photocatalyst at 0.01 M gives 0.0025 mmol/min (10 mol%). Gas balance: 2.668 sccm at STP (273.15 K, 1.01325 bar, 22.414 L/mol) = 0.119 mmol/min total air, O2 = 0.025 mmol/min (1 equiv). The verification sheet confirms arithmetic closure. Minor issue: the design's reasoning section contains some inconsistent intermediate values (e.g., references to 4 min residence time and 0.5 mL/min in decision_rationale snapshots vs. the canonical 0.342679 min and 0.25 mL/min), but the final delivered parameters are self-consistent.",
+      "required_correction": "Clarify the inconsistency between intermediate reasoning snapshots (showing residence_time_min: 4.0, flow_rate_mL_min: 0.25 in parameter_snapshot) and the canonical delivered values (residence_time_min: 0.342679). The final numbers are correct but the reasoning trail is confusing.",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-07",
+      "applicability": "APPLICABLE",
+      "score": 2,
+      "critical_error": false,
+      "severity": "MAJOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.parameters",
+        "$.delivered_final_outcome.graph_context.stages[0]",
+        "$.delivered_final_outcome.deterministic_verification_sheet.declared_time_index",
+        "$.delivered_final_outcome.evidence_and_reasoning.decision_rationale.residence_time_min"
+      ],
+      "observed_values": [
+        "reactor_volume_mL: 1.0",
+        "flow_rate_mL_min (liquid): 0.25",
+        "gas_flow_sccm: 2.668181 (= 2.668 mL/min at STP)",
+        "residence_time_min (canonical): 0.342679",
+        "residence_time_inlet_min: 0.342679",
+        "residence_time_in_channel_min: 1.025175 (parameters) vs 2.4 (decision_rationale)",
+        "V/(Q_liq + Q_gas_STP) = 1.0/(0.25+2.668) = 0.343 min — matches canonical",
+        "residence_time_min in decision_rationale snapshots: 4.0 min",
+        "residence_time_inlet_min in decision_rationale snapshots: 4.0 min"
+      ],
+      "expected_or_correct": "Residence time should be V/(Q_liq + Q_gas_STP) = 1.0/2.918 = 0.343 min (inlet/STP basis). The canonical value 0.342679 min is correct. However, the design's own reasoning extensively discusses a 4 min target residence time and states the design achieves ~4 min, which is inconsistent with the delivered 0.343 min. The in-channel time is reported as both 1.025175 min (parameters) and 2.4 min (decision_rationale), an internal contradiction.",
+      "rationale": "The canonical residence time (0.342679 min) is arithmetically correct for V=1 mL, Q_liq=0.25 mL/min, Q_gas_STP=2.668 mL/min. However, the design's reasoning extensively targets 4 min residence time and claims to achieve it, while the actual delivered value is 0.343 min — a 12× discrepancy. The decision_rationale for residence_time_min states 'Setting τ_inlet = 4 min as conservative screening start' and the parameter_snapshot shows residence_time_min: 4.0, but the canonical delivered value is 0.343 min. This is a material internal inconsistency: the reasoning justifies a 4 min residence time but the actual design delivers 0.343 min. Additionally, in-channel time is reported as 1.025175 min in parameters but 2.4 min in decision_rationale. This requires revision to clarify which residence time is actually being executed and whether the gas flow was intentionally set to achieve 0.343 min or 4 min.",
+      "required_correction": "Reconcile the residence time: either reduce gas flow to achieve the stated 4 min target (which would require Q_gas_STP ≈ 0 and Q_liq = 0.25 mL/min giving τ = 4 min liquid-only, or reduce liquid flow), or explicitly state that the design targets 0.343 min inlet/STP residence time and justify this against the batch 5 min. Remove the contradictory 4 min claims from the reasoning. Resolve the in-channel time discrepancy (1.025 vs 2.4 min).",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-08",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.streams[1]",
+        "$.delivered_final_outcome.deterministic_verification_sheet.delivered_arithmetic.conditional_nominal_gas_reference_examples[0]"
+      ],
+      "observed_values": [
+        "gas: air",
+        "STP basis: 273.15 K, 1.01325 bar, 22.414 L/mol",
+        "gas_flow_sccm: 2.668181",
+        "gas_flow_actual_mL_min: 0.725443",
+        "pressure_absolute_bar: 4.01325",
+        "O2 mole fraction: 0.21",
+        "O2 molar flow: 0.025 mmol/min",
+        "O2 equivalents: 1.0",
+        "in-channel gas flow: 0.725443 mL/min"
+      ],
+      "expected_or_correct": "Gas identity (air/O2) correct. STP basis declared (273.15 K, 1.01325 bar). Inlet STP flow 2.668 sccm → 0.119 mmol/min total, O2 = 0.025 mmol/min = 1 equiv. In-channel flow at 4.01325 bar absolute: 2.668 × (1.01325/4.01325) = 0.674 mL/min (ideal gas). Delivered value 0.725 mL/min is slightly high (~8% error) but within acceptable range for a screening design. Equivalents and molar flows are consistent.",
+      "rationale": "Gas identity, STP definition, inlet flow, molar flow, and equivalents are all declared and consistent. The in-channel gas flow calculation (0.725 mL/min) vs. ideal gas law estimate (2.668 × 1.01325/4.01325 = 0.674 mL/min) shows ~8% discrepancy, likely due to temperature correction (294 K vs 273 K). This is a minor issue. The distinction between STP inlet flow and pressure-corrected in-channel flow is explicitly maintained. The O2 equivalents basis is clearly stated. Minor concern: the in-channel residence time is reported inconsistently (1.025 min in parameters, 2.4 min in reasoning).",
+      "required_correction": "Clarify the in-channel gas flow calculation basis (temperature correction applied or not) and resolve the in-channel residence time inconsistency between parameters (1.025 min) and decision_rationale (2.4 min).",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-09",
+      "applicability": "NOT_APPLICABLE",
+      "score": null,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [],
+      "observed_values": [],
+      "expected_or_correct": "Single-stage process; multistage criterion not applicable.",
+      "rationale": "The case context declares multistage_process=false and the design is a single-stage photoreactor.",
+      "required_correction": "None",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-10",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.topology.instrument_manifest",
+        "$.case_context.authoritative_inventory"
+      ],
+      "observed_values": [
+        "pump_photo_liquid: flow 0.25 mL/min (range 0.01–1.0) ✓",
+        "mfc_air_10: 2.668 sccm (range 0.1–10) ✓",
+        "mixer_photo_t: 2 inputs, total flow 0.25 mL/min (max 2.0) ✓",
+        "reactor_photo_100: 1.0 mL, 1.0 mm ID, 21°C (allowed), PFA ✓",
+        "light_photo_420: 420 nm, 1.5 W, compatible with coil ✓",
+        "bpr_photo_3: 3.0 bar (only setpoint available) ✓",
+        "separator_photo_gl: max 5.0 mL/min, max 5 bar ✓",
+        "collector_photo_100: 100 mL, max 1 bar (downstream of separator, at atmospheric) ✓",
+        "safety_photo_enclosure: included ✓"
+      ],
+      "expected_or_correct": "All equipment items exist in inventory, operating points within declared limits.",
+      "rationale": "Every equipment item is drawn from the authoritative inventory. All flow rates, pressures, temperatures, and wavelengths are within declared equipment limits. The T-mixer total flow (0.25 mL/min liquid, well within 2.0 mL/min max) is correct. The collector is at atmospheric pressure after the separator, consistent with its 1 bar max. No invented equipment.",
+      "required_correction": "None",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-11",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.evidence_and_reasoning.decision_rationale.gas_flow_sccm",
+        "$.delivered_final_outcome.evidence_and_reasoning.decision_rationale.residence_time_min"
+      ],
+      "observed_values": [
+        "G:L ratio at STP: 2.668/0.25 = 10.7:1",
+        "Re ~11 (laminar confirmed)",
+        "BPR 3 bar for gas-liquid stability",
+        "O2 transfer sufficiency flagged at 0.19×",
+        "Da=92 (mass-transfer limited acknowledged)",
+        "PFA transparent to 420 nm"
+      ],
+      "expected_or_correct": "Segmented flow plausible at these conditions. G:L ~10:1 at STP is high but not physically impossible. Pressure drop manageable at 3 bar BPR. PFA transparent to visible light. Acetonitrile well below boiling at 21°C/3 bar.",
+      "rationale": "Phase behavior is plausible: acetonitrile bp 82°C >> 21°C operating, no boiling risk. PFA is transparent to 420 nm light. Segmented gas-liquid flow at G:L ~10:1 STP is physically achievable in 1 mm ID tubing. The design correctly identifies O2 mass transfer as potentially limiting (Da=92, transfer sufficiency 0.19×) and flags this as a screening concern. The very short residence time (0.343 min) relative to the batch time (5 min) raises a physical plausibility question about whether sufficient reaction can occur, but this is a screening design and the concern is acknowledged. Minor issue: the high G:L ratio may cause slug flow instability or poor liquid holdup characterization, but this is flagged.",
+      "required_correction": "Verify slug flow stability at G:L ~10:1 in 1 mm ID PFA tubing at 0.25 mL/min liquid flow; consider reducing gas flow to improve liquid holdup and O2 transfer efficiency.",
+      "confidence": "MEDIUM"
+    },
+    {
+      "criterion_id": "UO-12",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.safety_controls",
+        "$.delivered_final_outcome.chemistry_and_operations.operating_procedure"
+      ],
+      "observed_values": [
+        "Hazards identified: high_intensity_light, oxygen_organic_service, pressurized_operation",
+        "Controls: PPE, emergency stop, waste segregation, leak test, overpressure response, depressurization, light enclosure (interlocked), ignition source exclusion, O2/organic vent routing",
+        "safety_photo_enclosure assigned",
+        "separator and collector vented"
+      ],
+      "expected_or_correct": "All major hazards for photochemical aerobic oxidation in acetonitrile identified and controlled: light hazard (enclosure), O2-enriched organic stream (ignition control, vent), pressure (BPR, leak test, depressurization procedure), acetonitrile vapor (vented separator/collector).",
+      "rationale": "The design comprehensively identifies and controls all relevant hazards: photochemical (interlocked enclosure), oxygen-organic service (ignition source exclusion, vent routing), pressurized operation (leak test, overpressure response, controlled depressurization), and general chemical hazards (PPE, waste). The safety_photo_enclosure is explicitly assigned and its capabilities match the hazards. No major hazard is omitted.",
+      "required_correction": "None",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-13",
+      "applicability": "APPLICABLE",
+      "score": 4,
+      "critical_error": false,
+      "severity": "NONE",
+      "evidence_paths": [
+        "$.delivered_final_outcome.chemistry_and_operations.operating_procedure"
+      ],
+      "observed_values": [
+        "Steps: PREP-A, PREP-B, SETUP-VERIFY, SETUP-PRIME, PRESSURE-LEAK-TEST, GENERAL-PPE-CONTAINMENT, GENERAL-EMERGENCY-STOP, GENERAL-WASTE, PRESSURE-OVERPRESSURE-RESPONSE, PRESSURE-DEPRESSURIZE, PHOTO-LIGHT-ENCLOSURE, OXYGEN-ORGANIC-IGNITION-CONTROL, OXYGEN-ORGANIC-VENT, START-FEEDS, STEADY-STATE, COLLECT-PRODUCT, COLLECT-ANALYZE-WORKUP, NORMAL-SHUTDOWN"
+      ],
+      "expected_or_correct": "Complete procedure covering feed preparation, assembly verification, priming, leak testing, startup sequence (liquid before gas), steady-state qualification (12 min minimum, 3 turnovers), collection, analysis, and shutdown.",
+      "rationale": "The operating procedure is comprehensive and reproducible. It covers feed preparation with explicit concentrations, assembly verification, priming (bubble-free), pressure testing at operating setpoint, correct startup sequence (liquid before gas), steady-state qualification with explicit minimum time and measurement requirement, timed collection, analysis instructions, and normal shutdown. Emergency procedures (overpressure response, depressurization) are included. The experiment can be reconstructed from the delivered instructions.",
+      "required_correction": "None",
+      "confidence": "HIGH"
+    },
+    {
+      "criterion_id": "UO-14",
+      "applicability": "APPLICABLE",
+      "score": 3,
+      "critical_error": false,
+      "severity": "MINOR",
+      "evidence_paths": [
+        "$.delivered_final_outcome.evidence_and_reasoning.confidence",
+        "$.delivered_final_outcome.reported_disposition",
+        "$.delivered_final_outcome.evidence_and_reasoning.decision_rationale.residence_time_min"
+      ],
+      "observed_values": [
+        "confidence: LOW",
+        "reported_disposition: SCREEN",
+        "intensification realized_factor: 14.585 (= 5 min / 0.343 min)",
+        "reasoning acknowledges O2 transfer limitation, Da=92, screening range 2–8 min recommended",
+        "validation experiments proposed"
+      ],
+      "expected_or_correct": "Honest representation of uncertainty, SCREEN disposition appropriate, assumptions stated, validation experiments proposed.",
+      "rationale": "The design honestly declares LOW confidence, uses SCREEN disposition appropriately, acknowledges O2 transfer limitations, flags the Da=92 mass-transfer concern, and proposes validation experiments. Assumptions are stated rather than invented. However, there is a material internal inconsistency: the reasoning extensively justifies a 4 min residence time target but the delivered design achieves 0.343 min — this inconsistency is not resolved or acknowledged in the evidence section, which reduces calibration quality. The design does not claim performance guarantees. No invented evidence. Minor defect: the unresolved 4 min vs 0.343 min discrepancy in the reasoning is not flagged as an acknowledged inconsistency.",
+      "required_correction": "Explicitly acknowledge and resolve the discrepancy between the 4 min residence time target discussed in reasoning and the 0.343 min actually delivered, so the operator understands which value governs execution.",
+      "confidence": "HIGH"
+    }
+  ],
+  "overall_executability": "SCREEN_ONLY",
+  "cross_criterion_notes": [
+    "The most significant issue is the internal inconsistency between the reasoning (which extensively justifies and targets a 4 min residence time) and the canonical delivered residence time of 0.343 min. This 12× discrepancy arises because the gas flow (2.668 sccm = 2.668 mL/min at STP) dominates the total inlet flow (2.918 mL/min), reducing the inlet/STP residence time to V/Q_total = 1.0/2.918 = 0.343 min. The design's own reasoning does not reconcile this, creating execution ambiguity (UO-07, UO-14).",
+    "The in-channel residence time is reported as 1.025175 min in parameters but 2.4 min in decision_rationale — an unresolved internal contradiction (UO-07, UO-08).",
+    "The G:L ratio at STP is ~10.7:1, which is high for a 1 mm ID channel. While physically possible, this may compromise liquid holdup and O2 transfer efficiency. The design flags O2 transfer sufficiency at 0.19× demand but then sets gas flow to provide only 1 equiv O2 — these are in tension (UO-03, UO-11).",
+    "Despite the residence time inconsistency, the canonical arithmetic (0.343 min) is verified correct by the deterministic verification sheet, and all equipment assignments, safety controls, and procedures are sound. The design is executable as a screen but requires the operator to understand that the actual residence time is 0.343 min, not 4 min.",
+    "The SCREEN disposition is appropriate and honestly calibrated given the acknowledged uncertainties."
+  ]
+}

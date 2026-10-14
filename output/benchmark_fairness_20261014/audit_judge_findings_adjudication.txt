@@ -1,0 +1,248 @@
+POST-EVALUATION ADJUDICATION OF SPECIFIC H2 FINDINGS
+
+Scope: evidence audit requested after the independent content audit and after the OpenAI judgments became available. This document does not assign replacement scores, change judge integers, remove flags, recompute the benchmark mean or establish superiority. All primary artifacts remain unchanged.
+
+
+
+1. Canonical delivered H2 arithmetic
+
+{
+  "flow_rate_mL_min": 0.5,
+  "temperature_C": 60.0,
+  "concentration_M": 0.126,
+  "BPR_bar": 21.0,
+  "BPR_basis": "gauge",
+  "pressure_absolute_bar": 22.01325,
+  "reactor_type": "packed-bed",
+  "tubing_material": "stainless steel",
+  "tubing_ID_mm": 4.35,
+  "wavelength_nm": null,
+  "residence_time_basis_code": "inlet_stp",
+  "residence_time_basis": "inlet/STP apparent residence time",
+  "residence_time_basis_detail": "inlet/STP apparent residence time",
+  "reactor_volume_mL": 3.0,
+  "residence_time_min": 1.569036,
+  "residence_time_inlet_min": 1.569036,
+  "residence_time_in_channel_min": 5.178932
+}
+
+Exact gas explanation: MFC inlet/STP flow=1.412 sccm at 273.15 K and 1.01325 bar (22.412722 L/mol); pressure-corrected in-channel flow=0.0792695 mL/min at 60 deg C and 22.0132 bar absolute; total gas=0.063 mmol/min, active H2=0.063 mmol/min (mole fraction 1); supplied=1 equiv H2 relative to limiting substrate.
+
+
+
+Using V=3 mL, Q_liquid=0.5 mL/min, gas=1.412002 mL/min at 273.15 K and 1.01325 bar, T=333.15 K and P_absolute=21+1.01325=22.01325 bar:
+
+Liquid nominal space-time index = 3/0.5 = 6.000000 min.
+
+Inlet/STP index = 3/(0.5+1.412002) = 1.5690360157 min.
+
+Gas actual flow = 1.412002*(333.15/273.15)*(1.01325/22.01325) = 0.0792695461 mL/min.
+
+Homogeneous pressure-corrected channel index = 3/(0.5+0.0792695461) = 5.1789315982 min.
+
+Substrate delivery = 0.126 mmol/mL * 0.5 mL/min = 0.063 mmol/min.
+
+H2 delivery = 1.412002/22.412722 = approximately 0.063 mmol/min = 1.0 equivalent. Using rounded 22.414 in the verification worksheet gives 0.999943 equivalents, a rounding difference.
+
+These are different declared volume/flow indices. None independently measures liquid holdup, packed-bed void volume or actual substrate contact time. No phase holdup has been inferred by this audit.
+
+
+
+Exact canonical explanation supplied to judges:
+
+### Final Executable Design
+- **Residence time:** 1.56904 min
+- **Inlet/STP apparent residence time:** 1.56904 min
+- **In-channel apparent residence time:** 5.17893 min
+- **Total liquid flow:** 0.5 mL/min
+- **Reactor volume:** 3 mL
+- **Temperature:** 60 deg C
+- **BPR:** 21 bar
+- **Concentration:** 0.126 M
+- **Residence-time basis:** inlet/STP apparent residence time
+- **Assigned equipment:** Pressure-rated plunger pump, Hydrogen mass-flow controller, Hydrogen-service T-mixer, Pd(OH)2/Al2O3 micro-packed bed, Packed-bed water bath, Hydrogen-service BPR, Vented gas-liquid separator, Grounded vented liquid collection vessel, Nitrogen purge cylinder and regulator, Hydrogen non-return check valve, Dedicated hydrogen separator safe vent
+
+
+
+Exact delivered verification of declared time:
+
+{
+  "assessable": true,
+  "scope": "Declared time index only; no phase holdup or measured contact time inferred.",
+  "source_path": "$.delivered_final_outcome.parameters",
+  "reported_time_min": 1.569036,
+  "calculated_index_min": 1.5690360156527032,
+  "equation": "V / (Q_liquid + sum(Q_gas_standard)); inlet/standard-volume index only",
+  "relative_error": 9.975999898975018e-09,
+  "agrees_within_10_percent": true
+}
+
+
+
+2. UO-07 OpenAI finding (unchanged recorded integer 1; critical_error=True)
+
+Exact rationale: The delivery conflates at least three different time bases. The deterministic sheet confirms 1.569036 min only for the declared inlet/STP index, while the same outcome also claims a primary residence time of 1.569036 min despite V/Q_liquid = 6.0 min and provides conflicting in-channel values. This is a criterion-specific critical condition because reactor volume and residence-time claims contradict the executable design.
+
+Exact requested correction: Report separate, internally consistent values for nominal liquid space time (6.0 min), inlet/STP index (1.569 min if kept), and any in-channel diagnostic basis, with one clearly designated primary basis.
+
+Adjudication: The implication that the explicitly declared 1.569036 min inlet/STP index contradicts 3/0.5=6 min is mathematically incorrect. Both are true for their respective denominators. The canonical summary explicitly labels inlet/STP apparent residence time, and the delivered procedure supplies timing_reference_min=6.0 and calls the commissioning period three nominal liquid-volume turnovers. The worksheet also supplies nominal_volume_over_liquid_flow_min=6.0. Merely providing both indices does not demonstrate impossible reactor geometry or physically impossible residence time.
+
+However, the same delivered packet retains an earlier model explanation calling 6 min the primary time and containing false calculations. That is a genuine documentation/rationale problem, assessed below. Calling the entire judgment a pure false positive would therefore conceal a real presentation weakness. Its canonical geometry-contradiction argument is unsupported; its concern about contradictory explanatory prose has evidence.
+
+
+
+2. UO-08 OpenAI finding (unchanged recorded integer 1; critical_error=True)
+
+Exact rationale: Although the STP-to-actual gas-flow conversion itself is plausible, the delivered gas bookkeeping is materially inconsistent across fields and rationale, especially for in-channel residence time and gas-flow basis. This satisfies the critical condition of physically inconsistent gas molar flow/residence-time bookkeeping.
+
+Exact requested correction: Use one explicit STP definition and one explicit absolute-pressure correction, then recalculate and harmonize gas actual flow and any gas-sensitive residence-time metrics throughout the output.
+
+Adjudication: The final gas identity, standard reference, absolute pressure, actual gas flow, molar flow and equivalents close numerically. The 5.178932 min index follows the declared calculation. The cited 0.42/1.08 min and 5 sccm values are genuine erroneous text, but they belong to explicitly stale model rationale with a different parameter snapshot. This supports a rationale consistency/presentation defect. It does not establish that the current gas controller setting or current molar balance is physically inconsistent. This audit does not choose a substitute rubric integer or critical-flag treatment.
+
+
+
+3. Exact stale text and its delivered provenance
+
+final_design.decision_rationale.residence_time_min.text: Calculation estimated τ = 20 min (IF=15×) for a 38.24 mL reactor. Inventory constrains reactor to 3.0 mL (reactor_h2_pbr_300). At Q=0.5 mL/min liquid, τ_liquid = 3.0/0.5 = 6.0 min. Inlet/STP basis: τ_inlet = 3.0/(0.5 + 5 sccm × 1 mL/60s) = 3.0/0.583 = 5.1 min. Reported 6.0 min (liquid basis) as primary handle. Analogies 1–3: (a) Analogy 1 is Claisen rearrangement — chemically dissimilar (no gas, no heterogeneous catalyst), key difference is single-phase thermal vs gas-liquid-solid; not applicable for residence time. (b) Analogy 2 is photocatalytic packed-bed C-N coupling — similar packed-bed format but photocatalytic, no H2 gas, 180 min residence time at 0.01 mL/min; key difference is no gas feed and photocatalysis vs hydrogenolysis; 180 min not applicable. (c) Analogy 3 is photoredox C-N coupling — dissimilar; 60 min residence time in photochemical reactor; not applicable. All analogies chemically dissimilar; engineering calculation and inventory constraint are primary basis.
+
+status: requires_review_after_parameter_change
+
+snapshot: {"temperature_C": 60.0, "BPR_bar": 21.0, "concentration_M": 0.126, "flow_rate_mL_min": 0.5, "reactor_volume_mL": 3.0, "tubing_ID_mm": 4.35, "residence_time_min": 6.0, "wavelength_nm": null, "residence_time_basis": "inlet_stp", "residence_time_inlet_min": 5.1, "residence_time_in_channel_min": 0.42, "BPR_basis": "gauge"}
+
+authority: scientific rationale; not an independent validation of chemistry or safety
+
+
+
+final_design.decision_rationale.residence_time_basis.text: Gas-liquid system: H2 gas fed via MFC. Inlet/STP basis used per universal physics rules. residence_time_inlet_min = V/(Q_liq + Q_gas_STP) = 3.0/(0.500 + 0.083) = 5.1 min. residence_time_in_channel_min = V/(Q_liq + Q_gas_actual) = 3.0/(0.500 + 0.610) = 2.7 min reported as 0.42 min corrected for void fraction ~0.4 (3.0×0.4/0.500+0.610 = 0.42 min). Primary residence_time_min = 6.0 min (liquid-only V/Q_liq) as engineering design handle.
+
+status: requires_review_after_parameter_change
+
+snapshot: {"temperature_C": 60.0, "BPR_bar": 21.0, "concentration_M": 0.126, "flow_rate_mL_min": 0.5, "reactor_volume_mL": 3.0, "tubing_ID_mm": 4.35, "residence_time_min": 6.0, "wavelength_nm": null, "residence_time_basis": "inlet_stp", "residence_time_inlet_min": 5.1, "residence_time_in_channel_min": 0.42, "BPR_basis": "gauge"}
+
+authority: scientific rationale; not an independent validation of chemistry or safety
+
+
+
+final_design.decision_rationale.residence_time_inlet_min.text: V_reactor / (Q_liquid_STP + Q_gas_STP) = 3.0 mL / (0.500 + 5/60 mL/min) = 3.0/0.583 = 5.1 min. From universal physics rules for gas-liquid designs.
+
+status: requires_review_after_parameter_change
+
+snapshot: {"temperature_C": 60.0, "BPR_bar": 21.0, "concentration_M": 0.126, "flow_rate_mL_min": 0.5, "reactor_volume_mL": 3.0, "tubing_ID_mm": 4.35, "residence_time_min": 6.0, "wavelength_nm": null, "residence_time_basis": "inlet_stp", "residence_time_inlet_min": 5.1, "residence_time_in_channel_min": 0.42, "BPR_basis": "gauge"}
+
+authority: scientific rationale; not an independent validation of chemistry or safety
+
+
+
+final_design.decision_rationale.residence_time_in_channel_min.text: Pressure-corrected diagnostic: Q_gas_actual at 21 bar, 60°C = 5 sccm × (273+60)/273 × 1.013/22.013 × 1000/60 = 0.61 mL/min. Void fraction ~0.4 assumed. τ_channel = (3.0 × 0.4)/(0.500 + 0.610) = 1.2/1.11 = 1.08 min. Reported as 0.42 min using bed void fraction 0.4 and total volumetric flow. Diagnostic only — not used for sizing.
+
+status: requires_review_after_parameter_change
+
+snapshot: {"temperature_C": 60.0, "BPR_bar": 21.0, "concentration_M": 0.126, "flow_rate_mL_min": 0.5, "reactor_volume_mL": 3.0, "tubing_ID_mm": 4.35, "residence_time_min": 6.0, "wavelength_nm": null, "residence_time_basis": "inlet_stp", "residence_time_inlet_min": 5.1, "residence_time_in_channel_min": 0.42, "BPR_basis": "gauge"}
+
+authority: scientific rationale; not an independent validation of chemistry or safety
+
+
+
+The model multiplied/divided sccm inconsistently by 60 and 1000, and the asserted 0.42 min does not follow even its written 1.2/1.11=1.08 min expression. Those errors were already identified in the independent content audit before this judge-specific review. The final publication retains the errors as historical rationale, marked requires_review_after_parameter_change; they should not be treated as validated current calculations. The reader-facing burden is nevertheless real: prominently retaining erroneous scientific prose alongside correct current numbers invites misinterpretation.
+
+The model rationale also mixes an assumed 0.4 void fraction with gross-volume indices. An actual packed-bed liquid residence time remains unknown without phase holdup/RTD. That uncertainty is explicitly acknowledged by the delivered procedure, not a numerical proof that the quoted indices are impossible.
+
+
+
+4. Independent stock/schedule issue (separate from the two critical flags)
+
+PREP-A: Prepare Stream A: on a 10 mL final-volume basis, charge N-Diphenylmethylazetidin-3-ol: 1.26 mmol (0.126 M final); add methanol to 10 mL total. Convert mmol to weighed/dispensed amount using the verified reagent MW, assay, and density recorded at preparation.
+
+bindings: {"stream_label": "A", "flow_rate_mL_min": 0.5, "gas_flow_sccm": null}
+
+STEADY-STATE: Allow an initial commissioning interval of at least 18 min, based on three nominal liquid-volume turnovers. Confirm steady outlet composition and stable flow, pressure and temperature before collection; elapsed time alone does not establish steady state. Measure phase holdup or tracer response when gas or a packed bed is present.
+
+bindings: {"residence_time_min": 1.569036, "minimum_initial_stabilization_time_min": 18.0, "timing_reference_min": 6.0, "steady_state_requires_measurement": true, "residence_time_basis": "inlet/STP apparent residence time"}
+
+COLLECT-PRODUCT: After measured steady state, collect a timed fraction over at least 6 min as an initial sampling interval; record exact start/end times and collected mass or volume. Extend collection if needed for the analytical method.
+
+bindings: {"minimum_initial_collection_time_min": 6.0}
+
+At 0.5 mL/min, 18 min minimum commissioning plus 6 min collection consumes 12 mL. The preparation is written on a 10 mL final-volume basis. It is scalable, so the chemistry is not inherently impossible, but a literal 10 mL preparation is insufficient for the stated minimum schedule. The report should connect total prepared stock to the schedule. This is a genuine, independently identified completeness issue; it does not make 1.569036 or 5.178932 mathematically wrong.
+
+
+
+5. Matched one-shot pressure-test contradiction and judge omission
+
+Candidate: N2-7A0E8A18 (unchanged one-shot output reused in corrected follow-up).
+
+Exact pre_reactor_steps[3]: Pressure-test the assembled system with N2 to 25 bar for 10 min. Check all fittings for leaks using leak-detection solution.
+
+Exact safety_controls[4]: Pressure-test with N2 before H2 introduction. Never exceed 21 bar at the BPR; system maximum is 40 bar.
+
+Authoritative inventory pressure controller: [{"equipment_id": "bpr_h2_21", "name": "Hydrogen-service BPR", "type": "BPR", "setpoints_bar": [21.0], "min_pressure_bar": 21.0, "max_pressure_bar": 21.0}]
+
+Adjudication: A 25 bar test of the assembled system is not supported by an inventory BPR explicitly limited to 21 bar and the same answer's instruction never to exceed 21 bar at that BPR. Other components rated 40 bar do not remove that weakest stated limit. No separately defined isolation/test assembly or manufacturer-authorized higher proof-test rating is provided. This is an actual unresolved operating-instruction contradiction under the supplied facts; this audit does not claim a real component would necessarily fail at 25 bar.
+
+
+
+openai unchanged recorded findings:
+
+ablation_results/practical_input/claude_fair_bridge_20261014/judgments/openai/N2-7A0E8A18/parsed_response.json
+
+UO-10: score=4; critical_error=False; rationale: The design uses only inventoried hardware and stays within stated pressure, flow, temperature, and connectivity limits.
+
+UO-12: score=4; critical_error=False; rationale: The design identifies and operationalizes the key H2, methanol, pressure, and catalyst hazards with appropriate controls using available inventory.
+
+UO-13: score=3; critical_error=False; rationale: The procedure is largely reconstructable and operationally useful. Minor defect: there is no explicit emergency shutdown sequence and waste handling is brief rather than fully specified.
+
+
+
+claude unchanged recorded findings:
+
+ablation_results/practical_input/claude_fair_bridge_20261014/judgments/claude/N2-7A0E8A18/parsed_response.json
+
+UO-10: score=4; critical_error=False; rationale: Every selected equipment item exists in the authoritative inventory. All operating points (flow rates, pressures, temperatures, IDs) are within declared limits. The pump is compatible with methanol/DMAOL. The MFC is within its 1–100 sccm range at 10 sccm. The reactor temperature (60 °C) is an allowed temperature. The BPR is at its only available setpoint (21 bar). The separator is within its 25 bar pressure limit. No invented equipment is used.
+
+UO-12: score=4; critical_error=False; rationale: The candidate provides a comprehensive and concrete set of hazard controls. H2 flammability is addressed with ventilation, leak detection, check valve, safe vent, and grounded collector. Catalyst pyrophoricity is explicitly addressed. Methanol flammability is noted. Pressure safety is addressed with N2 pressure testing, BPR rating, and slow depressurization. N2 purge before opening is specified. No major hazard is omitted.
+
+UO-13: score=4; critical_error=False; rationale: The procedure is complete and reproducible. Feed preparation, catalyst loading, assembly, leak testing, priming, thermal equilibration, startup sequence, steady-state qualification, sample collection, normal shutdown, depressurization, N2 purge, and waste handling are all explicitly described. The experiment can be reconstructed from the delivered instructions.
+
+Exact observed value acknowledged without correction: Leak test: N2 to 25 bar for 10 min
+
+
+
+qwen unchanged recorded findings:
+
+ablation_results/practical_input/claude_fair_bridge_20261014/judgments/qwen/N2-7A0E8A18/parsed_response.json
+
+UO-10: score=4; critical_error=False; rationale: All selected equipment items (reactor, BPR, pump, mixer, separator, vent, check valve) are present in the authoritative inventory. Operating conditions (21 bar, 60 °C, 0.1 mL/min) are within the declared limits of the equipment.
+
+UO-12: score=4; critical_error=False; rationale: Key hydrogen hazards (flammability, backflow, static discharge) are addressed with specific controls: check valve, safe vent, grounded collector, and N2 purging. Pyrophoric catalyst handling is also addressed.
+
+UO-13: score=4; critical_error=False; rationale: The operating procedure is detailed, covering feed preparation, leak testing, priming, startup, steady-state qualification, collection, and shutdown. It is reproducible.
+
+
+
+All three judges assign UO-10=4 and UO-12=4 and do not flag the 25-versus-21 bar contradiction. Claude explicitly repeats the 25 bar test while awarding UO-13=4. This is a concrete missed finding, not an inference from a low or high aggregate score.
+
+
+
+6. Interpretation of the near-tied aggregate
+
+The benchmark combines independently assigned criterion integers. The OpenAI H2 evaluation both recognizes the final liquid/gas numerical closure and penalizes retained contradictory gas/time prose across several criteria. Some penalties concern a real rationale problem; the UO-07 geometry argument confuses declared time bases. Meanwhile a concrete one-shot pressure-test contradiction is missed by all three judges. Thus a small mean difference cannot be interpreted as an exact physical-quality ranking. These observations identify limitations in automated evaluation and delivered explanation quality, not grounds to replace selected grades or declare a preferred winner.
+
+No alternative mean or hand-corrected score is calculated here. The fixed benchmark outputs and judgments should remain reportable exactly as archived, accompanied by this separate factual audit.
+
+
+
+7. Source files and SHA-256 (read-only)
+
+output/benchmark_fairness_20261014/schema_routing_followup/campaign/generation/hydrogenolysis/claude_flowpilot/repeat_01/result.json  56eb5176e7853dabc7af5baf7c247089ffe997d6635d133fa64c6097d5607326
+
+output/benchmark_fairness_20261014/schema_routing_followup/campaign/packets/N2-2D5EEFAD.json  5c54aa23c93847d515422e3ed7b1ac902e5dd78a2f45eebe33fe90ac6e21a4c3
+
+output/benchmark_fairness_20261014/schema_routing_followup/campaign/judgments/openai/N2-2D5EEFAD/parsed_response.json  39cfedb257823b8a599b8690f71d37ea5c7c11f57bcf3c47d0babfedccb83f0e
+
+output/benchmark_fairness_20261014/schema_routing_followup/campaign/packets/N2-7A0E8A18.json  8520402cef17233c77f8e37bc257ed2bffcb123abe68c333f7957b333858f2e8
+
+ablation_results/practical_input/claude_fair_bridge_20261014/judgments/openai/N2-7A0E8A18/parsed_response.json  bb391a263beb46bb83d95c4dad65fb4271a6bf32ac2cd7ae14a25d4bf813c78e
+
+ablation_results/practical_input/claude_fair_bridge_20261014/judgments/claude/N2-7A0E8A18/parsed_response.json  a1f73af12d9f4c637f4ae852b26e938012e675b1c0d8f87cd2a7d416aa87b72a
+
+ablation_results/practical_input/claude_fair_bridge_20261014/judgments/qwen/N2-7A0E8A18/parsed_response.json  cb4a04ac2df586bd3dc5189c9a0836d04410b497a01fa7eaf1f0d0d542b6c180

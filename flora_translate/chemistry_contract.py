@@ -30,6 +30,9 @@ from flora_translate.schemas import (
 )
 
 
+from flora_translate.source_component_aliases import normalize_plan_component_aliases
+
+
 _INERT_GASES = {"n2", "nitrogen", "ar", "argon"}
 
 
@@ -43,6 +46,7 @@ def reconcile_chemistry_plan(
     """Return a protocol-anchored plan and an auditable reconciliation report."""
 
     plan = chemistry_plan.model_copy(deep=True)
+    normalize_plan_component_aliases(plan, batch_record.raw_text or "")
     protocol = _protocol_text(batch_record)
     constraint_text = _chemistry_constraint_text(hard_constraints)
     evidence_text = "\n".join(value for value in (protocol, constraint_text) if value)

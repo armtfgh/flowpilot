@@ -1,0 +1,42 @@
+{
+  "selected_candidate_id": 1,
+  "failure_modes": [
+    {
+      "rank": 1,
+      "mode": "Packed-bed blockage / channelling causing loss of H₂–liquid contact",
+      "cause": "Catalyst fines migration or gas-bubble coalescence in the 4.35 mm ID packed bed at Re≈5 (deep laminar) creates preferential flow paths or physical plug; liquid holdup and gas distribution are unmeasured and the empty-tube hydraulic model is explicitly flagged as unresolved",
+      "severity": 9,
+      "likelihood": 5,
+      "RPN": 45,
+      "mitigation": "Install 2 µm SS frit at reactor outlet; measure inlet and outlet pressure continuously and halt run if ΔP drifts >20% from baseline; confirm catalyst particle size dp < 0.435 mm (ID/10) before packing; use N₂ pressure-hold test at 21 bar before introducing H₂ or substrate"
+    },
+    {
+      "rank": 2,
+      "mode": "BPR blockage causing uncontrolled pressure excursion or loss of back-pressure",
+      "cause": "Single BPR (bpr_h2_21) is the sole pressure-control device; methanol solvent at 60 °C with dissolved substrate can deposit solids or polymer on the BPR seat; blockage raises system pressure toward pump/tubing limits (40 bar) or, if BPR fails open, drops pressure below MeOH bubble point (vapour pressure ~0.83 bar at 60 °C vs. 21 bar operating), causing flash vaporisation and H₂ release",
+      "severity": 9,
+      "likelihood": 4,
+      "RPN": 36,
+      "mitigation": "Log upstream pressure at 1 Hz; set software interlock to shut pump and close H₂ MFC if P > 25 bar or P < 18 bar; flush BPR with clean methanol for ≥5 min before and after each run; have a spare BPR seat available; route BPR vent to dedicated H₂ safe-vent line (safety_h2_vent)"
+    },
+    {
+      "rank": 3,
+      "mode": "Pyrophoric catalyst ignition during bed packing or reactor opening",
+      "cause": "Pd(OH)₂/Al₂O₃ (Pearlman's catalyst) is O₂-sensitive; the chemistry brief flags O₂-sensitive=True; if the packed bed is exposed to air during loading, wet-catalyst handling, or post-run disassembly while catalyst retains adsorbed H₂, exothermic oxidation can ignite methanol vapour in the confined SS tube",
+      "severity": 10,
+      "likelihood": 3,
+      "RPN": 30,
+      "mitigation": "Pack reactor under N₂ blanket (gas_n2_cylinder) in a fume hood; purge assembled reactor with N₂ at ≥5 reactor volumes before H₂ introduction and after H₂ shutdown before disassembly; quench catalyst with N₂-sparged methanol flush (≥10 mL) before opening; never open reactor while hot or under H₂ atmosphere"
+    }
+  ],
+  "single_points_of_failure": [
+    "BPR valve (bpr_h2_21) — only one unit available; blockage or seat failure simultaneously removes pressure control, risks MeOH flash vaporisation, and releases H₂ to atmosphere",
+    "H₂ MFC (mfc_h2_100) — sole gas-flow control device; failure open delivers unmetered H₂; failure closed starves reaction and may cause pump_h2_pilot to over-pressurise if BPR is also sluggish",
+    "Pd(OH)₂/Al₂O₃ packed bed — catalyst is irreplaceable mid-run; bed collapse or sintering terminates the experiment with no bypass option"
+  ],
+  "validation_experiments": [
+    "Hydraulic commissioning (N₂ pressure-hold + blank solvent flow): Assemble reactor under N₂, pressurize to 21 bar with N₂, hold 30 min and confirm pressure drop <0.5 bar (leak check). Then pump N₂-sparged methanol at Q=0.5 mL/min for 60 min at 60 °C with BPR at 21 bar; log inlet pressure at 1 Hz and flag any drift >5% as indicative of bed channelling, fines migration, or BPR instability. Record steady-state ΔP across packed bed to establish hydraulic baseline before any H₂ or substrate is introduced.",
+    "H₂ stoichiometry and gas-liquid contact verification (blank H₂ + methanol, no substrate): Co-feed H₂ at 1.41 sccm (MFC setpoint) with methanol at 0.5 mL/min through the packed bed at 60 °C / 21 bar for 30 min. Collect liquid effluent and measure dissolved H₂ by headspace GC or pressure-decay method on a sealed aliquot. Confirm that dissolved H₂ in effluent is ≥50% of theoretical saturation at 21 bar (Henry's law estimate ~0.8 M in MeOH at 60 °C); if <50%, gas-liquid mass transfer is insufficient and H₂ flow or pressure must be increased before substrate is introduced.",
+    "Catalyst O₂-sensitivity and pyrophoricity protocol validation (dry run): Before the first live substrate run, perform a full simulated shutdown sequence — close H₂ MFC, purge with N₂ at 5 mL/min for 10 min, flush with 10 mL N₂-sparged methanol, cool to <30 °C, then crack reactor union under N₂ flow and visually inspect catalyst bed for colour change or heat generation. Document time-to-safe-open as a commissioning datum; this establishes the minimum safe shutdown protocol and confirms the N₂ purge volume is adequate to prevent pyrophoric ignition on disassembly."
+  ]
+}
