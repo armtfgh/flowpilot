@@ -1,0 +1,256 @@
+FLOWPILOT PROJECT CONTEXT
+Prepared 21 October 2026
+
+PURPOSE OF THIS FILE
+This is a detailed working-context handoff for a future Codex or human collaborator. It consolidates project facts, scientific narrative, user preferences, decisions and unresolved items already present in the conversation and current repository handoff notes. It is not a verbatim transcript; the conversation transcript is in FlowAgent_Codex_session_backup_2026-10-06_to_2026-10-21.md. It does not contain hidden system instructions, private model reasoning or raw tool-call logs. Treat statements labelled “verify” or “unresolved” as leads for source inspection, not established facts.
+
+1. PROJECT IDENTITY AND SCIENTIFIC AIM
+
+FlowPilot is a research project on using large language models (LLMs) and coordinated agents to translate batch organic-chemistry procedures into connected, inventory-aware continuous-flow process designs. The core scientific task is broader than suggesting a flow rate or reactor volume: chemical interpretation must be reconciled with feed preparation, reagent sequence, reactor topology, residence-time basis, temperature, pressure, gas delivery, available laboratory hardware, operating procedures and uncertainty.
+
+The project’s central idea is to organize model reasoning around a complete, testable experiment. A researcher can supply a batch procedure, objectives and laboratory inventory through a graphical interface. FlowPilot combines protocol parsing, chemistry planning, literature retrieval, engineering calculations, candidate generation and specialist review to return a process design tied to available equipment. Deterministic code should own numerical closure, inventory binding, final validation and executable artifacts; LLMs interpret chemistry and assess design trade-offs. Model confidence, a benchmark score, a diagram or a computational review is not experimental validation, a safety certification or a yield guarantee.
+
+The manuscript’s broader contribution is the evaluation of LLMs and agentic reasoning for flow chemistry, together with a multi-agent pipeline that can form a complete flow-process proposal from a batch protocol, inventory and researcher objectives. Avoid presenting the work only as a software description of FlowPilot. The motivation is the potential for LLM-based workflows to help researchers organize chemical and engineering decisions, accelerate the creation of testable flow experiments, and make process-design reasoning reviewable.
+
+2. ACTIVE CODEBASE AND REPOSITORY MAP
+
+The repository is /home/amirreza/Documents/codes/Flow Agent. The active batch-to-flow implementation is still named flora_translate in source. “FlowPilot” is the user-facing product and manuscript name; do not rename the Python package without a deliberate migration of imports, packaging and tests.
+
+The current code-agent handoff is README_CODEAGENT.md. It describes the codebase inspected on 20 October 2026 and should be read before source changes. Its important orientation points are:
+
+- Main translation entry point: flora_translate/main.py::translate.
+- Shared schemas and data contracts: flora_translate/schemas.py.
+- Current multi-agent council: flora_translate/engine/council_v4/.
+- Browser/desktop application: flowpilot_webapp/.
+- Additional Streamlit application: root app.py and pages/.
+- Older topology-generation package: flora_design/; useful legacy context, not the main batch-protocol pipeline.
+- Separate HILO optimization prototype: hilo_webapp/; do not conflate it with FlowPilot’s primary web app.
+- Research tools include flora_fundamentals/, flora_scout/, flora_prism/, flora_optimize/, paper_miner.py and related extraction/download utilities.
+- Benchmark source and results are spread across ablation_test/, benchmark/, ablation_results/, output/ and other archived campaign directories. Always match results to their run manifest, code snapshot and model/provider configuration.
+- Manuscript and figures are in manuscript/, figures_paper/, figures/ and related dated revision folders. Treat these as research records. Preserve the latest manuscript and figure versions and do not clean them up without an explicit instruction.
+- The separate KHU sulfide-oxidation direction uses new direction/ and inventory_khu/ and must remain distinct from the original manuscript experiments and benchmark data.
+
+High-level current pipeline:
+
+1. Parse and normalize a batch protocol; collect intake answers, objectives, operating limits and inventory.
+2. Produce a chemistry plan and reconcile it against source-protocol facts and hard constraints.
+3. Preflight required unit operations and inventory capability when strict assignment is requested.
+4. Retrieve and rank relevant literature analogies using chemistry-plan-aware queries and field-aware scoring.
+5. Calculate engineering anchors and explore deterministic feasible design-space candidates.
+6. Generate an initial structured proposal and send it through the ENGINE Council v4 review.
+7. Realize the selected proposal against the laboratory inventory; bind feed, stages, pumps, reactor geometry, gas and pressure settings.
+8. Validate topology, numerical consistency and design disposition; the result may be BLOCK, SCREEN or review-required.
+9. Compile topology and render run-local diagrams and artifacts; return result.final_design as the canonical final numerical/design contract.
+
+Important invariants from README_CODEAGENT.md:
+
+- result.final_design is canonical. Early proposals, council prose and preliminary calculations may be incomplete.
+- Distinguish source facts, user preferences, model hypotheses, retrieved precedents and deterministic calculations.
+- Do not invent equipment under strict inventory constraints. Surface uncertainty, ask for confirmation or return an explicit diagnostic/blocked state.
+- Preserve stage-specific reagent additions and feed assignments in telescoped processes.
+- Gas flow and residence time require explicit reference bases. Do not silently mix standard/inlet flow with in-channel flow or different pressure/temperature bases.
+- Diagrams, procedure, feed table, instrument manifest and final proposal must agree.
+- A passing test or model judgment is not laboratory validation.
+
+The web app’s React frontend lives in flowpilot_webapp/frontend/ and FastAPI backend in flowpilot_webapp/backend/. The frontend submits jobs and displays the shared Python pipeline’s results; it should not contain a separate chemistry implementation. The app includes design, inventory, saved-run and system views. The API key design should keep provider secrets on the server side, not in the browser bundle, local storage, screenshots or source control. The current handoff identifies OPENAI_API_KEY and ANTHROPIC_API_KEY as cloud-route environment variables, and supports local OpenAI-compatible model endpoints via FlowPilot-specific base URL variables. Confirm implementation details in the current code before documenting user-facing setup. Do not commit .env or provider keys.
+
+The root Streamlit app is an additional/older interface. The current README_CODEAGENT.md gives run commands and test commands. It also cautions that no single root pyproject.toml or fully pinned root environment exists. Benchmark scripts may make paid API calls; inspect them before running.
+
+License status remains undecided. Do not assign or imply an open-source license without the project owner’s decision. The publication packaging discussion also emphasized keeping historical data and bulky research outputs out of a clean source-only public package unless they are intentionally selected for release.
+
+3. RETRIEVAL / RAG CONTEXT
+
+The manuscript’s retrieval argument is that a large literature corpus helps process design only when retrieved records reflect the chemistry and operating conditions in the design plan. The intended FlowPilot query uses reaction class, mechanism, catalyst, solvent, irradiation wavelength and other plan fields, rather than relying only on a generic semantic question. Retrieval can first prioritize paired batch–flow records under stricter mechanism/phase constraints, then broaden to less restrictive filters and the full corpus when close precedents are scarce. Reranking combines semantic similarity with agreement in selected chemical/process descriptors, and the council later assesses the returned records.
+
+This is an extension of semantic RAG with chemistry-aware query construction, metadata filtering, field-aware reranking and staged fallback. The specific implementation is in flora_translate/retriever.py, vector_store.py, embedding_engine.py and analogy_selector.py. README_CODEAGENT.md identifies OpenAI text-embedding-3-small as the semantic embedding route in the currently documented environment, with lexical fallback if embeddings fail. Recheck code and stored-index metadata before asserting exact model/version, dimension or embedded fields in a methods section.
+
+Important evidence limits already discussed for the manuscript:
+
+- A query with more extracted chemical terms demonstrates that the structured query exposes more descriptors; it does not show that longer queries are inherently better.
+- If photocatalyst-family agreement contributes directly to a reranking score, an analysis of family agreement tests whether the ranking preserves that requested descriptor; it does not independently prove mechanistic relevance.
+- Unknown/unassigned catalyst-family labels may mean missing or unrecognized metadata, not a verified chemical mismatch.
+- Catalyst identity, wavelength, solvent and reactor labels help screen precedents but do not prove suitability for a target reaction.
+- The retrospective analysis used stored embeddings and did not execute the complete live retrieval workflow. Do not describe it as a complete online retrieval benchmark unless a separate run supports that claim.
+- A fair claim that this method is “better than simple RAG” needs direct, reproducible retrieval evaluation on the same corpus, queries, exclusions, embeddings and outcome metric. The user asked for multiple analyses and figures to support this claim, but no result should be invented from the manuscript text alone.
+
+4. MAIN MANUSCRIPT AND EXPERIMENTAL STORY
+
+The manuscript is being prepared for Advanced Science. The intended narrative is: after testing the architecture computationally, take agent-designed process plans to the laboratory; explain the inventory and researcher priorities; show how the agent council reasons through coupled chemical/engineering choices; then report measured outcomes in context. Do not write as a sequence of captions or a technical report.
+
+Editorial preferences from the project owner:
+
+- Write in fluent, high-quality scientific prose with a clear motivation and transitions between paragraphs.
+- The owner referred to a Nature paper as a stylistic inspiration. Use only general qualities such as narrative flow, logical links and concise scientific interpretation; do not copy distinctive phrasing.
+- Avoid amateur panel-by-panel narration such as “Figure 4b shows…” at the start of every paragraph. Integrate figure references naturally into the scientific story.
+- Avoid report-like phrasing, repetitive caveat lists, unnecessary colons and lines such as “this must be considered” followed by a data inventory.
+- Interpret results and explain why the test matters; do not merely enumerate means, SDs, tables and figure panels.
+- Keep evidence boundaries honest. Do not overstate a single selected design as an optimized method, compare unmatched literature yields as a controlled competition, or claim that computational scores predict laboratory success.
+- In the two experimental case sections, foreground what the multi-agent workflow inferred, coordinated and specified, while retaining only the wet-lab details needed to substantiate the design and outcomes.
+- Refer to the three researcher response sets as Set 1, Set 2 and Set 3, consistent with the figures/ESI. They are different priorities, not replicate experiments. In the recorded study, some sets converged on the same operating point, giving two distinct implemented designs per chemistry.
+- The user explicitly asked that the manuscript discussion of Figure 5 omit the earlier backflow incident and its revision. Do not reinsert that narrative into the manuscript passage without a new instruction.
+
+The design benchmark prompt comparison should explain that both architectures received the same batch protocol, objective, equipment inventory and requested output structure. The one-shot baseline was supplied with a deliberately engineered, detailed brief specifying chemistry-dependent requirements (for example catalyst retention, gas-flow reference conditions, residence-time definitions and operating procedures). That input itself goes substantially beyond a typical short researcher request and requires anticipating many relevant chemical/engineering questions. FlowPilot received the same task information but distributed work across chemistry analysis, calculations, retrieval and council review, with tools and additional computation. The result tests the complete architecture under matched task information, not equal token/computation cost and not dialogue alone.
+
+The manuscript’s novelty framing should be checked against current literature before calling this the first such study. A cautious contribution statement is that the study brings LLMs and agentic reasoning to flow-process design, implements a batch-protocol-to-inventory-bound design pipeline, and evaluates it across benchmark, computational and wet-lab layers.
+
+5. KNOWN BENCHMARK FACTS FROM THE MANUSCRIPT MATERIAL
+
+Architecture comparison (main Figure 4):
+
+- The pooled main comparison uses five generators: GPT-4o, Claude Sonnet 4.6, Claude Opus 4.6, Qwen3.6-27B and Qwen3.8-27B.
+- GPT-5.4 also appears in an archived comparison but is not pooled into the five-model summary.
+- Three chemistry cases were used. Each of the five pooled models was tested in both architectures for three repeats per case. This gives 5 models x 2 architectures x 3 cases x 3 repeats = 90 outcomes.
+- The reported architecture mean was 0.794 for one-shot generation and 0.917 for FlowPilot. Each of the five generators had a higher mean with FlowPilot in that cohort.
+- Judge-recorded critical flags were 98 across 45 one-shot outcomes and 4 across 45 FlowPilot outcomes. Eighteen one-shot outcomes and 43 FlowPilot outcomes had no flag.
+- Three LLM evaluator calls (Qwen, OpenAI and Claude) assessed normalized final designs using the same 14 criteria, with applicable integer scores from 0 to 4 averaged with equal judge and criterion weights and divided by four. Critical flags were retained separately.
+- This is an LLM-judge assessment, not a laboratory success rate. Shared model families and output-style cues may affect judgments. Multiple flags may refer to one defect; a judge can also be wrong.
+- FlowPilot used retrieval, tools and candidate revisions, so the comparison is of the full architecture and additional computation, not equal token cost.
+
+Selected module-ablation screen (Figure 4d and Table S6):
+
+- Qwen3.8-27B; one generation per condition per chemistry across the same three cases.
+- The selected main-text/ESI table contains seven conditions, or 21 condition-case outcomes. A larger complete screen contains 15 conditions and 45 outcomes; do not conflate these counts.
+- The selected seven-condition means and between-case SDs were: No council 0.670 ± 0.137; One-shot 0.743 ± 0.167; Without Chemistry 0.902 ± 0.054; Without Fluidics 0.913 ± 0.042; Without Safety 0.915 ± 0.060; Without Kinetics 0.924 ± 0.057; Full FlowPilot 0.928 ± 0.027.
+- The screen table also records mean generation-model calls per case (3.0, 1.0, 12.0, 10.7, 12.3, 12.0 and 13.3, respectively) and total judge flags (19, 14, 0, 0, 0, 0 and 0).
+- The no-council condition scored below one-shot; full FlowPilot scored highest among these seven. Since there was one generation per case-condition, SD is between-case variation, not repeatability uncertainty. The screen does not establish a causal ranking of individual specialist roles.
+- The remaining eight conditions are part of the full 15-condition archive, not Figure 4d/Table S6.
+
+A separate Astra benchmark was discussed and repaired in earlier work. The owner accepted retaining the repaired benchmark result, but exact numerical scores and run IDs are not present in this context note. Check the latest benchmark artifacts and manifests before quoting values or claiming that FlowPilot beats one-shot Astra. Earlier score discrepancies raised concerns about reproducibility, prompt size, parser/routing changes, scoring changes and configuration drift. The owner’s lasting requirement is a fair, reproducible comparison and genuine fixes, not a benchmark altered simply to improve FlowPilot’s rank. Preserve the comparison conditions and report the actual run configuration.
+
+6. LABORATORY CASES USED IN THE MAIN MANUSCRIPT
+
+Figure 5: staged photoredox Giese addition followed by sulfide oxidation.
+
+- The batch chemistry couples carbon–carbon bond formation from an alpha-silyl sulfide with oxidation of the resulting sulfide to sulfoxide. The batch schedule separates the stages in time: 4 h under argon, then 6 h irradiation after exposure to air.
+- The flow design challenge is to preserve the sequence spatially: oxygen-free first photoreactor, then oxidant introduction before the downstream oxidation stage.
+- The researcher supplied laboratory inventory through the GUI and selected one of three objective response sets. The recorded sets emphasized: Set 1, high final yield without unnecessarily long holds; Set 2, high conversion with justified starting times; Set 3, a balance between yield and throughput. They were not separate reactions or experimental replicates.
+- FlowPilot reviewed 12 candidates for each set and selected one design per set. Sets 1 and 3 converged on a 2 mL first-stage coil; Set 2 selected a 5 mL first-stage coil. All selected designs retained a 20 mL second-stage oxidation coil. The convergence yielded two distinct implemented operating points, not three independently optimized conditions.
+- The selected setup used an upstream photoreactor and a separately illuminated downstream reactor at 25 ± 1 °C. The nominal first-stage liquid residence-time values were 100 min for the 2 mL coil and 250 min for the 5 mL coil at the stated liquid flow. Oxygen was introduced between stages; the recorded proposal used 0.090 mL min-1 on an inlet/STP basis and approximately two oxygen equivalents relative to nominal substrate feed. Gas-volume-based second-stage index must not be called in-reactor residence time under pressure.
+- Implemented yields: grouped Sets 1/3, 97% NMR and 94% isolated; Set 2, 98% NMR. Literature flow reference: 90% NMR and 88% isolated under different conditions. Literature batch reference: 95% isolated. These are contextual comparisons, not matched controls. Similar yields at the shorter and longer first-stage times do not prove a residence-time effect without replication.
+- Emphasize that FlowPilot proposed one starting design per response set after a computational candidate screen. The published literature result may represent extensive researcher optimization over many experiments; do not imply that one model suggestion outperformed months/years of literature experimentation in a controlled comparison.
+- The owner specifically asked that the earlier backflow issue and subsequent revision be removed from the manuscript narrative.
+
+Figure 6: coupled feed and residence-time design for telescoped amidation.
+
+- The sequence activates 3-methyl-4-nitrobenzoic acid with DPDTC and DMAP to form a 2-pyridyl thioester, then adds benzylamine for aminolysis to an amide. Batch uses two 30 min periods at 95 °C, separated by cooling and amine addition.
+- FlowPilot had to preserve activation before aminolysis, decide on direct hot transfer, and account for the second feed changing both stoichiometry and downstream total flow.
+- In the reported council explanation, Chemistry set the reaction order/interstage addition; Kinetics compared stage exposures; Fluidics checked molar ratios, concentration/flow products and cumulative downstream flow; Safety reviewed heated, pressurized setup and feed compatibility; Skeptic retained uncertainty about Stage 2 conversion.
+- Set 1 selected two 5 mL coils. Sets 2/3 converged on a 10 mL activation coil followed by a 5 mL amidation coil, with higher feed rates. The longer activation and shorter downstream hold make an explicit stage-allocation trade-off; they do not guarantee improved yield.
+- Feed A was acid 0.500 M, DPDTC 0.525 M and DMAP 0.0500 M in 2-MeTHF; Feed B was benzylamine 2.10 M. Set 1 rates: 0.160 and 0.0400 mL min-1, giving nominal acid and amine deliveries 0.0800 and 0.0840 mmol min-1 (1.05 equivalents amine). Two 5 mL coils give nominal stage times 31.25 and 25.00 min at 95 °C. The recorded pressure was 5.2–5.3 bar with a 7 bar cartridge BPR.
+- The Set 2/3 operating point used 0.280 and 0.0700 mL min-1 with 10 and 5 mL coils, giving nominal stage times 35.71 and 14.29 min. Nominal acid delivery increased 75%, while total nominal stage time fell from 56.25 to 50 min.
+- Outcomes: Set 1, 86% NMR and 84% isolated; Set 2/3 shared operating point, 68% NMR. Literature references were 98% NMR in batch and 97% isolated in flow under different conditions. They are contextual, unmatched values.
+- Since the two stage volumes and rates changed together and intermediate conversion was not measured, the lower outcome does not identify a rate-limiting step. Finite sample-loop experiments do not demonstrate sustained production rates.
+
+7. EXPERIMENTAL AND METHODS INFORMATION STILL REQUESTED
+
+The manuscript/ESI work logged open data requests Q07–Q15. These were marked as to be provided later or remain unresolved in the conversation:
+
+Q07. Start/end timestamps or telemetry for the six laboratory design runs, if retaining the approximate 8–15 min proposal-generation claim. The unsupported timing claim was removed pending records.
+
+Q08. Corpus search dates and selection criteria; extraction and validation procedures; embedding model/version, dimension and exact text fields embedded; configuration of stored embeddings used in retrospective retrieval analysis.
+
+Q09. Engineering-rule extraction/audit procedure, source locations, definition of the 29 rule categories, and category/severity schema. Figure changes were deferred to a figure pass.
+
+Q10. Exact campaign-specific specialist-role and judge prompts or stable archive links; sample normalized judge packet; held-out reference-facts schema; which facts were available to generators versus judges.
+
+Q11. Candidate generation and selection configuration, including exploratory batch-time multipliers, candidate/revision budgets, score weights, renormalization, tie-breaking and rationale for live/retrospective retrieval weights.
+
+Q12. Run-to-version manifests with exact model identifiers, provider routing, quantization/serving software/GPU where relevant, decoding settings, commits/dependencies and inventory profiles; stable accessible archive for frozen inputs, outcomes and provenance.
+
+Q13. Campaign-version calculator specification/code with pressure-drop and heat-transfer correlations, phase/holdup assumptions, property inputs, and source/estimation method for overall heat-transfer coefficient.
+
+Q14. Pressure sensor and MFC calibration records; BPR part/specification/tolerance and available operating/startup traces; evidence explaining nominal 7 bar cartridge versus 5.1–5.8 bar gauge readings. Pressure basis, sensor position and check-valve placement had been confirmed.
+
+Q15. Raw quantitative-NMR files/yield worksheets, internal-standard purity and weighed amounts, integration regions/proton counts, aliquot/dilution basis, independent experimental repeat identifiers, instrument exports and actual tubing dimensions.
+
+Other study limitations noted for discussion: no equal-computation comparison; LLM-based evaluators; model pretraining leakage cannot be excluded just because source records were excluded from retrieval; laboratory tests are small and finite; single recommendations per response set are not repeated optimization; matched direct yield ranking is not established; and candidate success does not establish safe operation or generalization to all chemistry classes.
+
+8. SEPARATE KHU SULFIDE-SELECTIVE OXIDATION DIRECTION
+
+This is a distinct collaboration/study, not one of the two laboratory cases above. The source email is a collaboration with Professor Boyoung Park and team at Kyung Hee University. Their goal is to selectively oxidize sulfides to sulfoxides while suppressing sulfones using homogeneous acridine and heterogeneous resin-acridine (PS-acridine).
+
+The shared materials described in the email include a presentation, raw batch datasets reported as 111 homogeneous and 42 heterogeneous records, and a laboratory inventory. Batch-scope work was still ongoing in the email; the collaborators were asked to report sulfoxide and sulfone yields separately because substrate-specific overoxidation should influence residence-time choices. Relevant files live under new direction/ and inventory_khu/; inspect current filenames and versions before use. Candidate inventory files also exist at the repository root, so confirm which profile is latest before a design run.
+
+The proposed first stage was homogeneous acridine flow design/optimization:
+
+- Import the batch history as explicit experimental evidence in a study-specific FlowPilot configuration.
+- Validate and normalize substrate, catalyst, solvent, temperature, time, oxidant, product/selectivity and yield fields; retain provenance and distinguish missing values from zero yields.
+- Build an initial tubing-reactor screening set rather than promise a single optimum. The proposed design space was 3–5 residence-time points and 1–2 oxidant-supply levels, with rationale for each point.
+- Compare conditions against the inventory and real lamp/reactor setup. The email proposed a Vapourtec UV-150 at 450 nm for flow design.
+- Until the collaborator confirms otherwise, the proposing email said to treat air as the default oxidant for both catalyst systems. The actual oxidant, feed mode (sample-loop vs continuous) and available thioanisole amount were clarification questions, not confirmed facts.
+- After each flow screen, ingest outcomes into FlowPilot’s feedback/experimental-history path and propose the next set. Bayesian optimization or multiobjective Bayesian optimization could be explored later; it was not yet the agreed first step.
+- Substrate-specific transfer was a later priority after homogeneous conditions and batch scope are ready. Compare transfer of the model-substrate flow condition with structure/batch-informed adjusted starting conditions, while tracking sulfoxide versus sulfone selectivity.
+- Heterogeneous packed-bed design was planned later because light penetration and pressure can complicate packed-bed photochemistry. It might be reported as a verified starting design only if schedule/experiments limit optimization.
+
+The email proposed a first homogeneous design by 16 October and a manuscript submission target in late November, as of the 30 September email. Those are historical target dates; the current completion status is not established by this context file. The owner requested a dedicated folder/package with code, data and a README so a new Codex thread could continue the study. Do not mix these records with the existing main manuscript’s benchmark or invent results.
+
+9. ASTRA AND OTHER BENCHMARK REPRODUCIBILITY CONTEXT
+
+The owner raised a concern that the full one-shot prompt used in the main comparison may be much longer and more engineered than a practical researcher prompt. They requested a practical one-shot versus FlowPilot comparison using a stronger model such as GPT-4o or Claude 4.6, with benchmark data kept separate from other campaign records. Subsequent runs produced score discrepancies and low scores; the owner asked to investigate reproducibility and fairness, not to alter the setup arbitrarily.
+
+The resulting durable requirements are:
+
+- Freeze benchmark cases, model IDs, prompts, input context, parser, scoring rubric, judge packet, retries and random/decoding settings.
+- Store raw requests/responses and every transformation between generated response and judged artifact.
+- Compare one-shot and FlowPilot under clearly stated information and compute/token budgets. The main matched-information benchmark and a practical short-prompt benchmark answer different questions; do not conflate them.
+- A practical one-shot user input can be shorter, but then the information deficit is part of the test. A second matched-information test can provide the detailed, engineered task brief to both architectures.
+- Do not tune only FlowPilot while holding a favorable one-shot artifact fixed unless the claim is explicitly restricted and the test is independently justified. Never change scoring or case handling only to force FlowPilot above the baseline.
+- Prior ASTRA benchmark artifacts should be found under benchmark/output campaign folders and checked against manifests before quoting. Earlier benchmark results were retained at the owner’s request, but exact scores are absent from this handoff note.
+
+10. OLD PREPRINT / PATENT-REVIEW THREAD — KEEP VERSION BOUNDARIES CLEAR
+
+The patent questions concern the FlowPilot ChemRxiv preprint v1 posted 18 May 2026, not the latest manuscript or current code. Answers must be checked against that version’s original code and run logs. Do not silently answer v1 questions from the current source tree.
+
+Topics raised:
+
+- Whether IntensificationMandate filters out candidates that fail an improvement target or only changes evaluation scores.
+- Exact intensification-factor (IF) formula and derivation of approximate 6-fold and 10-fold examples, including batch reference and included stages.
+- Mixing ratio r_mix, calculated in the project discussion as t_mix = d^2 / (4D) and r_mix = t_mix / tau, using D = 1e-9 m^2/s; basis for 0.20 and whether exceeding it warns or rejects must be verified in v1 implementation.
+- Flow Figure 6 inconsistency: council log states 0.5 mL/min per reactant stream and a 1.8 bar BPR; the final diagram shows 1.2049 mL/min per stream and no BPR. The transcript does not establish a verified source-of-truth operating point. Do not present either as factually correct without consulting the original v1 run log, generated diagram provenance and code.
+- Retrieval fallback triggers, filters relaxed, and the point at which semantic-only retrieval is used.
+- Figure 5 MFC setpoint of 0.07 mL/min: temperature/pressure reference and any correction applied.
+
+The owner accepted a proposed explanatory framing that IF defaults may begin as fixed initial values, then be overridden by chemistry analysis, the council and retrieved evidence. Before stating this as a confirmed v1 behavior, verify the actual code and what the preprint says. User explicitly wanted clarification rather than a correction to the patent text. Provide short, direct explanations in plain text with formulas written in plain text, not LaTeX, when drafting an email.
+
+11. PUBLICATION, ZENODO AND REPOSITORY-MAINTENANCE DECISIONS
+
+The owner prepared the manuscript, ESI, figures and Advanced Science cover letter and asked for help with citation placement, ESI numbering, a missing UO-1 to UO-13 panel in Figure S5, and short editorial text replacements so first citations follow figure/table numbering. Preserve current manuscript and figure files; do not assume the October 5 or October 21 revision is the latest without checking filenames/timestamps and asking if needed.
+
+A publication-ready GitHub package was requested with a polished README, figures, clear project structure, FlowPilot branding and no historical run data in the public webapp package. Runtime source, manuscript material and large generated results should be clearly separated. Data/results should be ignored by Git where appropriate, but avoid removing records needed by core code or the manuscript. The code package’s license remains undecided.
+
+A Zenodo upload dataset was requested for selected useful research data, including ablation and other selected evaluation records. Before uploading, inventory its contents and explicitly identify whether ASTRA files are included; do not infer from a zip name. Suggested record title should align with the manuscript title. Separate actual public datasets from confidential/raw lab data and historical artifacts; no publication or external upload should be assumed solely from prior packaging discussion.
+
+The project had exceeded 20 GB at one point. The owner requested analysis and cleanup while protecting current manuscript format, latest manuscript/ESI figures and any core-code data. They later authorized some cleanup, but no deletions should be made now without checking current status and preserving those protected files. The root README_CODEAGENT.md lists directories that may be archives or generated output; follow its cautions.
+
+12. USER’S COLLABORATION AND WRITING PREFERENCES
+
+- Be action-oriented and finish authorized tasks rather than repeatedly pausing for permission.
+- Explain the result and evidence directly. Keep updates concise and meaningful.
+- For manuscript editing, return polished text in a connected scientific narrative. The owner dislikes report-style prose, excessive limitations and repetitive “Figure X shows” paragraphs.
+- Keep claims precise and distinguish computational proposals, assessor scores, measured experiments and literature context.
+- When comparing FlowPilot and one-shot models, clearly state what both received and what extra tools/computation FlowPilot used.
+- Avoid claiming the literature benchmark was beaten if conditions and optimization histories differ. Explain that FlowPilot supplied a single experimental starting point per response set after candidate review, while literature yields may reflect extensive optimization.
+- Preserve exact Set 1/2/3 nomenclature and avoid calling response sets replicates.
+- When writing the project owner’s patent correspondence, focus on the old preprint v1 and use plain-text formulas.
+
+13. KNOWN FILES AND CONTINUATION POINTERS
+
+- README_CODEAGENT.md — detailed current source-code and interface handoff.
+- FlowAgent_Codex_session_backup_2026-10-06_to_2026-10-21.md — visible conversation transcript backup, in chronological order.
+- FLOWPILOT_PROJECT_CONTEXT.txt — this project-context handoff.
+- flora_translate/ — active batch-to-flow pipeline.
+- flowpilot_webapp/ — browser/desktop interface.
+- ablation_test/, benchmark/, ablation_results/, output/ — benchmark code and archives. Check manifests and dates.
+- manuscript/, figures_paper/, figures/ — manuscript and figure work. Protect latest files.
+- new direction/, inventory_khu/ — separate KHU sulfide-selective oxidation direction and associated records.
+- docs/flowpilot_2_development.md — scientific-mode development notes; case-specific, not general validation.
+
+NEXT ACTIONS WHEN CONTINUING
+
+1. Check git status and repository branch; these context/handoff documents may be untracked and should be reviewed before any commit.
+2. Read README_CODEAGENT.md and inspect the exact current source before code changes.
+3. For manuscript work, locate the current main text, ESI and figure source; establish version provenance before editing.
+4. For benchmark claims, locate raw outcomes and manifests; do not rely on a remembered score alone.
+5. For the KHU direction, check whether the study-specific folder/package and inventory/data normalization are complete. Confirm the current status because the planned 16 October design date has passed.
+6. For preprint/patent clarifications, isolate the v1 code/logs and report only conclusions supported by that historical version.
+7. Preserve raw records, manuscript assets, figures, inventory profiles and provenance. Do not delete or publish data without a task-specific review.
